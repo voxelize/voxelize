@@ -73,19 +73,10 @@ export const WideBranchBits = {
   ],
 };
 
-/** The largest whole number whose square is at most `n`. */
-function isqrt(n: number): number {
-  let root = Math.floor(Math.sqrt(n));
-  while (root * root > n) root -= 1;
-  while ((root + 1) * (root + 1) <= n) root += 1;
-  return root;
-}
-
 /**
- * A branch section wider than one voxel: one round tube of `radius` texels
- * round the axis through its core cell's centre, at texel resolution (a
- * texel belongs when its centre lies within the radius). Mirrors
- * `WideBranchSection` in the mesher crate, integer for integer.
+ * A branch section wider than one voxel: one square tube reaching `radius`
+ * texels each way from the axis through its core cell's centre, cut into
+ * the cells it covers. Mirrors `WideBranchSection` in the mesher crate.
  */
 export const WideBranchSection = {
   /** Cells the section reaches on each side of its core. */
@@ -93,23 +84,25 @@ export const WideBranchSection = {
     const t = Math.max(texelsPerBlock, 1);
     return Math.floor(Math.max(radius + Math.floor(t / 2) - 1, 0) / t);
   },
-  /** The tube's extent along b in the texel column at `a` (core texels). */
-  column(
+  /**
+   * The tube's span across the cell `d` cells from the core along one axis,
+   * in that cell's texels, or null where the tube does not reach it.
+   */
+  span(
     radius: number,
     texelsPerBlock: number,
-    a: number,
+    d: number,
   ): [number, number] | null {
-    const centre = Math.floor(texelsPerBlock / 2);
-    const u = 2 * a + 1 - 2 * centre;
-    const reach = 4 * radius * radius - u * u;
-    if (reach < 1) return null;
-    const half = Math.floor((isqrt(reach) + 1) / 2);
-    return half > 0 ? [centre - half, centre + half] : null;
+    const t = texelsPerBlock;
+    const centre = Math.floor(t / 2);
+    const start = d * t;
+    const low = Math.max(centre - radius, start);
+    const high = Math.min(centre + radius, start + t);
+    return high > low ? [low - start, high - start] : null;
   },
   /**
-   * The boxes the tube fills in the cell `(da, db)` from the core, as
-   * `[a0, b0, a1, b1]` in that cell's texels: one per run of columns along
-   * `a` with the same extent along `b`.
+   * The box the tube fills in the cell `(da, db)` from the core, as
+   * `[a0, b0, a1, b1]` in that cell's texels; none where it misses the cell.
    */
   cellBoxes(
     radius: number,
@@ -117,24 +110,9 @@ export const WideBranchSection = {
     da: number,
     db: number,
   ): [number, number, number, number][] {
-    const t = texelsPerBlock;
-    const startA = da * t;
-    const startB = db * t;
-    const boxes: [number, number, number, number][] = [];
-    for (let i = 0; i < t; i += 1) {
-      const column = WideBranchSection.column(radius, t, startA + i);
-      if (!column) continue;
-      const b0 = Math.max(column[0], startB) - startB;
-      const b1 = Math.min(column[1], startB + t) - startB;
-      if (b1 <= b0) continue;
-      const last = boxes[boxes.length - 1];
-      if (last && last[2] === i && last[1] === b0 && last[3] === b1) {
-        last[2] += 1;
-      } else {
-        boxes.push([i, b0, i + 1, b1]);
-      }
-    }
-    return boxes;
+    const a = WideBranchSection.span(radius, texelsPerBlock, da);
+    const b = WideBranchSection.span(radius, texelsPerBlock, db);
+    return a && b ? [[a[0], b[0], a[1], b[1]]] : [];
   },
 };
 

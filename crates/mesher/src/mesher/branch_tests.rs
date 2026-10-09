@@ -357,7 +357,7 @@ fn wide(radius: u32, texels_per_block: u32) -> WideBranchSection {
 }
 
 #[test]
-fn a_wide_section_is_the_circle_at_texel_resolution() {
+fn a_wide_section_is_the_square_tube_at_texel_resolution() {
     for t in [8, 16, 32] {
         for radius in [1, 3, 8, 9, 12, 20, 24, 33, 40, 56, 64]
             .into_iter()
@@ -365,8 +365,7 @@ fn a_wide_section_is_the_circle_at_texel_resolution() {
         {
             let section = wide(radius, t);
             let reach = section.reach();
-            let c = (t / 2) as i64;
-            let r2 = 4 * (radius as i64).pow(2);
+            let (c, r) = ((t / 2) as i64, radius as i64);
             let mut drawn = std::collections::HashSet::new();
             for da in -reach - 1..=reach + 1 {
                 for db in -reach - 1..=reach + 1 {
@@ -374,6 +373,7 @@ fn a_wide_section_is_the_circle_at_texel_resolution() {
                     if da.abs() > reach || db.abs() > reach {
                         assert!(boxes.is_empty(), "t{t} R{radius} reaches past ({da}, {db})");
                     }
+                    assert!(boxes.len() <= 1, "a square cell is one box");
                     for [a0, b0, a1, b1] in boxes {
                         assert!(a0 < a1 && b0 < b1 && a1 <= t && b1 <= t);
                         for i in a0..a1 {
@@ -386,14 +386,14 @@ fn a_wide_section_is_the_circle_at_texel_resolution() {
                     }
                 }
             }
-            // Every texel whose centre lies within the radius, and no other.
+            // Every texel within the radius of the axis on both axes, and no other.
             let span = (reach as i64 + 2) * t as i64;
             for x in -span..span {
                 for z in -span..span {
-                    let (u, v) = (2 * x + 1 - 2 * c, 2 * z + 1 - 2 * c);
+                    let inside = (c - r..c + r).contains(&x) && (c - r..c + r).contains(&z);
                     assert_eq!(
                         drawn.contains(&(x, z)),
-                        u * u + v * v <= r2,
+                        inside,
                         "t{t} R{radius} texel ({x}, {z})"
                     );
                 }
@@ -404,40 +404,48 @@ fn a_wide_section_is_the_circle_at_texel_resolution() {
 }
 
 #[test]
-fn wide_sections_keep_their_reach_and_round_their_corners() {
+fn wide_sections_keep_their_reach_and_square_corners() {
     let at = |radius| wide(radius, T);
     assert_eq!(at(8).reach(), 0, "half a block is one voxel");
     assert_eq!(at(24).reach(), 1, "three cells across");
     assert_eq!(at(64).reach(), 4, "R 64 is nine cells across, not eight");
-    assert_eq!(at(24).cell_area(0, 0), 256, "the core cell is full");
-    assert!(
-        (240..256).contains(&at(24).cell_area(1, 0)),
-        "a side is nearly full, its far edge rounded off"
-    );
-    assert!(
-        (1..256).contains(&at(24).cell_area(1, 1)),
-        "a corner holds only its quarter of the round"
-    );
+    for (da, db) in [(0, 0), (1, 0), (1, 1), (-1, 1)] {
+        assert_eq!(at(24).cell_area(da, db), 256, "R 24 is a full 3x3");
+    }
     assert_eq!(
-        at(9).cell_area(1, 1),
-        0,
-        "R 9 reaches the sides but not the corners"
+        at(64).cell_area(4, 0),
+        8 * 16,
+        "R 64's outer cells are half filled"
     );
-    assert!(at(9).cell_area(1, 0) > 0);
-    for radius in [12, 20, 24, 40, 56, 64] {
+    assert_eq!(at(64).cell_area(4, 4), 8 * 8);
+    assert_eq!(
+        at(9).cell_area(1, 0),
+        16,
+        "R 9 spills one texel into its sides"
+    );
+    assert_eq!(at(9).cell_area(1, 1), 1, "and one into its corners");
+    for radius in [9, 12, 20, 24, 37, 40, 56, 64] {
         let section = at(radius);
-        let disc = std::f64::consts::PI * (radius as f64).powi(2);
-        let area = section.area() as f64;
-        assert!(
-            (area - disc).abs() / disc < 0.05,
-            "R{radius}: {area} against {disc}"
-        );
+        assert_eq!(section.area(), (2 * radius).pow(2), "R{radius}");
         let reach = section.reach();
+        let sum: u32 = (-reach..=reach)
+            .flat_map(|da| (-reach..=reach).map(move |db| (da, db)))
+            .map(|(da, db)| section.cell_area(da, db))
+            .sum();
+        assert_eq!(
+            sum,
+            section.area(),
+            "R{radius}: the cells add up to the tube"
+        );
         for da in -reach..=reach {
             for db in -reach..=reach {
                 let area = section.cell_area(da, db);
                 for (a, b) in [(-da, db), (da, -db), (db, da)] {
-                    assert_eq!(section.cell_area(a, b), area, "R{radius} is round");
+                    assert_eq!(
+                        section.cell_area(a, b),
+                        area,
+                        "R{radius} is square about its axis"
+                    );
                 }
             }
         }
@@ -779,9 +787,9 @@ fn opaque_stone_hides_a_full_trunk_face() {
 
 #[test]
 fn a_bole_level_between_its_neighbours_draws_only_its_bark() {
-    // Three stacked round levels: the middle one covers and is covered, and
-    // its cells meet one another, so only its outer bark is left: the
-    // tube's surface and the risers of its round.
+    // Three stacked levels: the middle one covers and is covered, and its
+    // cells meet one another, so only its outer bark is left: the tube's
+    // four sides.
     let words = [
         level([2, 1, 2], 24, false),
         level([2, 2, 2], 24, false),
@@ -794,9 +802,10 @@ fn a_bole_level_between_its_neighbours_draws_only_its_bark() {
             quads.extend(quads_at(&words, [x, 2, z]));
         }
     }
-    assert!(
-        quads.len() > 12,
-        "a round level has risers as well as sides"
+    assert_eq!(
+        quads.len(),
+        12,
+        "a full 3x3 level shows its four sides, three cells each, and nothing else"
     );
     assert!(quads.iter().all(|quad| quad.texture == BranchTexture::Side));
     assert!(
@@ -952,7 +961,7 @@ fn every_wide_face_keeps_one_texel_density_on_both_axes() {
 }
 
 #[test]
-fn an_arm_starts_where_the_round_slice_ends_and_never_overlaps_it() {
+fn an_arm_starts_where_the_slice_ends_and_never_overlaps_it() {
     let mut words = level([2, 1, 2], 20, false);
     words.push(([4, 1, 2], LIMB | (stage(3) << 24)));
     let raw = raw_space(&words);
@@ -1109,7 +1118,7 @@ fn a_straight_trunk_draws_each_side_as_one_quad_however_tall() {
 }
 
 #[test]
-fn a_run_of_equal_levels_draws_its_round_outline_once() {
+fn a_run_of_equal_levels_draws_its_outline_once() {
     let one = mesh_lit(&local(&level([3, 1, 3], 24, false)), |_| SUN);
     let four: Vec<_> = (1..=4).flat_map(|y| level([3, y, 3], 24, false)).collect();
     let four = mesh_lit(&local(&four), |_| SUN);
@@ -1286,18 +1295,15 @@ fn the_mesh_closes_the_wood_and_draws_nothing_outside_it() {
     assert!(wood.len() > 100_000, "{} texels of wood", wood.len());
 }
 
-/// A giant's bole (a flared foot, a long straight run, a taper) and its
+/// A giant's bole, a square tube narrowing a texel a level, and its
 /// one-voxel leader, meshed in one chunk under the sun:
 /// quads per block and the median mesh time. `cargo test -p voxelize-mesher
 /// bole_census -- --ignored --nocapture`.
 #[test]
 #[ignore]
 fn bole_census() {
-    let mut radii: Vec<u32> = vec![60, 58, 56, 54, 52, 50, 48, 46, 44, 42];
-    radii.extend([40; 19]);
-    radii.extend([36, 34, 32, 30, 28]);
-    radii.extend([24; 6]);
-    radii.extend([20, 16, 12, 10]);
+    // A foot of R 54 narrowing one texel a level to R 10.
+    let radii: Vec<u32> = (10..=54).rev().collect();
     let mut words: Vec<([i32; 3], u32)> = Vec::new();
     for (y, &radius) in radii.iter().enumerate() {
         words.extend(level([12, 1 + y as i32, 12], radius, false));
