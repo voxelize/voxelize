@@ -379,6 +379,50 @@ interface MeshState {
   inFlightStartedAt: Map<number, number>;
 }
 
+const CHAR_MINUS = 45;
+const CHAR_ZERO = 48;
+const CHAR_COMMA = 44;
+const CHAR_COLON = 58;
+
+/**
+ * The squared chunk distance from a `cx,cz:level` mesh key's column to a
+ * center, read off the key's characters. The remesh order sorts every dirty
+ * key by it, a thousand and more right after the render radius grows, and
+ * parsing a key into strings, an array and an object on every comparison
+ * made that sort the frame's largest allocation.
+ */
+function keyColumnDistanceSq(key: string, centerX: number, centerZ: number) {
+  let i = 0;
+  let sign = 1;
+  if (key.charCodeAt(i) === CHAR_MINUS) {
+    sign = -1;
+    i++;
+  }
+  let cx = 0;
+  for (; i < key.length; i++) {
+    const code = key.charCodeAt(i);
+    if (code === CHAR_COMMA) break;
+    cx = cx * 10 + (code - CHAR_ZERO);
+  }
+  cx *= sign;
+  i++;
+  sign = 1;
+  if (key.charCodeAt(i) === CHAR_MINUS) {
+    sign = -1;
+    i++;
+  }
+  let cz = 0;
+  for (; i < key.length; i++) {
+    const code = key.charCodeAt(i);
+    if (code === CHAR_COLON) break;
+    cz = cz * 10 + (code - CHAR_ZERO);
+  }
+  cz *= sign;
+  const dx = cx - centerX;
+  const dz = cz - centerZ;
+  return dx * dx + dz * dz;
+}
+
 export class MeshPipeline {
   private states = new Map<string, MeshState>();
   private dirty = new Set<string>();
@@ -547,16 +591,20 @@ export class MeshPipeline {
     );
     if (center) {
       const [centerX, centerZ] = center;
-      const distanceSq = (key: string) => {
-        const { cx, cz } = MeshPipeline.parseKey(key);
-        const dx = cx - centerX;
-        const dz = cz - centerZ;
-        return dx * dx + dz * dz;
-      };
-      regularKeys.sort((a, b) => distanceSq(a) - distanceSq(b));
+      const distances = this.dirtyKeyDistances;
+      for (const key of regularKeys) {
+        distances.set(key, keyColumnDistanceSq(key, centerX, centerZ));
+      }
+      regularKeys.sort(
+        (a, b) => (distances.get(a) as number) - (distances.get(b) as number),
+      );
+      distances.clear();
     }
     return [...urgentKeys, ...regularKeys];
   }
+
+  /** Each dirty key's distance for one {@link getDirtyKeys} sort. */
+  private dirtyKeyDistances = new Map<string, number>();
 
   hasDirtyChunks(): boolean {
     for (const key of this.urgentDirty) {

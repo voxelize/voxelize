@@ -368,6 +368,33 @@ describe("MeshPipeline voxel-change remesh", () => {
     ]);
   });
 
+  it("reads negative and multi-digit columns off the key for that order", () => {
+    const pipeline = new MeshPipeline();
+    const columns: [number, number][] = [
+      [-12, 3],
+      [7, -140],
+      [-1, -1],
+      [0, 0],
+      [33, 21],
+      [-250, 18],
+    ];
+    for (const [cx, cz] of columns) pipeline.onVoxelChange(cx, cz, 3);
+
+    const center: [number, number] = [-3, 2];
+    const byParsedDistance = columns
+      .map(([cx, cz]) => MeshPipeline.makeKey(cx, cz, 3))
+      .sort((a, b) => {
+        const pa = MeshPipeline.parseKey(a);
+        const pb = MeshPipeline.parseKey(b);
+        return (
+          (pa.cx - center[0]) ** 2 +
+          (pa.cz - center[1]) ** 2 -
+          ((pb.cx - center[0]) ** 2 + (pb.cz - center[1]) ** 2)
+        );
+      });
+    expect(pipeline.getDirtyKeys(center)).toEqual(byParsedDistance);
+  });
+
   it("keeps the urgent lane in insertion order ahead of sorted regular keys", () => {
     const pipeline = new MeshPipeline();
     pipeline.onVoxelChange(50, 50, 0, true);
