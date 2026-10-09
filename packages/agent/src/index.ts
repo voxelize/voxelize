@@ -28,6 +28,11 @@ export type {
   RequestedCaptureViewport,
 } from "./capture-viewport";
 export { evaluateAgentHealth } from "./health";
+export {
+  assertUncappedWindow,
+  CappedFrameRateError,
+  MIN_DRAWN_FRAME_SHARE,
+} from "./frame-rate-guard";
 export type { AgentHealth, AgentHealthInput, AgentWorldHealth } from "./health";
 export { AgentDaemon } from "./daemon";
 export type {

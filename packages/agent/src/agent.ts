@@ -73,6 +73,7 @@ import {
   resolveHmrUrlPatterns,
 } from "./client-updates";
 import { composeClientUrl } from "./client-url";
+import { assertUncappedWindow } from "./frame-rate-guard";
 import { AgentHealth, AgentWorldHealth, evaluateAgentHealth } from "./health";
 import {
   createAgentPerfTraceId,
@@ -2004,10 +2005,25 @@ export class Agent {
     const durationMs = opts.durationMs ?? 10_000;
     const warmupMs = opts.warmupMs ?? 1_000;
 
-    return this.withPageTimeout(
+    const measurement = await this.withPageTimeout(
       "measureFrameRate",
       durationMs + warmupMs + PAGE_CALL_GRACE_MS,
       () => this.evaluateFrameRateMeasurement(durationMs, warmupMs),
+    );
+    assertUncappedWindow(measurement.drawThrottle, measurement.frameCount);
+    return measurement;
+  }
+
+  /** The page's own report of its draw cap, not the daemon's bookkeeping. */
+  async drawThrottleStatus(): Promise<DrawThrottleStatus> {
+    return this.withPageTimeout("drawThrottle", this.defaultPageTimeoutMs, () =>
+      this.page.evaluate(() => {
+        const bridge = window.__agent__;
+        if (typeof bridge?.drawThrottle !== "function") {
+          return { intervalMs: null, isSupported: false };
+        }
+        return bridge.drawThrottle();
+      }),
     );
   }
 
@@ -2023,6 +2039,36 @@ export class Agent {
           let measurementStartedAt = 0;
           let lastFrameAt = 0;
 
+          // Every frame of the window, warmup included, asks the page for
+          // its cap: one capped frame anywhere refuses the measurement.
+          const bridge = window.__agent__;
+          const readCap = () =>
+            typeof bridge?.drawThrottle === "function"
+              ? bridge.drawThrottle()
+              : null;
+          const firstCap = readCap();
+          const draws: FrameRateMeasurement["drawThrottle"] = {
+            isReported: firstCap !== null && firstCap.isSupported,
+            intervalAtStartMs: firstCap?.intervalMs ?? null,
+            intervalAtEndMs: null,
+            cappedFrames: 0,
+            maxIntervalMs: null,
+            drawnFrames: null,
+          };
+          let drawnAtStart: number | null = null;
+          const observeCap = () => {
+            const cap = readCap();
+            if (cap?.intervalMs != null) {
+              draws.cappedFrames += 1;
+              draws.maxIntervalMs = Math.max(
+                draws.maxIntervalMs ?? 0,
+                cap.intervalMs,
+              );
+            }
+            return cap;
+          };
+          observeCap();
+
           const percentile = (sorted: number[], value: number): number => {
             if (sorted.length === 0) return 0;
             const index = Math.min(
@@ -2033,6 +2079,7 @@ export class Agent {
           };
 
           const tick = (now: number): void => {
+            const cap = observeCap();
             if (warmupStartedAt === 0) {
               warmupStartedAt = now;
               requestAnimationFrame(tick);
@@ -2047,6 +2094,7 @@ export class Agent {
             if (measurementStartedAt === 0) {
               measurementStartedAt = now;
               lastFrameAt = now;
+              drawnAtStart = cap?.drawnFrames ?? null;
               requestAnimationFrame(tick);
               return;
             }
@@ -2057,6 +2105,11 @@ export class Agent {
             if (now - measurementStartedAt < measuredDurationMs) {
               requestAnimationFrame(tick);
               return;
+            }
+
+            draws.intervalAtEndMs = cap?.intervalMs ?? null;
+            if (drawnAtStart !== null && cap?.drawnFrames != null) {
+              draws.drawnFrames = cap.drawnFrames - drawnAtStart;
             }
 
             const elapsedMs = lastFrameAt - measurementStartedAt;
@@ -2087,6 +2140,7 @@ export class Agent {
               p95FrameMs,
               p99FrameMs,
               maxFrameMs,
+              drawThrottle: draws,
             });
           };
 

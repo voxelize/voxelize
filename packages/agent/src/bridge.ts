@@ -398,6 +398,26 @@ export type FrameRateMeasurement = {
   p95FrameMs: number;
   p99FrameMs: number;
   maxFrameMs: number;
+  /** What the page's draw cap was through the window; see `frame-rate-guard.ts`. */
+  drawThrottle: FrameRateDrawRecord;
+};
+
+/**
+ * The draw cap as the page itself reported it on every frame of a
+ * measurement, warmup included. A measurement whose window ran capped, or
+ * whose host drew fewer frames than rAF delivered, is refused rather than
+ * reported.
+ */
+export type FrameRateDrawRecord = {
+  /** False when the page's bridge cannot report a cap at all. */
+  isReported: boolean;
+  intervalAtStartMs: number | null;
+  intervalAtEndMs: number | null;
+  /** Warmup and measured frames seen with a cap on, and the widest cap. */
+  cappedFrames: number;
+  maxIntervalMs: number | null;
+  /** Frames the host drew over the measured frames, when it counts them. */
+  drawnFrames: number | null;
 };
 
 export type AgentEventMap = {
@@ -577,6 +597,15 @@ export type DrawThrottleStatus = {
   intervalMs: number | null;
   /** False on a client whose frame loop predates the throttle. */
   isSupported: boolean;
+  /**
+   * Frames the host's loop has drawn since the page loaded, when the host
+   * counts them. A frame-rate measurement times rAF callbacks, and every
+   * cap a host can apply (this throttle, a slow cadence while loading, a
+   * loop that stops while the window is unfocused) skips draws without
+   * slowing rAF: this count is what tells a measured frame from one that
+   * was never drawn.
+   */
+  drawnFrames?: number;
 };
 
 export type RenderStats = {
