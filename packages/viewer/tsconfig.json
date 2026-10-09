@@ -1,0 +1,16 @@
+{
+  "extends": "../../tsconfig.build.json",
+  "include": ["src/**/*", "bin/**/*", "demo/config.ts"],
+  "compilerOptions": {
+    "noEmit": true,
+    "baseUrl": ".",
+    "rootDir": "..",
+    "module": "esnext",
+    "moduleResolution": "bundler",
+    "target": "es2022",
+    "strict": true,
+    "lib": ["es2022", "dom", "dom.iterable", "webworker"],
+    "types": ["node"],
+    "skipLibCheck": true
+  }
+}

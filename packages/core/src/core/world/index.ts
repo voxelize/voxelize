@@ -74,43 +74,6 @@ import {
   formatSuggestion,
 } from "../../utils";
 
-function computeNormalsFromBuffers(
-  positions: ArrayLike<number>,
-  indices: ArrayLike<number>,
-): Float32Array {
-  const normals = new Float32Array(positions.length);
-  for (let i = 0; i < indices.length; i += 3) {
-    const ia = indices[i] * 3;
-    const ib = indices[i + 1] * 3;
-    const ic = indices[i + 2] * 3;
-    const e1x = positions[ib] - positions[ia];
-    const e1y = positions[ib + 1] - positions[ia + 1];
-    const e1z = positions[ib + 2] - positions[ia + 2];
-    const e2x = positions[ic] - positions[ia];
-    const e2y = positions[ic + 1] - positions[ia + 1];
-    const e2z = positions[ic + 2] - positions[ia + 2];
-    let nx = e1y * e2z - e1z * e2y;
-    let ny = e1z * e2x - e1x * e2z;
-    let nz = e1x * e2y - e1y * e2x;
-    const len = Math.sqrt(nx * nx + ny * ny + nz * nz);
-    if (len > 0) {
-      nx /= len;
-      ny /= len;
-      nz /= len;
-    }
-    normals[ia] = nx;
-    normals[ia + 1] = ny;
-    normals[ia + 2] = nz;
-    normals[ib] = nx;
-    normals[ib + 1] = ny;
-    normals[ib + 2] = nz;
-    normals[ic] = nx;
-    normals[ic + 1] = ny;
-    normals[ic + 2] = nz;
-  }
-  return normals;
-}
-
 function computeFlatNormals(geometry: BufferGeometry) {
   const pos = (geometry.getAttribute("position") as BufferAttribute).array;
   const idx = geometry.getIndex();
@@ -149,6 +112,7 @@ import {
   setOwnFaceTexture,
   sharedCutoutMaterialKeyFor,
 } from "./chunk-materials";
+import { computeNormalsFromBuffers } from "./chunk-normals";
 import { ChunkRegionArenas } from "./chunk-region-arenas";
 import { ChunkRenderer, makeSceneColorTexture } from "./chunk-renderer";
 import {
@@ -238,10 +202,12 @@ import {
 } from "./world-clock";
 import { WorldOptions, defaultWorldClientOptions } from "./world-options";
 
+export * from "./biome-tint";
 export * from "./block";
 export * from "./block-animations";
 export * from "./chunk";
 export * from "./chunk-materials";
+export * from "./chunk-normals";
 export * from "./chunk-region-arenas";
 export * from "./chunk-renderer";
 export * from "./chunk-requests";
