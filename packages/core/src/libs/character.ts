@@ -11,9 +11,11 @@ import {
   Object3D,
   Quaternion,
   Vector3,
+  Vector4,
 } from "three";
 
 import {
+  EntityShadowUniforms,
   ShaderLightingUniforms,
   updateEntityShadowUniforms,
 } from "../core/world/entity-shadow-uniforms";
@@ -36,6 +38,7 @@ const LERP_REFERENCE_FPS = 60;
 const identityQuaternion = new Quaternion();
 const headBodyInverse = new Quaternion();
 const ridePivotScratch = new Vector3();
+const shadowBoundsCenter = new Vector3();
 // Ride attitude pushes arrive once per mount render frame; tolerating a
 // few frames without one keeps update-order differences from flickering
 // the lean while still decaying promptly after a dismount.
@@ -257,6 +260,13 @@ export type CharacterOptions = {
   receiveShadows?: boolean;
 
   /**
+   * Slack in blocks around the body's bounding sphere
+   * ({@link Character.shadowSelfBounds}) for the shadow-map filter's reach
+   * and a frame of motion. Defaults to `0.1`.
+   */
+  shadowSelfBoundsMargin?: number;
+
+  /**
    * Draw each body part in one call instead of six (`CanvasBoxOptions.mergeFaces`).
    * Painting is unchanged; a consumer that swaps or re-reads the parts'
    * per-face materials as draw state needs the per-face path. Defaults to
@@ -274,6 +284,7 @@ export const defaultCharacterOptions: CharacterOptions = {
   swimEnterLerp: 0.12,
   swimExitLerp: 0.05,
   idleArmSwing: 0.06,
+  shadowSelfBoundsMargin: 0.1,
 };
 
 export const defaultHeadOptions: HeadOptions = {
@@ -490,6 +501,16 @@ export class Character extends Group {
   public readonly rideOffset = new Vector3();
 
   /**
+   * The body's bounding sphere in world space (centre xyz, radius w). Every
+   * part's entity shadow uniforms read it as `uShadowSelfBounds`, so no face
+   * is shaded by the body it belongs to while anything beyond the body
+   * still shades it. Kept current by {@link update} and
+   * {@link updateShadowUniforms}; {@link bindShadowSelfBounds} shares it
+   * with an accessory's uniforms.
+   */
+  public readonly shadowSelfBounds = new Vector4();
+
+  /**
    * A listener called when a character starts moving.
    */
   onMove: () => void;
@@ -565,6 +586,13 @@ export class Character extends Group {
       this.userData.receiveShadows = true;
     }
 
+    for (const part of this.shadowParts()) {
+      for (const layer of part.boxLayers) {
+        this.bindShadowSelfBounds(layer.shadowUniforms);
+      }
+    }
+    this.refreshShadowSelfBounds();
+
     const position = this.rightArmGroup.position;
     const quaternion = this.rightArmGroup.quaternion;
 
@@ -615,6 +643,7 @@ export class Character extends Group {
     }
 
     this.lerpAll(delta);
+    this.refreshShadowSelfBounds();
   }
 
   snapToTarget() {
@@ -631,6 +660,7 @@ export class Character extends Group {
       this.headGroup.rotation.setFromQuaternion(this.newDirection);
       this.bodyGroup.quaternion.copy(this.newBodyDirection);
     }
+    this.refreshShadowSelfBounds();
   }
 
   /**
@@ -750,7 +780,63 @@ export class Character extends Group {
   updateShadowUniforms(lightingUniforms: ShaderLightingUniforms): void {
     if (!this.options.receiveShadows) return;
 
-    const parts = [
+    this.refreshShadowSelfBounds();
+    for (const part of this.shadowParts()) {
+      if (part?.shadowUniforms) {
+        updateEntityShadowUniforms(part.shadowUniforms, lightingUniforms);
+      }
+    }
+  }
+
+  /**
+   * Have `uniforms` read this body's {@link shadowSelfBounds}: for an
+   * accessory with a shadowed material of its own (armour, a hat), so it is
+   * shaded like the body it is worn on.
+   */
+  bindShadowSelfBounds(uniforms: EntityShadowUniforms | null | undefined) {
+    if (uniforms) uniforms.uShadowSelfBounds.value = this.shadowSelfBounds;
+  }
+
+  /**
+   * Recompute {@link shadowSelfBounds} from the current pose: a sphere about
+   * the middle of the body that holds every part however the arms swing,
+   * carried, turned and scaled with the root (a swimmer lies along it, a
+   * fallen body rolls with it).
+   */
+  refreshShadowSelfBounds() {
+    const { head, body, arms } = this.options;
+    const bodyHalf = Math.max(body.width, body.depth) / 2;
+    const lateral =
+      bodyHalf + (arms.shoulderGap ?? 0) + Math.max(arms.width, arms.depth);
+    const reach = Math.max(
+      bodyHalf,
+      arms.height,
+      Math.max(head.width, head.depth) / 2,
+    );
+    const vertical = this.totalHeight / 2;
+
+    const center = shadowBoundsCenter
+      .set(0, vertical - this.eyeHeight, 0)
+      .multiply(this.scale)
+      .applyQuaternion(this.quaternion)
+      .add(this.position);
+    let scale = Math.max(this.scale.x, this.scale.y, this.scale.z);
+    if (this.parent) {
+      center.applyMatrix4(this.parent.matrixWorld);
+      scale *= this.parent.matrixWorld.getMaxScaleOnAxis();
+    }
+
+    this.shadowSelfBounds.set(
+      center.x,
+      center.y,
+      center.z,
+      Math.hypot(lateral, vertical, reach) * scale +
+        this.options.shadowSelfBoundsMargin,
+    );
+  }
+
+  private shadowParts() {
+    return [
       this.head,
       this.body,
       this.leftArm,
@@ -758,12 +844,6 @@ export class Character extends Group {
       this.leftLeg,
       this.rightLeg,
     ];
-
-    for (const part of parts) {
-      if (part?.shadowUniforms) {
-        updateEntityShadowUniforms(part.shadowUniforms, lightingUniforms);
-      }
-    }
   }
 
   set legColor(color: string | Color) {

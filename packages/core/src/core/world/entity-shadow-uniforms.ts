@@ -1,4 +1,4 @@
-import { Color, IUniform, Matrix4, Texture, Vector3 } from "three";
+import { Color, IUniform, Matrix4, Texture, Vector3, Vector4 } from "three";
 
 import { ShaderLightingUniforms } from "./chunk-renderer";
 import {
@@ -26,6 +26,15 @@ export interface EntityShadowUniforms {
   uSunColor: IUniform<Color>;
   uWorldOffset: IUniform<Vector3>;
   uMinOccluderDepth: IUniform<number>;
+  /**
+   * The receiving body's own bounding sphere in world space (centre, radius;
+   * radius 0 for none), read by `getEntityShadowAt`: an occluder inside it,
+   * along the ray to the sun, is the body itself and casts nothing onto it.
+   * A body shares one vector across all of its parts' uniforms.
+   */
+  uShadowSelfBounds: IUniform<Vector4>;
+  /** Near-cascade shadow-map depth per block along the light. */
+  uShadowDepthPerBlock: IUniform<number>;
 }
 
 export function createEntityShadowUniforms(): EntityShadowUniforms {
@@ -47,6 +56,8 @@ export function createEntityShadowUniforms(): EntityShadowUniforms {
     uSunColor: { value: new Color(1, 1, 1) },
     uWorldOffset: { value: new Vector3(0, 0, 0) },
     uMinOccluderDepth: { value: 0.0 },
+    uShadowSelfBounds: { value: new Vector4(0, 0, 0, 0) },
+    uShadowDepthPerBlock: { value: 0.0 },
   };
 }
 
@@ -68,6 +79,27 @@ export function updateEntityShadowUniforms(
   target.uSunlightIntensity.value = source.sunlightIntensity.value;
   target.uSunDirection.value.copy(source.sunDirection.value);
   target.uSunColor.value.copy(source.sunColor.value);
+  target.uShadowDepthPerBlock.value = shadowDepthPerBlock(
+    source.shadowMatrix0.value,
+    source.sunDirection.value,
+  );
+}
+
+/**
+ * How far the depth stored in a shadow map moves per block along the light:
+ * the map is an orthographic projection, so this is one number per cascade,
+ * the depth component of the light direction carried through its matrix.
+ */
+export function shadowDepthPerBlock(
+  shadowMatrix: Matrix4,
+  lightDirection: Vector3,
+): number {
+  const e = shadowMatrix.elements;
+  const clipDepth =
+    e[2] * lightDirection.x +
+    e[6] * lightDirection.y +
+    e[10] * lightDirection.z;
+  return Math.abs(0.5 * clipDepth);
 }
 
 export const ENTITY_SHADOW_VERTEX_PARS = `
@@ -105,6 +137,8 @@ uniform float uSunlightIntensity;
 uniform vec3 uSunDirection;
 uniform vec3 uSunColor;
 uniform float uMinOccluderDepth;
+uniform vec4 uShadowSelfBounds;
+uniform float uShadowDepthPerBlock;
 
 varying vec4 vShadowCoord0;
 varying vec4 vShadowCoord1;
@@ -115,15 +149,12 @@ ${SHADOW_POISSON_DISK}
 
 ${SHADOW_SAMPLE_FUNCTIONS}
 
-float getEntityShadow(vec3 worldNormal) {
+float entityShadowWithBias(float bias) {
   float effectiveStrength = uShadowStrength * uSunlightIntensity;
   
   if (effectiveStrength < 0.01) {
     return 1.0;
   }
-
-  float cosTheta = clamp(dot(worldNormal, uSunDirection), 0.0, 1.0);
-  float bias = uShadowBias + uShadowNormalBias * (1.0 - cosTheta);
 
   float rawShadow = sampleShadowMapPCSS(uShadowMap0, vShadowCoord0, bias);
 
@@ -139,5 +170,37 @@ float getEntityShadow(vec3 worldNormal) {
 
   float shadow = mix(1.0, rawShadow, effectiveStrength * 0.65);
   return max(shadow, 0.6);
+}
+
+float getEntityShadow(vec3 worldNormal) {
+  float cosTheta = clamp(dot(worldNormal, uSunDirection), 0.0, 1.0);
+  return entityShadowWithBias(uShadowBias + uShadowNormalBias * (1.0 - cosTheta));
+}
+
+// Shadow-map depth from worldPosition, toward the sun, to where the ray
+// leaves the body's own bounding sphere. Unbounded without a sphere, or for
+// a point outside it (bounds that do not describe this surface).
+float entityShadowSelfDepth(vec3 worldPosition) {
+  float radius = uShadowSelfBounds.w;
+  vec3 offset = worldPosition - uShadowSelfBounds.xyz;
+  float inside = dot(offset, offset) - radius * radius;
+  if (radius <= 0.0 || inside > 0.0) {
+    return 1e9;
+  }
+  float along = dot(offset, uSunDirection);
+  float exitDistance = -along + sqrt(along * along - inside);
+  return exitDistance * uShadowDepthPerBlock;
+}
+
+// getEntityShadow for a body that knows its own bounds: the slope-scaled
+// bias that keeps a sun-averted face out of its own body's shadow never
+// reaches past those bounds, so whatever lies beyond them (a deck, a
+// canopy, another body) still shades every face.
+float getEntityShadowAt(vec3 worldNormal, vec3 worldPosition) {
+  float cosTheta = clamp(dot(worldNormal, uSunDirection), 0.0, 1.0);
+  float slopeBias = uShadowNormalBias * (1.0 - cosTheta);
+  return entityShadowWithBias(
+    uShadowBias + min(slopeBias, entityShadowSelfDepth(worldPosition))
+  );
 }
 `;

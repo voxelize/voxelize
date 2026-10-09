@@ -716,6 +716,8 @@ export class BoxLayer extends Mesh {
               "#include <uv_pars_vertex>",
               `#include <uv_pars_vertex>
 ${ENTITY_SHADOW_VERTEX_PARS}
+varying vec3 vCanvasBoxShadowNormal;
+varying vec3 vCanvasBoxShadowPosition;
 `,
             )
             .replace(
@@ -723,12 +725,16 @@ ${ENTITY_SHADOW_VERTEX_PARS}
               `#include <worldpos_vertex>
 vec4 worldPosition = modelMatrix * vec4(transformed, 1.0);
 ${ENTITY_SHADOW_VERTEX_MAIN}
+vCanvasBoxShadowNormal = normalize(mat3(modelMatrix) * normal);
+vCanvasBoxShadowPosition = shadowWorldPos.xyz;
 `,
             );
           fragment = fragment.replace(
             "#include <common>",
             `#include <common>
 ${ENTITY_SHADOW_FRAGMENT_PARS}
+varying vec3 vCanvasBoxShadowNormal;
+varying vec3 vCanvasBoxShadowPosition;
 `,
           );
         }
@@ -758,8 +764,15 @@ varying vec3 vCanvasBoxWorldPosition;
 
         let colorInjection = "#include <dithering_fragment>";
         if (shadowUniforms) {
+          // The face's own normal drives the slope-scaled bias, so a face
+          // turned away from the sun is not darkened by the volume behind it;
+          // the owner's self bounds (`uShadowSelfBounds`) cap that bias at
+          // the edge of its body.
           colorInjection += `
-float shadow = getEntityShadow(vec3(0.0, 1.0, 0.0));
+float shadow = getEntityShadowAt(
+  normalize(vCanvasBoxShadowNormal),
+  vCanvasBoxShadowPosition
+);
 gl_FragColor.rgb *= shadow;`;
         }
         if (underwaterUniforms) {
