@@ -192,8 +192,8 @@ pub fn sweep(
         for vz in (min_z as i32)..=(max_z as i32) {
             for vy in (min_y as i32)..=(max_y as i32) {
                 let id = space.get_voxel(vx, vy, vz);
-                let rotation = space.get_voxel_rotation(vx, vy, vz);
                 let block = registry.get_block_by_id(id);
+                let rotation = block.rotation_of(space.get_raw_voxel(vx, vy, vz));
 
                 if block.is_fluid || block.is_empty || block.is_passable {
                     continue;

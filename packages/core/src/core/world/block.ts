@@ -286,6 +286,14 @@ export type Block = {
   branchSockets: BranchSocket[];
 
   /**
+   * Raw bits 16-23 of this block's voxels hold the block's own state, not a
+   * rotation: {@link World.getVoxelRotationAt} reads the identity rotation
+   * for it, and its rotation cannot be set. Mirrors the server
+   * `rotation_bits_are_state`.
+   */
+  rotationBitsAreState: boolean;
+
+  /**
    * If this block is dynamic, this function will be called to generate the faces and AABB's. By default, this
    * just returns the faces and AABB's that are defined in the block data.
    *

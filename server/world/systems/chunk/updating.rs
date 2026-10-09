@@ -9,7 +9,7 @@ use crate::{
     ChunkInterests, ChunkUtils, Chunks, ClientFilter, CurrentChunkComp, ETypeComp, EntityFlag,
     IDComp, JsonComp, LightColor, LightNode, Lights, Mesher, Message, MessageQueues, MessageType,
     MetadataComp, PerfToggle, RandomTickCatchUp, Registry, Stats, UpdateLane, UpdateProtocol, Vec2, Vec3,
-    VoxelAccess, VoxelComp, VoxelPacker, WorldConfig, perf_toggle,
+    VoxelAccess, VoxelComp, VoxelPacker, WorldConfig, perf_toggle, ROTATION_BYTE_MASK,
 };
 
 pub const VOXEL_NEIGHBORS: [[i32; 3]; 6] = [
@@ -890,7 +890,17 @@ fn commit_batch(
                 neighbor_voxels.insert(Vec3(vx + ox, vy + oy, vz + oz));
             }
 
-            if updated_type.rotatable || updated_type.y_rotatable {
+            if updated_type.rotation_bits_are_state {
+                // Written as they came: decoding them as a rotation would fold
+                // most values to "up".
+                let written = chunks.get_raw_voxel(vx, vy, vz);
+                chunks.set_raw_voxel(
+                    vx,
+                    vy,
+                    vz,
+                    (written & !ROTATION_BYTE_MASK) | (raw & ROTATION_BYTE_MASK),
+                );
+            } else if updated_type.rotatable || updated_type.y_rotatable {
                 chunks.set_voxel_rotation(vx, vy, vz, &rotation);
             }
 

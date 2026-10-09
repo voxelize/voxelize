@@ -61,6 +61,7 @@ pub struct BlockBuilder {
     connected: Option<ConnectedFrame>,
     branch: Option<BranchShape>,
     branch_sockets: Vec<BranchSocket>,
+    rotation_bits_are_state: bool,
     dynamic_fn: Option<
         Arc<
             dyn Fn(Vec3<i32>, &dyn VoxelAccess, &Registry) -> (Vec<BlockFace>, Vec<AABB>, [bool; 6])
@@ -508,6 +509,15 @@ impl BlockBuilder {
         self
     }
 
+    /// Keep raw bits 16–23 of this block's voxels as the block's own state,
+    /// not a rotation ([`Block::rotation_bits_are_state`]). Such a block never
+    /// rotates and is equally transparent on all six sides, so the paths that
+    /// rotate a voxel's transparency by those bits change nothing.
+    pub fn rotation_bits_are_state(mut self) -> Self {
+        self.rotation_bits_are_state = true;
+        self
+    }
+
     /// Configure the function that is used to create dynamic AABBs and faces for this block.
     pub fn dynamic_fn<
         F: Fn(Vec3<i32>, &dyn VoxelAccess, &Registry) -> (Vec<BlockFace>, Vec<AABB>, [bool; 6])
@@ -659,6 +669,27 @@ impl BlockBuilder {
             }
         }
 
+        if self.rotation_bits_are_state {
+            assert!(
+                !self.rotatable && !self.y_rotatable,
+                "{}: a block whose rotation bits are state cannot rotate",
+                self.name
+            );
+            let sides = [
+                self.is_px_transparent,
+                self.is_py_transparent,
+                self.is_pz_transparent,
+                self.is_nx_transparent,
+                self.is_ny_transparent,
+                self.is_nz_transparent,
+            ];
+            assert!(
+                sides.iter().all(|&side| side == sides[0]),
+                "{}: a block whose rotation bits are state must be equally transparent on all six sides",
+                self.name
+            );
+        }
+
         // A coupled block is always active: the orphan guard wraps whatever
         // the block declared for itself, so both can coexist (an iron door
         // keeps its auto-close dwell and still heals as a unit).
@@ -729,6 +760,7 @@ impl BlockBuilder {
             connected: self.connected,
             branch: self.branch,
             branch_sockets: self.branch_sockets,
+            rotation_bits_are_state: self.rotation_bits_are_state,
             dynamic_fn: self.dynamic_fn,
             is_active: active_updater.is_some() && active_ticker.is_some(),
             active_ticker,

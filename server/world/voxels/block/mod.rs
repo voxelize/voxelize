@@ -11,7 +11,7 @@ use std::{f32, marker::Sync, sync::Arc};
 
 use serde::{Deserialize, Serialize};
 
-use crate::{LightColor, Registry, Vec3, VoxelAccess, VoxelUpdate, AABB};
+use crate::{BlockUtils, LightColor, Registry, Vec3, VoxelAccess, VoxelUpdate, AABB};
 
 pub use builder::*;
 pub use coupled::*;
@@ -20,7 +20,7 @@ pub use rules::*;
 
 pub use voxelize_core::{
     BlockRotation, CornerData, NX_ROTATION, NY_ROTATION, NZ_ROTATION, PX_ROTATION, PY_ROTATION,
-    PZ_ROTATION, ROTATION_MASK, STAGE_MASK, Y_ROTATION_MASK, Y_ROT_SEGMENTS,
+    PZ_ROTATION, ROTATION_BYTE_MASK, ROTATION_MASK, STAGE_MASK, Y_ROTATION_MASK, Y_ROT_SEGMENTS,
 };
 pub use voxelize_mesher::{
     BranchLayout, BranchPart, BranchPartKind, BranchSeat, BranchShape, BranchSide, BranchSocket,
@@ -206,6 +206,14 @@ pub struct Block {
     /// [`BlockBuilder::branch_socket`].
     #[serde(default)]
     pub branch_sockets: Vec<BranchSocket>,
+
+    /// Raw bits 16–23 of this block's voxels hold state the block keeps for
+    /// itself, not a rotation: every path that would decode them as one reads
+    /// the identity rotation instead ([`Block::rotation_of`]), and the update
+    /// intake writes them as they come. Declared with
+    /// [`BlockBuilder::rotation_bits_are_state`].
+    #[serde(default)]
+    pub rotation_bits_are_state: bool,
 
     /// Dynamic aabb and face generation function. Defaults to `None`.
     #[serde(skip)]
@@ -402,6 +410,16 @@ impl Block {
 
     pub fn get_rotated_transparency(&self, rotation: &BlockRotation) -> [bool; 6] {
         rotation.rotate_transparency(self.is_transparent)
+    }
+
+    /// The rotation a voxel of this block holding `raw` is drawn and collides
+    /// at: the identity for a block whose rotation bits are state.
+    pub fn rotation_of(&self, raw: u32) -> BlockRotation {
+        if self.rotation_bits_are_state {
+            BlockRotation::default()
+        } else {
+            BlockUtils::extract_rotation(raw)
+        }
     }
 
     /// Evaluate the dynamic pattern and return the combined faces and AABBs based on the rules.

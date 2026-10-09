@@ -216,7 +216,7 @@ impl Physics {
                             continue;
                         }
 
-                        let rotation = space.get_voxel_rotation(vx, vy, vz);
+                        let rotation = block.rotation_of(space.get_raw_voxel(vx, vy, vz));
                         for block_aabb in block.get_aabbs(&Vec3(vx, vy, vz), space, registry) {
                             let mut solid = rotation.rotate_aabb(&block_aabb, true, true);
                             solid.translate(vx as f32, vy as f32, vz as f32);
@@ -634,7 +634,8 @@ impl Physics {
                         continue;
                     }
 
-                    let rotation: BlockRotation = space.get_voxel_rotation(vx, vy, vz);
+                    let rotation: BlockRotation =
+                        block.rotation_of(space.get_raw_voxel(vx, vy, vz));
                     for block_aabb in &block.aabbs {
                         let mut rotated = rotation.rotate_aabb(block_aabb, true, false);
                         rotated.translate(vx as f32, vy as f32, vz as f32);

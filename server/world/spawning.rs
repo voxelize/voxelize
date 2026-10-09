@@ -80,7 +80,7 @@ impl World {
                             continue;
                         }
 
-                        let rotation = chunks.get_voxel_rotation(vx, vy, vz);
+                        let rotation = block.rotation_of(chunks.get_raw_voxel(vx, vy, vz));
                         for block_aabb in block.get_aabbs(&Vec3(vx, vy, vz), &*chunks, &registry) {
                             let mut solid = rotation.rotate_aabb(&block_aabb, true, true);
                             solid.translate(vx as f32, vy as f32, vz as f32);
