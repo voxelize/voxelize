@@ -398,6 +398,26 @@ export type FrameRateMeasurement = {
   p95FrameMs: number;
   p99FrameMs: number;
   maxFrameMs: number;
+  /** What the page's draw cap was through the window; see `frame-rate-guard.ts`. */
+  drawThrottle: FrameRateDrawRecord;
+};
+
+/**
+ * The draw cap as the page itself reported it on every frame of a
+ * measurement, warmup included. A measurement whose window ran capped, or
+ * whose host drew fewer frames than rAF delivered, is refused rather than
+ * reported.
+ */
+export type FrameRateDrawRecord = {
+  /** False when the page's bridge cannot report a cap at all. */
+  isReported: boolean;
+  intervalAtStartMs: number | null;
+  intervalAtEndMs: number | null;
+  /** Warmup and measured frames seen with a cap on, and the widest cap. */
+  cappedFrames: number;
+  maxIntervalMs: number | null;
+  /** Frames the host drew over the measured frames, when it counts them. */
+  drawnFrames: number | null;
 };
 
 export type AgentEventMap = {
@@ -577,6 +597,15 @@ export type DrawThrottleStatus = {
   intervalMs: number | null;
   /** False on a client whose frame loop predates the throttle. */
   isSupported: boolean;
+  /**
+   * Frames the host's loop has drawn since the page loaded, when the host
+   * counts them. A frame-rate measurement times rAF callbacks, and every
+   * cap a host can apply (this throttle, a slow cadence while loading, a
+   * loop that stops while the window is unfocused) skips draws without
+   * slowing rAF: this count is what tells a measured frame from one that
+   * was never drawn.
+   */
+  drawnFrames?: number;
 };
 
 export type RenderStats = {
@@ -737,6 +766,10 @@ export type RenderStats = {
     cascadeNeedsRender: boolean[];
     currentShadowStrength: number;
     lastFrameLightSwing: number;
+    /** That swing over the time since the previous update. */
+    lastLightSwingPerSecond: number;
+    /** Angle between the live light and the one the cascades are fitted to. */
+    lightLagRadians: number;
   } | null;
 };
 
@@ -911,11 +944,31 @@ export interface AgentBridge {
    */
   reconnectNow(): boolean;
 
+  /**
+   * Why a frame captured now would not show the world as a player standing
+   * there sees it, empty when nothing is wrong. The capture routes pass
+   * these on loudly, so a tipped or covered frame is never taken for proof.
+   * A bridge without it reports nothing.
+   */
+  captureCaveats?(): CaptureCaveat[];
+
   on<E extends AgentEventName>(
     event: E,
     cb: (data: AgentEventMap[E]) => void,
   ): Unsubscribe;
 }
+
+/** The response header `/sc` and `/screenshot` list a capture's caveats in,
+ * as JSON: present, `[]`, when there are none. */
+export const CAPTURE_CAVEATS_HEADER = "x-agent-capture-caveats";
+
+/** Something that makes a frame captured now mislead. */
+export type CaptureCaveat = {
+  /** A short name scripts can test for, such as `rolled`. */
+  code: string;
+  /** What is wrong, in plain ASCII words. */
+  message: string;
+};
 
 declare global {
   interface Window {

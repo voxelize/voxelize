@@ -100,3 +100,38 @@ export function planAutoJump(
 
   return { height, distance: hit.distance };
 }
+
+/**
+ * The top of the face `box` presses into along `dir` (unit XZ), climbed a
+ * voxel at a time until the body raised to it could step forward its own
+ * length: `null` when nothing is there, the face rises past `maxTop`, or
+ * the body could not rise straight up to `apexAbove` over that top.
+ */
+export function findLedgeTop(
+  probe: AutoJumpProbe,
+  box: AABB,
+  dir: [number, number],
+  maxTop: number,
+  apexAbove: number,
+): number | null {
+  const [dx, dz] = dir;
+  const footprint = Math.abs(dx) * box.width + Math.abs(dz) * box.depth;
+  const run = [dx * footprint, 0, dz * footprint];
+
+  let top: number | null = null;
+  let raised = box.clone().translate([0, PROBE_LIFT, 0]);
+  for (;;) {
+    const hit = probe.sweepObstruction(raised, run);
+    if (!hit || hit.axis === 1) break;
+    if (hit.top > maxTop || hit.top <= raised.minY) return null;
+    top = hit.top;
+    raised = box.clone().translate([0, top - box.minY + PROBE_LIFT, 0]);
+  }
+  if (top === null) return null;
+
+  const lifted = box.clone().translate([0, PROBE_LIFT, 0]);
+  if (!probe.isSweepClear(lifted, [0, top + apexAbove - box.minY, 0])) {
+    return null;
+  }
+  return top;
+}

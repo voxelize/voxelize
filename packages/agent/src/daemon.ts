@@ -9,7 +9,12 @@ import Fastify, {
 import { z } from "zod";
 
 import { Agent, PageStallError, resolveReadyTimeoutMs } from "./agent";
-import type { AgentEventMap, ConnectionSnapshot } from "./bridge";
+import {
+  type AgentEventMap,
+  CAPTURE_CAVEATS_HEADER,
+  type CaptureCaveat,
+  type ConnectionSnapshot,
+} from "./bridge";
 import { DEFAULT_IDLE_TTL_MS } from "./browser-lifecycle";
 import { ensureCaptureDir } from "./capture-dir";
 import {
@@ -18,6 +23,7 @@ import {
 } from "./capture-viewport";
 import type { ClientUpdateMode } from "./client-updates";
 import { computeFramePose } from "./frame-pose";
+import { CappedFrameRateError } from "./frame-rate-guard";
 import {
   describeDrawInterval,
   idleDrawIntervalFor,
@@ -555,6 +561,39 @@ export class AgentDaemon {
     if (this.drawThrottleChange) await this.drawThrottleChange;
     if (!this.isDrawThrottled) return;
     await this.changeDrawThrottle(null);
+  }
+
+  /**
+   * A frame-rate window must run uncapped from its first warmup frame to its
+   * last. The activity hook lifts a cap the daemon recorded, but a lift that
+   * failed leaves the page capped, and a cap call that timed out on this side
+   * can still land on the page later, unrecorded. So the page itself is
+   * asked, whatever cap it reports is lifted, and a page that keeps one is
+   * refused. Nothing re-caps it mid-window: `idleDrawTick` stands down while
+   * any command is in flight.
+   */
+  private async liftDrawCapForMeasurement(): Promise<void> {
+    if (this.drawThrottleChange) await this.drawThrottleChange;
+    const status = await this.agent.drawThrottleStatus();
+    if (!status.isSupported || status.intervalMs === null) return;
+    const wasRecorded = this.isDrawThrottled;
+    const lifted = await this.agent.setDrawThrottle(null);
+    if (lifted.intervalMs !== null) {
+      throw new Error(
+        `the page kept a ${lifted.intervalMs}ms draw cap after being asked to lift it`,
+      );
+    }
+    this.isDrawThrottled = false;
+    this.drawIntervalMs = null;
+    this.drawThrottleDocumentId = this.clientStatus.documentId;
+    console.log(
+      `[agent-daemon] frame-rate: lifted a ${status.intervalMs}ms draw cap the page ${
+        wasRecorded
+          ? "kept after an earlier lift"
+          : "held without the daemon's record"
+      } before measuring`,
+    );
+    this.appendEvent("draw-throttle", { intervalMs: null });
   }
 
   noteActivity(): void {
@@ -1286,6 +1325,12 @@ export class AgentDaemon {
     // menu, badges, chat). Same width/height/scale options as /screenshot.
     this.registerScreenshotRoute("/sc", true);
 
+    // What would make a capture taken now mislead (a tipped camera, a screen
+    // covering the world), so a script can check before it shoots.
+    this.server.get("/caveats", async () => ({
+      caveats: await this.readCaptureCaveats(),
+    }));
+
     // Same optional width/height/scale override as /screenshot: the page is
     // resized for the measurement only, so FPS can be sampled at a real
     // display resolution (e.g. ?width=1512&height=982&scale=2 for a Retina
@@ -1301,6 +1346,18 @@ export class AgentDaemon {
     }>("/frame-rate", async (req, reply) => {
       try {
         const requested = parseCaptureViewportQuery(req.query);
+        try {
+          await this.liftDrawCapForMeasurement();
+        } catch (error) {
+          reply.code(503);
+          return {
+            ok: false,
+            error:
+              "frame-rate refused: could not confirm the page draws every frame " +
+              `(${error instanceof Error ? error.message : String(error)}); a capped ` +
+              "page reports its loop's cadence, not frames drawn",
+          };
+        }
         return await this.agent.measureFrameRate({
           durationMs:
             req.query.durationMs !== undefined
@@ -1316,6 +1373,10 @@ export class AgentDaemon {
         if (e instanceof CaptureViewportError) {
           reply.code(400);
           return { ok: false, error: e.message };
+        }
+        if (e instanceof CappedFrameRateError) {
+          reply.code(503);
+          return { ok: false, error: e.message, drawThrottle: e.record };
         }
         throw e;
       }
@@ -2302,6 +2363,21 @@ export class AgentDaemon {
     });
   }
 
+  /** The page's capture caveats; a failed read is a caveat of its own, never
+   * a clean bill. */
+  private async readCaptureCaveats(): Promise<CaptureCaveat[]> {
+    try {
+      return await this.agent.captureCaveats();
+    } catch (error) {
+      return [
+        {
+          code: "unread",
+          message: `could not read what this frame shows: ${error instanceof Error ? error.message : String(error)}`,
+        },
+      ];
+    }
+  }
+
   private registerScreenshotRoute(
     routePath: string,
     isAlwaysPure: boolean,
@@ -2323,11 +2399,21 @@ export class AgentDaemon {
         req.query.hand === "true" || req.query.hand === "1";
       try {
         const requested = parseCaptureViewportQuery(req.query);
+        const caveats = await this.readCaptureCaveats();
         const buffer = await this.agent.screenshot({
           isPure,
           isIncludingArm,
           ...requested,
         });
+        if (caveats.length > 0) {
+          console.warn(
+            `[agent-daemon] ${routePath} captured a frame that misleads: ${caveats.map((c) => c.message).join("; ")}`,
+          );
+        }
+        reply.header(
+          CAPTURE_CAVEATS_HEADER,
+          JSON.stringify(caveats).replace(/[^\x20-\x7e]/g, "?"),
+        );
         reply.header("content-type", "image/png");
         return buffer;
       } catch (e) {

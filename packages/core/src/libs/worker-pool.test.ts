@@ -136,3 +136,119 @@ describe("WorkerPool slot accounting", () => {
     expect(pool.queue.length).toBe(1);
   });
 });
+
+/**
+ * Answers every job it is handed at once and records what it was sent, so a
+ * test can see which worker of a pool ran a job and what a replacement got.
+ */
+class EchoWorker extends EventTarget implements Worker {
+  static spawned: EchoWorker[] = [];
+
+  onmessage: Worker["onmessage"] = null;
+  onmessageerror: Worker["onmessageerror"] = null;
+  onerror: Worker["onerror"] = null;
+
+  readonly received: unknown[] = [];
+  isTerminated = false;
+
+  constructor(readonly workerOptions?: WorkerOptions) {
+    super();
+    EchoWorker.spawned.push(this);
+  }
+
+  postMessage(message: unknown): void {
+    this.received.push(message);
+    if ((message as { isJob?: boolean }).isJob) {
+      queueMicrotask(() =>
+        this.dispatchEvent(
+          new MessageEvent("message", {
+            data: { name: this.workerOptions?.name },
+          }),
+        ),
+      );
+    }
+  }
+
+  terminate(): void {
+    this.isTerminated = true;
+  }
+}
+
+const runJob = (pool: WorkerPool): Promise<{ name?: string }> =>
+  new Promise((resolve) =>
+    pool.addJob({
+      message: { isJob: true },
+      resolve: (value) => resolve(value as { name?: string }),
+    }),
+  );
+
+describe("WorkerPool worker reuse", () => {
+  it("hands a light load to the worker released last instead of rotating", async () => {
+    EchoWorker.spawned = [];
+    const pool = new WorkerPool(EchoWorker, { maxWorker: 4, name: "echo" });
+
+    const names = [];
+    for (let i = 0; i < 6; i++) names.push((await runJob(pool)).name);
+
+    expect(new Set(names)).toEqual(new Set(["echo-0"]));
+    pool.terminate();
+  });
+});
+
+describe("WorkerPool.recycleIdleWorkers", () => {
+  it("replaces only idle workers that have run a job", async () => {
+    EchoWorker.spawned = [];
+    const pool = new WorkerPool(EchoWorker, { maxWorker: 3, name: "echo" });
+    const [first] = EchoWorker.spawned;
+
+    await runJob(pool);
+    expect(pool.recycleIdleWorkers()).toBe(1);
+
+    expect(first.isTerminated).toBe(true);
+    expect(EchoWorker.spawned).toHaveLength(4);
+    expect(EchoWorker.spawned[3].workerOptions?.name).toBe("echo-0");
+    // A fresh worker has nothing to hand back.
+    expect(pool.recycleIdleWorkers()).toBe(0);
+    pool.terminate();
+  });
+
+  it("leaves a busy worker alone", () => {
+    const pool = new WorkerPool(SilentWorker, { maxWorker: 2 });
+    pool.addJob(makeJob(0, []));
+
+    expect(pool.recycleIdleWorkers()).toBe(0);
+    expect(pool.workingCount).toBe(1);
+    pool.terminate();
+  });
+
+  it("replays broadcasts onto replacements, at most maxReplays of them", async () => {
+    EchoWorker.spawned = [];
+    const pool = new WorkerPool(EchoWorker, { maxWorker: 2, name: "echo" });
+    pool.postMessage({ type: "init" });
+    // Two jobs in flight together, so both workers have served.
+    await Promise.all([runJob(pool), runJob(pool)]);
+
+    expect(pool.recycleIdleWorkers(1)).toBe(1);
+    const replacement = EchoWorker.spawned[2];
+    expect(replacement.received).toEqual([{ type: "init" }]);
+    expect(pool.recycleIdleWorkers(1)).toBe(1);
+    expect(pool.recycleIdleWorkers(1)).toBe(0);
+    pool.terminate();
+  });
+
+  it("reaches every live pool, and no terminated one", async () => {
+    EchoWorker.spawned = [];
+    const a = new WorkerPool(EchoWorker, { maxWorker: 1, name: "a" });
+    const b = new WorkerPool(EchoWorker, { maxWorker: 1, name: "b" });
+    const gone = new WorkerPool(EchoWorker, { maxWorker: 1, name: "gone" });
+    await Promise.all([runJob(a), runJob(b), runJob(gone)]);
+    gone.terminate();
+
+    expect(WorkerPool.recycleIdleWorkersEverywhere()).toEqual({
+      pools: 2,
+      workers: 2,
+    });
+    a.terminate();
+    b.terminate();
+  });
+});

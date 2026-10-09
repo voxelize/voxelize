@@ -44,6 +44,15 @@ export type MemoryPressureOptions = {
    * Minimum milliseconds between two shed actions while pressure persists.
    */
   shedCooldownMs: number;
+
+  /**
+   * Per pool and per shed, how many idle workers whose replacement needs the
+   * pool's init broadcasts replayed may be replaced: each replay
+   * structured-clones them on the main thread, and the replacement rebuilds
+   * that state (and the heap it takes) before it can run a job. Pools with
+   * nothing to replay replace every idle worker.
+   */
+  maxReplayedWorkerRecycles: number;
 };
 
 export const defaultMemoryPressureOptions: MemoryPressureOptions = {
@@ -52,6 +61,7 @@ export const defaultMemoryPressureOptions: MemoryPressureOptions = {
   recoveryHeapRatio: 0.65,
   sheddingSampleCount: 2,
   shedCooldownMs: 5000,
+  maxReplayedWorkerRecycles: 1,
 };
 
 /**
@@ -75,6 +85,14 @@ type ChromiumHeapInfo = {
   jsHeapSizeLimit: number;
 };
 
+/**
+ * `performance.memory`, which is narrower and wider than its name: it is the
+ * page realm's heap plus its external memory (ArrayBuffers, canvases) against
+ * the page's own heap limit. It sees no worker at all, while every worker's
+ * heap shares the renderer's pointer-compression cage with the page's (the
+ * renderer dies when their sum reaches it, far below the limit reported
+ * here), and the external memory it counts lives outside that cage.
+ */
 export const readChromiumHeap: HeapReader = () => {
   if (typeof performance === "undefined") return null;
 
