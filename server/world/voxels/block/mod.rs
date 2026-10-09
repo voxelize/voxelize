@@ -1,3 +1,5 @@
+#[cfg(test)]
+mod branch_parity_tests;
 mod builder;
 #[cfg(test)]
 mod connected_parity_tests;
