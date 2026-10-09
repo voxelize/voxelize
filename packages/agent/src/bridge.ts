@@ -944,11 +944,31 @@ export interface AgentBridge {
    */
   reconnectNow(): boolean;
 
+  /**
+   * Why a frame captured now would not show the world as a player standing
+   * there sees it, empty when nothing is wrong. The capture routes pass
+   * these on loudly, so a tipped or covered frame is never taken for proof.
+   * A bridge without it reports nothing.
+   */
+  captureCaveats?(): CaptureCaveat[];
+
   on<E extends AgentEventName>(
     event: E,
     cb: (data: AgentEventMap[E]) => void,
   ): Unsubscribe;
 }
+
+/** The response header `/sc` and `/screenshot` list a capture's caveats in,
+ * as JSON: present, `[]`, when there are none. */
+export const CAPTURE_CAVEATS_HEADER = "x-agent-capture-caveats";
+
+/** Something that makes a frame captured now mislead. */
+export type CaptureCaveat = {
+  /** A short name scripts can test for, such as `rolled`. */
+  code: string;
+  /** What is wrong, in plain ASCII words. */
+  message: string;
+};
 
 declare global {
   interface Window {

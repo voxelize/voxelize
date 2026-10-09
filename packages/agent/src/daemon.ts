@@ -9,7 +9,12 @@ import Fastify, {
 import { z } from "zod";
 
 import { Agent, PageStallError, resolveReadyTimeoutMs } from "./agent";
-import type { AgentEventMap, ConnectionSnapshot } from "./bridge";
+import {
+  type AgentEventMap,
+  CAPTURE_CAVEATS_HEADER,
+  type CaptureCaveat,
+  type ConnectionSnapshot,
+} from "./bridge";
 import { DEFAULT_IDLE_TTL_MS } from "./browser-lifecycle";
 import { ensureCaptureDir } from "./capture-dir";
 import {
@@ -1320,6 +1325,12 @@ export class AgentDaemon {
     // menu, badges, chat). Same width/height/scale options as /screenshot.
     this.registerScreenshotRoute("/sc", true);
 
+    // What would make a capture taken now mislead (a tipped camera, a screen
+    // covering the world), so a script can check before it shoots.
+    this.server.get("/caveats", async () => ({
+      caveats: await this.readCaptureCaveats(),
+    }));
+
     // Same optional width/height/scale override as /screenshot: the page is
     // resized for the measurement only, so FPS can be sampled at a real
     // display resolution (e.g. ?width=1512&height=982&scale=2 for a Retina
@@ -2352,6 +2363,21 @@ export class AgentDaemon {
     });
   }
 
+  /** The page's capture caveats; a failed read is a caveat of its own, never
+   * a clean bill. */
+  private async readCaptureCaveats(): Promise<CaptureCaveat[]> {
+    try {
+      return await this.agent.captureCaveats();
+    } catch (error) {
+      return [
+        {
+          code: "unread",
+          message: `could not read what this frame shows: ${error instanceof Error ? error.message : String(error)}`,
+        },
+      ];
+    }
+  }
+
   private registerScreenshotRoute(
     routePath: string,
     isAlwaysPure: boolean,
@@ -2373,11 +2399,21 @@ export class AgentDaemon {
         req.query.hand === "true" || req.query.hand === "1";
       try {
         const requested = parseCaptureViewportQuery(req.query);
+        const caveats = await this.readCaptureCaveats();
         const buffer = await this.agent.screenshot({
           isPure,
           isIncludingArm,
           ...requested,
         });
+        if (caveats.length > 0) {
+          console.warn(
+            `[agent-daemon] ${routePath} captured a frame that misleads: ${caveats.map((c) => c.message).join("; ")}`,
+          );
+        }
+        reply.header(
+          CAPTURE_CAVEATS_HEADER,
+          JSON.stringify(caveats).replace(/[^\x20-\x7e]/g, "?"),
+        );
         reply.header("content-type", "image/png");
         return buffer;
       } catch (e) {

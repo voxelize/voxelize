@@ -10,6 +10,7 @@ import type {
   BlockInfo,
   CameraShot,
   CameraShotStatus,
+  CaptureCaveat,
   ChatMsgIn,
   ChunkCoord,
   ChunkSnapshot,
@@ -1333,6 +1334,18 @@ export class Agent {
   async facing(): Promise<YawPitch> {
     return this.withPageTimeout("facing", this.defaultPageTimeoutMs, () =>
       this.page.evaluate(() => window.__agentRequired__().facing()),
+    );
+  }
+
+  /** What makes a frame captured now mislead (`AgentBridge.captureCaveats`). */
+  async captureCaveats(): Promise<CaptureCaveat[]> {
+    return this.withPageTimeout(
+      "captureCaveats",
+      this.defaultPageTimeoutMs,
+      () =>
+        this.page.evaluate(
+          () => window.__agentRequired__().captureCaveats?.() ?? [],
+        ),
     );
   }
 
