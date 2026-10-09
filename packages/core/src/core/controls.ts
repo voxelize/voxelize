@@ -136,7 +136,9 @@ export type RigidControlsOptions = {
   rotationLerp: number;
 
   /**
-   * The force upwards when a client tries to jump in water. Defaults to `0.3`.
+   * The upward impulse a held jump key gives in water: what one frame at
+   * `referenceFrameRate` adds, scaled by frame time at any other rate.
+   * Defaults to `0.3`.
    */
   fluidPushForce: number;
 
@@ -251,7 +253,9 @@ export type RigidControlsOptions = {
   moveForce: number;
 
   /**
-   * The level of responsiveness of a client to movements. Default is `240`.
+   * How fast, per second, a client's velocity settles onto the one its input
+   * asks for, once it is close enough that the movement force no longer caps
+   * the change. Default is `240`.
    */
   responsiveness: number;
 
@@ -276,7 +280,9 @@ export type RigidControlsOptions = {
   flyForce: number;
 
   /**
-   * The level impulse of which a client flies at. Defaults to `2.5`.
+   * The vertical impulse a held fly-up or fly-down key gives: what one frame
+   * at `referenceFrameRate` adds, scaled by frame time at any other rate.
+   * Defaults to `2.5`.
    */
   flyImpulse: number;
 
@@ -400,6 +406,15 @@ export type RigidControlsOptions = {
   crouchBodyHeight: number;
 
   restoreFootSnapEpsilon: number;
+
+  /**
+   * The frame rate, in frames per second, that the per-frame tunables
+   * (`flyImpulse`, `fluidPushForce`, the ladder's easing) were tuned at.
+   * Each frame applies them scaled by how many of these frames it lasted,
+   * so a held key climbs, swims or flies the same distance per second at
+   * any frame rate, and exactly as tuned at this one. Defaults to `120`.
+   */
+  referenceFrameRate: number;
 };
 
 const defaultOptions: RigidControlsOptions = {
@@ -464,6 +479,7 @@ const defaultOptions: RigidControlsOptions = {
 
   crouchBodyHeight: 1.29,
   restoreFootSnapEpsilon: 1e-4,
+  referenceFrameRate: 120,
 };
 
 /**
@@ -695,7 +711,7 @@ export class RigidControls extends EventEmitter implements NetIntercept {
     this.camera = camera;
     this.world = world;
     this.domElement = domElement;
-    this.state = defaultControlState;
+    this.state = { ...defaultControlState };
 
     const { bodyWidth, bodyHeight, bodyDepth } = (this.options = {
       ...defaultOptions,
@@ -1592,11 +1608,26 @@ export class RigidControls extends EventEmitter implements NetIntercept {
     }
   };
 
-  private applySwimmingMovement = () => {
+  /**
+   * The force that closes `gap`, the speed still missing toward a movement
+   * target, at `responsiveness` per second over a frame of `dt` seconds:
+   * the exact one-frame step of that approach. `responsiveness * gap` is
+   * only its short-frame limit; applied as is, it overshoots the target once
+   * a frame lasts longer than `1 / responsiveness`, and past twice that the
+   * speed swings above and below the target every frame, as far as the
+   * movement force allows.
+   */
+  private approachForce = (gap: number, dt: number) => {
+    const { responsiveness } = this.options;
+    const { mass } = this.body;
+    if (dt <= 0) return responsiveness * gap;
+    return (gap * mass * (1 - Math.exp((-responsiveness * dt) / mass))) / dt;
+  };
+
+  private applySwimmingMovement = (dt: number, frames: number) => {
     const {
       swimSpeed,
       swimForce,
-      responsiveness,
       sprintFactor,
       crouchFactor,
       swimFriction,
@@ -1614,7 +1645,7 @@ export class RigidControls extends EventEmitter implements NetIntercept {
     const side = right ? (left ? 0 : 1) : left ? -1 : 0;
 
     if (this.state.jumping) {
-      this.body.applyImpulse([0, fluidPushForce, 0]);
+      this.body.applyImpulse([0, fluidPushForce * frames, 0]);
     }
     this.state.isJumping = false;
 
@@ -1647,7 +1678,7 @@ export class RigidControls extends EventEmitter implements NetIntercept {
           push[2] /= pushLen;
 
           let canPush = swimForce;
-          const pushAmt = responsiveness * pushLen;
+          const pushAmt = this.approachForce(pushLen, dt);
           if (canPush > pushAmt) canPush = pushAmt;
 
           this.body.applyForce([
@@ -1756,7 +1787,6 @@ export class RigidControls extends EventEmitter implements NetIntercept {
       crouchFactor,
       moveForce,
       airMoveMult,
-      responsiveness,
       runningFriction,
       standingFriction,
       flyInertia,
@@ -1767,7 +1797,12 @@ export class RigidControls extends EventEmitter implements NetIntercept {
       flyDiveSpeedBoost,
       flyClimbSpeedPenalty,
       fluidPushForce,
+      referenceFrameRate,
     } = this.options;
+
+    // A held key pushes for as long as it is held, not once per frame drawn:
+    // per-frame tunables scale by how many reference frames this one lasted.
+    const frames = dt * referenceFrameRate;
 
     if (this.body.gravityMultiplier) {
       const isSwimming = this.updateSwimState() === "swimming";
@@ -1795,16 +1830,18 @@ export class RigidControls extends EventEmitter implements NetIntercept {
         }
 
         this.body.velocity[1] +=
-          (targetVelocityY - this.body.velocity[1]) * verticalSmoothing;
+          (targetVelocityY - this.body.velocity[1]) *
+          (1 - (1 - verticalSmoothing) ** frames);
 
         if (!this.state.running) {
-          this.body.velocity[0] *= ladderDamping;
-          this.body.velocity[2] *= ladderDamping;
+          const damping = ladderDamping ** frames;
+          this.body.velocity[0] *= damping;
+          this.body.velocity[2] *= damping;
         }
       }
 
       if (isSwimming) {
-        this.applySwimmingMovement();
+        this.applySwimmingMovement(dt, frames);
       } else {
         // jumping
         const onGround = this.body.atRestY < 0;
@@ -1848,7 +1885,7 @@ export class RigidControls extends EventEmitter implements NetIntercept {
               this.body.velocity[1] = 0;
           } else if (this.body.ratioInFluid > 0) {
             // apply impulse to swim
-            this.body.applyImpulse([0, fluidPushForce, 0]);
+            this.body.applyImpulse([0, fluidPushForce * frames, 0]);
           }
         } else if (!this.body.onClimbable) {
           this.state.isJumping = false;
@@ -1897,7 +1934,7 @@ export class RigidControls extends EventEmitter implements NetIntercept {
             if (!onGround) canPush *= airMoveMult;
 
             // apply final force
-            const pushAmt = responsiveness * pushLen;
+            const pushAmt = this.approachForce(pushLen, dt);
             if (canPush > pushAmt) canPush = pushAmt;
 
             push[0] *= canPush;
@@ -1927,12 +1964,13 @@ export class RigidControls extends EventEmitter implements NetIntercept {
       this.body.velocity[1] -= this.body.velocity[1] * flyInertia * dt;
       this.body.velocity[2] -= this.body.velocity[2] * flyInertia * dt;
 
+      const thrust = flyImpulse * frames;
       if (this.state.jumping) {
-        this.body.applyImpulse([0, flyImpulse, 0]);
+        this.body.applyImpulse([0, thrust, 0]);
       }
 
       if (this.state.crouching) {
-        this.body.applyImpulse([0, -flyImpulse, 0]);
+        this.body.applyImpulse([0, -thrust, 0]);
       }
 
       // apply movement forces if entity is moving, otherwise just friction
@@ -2006,7 +2044,7 @@ export class RigidControls extends EventEmitter implements NetIntercept {
           let canPush = flyForce;
 
           // apply final force
-          const pushAmt = responsiveness * pushLen;
+          const pushAmt = this.approachForce(pushLen, dt);
           if (canPush > pushAmt) canPush = pushAmt;
 
           push[0] *= canPush;
