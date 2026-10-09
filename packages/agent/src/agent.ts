@@ -4,6 +4,7 @@ import path from "node:path";
 
 import puppeteer, { Browser, Page } from "puppeteer";
 
+import { signInThrough } from "./auth-url";
 import type {
   AgentEventMap,
   AgentEventName,
@@ -101,7 +102,9 @@ export type AgentLaunchOptions = {
   /**
    * Visited before joining the world so the response can set session
    * cookies (e.g. a dev-login endpoint), letting the agent run as an
-   * authenticated user with admin-only commands available.
+   * authenticated user with admin-only commands available. An answer other
+   * than 2xx (or 304) rejects the launch with an AuthUrlError, browser
+   * closed, instead of joining without the account.
    */
   authUrl?: string;
 };
@@ -561,8 +564,18 @@ export class Agent {
     });
 
     if (authUrl) {
-      await page.goto(authUrl, { waitUntil: "domcontentloaded" });
-      console.log(`[voxelize-agent] visited auth url: ${authUrl}`);
+      let status: number;
+      try {
+        status = await signInThrough(page, authUrl);
+      } catch (error) {
+        // Nothing else would close this browser: the daemon registers its
+        // exit hooks only once launch returns.
+        await agent.close();
+        throw error;
+      }
+      console.log(
+        `[voxelize-agent] visited auth url: ${authUrl} (answered ${status})`,
+      );
     }
 
     // Visual tests of held items opt into rendering the first-person arm,

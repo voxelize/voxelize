@@ -18,6 +18,7 @@ node packages/agent/dist/bin/voxelize-agent.mjs --world test --port 4099 \
 - The daemon waits for the host's bridge (`window.__agent__`), which lands after asset load and world init; the wait scales with machine load (`AGENT_READY_TIMEOUT_MS` to pin it). A broken client build never installs the bridge — read the page errors in the daemon log before raising the timeout.
 - Environment: `AGENT_CACHE_DIR` (profiles and launch wrappers; default `~/.cache/voxelize-agent`), `AGENT_PROFILE_DIR`, `AGENT_EPHEMERAL_PROFILE=1` (cold cache), `AGENT_BROWSER_PRIORITY=normal` (no QoS/nice clamp — use it for A/B timing), `AGENT_CHROME_ARGS` (e.g. `--disable-gpu-vsync --disable-frame-rate-limit` for uncapped frame times), `AGENT_IDLE_TTL_MS` (0 = never expire), `AGENT_CAPTURE_DIR`.
 - Lifecycle: plain detached process; the browser never outlives the daemon (a watchdog covers `kill -9`); idle expiry after the ttl; kill daemon-first. The `agent-harness` rule has the invariants.
+- `--auth-url` must answer 2xx (or 304): anything else, or no answer at all, closes the browser before the page loads and exits `AUTH_FAILED_EXIT_CODE` (68), logging one line that starts with `AUTH_FAILED_LOG_MARKER` and names the status and the body. A navigation does not fail on an HTTP error, so the status is the only sign a sign-in was refused; carrying on would join without the account. Host tooling mirrors both constants from the `lifecycle` entry.
 
 ## HTTP surface
 

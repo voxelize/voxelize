@@ -65,7 +65,11 @@ export type {
   SessionOriginCursor,
   SessionOriginParent,
 } from "./session-meta";
+export { AuthUrlError, signInThrough } from "./auth-url";
+export type { AuthPage, AuthResponse } from "./auth-url";
 export {
+  AUTH_FAILED_EXIT_CODE,
+  AUTH_FAILED_LOG_MARKER,
   DEFAULT_IDLE_TTL_MS,
   IDLE_TTL_EXIT_CODE,
   MOUNT_FAILED_EXIT_CODE,
