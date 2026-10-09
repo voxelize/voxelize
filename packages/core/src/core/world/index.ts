@@ -74,43 +74,6 @@ import {
   formatSuggestion,
 } from "../../utils";
 
-function computeNormalsFromBuffers(
-  positions: ArrayLike<number>,
-  indices: ArrayLike<number>,
-): Float32Array {
-  const normals = new Float32Array(positions.length);
-  for (let i = 0; i < indices.length; i += 3) {
-    const ia = indices[i] * 3;
-    const ib = indices[i + 1] * 3;
-    const ic = indices[i + 2] * 3;
-    const e1x = positions[ib] - positions[ia];
-    const e1y = positions[ib + 1] - positions[ia + 1];
-    const e1z = positions[ib + 2] - positions[ia + 2];
-    const e2x = positions[ic] - positions[ia];
-    const e2y = positions[ic + 1] - positions[ia + 1];
-    const e2z = positions[ic + 2] - positions[ia + 2];
-    let nx = e1y * e2z - e1z * e2y;
-    let ny = e1z * e2x - e1x * e2z;
-    let nz = e1x * e2y - e1y * e2x;
-    const len = Math.sqrt(nx * nx + ny * ny + nz * nz);
-    if (len > 0) {
-      nx /= len;
-      ny /= len;
-      nz /= len;
-    }
-    normals[ia] = nx;
-    normals[ia + 1] = ny;
-    normals[ia + 2] = nz;
-    normals[ib] = nx;
-    normals[ib + 1] = ny;
-    normals[ib + 2] = nz;
-    normals[ic] = nx;
-    normals[ic + 1] = ny;
-    normals[ic + 2] = nz;
-  }
-  return normals;
-}
-
 function computeFlatNormals(geometry: BufferGeometry) {
   const pos = (geometry.getAttribute("position") as BufferAttribute).array;
   const idx = geometry.getIndex();
@@ -150,6 +113,7 @@ import {
   setOwnFaceTexture,
   sharedCutoutMaterialKeyFor,
 } from "./chunk-materials";
+import { computeNormalsFromBuffers } from "./chunk-normals";
 import { ChunkRegionArenas } from "./chunk-region-arenas";
 import { ChunkRenderer, makeSceneColorTexture } from "./chunk-renderer";
 import {
@@ -240,11 +204,13 @@ import {
 } from "./world-clock";
 import { WorldOptions, defaultWorldClientOptions } from "./world-options";
 
+export * from "./biome-tint";
 export * from "./block";
 export * from "./block-animations";
 export * from "./branch";
 export * from "./chunk";
 export * from "./chunk-materials";
+export * from "./chunk-normals";
 export * from "./chunk-region-arenas";
 export * from "./chunk-renderer";
 export * from "./chunk-requests";
@@ -1307,7 +1273,7 @@ export class World<T = any> extends Scene implements NetIntercept {
 
     if (verdict === "relieved") {
       console.warn(
-        `[world] renderer memory pressure relieved at ${heapMb}MB / ${limitMb}MB`,
+        `[world] page memory pressure relieved at ${heapMb}MB (heap + external) / ${limitMb}MB`,
       );
       // Light work the sheds deferred gets its turn now, even if no edit or
       // batch completion comes along to flush it.
@@ -1365,15 +1331,25 @@ export class World<T = any> extends Scene implements NetIntercept {
     const droppedVoxelHistory = this.oldBlocks.size;
     this.oldBlocks.clear();
 
+    // The reading is the page's own heap and external memory; the workers'
+    // heaps share the renderer's heap cage with it unseen, and replacing the
+    // idle ones is the only thing that hands theirs back.
+    const recycleStartedAt = performance.now();
+    const recycled = WorkerPool.recycleIdleWorkersEverywhere(
+      this.memoryPressureMonitor.options.maxReplayedWorkerRecycles,
+    );
+    const recycleMs = performance.now() - recycleStartedAt;
+
     console.warn(
-      `[world] renderer memory pressure at ${heapMb}MB / ${limitMb}MB ` +
+      `[world] page memory pressure at ${heapMb}MB (heap + external) / ${limitMb}MB ` +
         `(${(status.heapRatio * 100).toFixed(1)}%, shed #${
           status.shedCount
         }); ` +
         `dropped ${droppedMeshJobs} queued mesh jobs and ${droppedVoxelHistory} ` +
         `voxel history entries; deferred ${deferredJobs.length} light jobs ` +
         `(${deferredSeeds} seeds kept, ${freedLightPayloads} serialized payloads freed) ` +
-        `to replay on the next flush`,
+        `to replay on the next flush; replaced ${recycled.workers} idle workers ` +
+        `in ${recycled.pools} pools to return their heaps (${recycleMs.toFixed(1)}ms)`,
     );
 
     // Deferred light work is not a running job, so a waiter has nothing to

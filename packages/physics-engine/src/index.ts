@@ -440,6 +440,25 @@ export class Engine {
     return result.length === 0;
   };
 
+  /**
+   * The height of the fluid's surface over the column `applyFluidForces`
+   * reads for `box` (the one under its minimum corner), climbing the fluid
+   * from its feet: `null` when its feet are not in fluid, `Infinity` when
+   * the fluid still goes on `reach` blocks above its top.
+   */
+  fluidSurfaceOver = (box: AABB, reach: number): number | null => {
+    const cx = Math.floor(box.minX);
+    const cz = Math.floor(box.minZ);
+    let cy = Math.floor(box.minY);
+    if (!this.testFluid(cx, cy, cz)) return null;
+    const limit = box.maxY + reach;
+    while (this.testFluid(cx, cy + 1, cz)) {
+      cy++;
+      if (cy >= limit) return Infinity;
+    }
+    return cy + 1;
+  };
+
   applyFluidForces = (body: RigidBody) => {
     const box = body.aabb;
     const cx = Math.floor(box.minX);

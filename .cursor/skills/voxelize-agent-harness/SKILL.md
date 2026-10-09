@@ -62,5 +62,6 @@ await runScenario({
 ## Measurement honesty
 
 - `measureFrameRate` is capped by vsync unless the browser was launched uncapped; say which.
+- It times rAF, and rAF keeps its pace under every draw cap a host applies (the daemon's idle throttle, a loading cadence, a loop that stops while unfocused), so a capped page would report a smooth frame rate for frames it never drew. The daemon lifts any cap the page reports before measuring, and a window that still ran capped, or drew fewer frames than rAF delivered, is refused with a 503 (`CappedFrameRateError`) instead of a number. The result's `drawThrottle` record says what the page reported; a host makes the drawn-frame check possible by returning `drawnFrames` from `drawThrottle()`.
 - Keep every repro input in the script: world, arena, camera position and look target, warmup, duration, thresholds.
 - A measurement on a saturated machine measures the machine; report load alongside the number, and compare before/after only under the same conditions (`AGENT_BROWSER_PRIORITY=normal` on both sides).
