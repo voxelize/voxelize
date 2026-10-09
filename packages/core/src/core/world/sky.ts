@@ -12,6 +12,7 @@ import { CanvasBox, CanvasBoxOptions } from "../../libs/canvas-box";
 import SkyFragmentShader from "../../shaders/sky/fragment.glsl?raw";
 import SkyVertexShader from "../../shaders/sky/vertex.glsl?raw";
 
+import { markNeverCaster } from "./shadow-casters";
 import { WATER_OPTICS } from "./water-optics";
 
 export type SkyShadingCycleData = {
@@ -226,6 +227,7 @@ export class Sky extends CanvasBox {
     this.boxMaterials.forEach((m) => (m.depthWrite = false));
     this.frustumCulled = false;
     this.renderOrder = -1;
+    markNeverCaster(this);
 
     this.boxLayers.forEach((layer) => {
       layer.renderOrder = -1;
