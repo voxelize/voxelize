@@ -36,10 +36,32 @@ export type NetworkOptions = {
 
   /**
    * Upper bound on buffered inbound packets. Beyond it the oldest packets are
-   * dropped: the interest/keep-alive protocol re-converges on fresh state, so
-   * bounded loss beats unbounded memory growth when processing stalls.
+   * dropped, loudly and counted in {@link Network.droppedPacketCount}: the
+   * interest/keep-alive protocol re-converges on fresh state, so bounded loss
+   * beats unbounded memory growth when processing stalls.
    */
   maxQueuedPackets: number;
+
+  /**
+   * Decode workers to run, at most one per core. Every worker is a V8
+   * isolate, and every isolate in a renderer (the page and all of its
+   * workers) draws its heap from one shared pointer-compression cage of about
+   * 4 GB, whatever heap limit each isolate reports; the renderer dies when
+   * their sum reaches it. A decode worker that has been busy keeps tens of
+   * megabytes of young generation committed for good, and decoding (LZ4 and
+   * protobuf) is light enough that a few workers keep up with any stream, so
+   * one per core spent the shared budget for nothing.
+   */
+  maxDecodeWorkers: number;
+
+  /**
+   * Packets one decode job carries. A tick's backlog goes to as few workers
+   * as this allows rather than being spread over all of them, so the workers
+   * a light stream does not need stay idle and small, and no single job's
+   * decoded messages can balloon a worker's heap. What a tick does not hand
+   * out waits in the packet queue as raw buffers, outside the V8 heap.
+   */
+  maxPacketsPerDecodeJob: number;
 
   /**
    * Milliseconds a (re)join handshake may await its INIT before the join
@@ -63,7 +85,13 @@ const defaultOptions: NetworkOptions = {
   maxQueuedPackets: 4096,
   joinRetryTimeout: 10000,
   maxPendingCommandPackets: 256,
+  maxDecodeWorkers: 4,
+  maxPacketsPerDecodeJob: 64,
 };
+
+/** Packet drops are reported at most this often, with the count since the
+ * last report: a stalled page can overflow the queue on every packet. */
+const PACKET_DROP_REPORT_INTERVAL_MS = 5000;
 
 /**
  * Client-to-server packet types that carry one-shot intent. Dropping one
@@ -189,6 +217,13 @@ export class Network {
   private joinReject: ((reason: string) => void) | null = null;
 
   private packetQueue: ArrayBuffer[] = [];
+
+  private droppedPacketTotal = 0;
+
+  /** Drops not yet reported, and when the last report went out. */
+  private unreportedPacketDrops = 0;
+
+  private lastPacketDropReportAt = Number.NEGATIVE_INFINITY;
   /**
    * When each queued packet's bytes arrived, keyed by the buffer object. A
    * buffer transferred to a decode worker is detached but keeps its identity,
@@ -388,6 +423,19 @@ export class Network {
     const excess = this.packetQueue.length - this.options.maxQueuedPackets;
     if (excess > 0) {
       this.packetQueue.splice(0, excess);
+      this.droppedPacketTotal += excess;
+      this.unreportedPacketDrops += excess;
+      const now = performance.now();
+      if (now - this.lastPacketDropReportAt >= PACKET_DROP_REPORT_INTERVAL_MS) {
+        console.error(
+          `[NETWORK] Dropped the ${this.unreportedPacketDrops} oldest unprocessed inbound packet(s): ` +
+            `more than ${this.options.maxQueuedPackets} were waiting to be decoded ` +
+            `(${this.droppedPacketTotal} dropped this session). Entity and chunk state re-converge; ` +
+            "one-shot events among them are lost.",
+        );
+        this.unreportedPacketDrops = 0;
+        this.lastPacketDropReportAt = now;
+      }
     }
   };
 
@@ -550,26 +598,32 @@ export class Network {
       return;
     }
 
+    const pool = this.pool;
+    if (!pool) return;
+
     const queueLength = this.packetQueue.length;
     const backlogFactor = Math.min(
       this.options.maxBacklogFactor,
       Math.ceil(queueLength / 25),
     );
-    const packetsToProcess = this.options.maxPacketsPerTick * backlogFactor;
+    const packetsWanted = Math.min(
+      queueLength,
+      this.options.maxPacketsPerTick * backlogFactor,
+    );
+    const perJob = Math.max(1, this.options.maxPacketsPerDecodeJob);
+    const jobCount = Math.min(
+      Math.max(1, pool.availableCount),
+      Math.ceil(packetsWanted / perJob),
+    );
 
     const packets = this.packetQueue.splice(
       0,
-      Math.min(packetsToProcess, this.packetQueue.length),
+      Math.min(packetsWanted, jobCount * perJob),
     );
 
-    const pool = this.pool;
-    if (!pool) return;
-    const availableWorkers = Math.max(1, pool.availableCount);
-    const perWorker = Math.ceil(packets.length / availableWorkers);
-
     const batches: ArrayBuffer[][] = [];
-    for (let i = 0; i < packets.length; i += perWorker) {
-      batches.push(packets.slice(i, i + perWorker));
+    for (let i = 0; i < packets.length; i += perJob) {
+      batches.push(packets.slice(i, i + perJob));
     }
 
     Promise.all(
@@ -747,6 +801,12 @@ export class Network {
 
   get packetQueueLength() {
     return this.packetQueue.length;
+  }
+
+  /** Inbound packets dropped unprocessed this session, each reported in an
+   * error log (see {@link NetworkOptions.maxQueuedPackets}). */
+  get droppedPacketCount() {
+    return this.droppedPacketTotal;
   }
 
   /** True between a (re)join request and its INIT: reads of world state are
@@ -1007,8 +1067,15 @@ export class Network {
   };
 
   private createDecodeWorkerPool() {
+    const { maxDecodeWorkers } = this.options;
     return new WorkerPool(DecodeWorker, {
-      maxWorker: window.navigator.hardwareConcurrency || 4,
+      maxWorker: Math.max(
+        1,
+        Math.min(
+          maxDecodeWorkers,
+          window.navigator.hardwareConcurrency || maxDecodeWorkers,
+        ),
+      ),
       name: "decode-worker",
     });
   }

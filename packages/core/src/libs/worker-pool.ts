@@ -95,14 +95,27 @@ export class WorkerPool {
   static WORKING_COUNT = 0;
 
   /**
+   * Every pool in this realm that has not been terminated, so pressure on
+   * the renderer can reach all of their workers at once.
+   */
+  private static livePools = new Set<WorkerPool>();
+
+  /**
    * The list of workers in the pool.
    */
   private workers: Worker[] = [];
 
   /**
-   * The list of available workers' indices.
+   * The list of available workers' indices, the one released last first.
    */
   private available: number[] = [];
+
+  /**
+   * Whether the worker in each slot has run a job since it was spawned. A
+   * worker that has not is still at its smallest; replacing it would only
+   * pay its start-up again.
+   */
+  private hasServedSinceSpawn: boolean[] = [];
 
   /**
    * Broadcast messages (worker init/registry state), replayed onto
@@ -130,7 +143,9 @@ export class WorkerPool {
       const worker = new Proto(workerOptions);
       this.workers.push(worker);
       this.available.push(i);
+      this.hasServedSinceSpawn.push(false);
     }
+    WorkerPool.livePools.add(this);
   }
 
   /**
@@ -186,8 +201,56 @@ export class WorkerPool {
     }
   };
 
+  /**
+   * Replace the idle workers that have run jobs with fresh ones. Every worker
+   * is a V8 isolate, and every isolate in a renderer (the page and all of its
+   * workers) draws its heap from one shared pointer-compression cage of about
+   * 4 GB, whatever heap limit each isolate reports. A worker's heap grows with
+   * the jobs it runs and is not handed back while the isolate lives, so
+   * terminating it is the one way to return that memory. A replacement gets
+   * the pool's broadcasts replayed and is indistinguishable from the
+   * original; busy workers are left alone.
+   *
+   * @param maxReplays At most this many replacements in a pool that has
+   * broadcasts to replay: each replay structured-clones them on the calling
+   * thread. A pool without broadcasts replaces every idle worker.
+   * @returns The number of workers replaced.
+   */
+  recycleIdleWorkers = (maxReplays = Number.POSITIVE_INFINITY): number => {
+    const isReplaying = this.broadcastMessages.length > 0;
+    let recycled = 0;
+    for (const index of this.available) {
+      if (!this.hasServedSinceSpawn[index]) continue;
+      if (isReplaying && recycled >= maxReplays) break;
+      this.replaceWorker(index);
+      recycled++;
+    }
+    return recycled;
+  };
+
+  /**
+   * {@link WorkerPool.recycleIdleWorkers} across every live pool in this
+   * realm.
+   *
+   * @returns How many workers were replaced, in how many pools.
+   */
+  static recycleIdleWorkersEverywhere(
+    maxReplaysPerPool = Number.POSITIVE_INFINITY,
+  ): { pools: number; workers: number } {
+    let pools = 0;
+    let workers = 0;
+    for (const pool of WorkerPool.livePools) {
+      const recycled = pool.recycleIdleWorkers(maxReplaysPerPool);
+      if (recycled === 0) continue;
+      pools++;
+      workers += recycled;
+    }
+    return { pools, workers };
+  }
+
   terminate = () => {
     const activeWorkers = this.workingCount;
+    WorkerPool.livePools.delete(this);
 
     for (const worker of this.workers) {
       worker.terminate();
@@ -208,8 +271,13 @@ export class WorkerPool {
    */
   private process = () => {
     if (this.queue.length !== 0 && this.available.length > 0) {
-      const index = this.available.pop() as number;
+      // The worker released last takes the job, so a light load keeps one
+      // worker warm and leaves the rest at the small heaps they started
+      // with (see recycleIdleWorkers): rotating through every idle worker
+      // grew all of their heaps for a load one could carry.
+      const index = this.available.shift() as number;
       const worker = this.workers[index];
+      this.hasServedSinceSpawn[index] = true;
 
       const { message, buffers, resolve, timeoutMs } =
         this.queue.shift() as WorkerPoolJob;
@@ -302,6 +370,7 @@ export class WorkerPool {
       worker.postMessage(message);
     }
     this.workers[index] = worker;
+    this.hasServedSinceSpawn[index] = false;
   };
 
   /**

@@ -148,6 +148,25 @@ export type VideoRecordingStartReport = VideoRecordingStarted & {
   viewport: CaptureViewport;
 };
 
+/**
+ * The V8 heap of every isolate in the page's renderer: the page itself and
+ * each worker, summed and per worker pool (workers named `pool-N`).
+ */
+export type IsolateHeaps = {
+  /** The page plus every worker found, read or not. */
+  count: number;
+  unreadWorkers: number;
+  heapUsedBytes: number;
+  heapTotalBytes: number;
+  pageHeapTotalBytes: number;
+  pools: Record<
+    string,
+    { workers: number; heapUsedBytes: number; heapTotalBytes: number }
+  >;
+};
+
+type HeapUsage = { usedSize: number; totalSize: number };
+
 export type VideoRecordingFile = VideoRecordingResult & {
   path: string;
   viewport: CaptureViewport;
@@ -1214,6 +1233,8 @@ export class Agent {
     /** The debug bar's sampler: heap floor and leak trend. Null where the
      * client has no debug UI or the browser exposes no heap counters. */
     trend: MemoryTrend | null;
+    /** Every isolate's V8 heap: the page's and each worker's. */
+    isolates: IsolateHeaps;
   }> {
     const metrics = await this.withPageTimeout(
       "pageMetrics",
@@ -1244,7 +1265,71 @@ export class Agent {
       heapTotalBytes: metrics.JSHeapTotalSize ?? 0,
       counters,
       trend,
+      isolates: await this.withPageTimeout(
+        "isolateHeaps",
+        this.defaultPageTimeoutMs,
+        () => this.isolateHeaps(),
+      ),
     };
+  }
+
+  /**
+   * The V8 heap of the page and of every worker it runs, read over each
+   * one's own DevTools session. Every isolate in a renderer allocates from
+   * one shared pointer-compression cage, so the renderer dies when their sum
+   * reaches it, while the page alone reads small and `performance.memory`
+   * sees no worker at all. A worker that cannot be read is counted as
+   * unread, never as an empty heap.
+   */
+  async isolateHeaps(): Promise<IsolateHeaps> {
+    const client = await this.page.createCDPSession();
+    try {
+      const page = (await client.send("Runtime.getHeapUsage")) as HeapUsage;
+      const pools: IsolateHeaps["pools"] = {};
+      let workerTotalBytes = 0;
+      let workerUsedBytes = 0;
+      let unreadWorkers = 0;
+      const workers = this.page.workers();
+      await Promise.all(
+        workers.map(async (worker) => {
+          try {
+            const [usage, named] = await Promise.all([
+              worker.client.send("Runtime.getHeapUsage") as Promise<HeapUsage>,
+              worker.client.send("Runtime.evaluate", {
+                expression: "self.name",
+                returnByValue: true,
+              }) as Promise<{ result: { value?: unknown } }>,
+            ]);
+            const name =
+              typeof named.result.value === "string" && named.result.value
+                ? named.result.value.replace(/-\d+$/, "")
+                : "(unnamed)";
+            const pool = (pools[name] ??= {
+              workers: 0,
+              heapUsedBytes: 0,
+              heapTotalBytes: 0,
+            });
+            pool.workers += 1;
+            pool.heapUsedBytes += usage.usedSize;
+            pool.heapTotalBytes += usage.totalSize;
+            workerUsedBytes += usage.usedSize;
+            workerTotalBytes += usage.totalSize;
+          } catch {
+            unreadWorkers += 1;
+          }
+        }),
+      );
+      return {
+        count: 1 + workers.length,
+        unreadWorkers,
+        heapUsedBytes: page.usedSize + workerUsedBytes,
+        heapTotalBytes: page.totalSize + workerTotalBytes,
+        pageHeapTotalBytes: page.totalSize,
+        pools,
+      };
+    } finally {
+      await client.detach().catch(() => {});
+    }
   }
 
   /**

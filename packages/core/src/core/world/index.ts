@@ -1270,7 +1270,7 @@ export class World<T = any> extends Scene implements NetIntercept {
 
     if (verdict === "relieved") {
       console.warn(
-        `[world] renderer memory pressure relieved at ${heapMb}MB / ${limitMb}MB`,
+        `[world] page memory pressure relieved at ${heapMb}MB (heap + external) / ${limitMb}MB`,
       );
       // Light work the sheds deferred gets its turn now, even if no edit or
       // batch completion comes along to flush it.
@@ -1328,15 +1328,25 @@ export class World<T = any> extends Scene implements NetIntercept {
     const droppedVoxelHistory = this.oldBlocks.size;
     this.oldBlocks.clear();
 
+    // The reading is the page's own heap and external memory; the workers'
+    // heaps share the renderer's heap cage with it unseen, and replacing the
+    // idle ones is the only thing that hands theirs back.
+    const recycleStartedAt = performance.now();
+    const recycled = WorkerPool.recycleIdleWorkersEverywhere(
+      this.memoryPressureMonitor.options.maxReplayedWorkerRecycles,
+    );
+    const recycleMs = performance.now() - recycleStartedAt;
+
     console.warn(
-      `[world] renderer memory pressure at ${heapMb}MB / ${limitMb}MB ` +
+      `[world] page memory pressure at ${heapMb}MB (heap + external) / ${limitMb}MB ` +
         `(${(status.heapRatio * 100).toFixed(1)}%, shed #${
           status.shedCount
         }); ` +
         `dropped ${droppedMeshJobs} queued mesh jobs and ${droppedVoxelHistory} ` +
         `voxel history entries; deferred ${deferredJobs.length} light jobs ` +
         `(${deferredSeeds} seeds kept, ${freedLightPayloads} serialized payloads freed) ` +
-        `to replay on the next flush`,
+        `to replay on the next flush; replaced ${recycled.workers} idle workers ` +
+        `in ${recycled.pools} pools to return their heaps (${recycleMs.toFixed(1)}ms)`,
     );
 
     // Deferred light work is not a running job, so a waiter has nothing to
