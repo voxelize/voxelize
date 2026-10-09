@@ -49,6 +49,11 @@ commands:
   fly-to x,y,z | x,z [--duration SEC] [--keep-zoom]
                              fly the headless page's camera there, as a double-click does,
                              and print where it landed
+  pin x,y,z | x,z [--label L]  drop a pin on the headless page; prints what the source knows there
+  pins                       the headless page's pins
+  pin-action PIN|x,y,z ACTION [--to PIN] [--open]
+                             run a wheel action: spawn, fly, look, measure, bookmark, copy-link,
+                             copy-coords, remove, pin (spawn prints the game link; --open opens it)
   sources SPEC               start (or reuse) a source and print where it came from
   bookmarks | state | stop
 
@@ -66,7 +71,9 @@ function parse(argv: string[]): Parsed {
     const a = argv[i];
     if (a.startsWith("--")) {
       const key = a.slice(2);
-      const isSwitch = ["json", "detach", "help", "keep-zoom"].includes(key);
+      const isSwitch = ["json", "detach", "help", "keep-zoom", "open"].includes(
+        key,
+      );
       const value = isSwitch ? "true" : argv[++i];
       if (value === undefined) throw new UsageError(`${a} needs a value`);
       flags.set(key, [...(flags.get(key) ?? []), value]);
@@ -401,6 +408,47 @@ export async function main(argv: string[]) {
           ],
         });
         console.log(JSON.stringify(result, null, 2));
+        return;
+      }
+      case "pin":
+      case "pins":
+      case "pin-action": {
+        const base = await ensureServer(configFile, config, port);
+        let action: string;
+        let args: unknown[];
+        if (p.command === "pin") {
+          const [x, y, z] = parseFlyPoint(p.rest[0] ?? "", "pin");
+          action = "dropPin";
+          args = [x, y, z, { label: one(p, "label") }];
+        } else if (p.command === "pins") {
+          action = "pins";
+          args = [];
+        } else {
+          const [targetText, name] = p.rest;
+          if (!targetText || !name)
+            throw new UsageError(
+              "pin-action needs a pin (or x,y,z) and an action",
+            );
+          const target = /^-?[\d.]+,/.test(targetText)
+            ? parseFlyPoint(targetText, "pin-action")
+            : targetText;
+          action = "pinAction";
+          args = [
+            target,
+            name,
+            {
+              ...(one(p, "to") ? { to: one(p, "to") } : {}),
+              ...(p.flags.has("open") ? { open: true } : {}),
+            },
+          ];
+        }
+        console.log(
+          JSON.stringify(
+            await api(base, "/api/session", { action, args }),
+            null,
+            2,
+          ),
+        );
         return;
       }
       case "bookmarks":

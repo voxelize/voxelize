@@ -148,6 +148,12 @@ export class CameraRig {
   /** Called whenever the pose changes through input. */
   onChange: () => void = () => {};
 
+  /** Lets the page take a press (on a pin, say) before it becomes an orbit or a pan. */
+  claimPointer: (event: PointerEvent) => boolean = () => false;
+
+  /** Lets the page take a key (an open menu's shortcut) before it moves the camera. */
+  claimKey: (event: KeyboardEvent) => boolean = () => false;
+
   private keys = new Set<string>();
 
   private drag: {
@@ -376,6 +382,11 @@ export class CameraRig {
     const pitch =
       preset === "top" ? TOP_PITCH : preset === "iso" ? ISO_PITCH : orbit.pitch;
     return this.startOrbit({ ...orbit, pitch }, options);
+  }
+
+  /** Lets go of a drag in progress: the rest of the press moves nothing. */
+  cancelDrag() {
+    this.drag = null;
   }
 
   /** Stops a flight where it is; its promise resolves as not completed. */
@@ -745,6 +756,7 @@ export class CameraRig {
     on(el, "contextmenu", (e) => e.preventDefault());
     on(el, "pointerdown", (e) => {
       this.cancelFlight();
+      if (this.claimPointer(e)) return;
       el.setPointerCapture(e.pointerId);
       el.focus();
       this.drag = {
@@ -832,6 +844,7 @@ export class CameraRig {
       { passive: false },
     );
     on(el, "keydown", (e) => {
+      if (this.claimKey(e)) return;
       this.cancelFlight();
       if (e.code === "KeyQ" || e.code === "KeyE") {
         const turn = (e.code === "KeyQ" ? 1 : -1) * (Math.PI / 2);

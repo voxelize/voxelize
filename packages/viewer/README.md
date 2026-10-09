@@ -108,6 +108,44 @@ voxelize-viewer --config my.config.ts fly-to 120,40         # the headless page'
 voxelize-viewer --config my.config.ts shot --bookmark a --fly-to 120,64,40
 ```
 
+## Pins and the action wheel
+
+Click the terrain to drop a pin: a voxel banner (a pole, a brass finial
+and a lettered cloth, built from boxes at 16 texels per block and lit by
+the chunk shader's own daylight) with a tag over it and a card of what
+the source knows about the column (block, height, and whatever the host's
+`pins.describe` reads from its query). A double-click that follows takes
+the pin back and flies there instead; a drag still orbits.
+
+Click a pin, right-click anywhere, or hold a pin or the right button to
+open the action wheel at the cursor: a ring of 16x16 pixel icons round a
+centre, a label under it. Opened by a click it waits for a click, a key
+(each action's letter, or 1 to 8) or Esc; opened by a hold it follows the
+flick and fires the highlighted action on release. Everything in it moves
+in whole steps. The built-in actions: Spawn here (the host's `shareLink`
+for a player standing on the pin, facing the camera's heading), Fly here,
+Look from here (eye height at the pin), Measure (to another pin: run,
+rise, slope), Bookmark (saved with the viewer server next to the
+config's), Copy share link, Copy coordinates, Remove, and Pin here over
+bare ground. A host adds its own with `pins.actions`.
+
+`ViewerHost.theme` dresses all of it (panel colours, bevels, accent, a
+pixel font, banner colours and an icon per action id); without one it
+uses `DEFAULT_THEME` and built-in icons. Pins live in the page URL
+(`pins=label:x,y,z;...`).
+
+```ts
+window.__voxelizeViewer.dropPin(x, null, z, { label: "camp" });
+window.__voxelizeViewer.pinAction("camp", "spawn");          // { link, pose }
+window.__voxelizeViewer.pinAction("camp", "measure", { to: "B" });
+```
+
+```bash
+voxelize-viewer --config my.config.ts pin 120,40 --label camp
+voxelize-viewer --config my.config.ts pin-action camp spawn
+voxelize-viewer --config my.config.ts pins
+```
+
 ## Hosting it
 
 A config module default-exports `{ port, server }` (`ViewerConfigModule`):
