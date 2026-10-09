@@ -211,6 +211,12 @@ export type FarTerrainOptions = {
   requestIntervalMs: number;
   /** A requested tile that has not arrived in this long is asked again. */
   retryAfterMs: number;
+  /**
+   * Tiles of the server's budget (`descriptor.budget`) never spent, so a
+   * request that arrives sooner after the last than it was sent is not
+   * refused for the difference.
+   */
+  budgetHeadroom: number;
   /** Main-thread time one update may spend reading faces. */
   buildBudgetMs: number;
   /**
@@ -238,6 +244,7 @@ const DEFAULT_OPTIONS: FarTerrainOptions = {
   maxTilesPerRequest: 16,
   requestIntervalMs: 120,
   retryAfterMs: 6000,
+  budgetHeadroom: 1,
   buildBudgetMs: 0.6,
   seamBand: 8,
 };
@@ -271,9 +278,16 @@ export type FarTerrainStats = {
   /** Mask rebuilds. */
   maskRebuilds: number;
   /** Chunk columns inside the render radius the last mask covered because
-   * they were still on their way (not loaded yet): many right after
-   * arriving somewhere, 0 once everything inside has landed. */
+   * they were still on their way (not loaded yet) with no tile fit to stand
+   * in: many right after arriving somewhere, 0 once everything inside has
+   * landed. */
   pendingCovered: number;
+  /**
+   * Chunk columns still on their way the last mask left to the far layer,
+   * under tiles drawn at the detail the plan wants: the strip a flight or
+   * a walk brings inside the render radius keeps the terrain it showed.
+   */
+  pendingStoodIn: number;
   /** Triangles across every built tile mesh in the scene. */
   triangles: number;
   /** Worker ms the last tile build took, and the highest since the peaks were reset. */
@@ -678,6 +692,7 @@ export class FarTerrain extends Group {
     updates: 0,
     maskRebuilds: 0,
     pendingCovered: 0,
+    pendingStoodIn: 0,
     triangles: 0,
     lastBuildMs: 0,
     peakBuildMs: 0,
@@ -706,6 +721,15 @@ export class FarTerrain extends Group {
   private queuedRequests: MessageProtocol[] = [];
 
   private lastRequestAt = -Infinity;
+
+  /**
+   * The server's budget for this client mirrored as its token bucket: the
+   * tiles still to ask for, and when it last refilled. Null until the first
+   * request under a descriptor that names a budget.
+   */
+  private budgetTokens: number | null = null;
+
+  private budgetRefilledAt = 0;
 
   private lastUpdateAt = -Infinity;
 
@@ -743,6 +767,19 @@ export class FarTerrain extends Group {
   private coverageRadius = -1;
 
   private coverageBuiltAt = 0;
+
+  /**
+   * Tiles drawn at the detail the plan wants and fully dissolved in: the
+   * only ones trusted to stand in for a chunk column still on its way. A
+   * coarser stand-in drawn while finer tiles load is not, so a fresh
+   * arrival still shows sky and fog there rather than blocky ground.
+   */
+  private standIns = new Set<string>();
+
+  /** Bumped whenever `standIns` changes, so the mask follows it. */
+  private standInGeneration = 0;
+
+  private coverageStandIns = -1;
 
   /** Sea depth per texel (0 dry, 255 at DEPTH_RANGE or deeper), around the viewer. */
   private depth = new Uint8Array(DEPTH_TEXELS * DEPTH_TEXELS).fill(255);
@@ -925,6 +962,7 @@ export class FarTerrain extends Group {
         : null;
     if (JSON.stringify(valid) === JSON.stringify(this.descriptor)) return;
     this.descriptor = valid;
+    this.budgetTokens = null;
     this.clearTiles();
     this.materialTable = null;
   }
@@ -985,8 +1023,10 @@ export class FarTerrain extends Group {
    * `isChunkPending` says whether a chunk column inside the render radius
    * still owes its terrain (not loaded, or loaded with its mesh still being
    * built at some level; a loaded, meshed chunk with nothing to draw is not
-   * pending): the mask covers those too, so the far layer never shows
-   * through a hole that real terrain is about to fill.
+   * pending): the mask covers those too, so a coarse stand-in never shows
+   * through a hole that real terrain is about to fill. Where a tile drawn
+   * at the detail the plan wants lies over such a column, that tile keeps
+   * drawing until the chunk lands instead of opening a hole of sky.
    */
   update(
     position: Vector3,
@@ -1135,6 +1175,11 @@ export class FarTerrain extends Group {
   private requestTiles(wanted: FarTileKey[], now: number) {
     if (wanted.length === 0) return;
     if (now - this.lastRequestAt < this.options.requestIntervalMs) return;
+    const cap = Math.min(
+      this.options.maxTilesPerRequest,
+      this.budgetAllowance(now),
+    );
+    if (cap < 1) return;
     const tiles: [number, number, number][] = [];
     for (const key of wanted) {
       const id = farTileId(key);
@@ -1144,9 +1189,10 @@ export class FarTerrain extends Group {
         continue;
       tiles.push([key.level, key.tx, key.tz]);
       this.pending.set(id, now);
-      if (tiles.length >= this.options.maxTilesPerRequest) break;
+      if (tiles.length >= cap) break;
     }
     if (tiles.length === 0) return;
+    if (this.budgetTokens !== null) this.budgetTokens -= tiles.length;
     this.lastRequestAt = now;
     this.stats.tilesRequested += tiles.length;
     this.queuedRequests.push({
@@ -1156,6 +1202,26 @@ export class FarTerrain extends Group {
         payload: JSON.stringify({ tiles }),
       },
     } as MessageProtocol);
+  }
+
+  /**
+   * How many tiles a request may name now under the server's budget,
+   * refilled by wall time as the server refills its own and kept
+   * `budgetHeadroom` short of it; unlimited when the descriptor names none.
+   */
+  private budgetAllowance(now: number) {
+    const budget = this.descriptor?.budget;
+    if (!budget || !(budget.tilesPerSecond > 0) || !(budget.burst > 0))
+      return Infinity;
+    const capacity = Math.max(1, budget.burst - this.options.budgetHeadroom);
+    const tokens =
+      this.budgetTokens === null
+        ? capacity
+        : this.budgetTokens +
+          ((now - this.budgetRefilledAt) / 1000) * budget.tilesPerSecond;
+    this.budgetTokens = Math.min(capacity, tokens);
+    this.budgetRefilledAt = now;
+    return Math.min(budget.maxTilesPerRequest, Math.floor(this.budgetTokens));
   }
 
   /**
@@ -1172,7 +1238,8 @@ export class FarTerrain extends Group {
     elapsed: number,
   ) {
     const drawnIds = new Set(drawn.map(farTileId));
-    const keepIds = new Set([...wanted, ...fallback].map(farTileId));
+    const wantedIds = new Set(wanted.map(farTileId));
+    const keepIds = new Set([...wantedIds, ...fallback.map(farTileId)]);
     // Every coarser tile over what is drawn or wanted stays: it is the
     // stand-in the plan falls back to when the viewer outruns the finer
     // tiles, and without it the layer opens a hole until a refetch lands.
@@ -1197,6 +1264,7 @@ export class FarTerrain extends Group {
     let bytes = 0;
     const quads: FarMeshCounts = { tops: 0, risers: 0, skirts: 0, crowns: 0 };
     const idle: [string, ResidentTile][] = [];
+    const standIns = new Set<string>();
     for (const [id, tile] of this.resident) {
       const isDrawn = drawnIds.has(id);
       if (isDrawn) {
@@ -1217,6 +1285,7 @@ export class FarTerrain extends Group {
         1,
         Math.max(0, tile.opacity + (isDrawn ? step : -step)),
       );
+      if (isDrawn && wantedIds.has(id) && tile.opacity >= 1) standIns.add(id);
       for (const mesh of [tile.land, tile.sky]) {
         if (!mesh) continue;
         mesh.visible = tile.opacity > 0;
@@ -1243,6 +1312,13 @@ export class FarTerrain extends Group {
     }
     for (const id of Array.from(this.pending.keys())) {
       if (!keepIds.has(id)) this.pending.delete(id);
+    }
+    if (
+      standIns.size !== this.standIns.size ||
+      [...standIns].some((id) => !this.standIns.has(id))
+    ) {
+      this.standIns = standIns;
+      this.standInGeneration += 1;
     }
     this.stats.tilesDrawn = drawnIds.size;
     this.stats.meshes = meshes;
@@ -1566,29 +1642,41 @@ export class FarTerrain extends Group {
       this.coverageCenter[1] !== cz;
     // Pending columns change when a chunk loads (the generation), when
     // the radius they are counted within does, and, while any are still
-    // counted, as their grace runs out.
+    // counted, as their grace runs out or the tiles fit to stand in for
+    // them change.
     const now = performance.now();
     const isRecheckDue =
       this.stats.pendingCovered > 0 &&
       now - this.coverageBuiltAt >= PENDING_RECHECK_MS;
+    const isStandInStale =
+      this.coverageStandIns !== this.standInGeneration &&
+      this.stats.pendingCovered + this.stats.pendingStoodIn > 0;
     if (
       !centerMoved &&
       this.coverageGeneration === world.loadedGeneration &&
       this.coverageRadius === world.renderRadius &&
-      !isRecheckDue
+      !isRecheckDue &&
+      !isStandInStale
     )
       return;
     this.coverageBuiltAt = now;
     this.coverageCenter = [cx, cz];
     this.coverageGeneration = world.loadedGeneration;
     this.coverageRadius = world.renderRadius;
-    const covered: [number, number][] = pendingChunksWithin(
+    this.coverageStandIns = this.standInGeneration;
+    const covered: [number, number][] = [];
+    let stoodIn = 0;
+    for (const column of pendingChunksWithin(
       cx,
       cz,
       world.renderRadius,
       world.isChunkPending,
-    );
+    )) {
+      if (this.isStoodIn(column[0], column[1], world.chunkSize)) stoodIn += 1;
+      else covered.push(column);
+    }
     this.stats.pendingCovered = covered.length;
+    this.stats.pendingStoodIn = stoodIn;
     world.forEachMeshedChunk((x, z) => covered.push([x, z]));
     buildCoverageMask(
       covered,
@@ -1605,6 +1693,52 @@ export class FarTerrain extends Group {
     );
     this.coverageTexture.needsUpdate = true;
     this.stats.maskRebuilds += 1;
+  }
+
+  /**
+   * Whether the layer draws the whole of a chunk column at the detail its
+   * plan wants, as it does over a column still on its way. A chunk landing
+   * there replaces terrain already on screen, so a host can land it as
+   * itself rather than reveal it out of the fog, which would flash over
+   * that terrain.
+   */
+  drawsColumn(cx: number, cz: number) {
+    return this.visible && this.isStoodIn(cx, cz, this.chunkSize);
+  }
+
+  /**
+   * Whether tiles in `standIns` draw the whole of a chunk column: asked at
+   * both edges of the column and at every finest tile between, since the
+   * drawn tiles cover each square once but need not line up with chunks.
+   */
+  private isStoodIn(cx: number, cz: number, chunkSize: number) {
+    const descriptor = this.descriptor;
+    if (!descriptor || this.standIns.size === 0) return false;
+    const step = Math.min(chunkSize, farTileSpan(descriptor, 0));
+    const offsets: number[] = [];
+    for (let offset = 0.5; offset < chunkSize - 0.5; offset += step) {
+      offsets.push(offset);
+    }
+    offsets.push(chunkSize - 0.5);
+    for (const ox of offsets) {
+      for (const oz of offsets) {
+        const x = cx * chunkSize + ox;
+        const z = cz * chunkSize + oz;
+        let isDrawn = false;
+        for (let level = 0; level < descriptor.levels && !isDrawn; level++) {
+          const span = farTileSpan(descriptor, level);
+          isDrawn = this.standIns.has(
+            farTileId({
+              level,
+              tx: Math.floor(x / span),
+              tz: Math.floor(z / span),
+            }),
+          );
+        }
+        if (!isDrawn) return false;
+      }
+    }
+    return true;
   }
 
   /**

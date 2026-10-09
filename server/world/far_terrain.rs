@@ -98,6 +98,31 @@ pub struct FarTerrainDescriptor {
     /// The species a tile's canopy samples name, by index.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub trees: Vec<FarTerrainTree>,
+    /// What each client may ask for. [`World::set_far_terrain`] fills it
+    /// from the limits it is given, so a host leaves it `None`.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub budget: Option<FarTerrainBudget>,
+}
+
+/// One client's request budget, as [`FarTerrainLimits`] grant it. A client
+/// that paces its requests to it is never refused a tile, so it never waits
+/// out a retry for one while the tiles it needs most queue behind.
+#[derive(Clone, Copy, Debug, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct FarTerrainBudget {
+    pub tiles_per_second: f32,
+    pub burst: f32,
+    pub max_tiles_per_request: usize,
+}
+
+impl From<&FarTerrainLimits> for FarTerrainBudget {
+    fn from(limits: &FarTerrainLimits) -> Self {
+        Self {
+            tiles_per_second: limits.tiles_per_second,
+            burst: limits.burst,
+            max_tiles_per_request: limits.max_tiles_per_request,
+        }
+    }
 }
 
 /// One tile's samples, row-major by z then x: index `j * size + i` is the
@@ -485,6 +510,10 @@ impl World {
         descriptor: FarTerrainDescriptor,
         limits: FarTerrainLimits,
     ) {
+        let descriptor = FarTerrainDescriptor {
+            budget: Some(FarTerrainBudget::from(&limits)),
+            ..descriptor
+        };
         self.write_resource::<super::WorldConfig>().far_terrain = Some(descriptor.clone());
         self.ecs_mut()
             .insert(FarTerrain::new(sampler, descriptor, limits));
@@ -568,6 +597,7 @@ mod tests {
             sky_material: None,
             seabed_material: None,
             trees: Vec::new(),
+            budget: None,
         }
     }
 
@@ -847,5 +877,15 @@ mod tests {
         assert!(json.contains("\"trees\":[{\"leaves\":41,\"log\":42}]"));
         let back: FarTerrainDescriptor = serde_json::from_str(&json).unwrap();
         assert_eq!(back, painted);
+        let budgeted = FarTerrainDescriptor {
+            budget: Some(FarTerrainBudget::from(&FarTerrainLimits::default())),
+            ..descriptor()
+        };
+        let json = serde_json::to_string(&budgeted).unwrap();
+        assert!(json.contains(
+            "\"budget\":{\"tilesPerSecond\":24.0,\"burst\":96.0,\"maxTilesPerRequest\":16}"
+        ));
+        let back: FarTerrainDescriptor = serde_json::from_str(&json).unwrap();
+        assert_eq!(back, budgeted);
     }
 }

@@ -251,6 +251,46 @@ describe("FarTerrain detail", () => {
     expect(far.takePackets()).toHaveLength(0);
   });
 
+  it("asks no more than the server's budget grants, so none is refused", () => {
+    let clock = 1000;
+    vi.spyOn(performance, "now").mockImplementation(() => clock);
+    const far = new FarTerrain(shared(), {
+      distance: 64,
+      buildMesh: syncBuild,
+      faceLook: () => grass,
+      requestIntervalMs: 0,
+      maxTilesPerRequest: 100,
+      budgetHeadroom: 1,
+    });
+    far.configure({
+      ...descriptor,
+      budget: { tilesPerSecond: 10, burst: 5, maxTilesPerRequest: 16 },
+    });
+    const asked = () =>
+      far
+        .takePackets()
+        .flatMap(
+          (packet) =>
+            JSON.parse(
+              (packet as { method: { payload: string } }).method.payload,
+            ).tiles as number[][],
+        );
+    const at = new Vector3(2, 120, 2);
+    // The burst, one tile short of it, nearest first.
+    far.update(at, world);
+    const first = asked();
+    expect(first).toHaveLength(4);
+    expect(first[0]).toEqual([0, 0, 0]);
+    // Spent: nothing until the bucket refills.
+    far.update(at, world);
+    expect(asked()).toHaveLength(0);
+    // A quarter second at 10 a second: two whole tiles.
+    clock += 250;
+    far.update(at, world);
+    expect(asked()).toHaveLength(2);
+    vi.restoreAllMocks();
+  });
+
   it("keeps a tall tile split, and resident as its children's stand-in", async () => {
     // Two levels; the root splits for its relief alone, never for distance.
     const far = new FarTerrain(shared(), {
@@ -307,6 +347,99 @@ describe("FarTerrain detail", () => {
     far.update(at, world);
     expect(asked()).toEqual([]);
     expect(far.stats.levelCounts).toEqual([1, 0]);
+  });
+});
+
+describe("FarTerrain coverage", () => {
+  it("stands in for a chunk on its way only with the detail the plan wants there", async () => {
+    // Two levels of 9-sample tiles: a level-0 tile is one chunk column.
+    const uniforms = shared();
+    const far = new FarTerrain(uniforms, {
+      distance: 1,
+      buildMesh: syncBuild,
+      faceLook: () => grass,
+      fadeMs: 1,
+      evictAfterMs: 60_000,
+      requestIntervalMs: 0,
+      retryAfterMs: 60_000,
+      maxTilesPerRequest: 100,
+    });
+    far.configure({ ...descriptor, tileSamples: 9, levels: 2 });
+    let isLanded = false;
+    const chunks = {
+      ...world,
+      renderRadius: 1,
+      loadedGeneration: 0,
+      forEachMeshedChunk: (callback: (cx: number, cz: number) => void) => {
+        if (isLanded) callback(0, 0);
+      },
+      isChunkPending: (cx: number, cz: number) =>
+        !isLanded && cx === 0 && cz === 0,
+    };
+    const at = new Vector3(8, 120, 8);
+    const coveredAt = (cx: number, cz: number) => {
+      const cover = uniforms.farCover.value;
+      const mask = must(uniforms.farCoverMask.value) as DataTexture;
+      const data = mask.image.data as Uint8Array;
+      return data[(cz - cover.y) * cover.w + (cx - cover.x)];
+    };
+    const reply = (level: number) => {
+      const bytes = new Uint8Array(81 * 2);
+      for (let i = 0; i < 81; i++) bytes[i * 2] = 100;
+      const b64 = (data: Uint8Array) => btoa(String.fromCharCode(...data));
+      far.onMethodReply(
+        FAR_TERRAIN_METHOD,
+        JSON.stringify({
+          level,
+          tx: 0,
+          tz: 0,
+          step: 2 << level,
+          size: 9,
+          heights: b64(bytes),
+          colors: b64(new Uint8Array(81)),
+        }),
+      );
+    };
+    const run = async (done: () => boolean) => {
+      for (let i = 0; i < 12 && !done(); i++) {
+        far.update(at, chunks);
+        await flush();
+        await new Promise((resolve) => setTimeout(resolve, 2));
+      }
+    };
+
+    // Only the coarser tile has landed: it stands in for the layer, but
+    // not for the chunk, whose column keeps showing sky.
+    reply(1);
+    await run(() => far.stats.levelCounts[1] === 1);
+    await run(() => false);
+    expect(far.stats.levelCounts).toEqual([0, 1]);
+    expect(coveredAt(0, 0)).toBe(255);
+    expect(far.stats.pendingCovered).toBe(1);
+    expect(far.stats.pendingStoodIn).toBe(0);
+    expect(far.drawsColumn(0, 0)).toBe(false);
+
+    // The tile the plan wants arrives and dissolves in: it keeps drawing
+    // the column until the chunk lands.
+    reply(0);
+    await run(() => far.stats.pendingStoodIn === 1);
+    expect(far.stats.levelCounts).toEqual([1, 0]);
+    expect(coveredAt(0, 0)).toBe(0);
+    expect(far.stats.pendingCovered).toBe(0);
+    expect(far.drawsColumn(0, 0)).toBe(true);
+    expect(far.drawsColumn(1, 0)).toBe(false);
+
+    // The chunk lands and draws: the far layer leaves it.
+    isLanded = true;
+    chunks.loadedGeneration = 1;
+    far.update(at, chunks);
+    expect(coveredAt(0, 0)).toBe(255);
+    expect(far.stats.pendingStoodIn).toBe(0);
+
+    // A layer switched off draws nothing, whatever it last stood in for.
+    far.distance = 0;
+    far.update(at, chunks);
+    expect(far.drawsColumn(0, 0)).toBe(false);
   });
 });
 

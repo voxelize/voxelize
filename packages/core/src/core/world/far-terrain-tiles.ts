@@ -27,6 +27,18 @@ export type FarTerrainDescriptor = {
   seabedMaterial?: number;
   /** The tree species tiles' canopy samples name, by index. */
   trees?: FarTerrainTree[];
+  /**
+   * What one client may ask for: the server refuses the rest of a request
+   * past it, and a refused tile is asked again only after the retry window.
+   */
+  budget?: FarTerrainBudget;
+};
+
+/** One client's request budget: a token bucket refilled by wall time. */
+export type FarTerrainBudget = {
+  tilesPerSecond: number;
+  burst: number;
+  maxTilesPerRequest: number;
 };
 
 /** A tree species: the block its crown is made of and the log it stands on. */
@@ -276,7 +288,8 @@ export function isChunkColumnPending(
  * somewhere these are the holes the far layer would show through, and from
  * inside a canyon that reads as seeing through the walls for a second; the
  * coverage mask counts them as covered, so sky and fog show there instead
- * until the chunk's own terrain lands. The disc is the one the chunk
+ * until the chunk's own terrain lands, unless the far layer already draws
+ * that column at the detail its plan wants. The disc is the one the chunk
  * requests walk; `isPending` answers for one column (a column outside the
  * world, or one loaded and meshed with nothing to draw, is not pending).
  */
