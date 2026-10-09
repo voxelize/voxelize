@@ -30,6 +30,11 @@ import {
   buildFarLandArrays,
   buildFarSkyArrays,
   decodeFarTerrainReply,
+  FarClassLooks,
+  farClassLooks,
+  FarFaceLook,
+  FarFaceSide,
+  farLooksFromPalette,
   FarRing,
   farTerrainRings,
   FarTerrainDescriptor,
@@ -43,7 +48,11 @@ import {
   pendingChunksWithin,
   selectFarTiles,
 } from "./far-terrain-tiles";
-import { createSkyFogFragment, SKY_FOG_UNIFORM_DECLARATIONS } from "./sky-fog";
+import {
+  createSkyAtmosphereFragment,
+  SKY_FOG_UNIFORM_DECLARATIONS,
+} from "./sky-fog";
+import { createUnderwaterFogFragment } from "./water-optics";
 
 /** The method a client calls for far-terrain tiles, and its reply's name. */
 export const FAR_TERRAIN_METHOD = "vox-builtin:far-terrain";
@@ -105,15 +114,35 @@ export type FarTerrainOptions = {
    */
   distance: number;
   /**
-   * RGB in 0..1 per colour class the server's sampler emits, flattened. A
-   * class past the end takes the last entry; an empty palette draws grey.
+   * Linear RGB per class, flattened, for a server whose descriptor names no
+   * `materials`. A class past the end takes the last entry; an empty
+   * palette draws grey.
    */
   palette: ArrayLike<number>;
+  /**
+   * What a block face looks like from afar (the world reads its texels off
+   * the atlas), or null while its texture is not painted yet. Used to paint
+   * the descriptor's `materials`.
+   */
+  faceLook: ((block: number, side: FarFaceSide) => FarFaceLook | null) | null;
+  /**
+   * How long a face may stay unreadable before the layer paints it grey and
+   * says so, rather than never drawing.
+   */
+  faceLookTimeoutMs: number;
   /** The far water plane's colour. */
   waterColor: Color | string | number;
-  /** Colour of floating land's top and of its underside and walls. */
+  /**
+   * Colour of floating land's top and of its underside and walls, when the
+   * descriptor names no `skyMaterial`.
+   */
   skyTopColor: Color | string | number;
   skySideColor: Color | string | number;
+  /**
+   * The outer share of the reach across which the layer thins into the
+   * haze, reaching it at the reach, so its edge never cuts against the sky.
+   */
+  edgeBand: number;
   /** Tiles one request may name; the server caps it too. */
   maxTilesPerRequest: number;
   /** Least time between two requests. */
@@ -132,9 +161,12 @@ export type FarTerrainOptions = {
 const DEFAULT_OPTIONS: FarTerrainOptions = {
   distance: 0,
   palette: [],
+  faceLook: null,
+  faceLookTimeoutMs: 10000,
   waterColor: "#2d6a9a",
   skyTopColor: "#6f9d4e",
   skySideColor: "#6e665c",
+  edgeBand: 0.1,
   maxTilesPerRequest: 16,
   requestIntervalMs: 120,
   retryAfterMs: 6000,
@@ -173,6 +205,15 @@ export type FarTerrainStats = {
   /** Main-thread ms the last tile mesh took to build, and the highest since the peaks were reset. */
   lastBuildMs: number;
   peakBuildMs: number;
+  /**
+   * Block faces read for the descriptor's materials, those still waiting
+   * for their texture, those painted grey because they never became
+   * readable, and the main-thread ms the reads took.
+   */
+  facesResolved: number;
+  facesPending: number;
+  facesMissing: number;
+  faceLookMs: number;
 };
 
 const VERTEX_SHADER = `
@@ -197,10 +238,36 @@ void main() {
 `;
 
 /**
+ * The chunk fragment's daylight terms for an open face in full sun (the
+ * block after `#include <envmap_fragment>` in shaders.ts: no shadow, no
+ * occlusion, no block light), as the literals both shaders carry. The chunk
+ * shader is the source of truth; far-terrain.test.ts reads it and fails when
+ * either side changes alone.
+ */
+export const CHUNK_DAYLIGHT = {
+  /** `max(rawNdotL * 0.85 + 0.15, 0.0)`: the wrapped sun. */
+  sunWrap: { scale: "0.85", bias: "0.15" },
+  /** `smoothstep(0.75, 0.95, texLuma)`: how bright a texture counts as. */
+  brightTexture: { from: "0.75", to: "0.95" },
+  /** `mix(1.0, 0.7, isBrightTex)`: the sun a bright texture keeps. */
+  brightTextureSun: "0.7",
+  /** `uAmbientColor * 0.4`: the sky ambient a face looking down gets. */
+  groundAmbient: "0.4",
+  /** `vec3(0.025, 0.03, 0.04) * sunVisibility`: starlight under open sky. */
+  starlight: "0.025, 0.03, 0.04",
+  /** `vec3 coolTint = vec3(0.92, 0.95, 1.05)`: daylight white balance. */
+  daylightBalance: "0.92, 0.95, 1.05",
+  /** The ACES fit `(x (2.51 x + 0.03)) / (x (2.43 x + 0.59) + 0.14)`. */
+  toneMap: { a: "2.51", b: "0.03", c: "2.43", d: "0.59", e: "0.14" },
+} as const;
+
+const D = CHUNK_DAYLIGHT;
+
+/**
  * The shared fragment body: hide under meshed chunks and outside the ring,
- * light a flat face the way the chunk shader lights an unshadowed, fully
- * sunlit face (wrapped N.L, hemisphere ambient, per-axis face shade, the
- * same tone map), then the same sky fog the chunks wear.
+ * light a flat face exactly as the chunk shader lights an open face in full
+ * sun ({@link CHUNK_DAYLIGHT}), wear the same sky fog the chunks wear, and
+ * thin into that haze across the outer `uFarEdge` band.
  */
 const fragmentShader = (colorExpression: string, isWater: boolean) => `
 ${SKY_FOG_UNIFORM_DECLARATIONS}
@@ -211,6 +278,7 @@ uniform vec4 uFaceShades;
 uniform float uRingInner;
 uniform float uRingOuter;
 uniform vec2 uRingCenter;
+uniform vec2 uFarEdge;
 ${FAR_SEAM_UNIFORM_DECLARATIONS}
 ${isWater ? "uniform vec3 uWaterColor;" : "varying vec3 vFarColor;"}
 varying vec3 vWorldPosition;
@@ -236,22 +304,30 @@ void main() {
   if (dot(normal, cameraPosition - vWorldPosition) < 0.0) normal = -normal;`
   }
 
-  float NdotL = max(dot(normal, uSunDirection) * 0.85 + 0.15, 0.0);
-  vec3 sun = uSunColor * NdotL * uSunlightIntensity;
+  vec3 albedo = ${colorExpression};
+  float NdotL = max(dot(normal, uSunDirection) * ${D.sunWrap.scale} + ${D.sunWrap.bias}, 0.0);
+  float brightTexture = smoothstep(${D.brightTexture.from}, ${D.brightTexture.to}, dot(albedo, vec3(0.2126, 0.7152, 0.0722)));
+  vec3 sun = uSunColor * NdotL * uSunlightIntensity * mix(1.0, ${D.brightTextureSun}, brightTexture);
   float hemisphere = normal.y * 0.5 + 0.5;
-  vec3 skyAmbient = mix(uAmbientColor * 0.4, uAmbientColor, hemisphere);
+  vec3 skyAmbient = mix(uAmbientColor * ${D.groundAmbient}, uAmbientColor, hemisphere);
   float ambientFloor = max(uMinLightLevel + uBaseAmbient, 0.0);
-  vec3 globalAmbient = vec3(0.025, 0.03, 0.04) + uAmbientColor * ambientFloor;
+  vec3 globalAmbient = vec3(${D.starlight}) + uAmbientColor * ambientFloor;
   vec3 weights = abs(normal);
   weights /= max(weights.x + weights.y + weights.z, 0.0001);
   float verticalShade = normal.y > 0.0 ? uFaceShades.w : uFaceShades.z;
   float faceShade = weights.x * uFaceShades.x + weights.z * uFaceShades.y + weights.y * verticalShade;
-  vec3 light = (skyAmbient + sun + globalAmbient) * faceShade;
-  light = (light * (2.51 * light + 0.03)) / (light * (2.43 * light + 0.59) + 0.14);
+  vec3 light = (skyAmbient + sun + globalAmbient) * vec3(${D.daylightBalance}) * faceShade;
+  light = (light * (${D.toneMap.a} * light + ${D.toneMap.b})) / (light * (${D.toneMap.c} * light + ${D.toneMap.d}) + ${D.toneMap.e});
   light = max(light, vec3(ambientFloor) * faceShade);
 
-  gl_FragColor = vec4(${colorExpression} * light, 1.0);
-  ${createSkyFogFragment()}
+  gl_FragColor = vec4(albedo * light, 1.0);
+  ${createSkyAtmosphereFragment()}
+  gl_FragColor.rgb = mix(
+    gl_FragColor.rgb,
+    fogTint,
+    smoothstep(uFarEdge.x, uFarEdge.y, horizontal) * (1.0 - uCameraSubmersion)
+  );
+  ${createUnderwaterFogFragment(false)}
 }
 `;
 
@@ -296,9 +372,32 @@ export class FarTerrain extends Group {
     triangles: 0,
     lastBuildMs: 0,
     peakBuildMs: 0,
+    facesResolved: 0,
+    facesPending: 0,
+    facesMissing: 0,
+    faceLookMs: 0,
   };
 
   private resident = new Map<string, ResidentTile>();
+
+  /** Every class's colours, once each face they need has been read. */
+  private looks: FarClassLooks | null = null;
+
+  private skyLooks: {
+    top: readonly [number, number, number];
+    side: readonly [number, number, number];
+  } | null = null;
+
+  /** Faces read so far, by `block:side`. */
+  private faceLooks = new Map<string, FarFaceLook>();
+
+  /** When each still unreadable face was first asked for. */
+  private faceWaitingSince = new Map<string, number>();
+
+  /** `(start, end)` of the band across which the layer thins into haze. */
+  private farEdge: ShaderUniform<Vector2> = {
+    value: new Vector2(Infinity, Infinity),
+  };
 
   private pending = new Map<string, number>();
 
@@ -411,6 +510,7 @@ export class FarTerrain extends Group {
       uRingInner: { value: 0 },
       uRingOuter: { value: 0 },
       uRingCenter: this.ringCenter,
+      uFarEdge: this.farEdge,
     });
 
     this.landMaterial = new ShaderMaterial({
@@ -453,15 +553,36 @@ export class FarTerrain extends Group {
     if (JSON.stringify(valid) === JSON.stringify(this.descriptor)) return;
     this.descriptor = valid;
     this.clearTiles();
+    this.looks = null;
+    this.skyLooks = null;
   }
 
   /**
-   * Replaces the colour of every class (linear RGB, flattened); tiles built
-   * from here on use it. A source whose classes are discovered as tiles
-   * arrive (block ids, say) grows its palette before handing each tile in.
+   * Replaces the colour of every class (linear RGB, flattened) for a server
+   * whose descriptor names no materials; tiles built from here on use it. A
+   * source whose classes are discovered as tiles arrive (block ids, say)
+   * grows its palette before handing each tile in.
    */
   setPalette(palette: ArrayLike<number>) {
     this.palette = Float32Array.from(palette);
+    if (!this.descriptor?.materials?.length) {
+      this.looks = null;
+      this.skyLooks = null;
+    }
+  }
+
+  /**
+   * Read every face the descriptor's materials name now, a slice at a time,
+   * for a load phase to await once the block textures are painted: each
+   * atlas read waits on the GPU, a stall that belongs behind a loading
+   * screen, not in the frame a player switches the layer on. Settles once
+   * the colours are known (a face that never becomes readable is greyed
+   * after `faceLookTimeoutMs`), at once for a world without materials.
+   */
+  async warmLooks() {
+    while (!this.resolveLooks(performance.now())) {
+      await new Promise<void>((resolve) => setTimeout(resolve, 0));
+    }
   }
 
   /** The reach in blocks; 0 switches the layer off and frees its tiles. */
@@ -558,7 +679,11 @@ export class FarTerrain extends Group {
     this.evictTiles(needed, position);
     this.updateCoverage(position, world);
     this.updateWater(position, descriptor);
-    this.buildTiles(started);
+    this.farEdge.value.set(
+      this.options.distance * (1 - this.options.edgeBand),
+      this.options.distance,
+    );
+    if (this.resolveLooks(started)) this.buildTiles(started);
 
     this.stats.tilesResident = this.resident.size;
     this.stats.lastUpdateMs = performance.now() - started;
@@ -777,6 +902,90 @@ export class FarTerrain extends Group {
     });
   }
 
+  /**
+   * Whether every class's colours are known, reading the faces the
+   * descriptor's materials name off the atlas, as many a frame as the build
+   * budget allows (at least one). Tiles wait for it: a tile built before
+   * would wear placeholder colours. A face still unreadable after
+   * `faceLookTimeoutMs` is painted grey, and the layer says which.
+   */
+  private resolveLooks(started: number): boolean {
+    if (this.looks) return true;
+    const materials = this.descriptor?.materials;
+    const faceLook = this.options.faceLook;
+    if (!materials?.length || !faceLook) {
+      this.looks = farLooksFromPalette(this.palette);
+      this.skyLooks = { top: this.skyTop, side: this.skySide };
+      return true;
+    }
+    const faces: [number, FarFaceSide][] = [];
+    for (const material of materials) {
+      faces.push([material.top, "top"], [material.top, "side"]);
+      faces.push([material.side, "side"]);
+      for (const cover of material.covers ?? [])
+        faces.push([cover.block, "top"]);
+    }
+    let pending = 0;
+    let read = 0;
+    for (const [block, side] of faces) {
+      const key = `${block}:${side}`;
+      if (this.faceLooks.has(key)) continue;
+      if (
+        read > 0 &&
+        performance.now() - started > this.options.buildBudgetMs
+      ) {
+        pending += 1;
+        continue;
+      }
+      const readAt = performance.now();
+      const look = faceLook(block, side);
+      read += 1;
+      this.stats.faceLookMs += performance.now() - readAt;
+      if (look) {
+        this.faceLooks.set(key, look);
+        this.faceWaitingSince.delete(key);
+        continue;
+      }
+      const since = this.faceWaitingSince.get(key) ?? started;
+      this.faceWaitingSince.set(key, since);
+      if (started - since < this.options.faceLookTimeoutMs) {
+        pending += 1;
+        continue;
+      }
+      console.warn(
+        `[far-terrain] block ${block}'s ${side} face never became readable in ${this.options.faceLookTimeoutMs} ms; the far layer paints it grey`,
+      );
+      this.faceLooks.set(key, GREY_LOOK);
+      this.stats.facesMissing += 1;
+    }
+    this.stats.facesResolved = this.faceLooks.size;
+    this.stats.facesPending = pending;
+    if (pending > 0) return false;
+
+    const looks = farClassLooks(
+      materials,
+      (block, side) => this.faceLooks.get(`${block}:${side}`) ?? GREY_LOOK,
+    );
+    this.looks = looks;
+    const sky = this.descriptor?.skyMaterial;
+    if (sky !== undefined && sky >= 0 && sky < looks.classes) {
+      const at = sky * 3;
+      const untinted = (fixed: Float32Array, tinted: Float32Array) =>
+        [0, 1, 2].map((c) => fixed[at + c] + tinted[at + c]) as [
+          number,
+          number,
+          number,
+        ];
+      this.skyLooks = {
+        top: untinted(looks.topFixed, looks.topTinted),
+        side: untinted(looks.wallFixed, looks.wallTinted),
+      };
+    } else {
+      this.skyLooks = { top: this.skyTop, side: this.skySide };
+    }
+    return true;
+  }
+
   private buildTiles(started: number) {
     let built = 0;
     for (const tile of this.resident.values()) {
@@ -797,7 +1006,9 @@ export class FarTerrain extends Group {
     const material =
       this.ringMaterials[ringIndex >= 0 ? ringIndex : 0] ?? this.landMaterial;
     const bounds = farTileBounds(tile.data);
-    const land = buildFarLandArrays(tile.data, this.palette);
+    const looks = this.looks ?? farLooksFromPalette(this.palette);
+    const skyLooks = this.skyLooks ?? { top: this.skyTop, side: this.skySide };
+    const land = buildFarLandArrays(tile.data, looks);
     tile.land = this.meshFrom(
       land.positions,
       land.colors,
@@ -808,7 +1019,7 @@ export class FarTerrain extends Group {
     tile.land.name = `far-terrain-${farTileId(tile.data.key)}`;
     this.add(tile.land);
     this.stats.triangles += land.indices.length / 3;
-    const sky = buildFarSkyArrays(tile.data, this.skyTop, this.skySide);
+    const sky = buildFarSkyArrays(tile.data, skyLooks.top, skyLooks.side);
     if (sky) {
       tile.sky = this.meshFrom(
         sky.positions,
@@ -879,6 +1090,8 @@ export class FarTerrain extends Group {
     tile.isBuilt = false;
   }
 }
+
+const GREY_LOOK: FarFaceLook = { color: [0.5, 0.5, 0.5], isTinted: false };
 
 function colorTriple(color: Color | string | number): [number, number, number] {
   const c = new Color(color);

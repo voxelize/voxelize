@@ -162,6 +162,26 @@ export class AtlasTexture extends CanvasTexture {
   }
 
   /**
+   * The RGBA8 pixels painted inside `range` (its texture, without the
+   * margin around it), or null while nothing has been painted there. One
+   * small read of the atlas canvas.
+   */
+  readRangePixels(range: UV): Uint8ClampedArray | null {
+    if (!this.isRangePainted(range)) return null;
+    const context = this.canvas.getContext("2d");
+    if (!context) return null;
+    const size = Math.max(1, Math.round(this.dimension * this.atlasRatio));
+    const x = Math.round(
+      (range.startU - this.atlasOffset) * this.canvas.width + this.atlasMargin,
+    );
+    const y = Math.round(
+      (1 - range.endV - this.atlasOffset) * this.canvas.height +
+        this.atlasMargin,
+    );
+    return context.getImageData(x, y, size, size).data;
+  }
+
+  /**
    * Paint `range` with a stand-in colour and remember that it is one, so a
    * later census still lists the slot as unpainted by its own art.
    */

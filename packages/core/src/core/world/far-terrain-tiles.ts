@@ -15,7 +15,39 @@ export type FarTerrainDescriptor = {
   levels: number;
   /** The y of the far water plane. */
   waterSurface: number;
+  /**
+   * What each material class is made of, indexed by a sample's class.
+   * Absent leaves the colours to the client's palette.
+   */
+  materials?: FarTerrainMaterial[];
+  /** The class floating land is painted with. */
+  skyMaterial?: number;
 };
+
+/** The blocks one material class is made of (registry block ids). */
+export type FarTerrainMaterial = {
+  /** The block whose upward face is the class's ground. */
+  top: number;
+  /**
+   * The block under it: a wall shows `top`'s side face on its highest
+   * block and this block's side face below.
+   */
+  side: number;
+  /** Blocks hiding part of the ground from above, with the share each hides. */
+  covers?: { block: number; share: number }[];
+};
+
+/**
+ * What one block face looks like from far away: the mean of its texels in
+ * linear RGB, and whether it takes a sample's regional tint (the face's
+ * `stageTintMask`).
+ */
+export type FarFaceLook = {
+  color: readonly [number, number, number];
+  isTinted: boolean;
+};
+
+export type FarFaceSide = "top" | "side";
 
 export type FarTileKey = { level: number; tx: number; tz: number };
 
@@ -31,10 +63,15 @@ export type FarTileData = {
   size: number;
   /** Top face y per sample. */
   heights: Uint16Array;
-  /** Colour class per sample. */
+  /** Material class per sample. */
   colors: Uint8Array;
   /** `(top, bottom)` per sample of floating land, 0 where none; or null. */
   sky: Uint16Array | null;
+  /**
+   * RGB tint per sample for the faces that take one, 128 meaning
+   * unchanged (a chunk's `biomeTints` encoding); or null for none.
+   */
+  tints: Uint8Array | null;
   /** Bytes of the reply payload, for the wire budget. */
   bytes: number;
 };
@@ -96,10 +133,16 @@ export function decodeFarTerrainReply(payload: unknown): FarTileData | null {
     sky = toU16(r.sky);
     if (sky.length !== count * 2) return null;
   }
+  let tints: Uint8Array | null = null;
+  if (typeof r.tints === "string") {
+    tints = toU8(r.tints);
+    if (tints.length !== count * 3) return null;
+  }
   if (bytes === 0) {
     // Already-parsed payloads count their base64 bodies plus the header.
     const skyLength = typeof r.sky === "string" ? r.sky.length : 0;
-    bytes = r.heights.length + r.colors.length + skyLength + 64;
+    const tintLength = typeof r.tints === "string" ? r.tints.length : 0;
+    bytes = r.heights.length + r.colors.length + skyLength + tintLength + 64;
   }
   return {
     key: { level, tx, tz },
@@ -108,8 +151,135 @@ export function decodeFarTerrainReply(payload: unknown): FarTileData | null {
     heights,
     colors,
     sky,
+    tints,
     bytes,
   };
+}
+
+/**
+ * Every class's colours, linear RGB triples flattened by class, each split
+ * into the part no tint touches and the part a sample's tint multiplies, so
+ * one tile build turns a class and a tint into a colour with a multiply-add:
+ * `top`, the ground seen from above with its covers blended in by share;
+ * `cap`, the ground block's own side face (a wall's highest block); `wall`,
+ * the side block's side face (the rest of the wall).
+ */
+export type FarClassLooks = {
+  classes: number;
+  topFixed: Float32Array;
+  topTinted: Float32Array;
+  capFixed: Float32Array;
+  capTinted: Float32Array;
+  wallFixed: Float32Array;
+  wallTinted: Float32Array;
+};
+
+const emptyLooks = (classes: number): FarClassLooks => ({
+  classes,
+  topFixed: new Float32Array(classes * 3),
+  topTinted: new Float32Array(classes * 3),
+  capFixed: new Float32Array(classes * 3),
+  capTinted: new Float32Array(classes * 3),
+  wallFixed: new Float32Array(classes * 3),
+  wallTinted: new Float32Array(classes * 3),
+});
+
+const addLook = (
+  fixed: Float32Array,
+  tinted: Float32Array,
+  at: number,
+  look: FarFaceLook,
+  weight: number,
+) => {
+  const target = look.isTinted ? tinted : fixed;
+  for (let c = 0; c < 3; c++) target[at + c] += look.color[c] * weight;
+};
+
+/**
+ * The looks of `materials` from the faces `look` resolves. Cover shares
+ * past 1 are scaled down to 1 so the ground never shows through negatively.
+ */
+export function farClassLooks(
+  materials: readonly FarTerrainMaterial[],
+  look: (block: number, side: FarFaceSide) => FarFaceLook,
+): FarClassLooks {
+  const looks = emptyLooks(Math.max(1, materials.length));
+  materials.forEach((material, index) => {
+    const at = index * 3;
+    const covers = material.covers ?? [];
+    const covered = covers.reduce((sum, c) => sum + Math.max(0, c.share), 0);
+    const scale = covered > 1 ? 1 / covered : 1;
+    addLook(
+      looks.topFixed,
+      looks.topTinted,
+      at,
+      look(material.top, "top"),
+      1 - covered * scale,
+    );
+    for (const cover of covers) {
+      addLook(
+        looks.topFixed,
+        looks.topTinted,
+        at,
+        look(cover.block, "top"),
+        Math.max(0, cover.share) * scale,
+      );
+    }
+    addLook(looks.capFixed, looks.capTinted, at, look(material.top, "side"), 1);
+    addLook(
+      looks.wallFixed,
+      looks.wallTinted,
+      at,
+      look(material.side, "side"),
+      1,
+    );
+  });
+  return looks;
+}
+
+/** Looks from a flat palette (linear RGB per class): one untinted colour per class. */
+export function farLooksFromPalette(palette: ArrayLike<number>): FarClassLooks {
+  const classes = Math.max(1, Math.floor(palette.length / 3));
+  const looks = emptyLooks(classes);
+  for (let i = 0; i < classes * 3; i++) {
+    const value = palette.length >= 3 ? palette[i] : 0.5;
+    looks.topFixed[i] = value;
+    looks.capFixed[i] = value;
+    looks.wallFixed[i] = value;
+  }
+  return looks;
+}
+
+const SRGB_TO_LINEAR = (() => {
+  const table = new Float32Array(256);
+  for (let i = 0; i < 256; i++) {
+    const c = i / 255;
+    table[i] = c <= 0.04045 ? c / 12.92 : Math.pow((c + 0.055) / 1.055, 2.4);
+  }
+  return table;
+})();
+
+/**
+ * The mean colour of sRGB RGBA8 pixels in linear RGB, weighted by alpha so
+ * a cutout's holes do not darken it; null when every pixel is transparent.
+ * Averaged in linear light, as the GPU's filtering of an sRGB texture does.
+ */
+export function meanLinearRgb(
+  pixels: ArrayLike<number>,
+): [number, number, number] | null {
+  let r = 0;
+  let g = 0;
+  let b = 0;
+  let weight = 0;
+  for (let at = 0; at + 3 < pixels.length; at += 4) {
+    const alpha = pixels[at + 3] / 255;
+    if (alpha <= 0) continue;
+    r += SRGB_TO_LINEAR[pixels[at]] * alpha;
+    g += SRGB_TO_LINEAR[pixels[at + 1]] * alpha;
+    b += SRGB_TO_LINEAR[pixels[at + 2]] * alpha;
+    weight += alpha;
+  }
+  return weight > 0 ? [r / weight, g / weight, b / weight] : null;
 }
 
 /** World blocks one tile of `level` spans along x and z. */
@@ -372,40 +542,58 @@ class FarQuadWriter {
   }
 }
 
-const GREY: readonly number[] = [0.5, 0.5, 0.5];
-
 /**
  * The land of a tile as flat-topped columns, so the far layer steps like
  * distant blocks instead of rolling: one quad per cell at its sample's
  * height (whole blocks), and a vertical wall along every cell edge whose
  * two sides differ in height, from the lower top up to the higher one,
- * facing the lower side and coloured as the higher column. The cell of
+ * facing the lower side and painted as the higher column. The cell of
  * sample `(i, j)` spans `[i, i + 1) x [j, j + 1)` steps, so the last sample
  * row is the first cell of the next tile: this tile walls that shared edge
  * from both heights and the next tile leaves its low edge alone, so no edge
- * is walled twice and none is missed. Colours are RGB triples in 0..1 from
- * `palette`, one per class; a class past the palette takes its last entry.
+ * is walled twice and none is missed. A top wears its class's `top` look;
+ * a wall the mix of its column's `cap` and `wall` the slope it stands for
+ * would bare (all `cap` up to a block of rise per block of run); the
+ * sample's tint multiplies each look's tinted part. A class past the looks
+ * takes the last one.
  */
 export function buildFarLandArrays(
   tile: FarTileData,
-  palette: Float32Array,
+  looks: FarClassLooks,
 ): FarMeshArrays {
-  const { size, step, heights, colors, key } = tile;
+  const { size, step, heights, colors, tints, key } = tile;
   const span = (size - 1) * step;
   const originX = key.tx * span;
   const originZ = key.tz * span;
   const cells = size - 1;
-  const classes = Math.max(1, Math.floor(palette.length / 3));
-  const triples: number[][] = [];
-  for (let c = 0; c < classes; c++) {
-    triples.push(
-      palette.length >= 3
-        ? [palette[c * 3], palette[c * 3 + 1], palette[c * 3 + 2]]
-        : [...GREY],
-    );
-  }
-  const colorOf = (i: number, j: number) =>
-    triples[Math.min(colors[j * size + i], classes - 1)];
+  const last = looks.classes - 1;
+  const top = [0, 0, 0];
+  const wall = [0, 0, 0];
+  const topOf = (i: number, j: number) => {
+    const sample = j * size + i;
+    const at = Math.min(colors[sample], last) * 3;
+    for (let c = 0; c < 3; c++) {
+      const tint = tints ? tints[sample * 3 + c] / 128 : 1;
+      top[c] = looks.topFixed[at + c] + looks.topTinted[at + c] * tint;
+    }
+    return top;
+  };
+  const wallOf = (i: number, j: number, height: number) => {
+    const sample = j * size + i;
+    const at = Math.min(colors[sample], last) * 3;
+    // The wall stands for a slope over one step. Up to a block of rise per
+    // block of run the ground is a staircase whose every riser is the
+    // ground block's own side; steeper, each column bares one such block
+    // over `slope - 1` of the block beneath.
+    const capShare = Math.min(1, step / Math.max(1, height));
+    for (let c = 0; c < 3; c++) {
+      const tint = tints ? tints[sample * 3 + c] / 128 : 1;
+      const cap = looks.capFixed[at + c] + looks.capTinted[at + c] * tint;
+      const below = looks.wallFixed[at + c] + looks.wallTinted[at + c] * tint;
+      wall[c] = cap * capShare + below * (1 - capShare);
+    }
+    return wall;
+  };
   const heightOf = (i: number, j: number) => Math.round(heights[j * size + i]);
 
   // A top per cell and a wall on each of its +x and +z edges that steps;
@@ -426,16 +614,17 @@ export function buildFarLandArrays(
       const x0 = originX + i * step;
       const x1 = x0 + step;
       const y = heightOf(i, j);
-      const color = colorOf(i, j);
-      writer.flat(x0, x1, z0, z1, y, true, color);
+      writer.flat(x0, x1, z0, z1, y, true, topOf(i, j));
       const east = heightOf(i + 1, j);
-      if (east < y) writer.wallX(x1, z0, z1, east, y, true, color);
+      if (east < y)
+        writer.wallX(x1, z0, z1, east, y, true, wallOf(i, j, y - east));
       else if (east > y)
-        writer.wallX(x1, z0, z1, y, east, false, colorOf(i + 1, j));
+        writer.wallX(x1, z0, z1, y, east, false, wallOf(i + 1, j, east - y));
       const south = heightOf(i, j + 1);
-      if (south < y) writer.wallZ(z1, x0, x1, south, y, true, color);
+      if (south < y)
+        writer.wallZ(z1, x0, x1, south, y, true, wallOf(i, j, y - south));
       else if (south > y)
-        writer.wallZ(z1, x0, x1, y, south, false, colorOf(i, j + 1));
+        writer.wallZ(z1, x0, x1, y, south, false, wallOf(i, j + 1, south - y));
     }
   }
   return writer.finish();

@@ -126,7 +126,12 @@ import { worldDefinitionSignature } from "./definition-signature";
 import { displayCopyMaterialOptions } from "./display-copy-material";
 import { computePoolCasterBounds } from "./dynamic-caster-bounds";
 import { FarTerrain, FAR_TERRAIN_METHOD } from "./far-terrain";
-import { isChunkColumnPending } from "./far-terrain-tiles";
+import {
+  FarFaceLook,
+  FarFaceSide,
+  isChunkColumnPending,
+  meanLinearRgb,
+} from "./far-terrain-tiles";
 import { computeFogRange, type WorldFogRange } from "./fog-range";
 import { forwardDraws } from "./forward-draws";
 import { HeldServerUpdates } from "./held-server-updates";
@@ -3041,6 +3046,48 @@ export class World<T = any> extends Scene implements NetIntercept {
   }
 
   /**
+   * What a block's upward (`top`) or sideways (`side`) face looks like from
+   * far away, for the far-terrain layer: the mean of the texels the chunks
+   * paint it with, in linear RGB, and whether it takes the regional tint.
+   * Null while its texture is not painted yet. A block the registry lacks,
+   * or a face whose material is not an atlas, answers grey and says so: the
+   * far layer still draws.
+   */
+  private farTerrainFaceLook(
+    blockId: number,
+    side: FarFaceSide,
+  ): FarFaceLook | null {
+    const grey: FarFaceLook = { color: [0.5, 0.5, 0.5], isTinted: false };
+    const block = this.getBlockByIdSafe(blockId);
+    if (!block || block.faces.length === 0) {
+      console.warn(
+        `[far-terrain] block ${blockId} has no faces; its far colour is grey`,
+      );
+      return grey;
+    }
+    const wanted: [number, number, number] =
+      side === "top" ? [0, 1, 0] : [1, 0, 0];
+    const face =
+      block.faces.find(
+        ({ dir }) =>
+          dir[0] === wanted[0] && dir[1] === wanted[1] && dir[2] === wanted[2],
+      ) ?? block.faces[0];
+    const material = this.getBlockFaceMaterial(block.id, face.name);
+    const atlas = material?.map;
+    if (!(atlas instanceof AtlasTexture)) {
+      console.warn(
+        `[far-terrain] ${block.name}'s ${face.name} face has no atlas; its far colour is grey`,
+      );
+      return grey;
+    }
+    const pixels = atlas.readRangePixels(face.range);
+    if (!pixels) return null;
+    const color = meanLinearRgb(pixels);
+    if (!color) return null;
+    return { color, isTinted: (face.stageTintMask ?? 0) !== 0 };
+  }
+
+  /**
    * The material bucket a geometry group lands in, mirroring
    * {@link getBlockFaceMaterial}'s resolution exactly. Geometry groups may
    * arrive keyed by face name without the face owning its own material — the
@@ -4805,6 +4852,7 @@ export class World<T = any> extends Scene implements NetIntercept {
       fogFarRenderRatio,
       fogDistance,
       farTerrainFogNearRatio,
+      farTerrainFogFarRatio,
     } = this.options;
 
     return computeFogRange({
@@ -4816,6 +4864,7 @@ export class World<T = any> extends Scene implements NetIntercept {
       // Before the constructor builds the layer there is nothing far to fog into.
       farTerrainDistance: this.farTerrain?.reach ?? 0,
       farTerrainFogNearRatio,
+      farTerrainFogFarRatio,
     });
   }
 
@@ -6692,9 +6741,11 @@ export class World<T = any> extends Scene implements NetIntercept {
       {
         distance: this.options.farTerrainDistance,
         palette: this.options.farTerrainPalette,
+        faceLook: (block, side) => this.farTerrainFaceLook(block, side),
         waterColor: this.options.farTerrainWaterColor,
         skyTopColor: this.options.farTerrainSkyTopColor,
         skySideColor: this.options.farTerrainSkySideColor,
+        edgeBand: this.options.farTerrainEdgeBand,
         seamBand: this.options.farTerrainSeamBand,
       },
     );

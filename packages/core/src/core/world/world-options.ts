@@ -317,19 +317,21 @@ export type WorldClientOptions = {
   farTerrainDistance: number;
 
   /**
-   * RGB in 0..1 per colour class the world's far-terrain sampler emits,
-   * flattened (`[r0, g0, b0, r1, ...]`). The classes are the game's; an
-   * empty palette (the default) draws every class grey.
+   * Linear RGB per class the world's far-terrain sampler emits, flattened
+   * (`[r0, g0, b0, r1, ...]`), for a world whose descriptor names no
+   * `materials` (with materials the layer paints each class from its
+   * blocks' textures). An empty palette (the default) draws every class
+   * grey.
    */
   farTerrainPalette: number[];
 
   /** The far water plane's colour. Defaults to a deep sea blue. */
   farTerrainWaterColor: string;
 
-  /** Top colour of far floating land. */
+  /** Top colour of far floating land, without a `skyMaterial`. */
   farTerrainSkyTopColor: string;
 
-  /** Underside and wall colour of far floating land. */
+  /** Underside and wall colour of far floating land, without a `skyMaterial`. */
   farTerrainSkySideColor: string;
 
   /**
@@ -338,6 +340,20 @@ export type WorldClientOptions = {
    * nearly clear and the far layer fades into haze. Defaults to `0.6`.
    */
   farTerrainFogNearRatio: number;
+
+  /**
+   * With the far layer on, fog closes at this multiple of its reach. Past
+   * `1` the layer's far stretch stays partly clear (a range 850 blocks off
+   * is about half hazed at 1.6 with a 1024 reach) and the layer thins into
+   * the haze across its outer `farTerrainEdgeBand`. Defaults to `1`.
+   */
+  farTerrainFogFarRatio: number;
+
+  /**
+   * The outer share of the far layer's reach across which it thins into
+   * the haze, so its edge never cuts against the sky. Defaults to `0.1`.
+   */
+  farTerrainEdgeBand: number;
 
   /**
    * How many blocks of the loaded area's outer edge hand over to the far
@@ -525,6 +541,8 @@ export const defaultWorldClientOptions: WorldClientOptions = {
   farTerrainSkyTopColor: "#6f9d4e",
   farTerrainSkySideColor: "#6e665c",
   farTerrainFogNearRatio: 0.6,
+  farTerrainFogFarRatio: 1,
+  farTerrainEdgeBand: 0.1,
   farTerrainSeamBand: 8,
   chunkUniformsOverwrite: {},
   sunlightStartTimeFrac: 0.25,
