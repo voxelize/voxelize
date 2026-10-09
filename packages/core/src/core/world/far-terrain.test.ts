@@ -251,7 +251,7 @@ describe("FarTerrain detail", () => {
     expect(far.takePackets()).toHaveLength(0);
   });
 
-  it("keeps splitting a tall tile after its own mesh has left", async () => {
+  it("keeps a tall tile split, and resident as its children's stand-in", async () => {
     // Two levels; the root splits for its relief alone, never for distance.
     const far = new FarTerrain(shared(), {
       distance: 1,
@@ -300,9 +300,10 @@ describe("FarTerrain detail", () => {
     expect(asked()).toEqual([[0, 0, 0]]);
     reply(0, new Array(9).fill(100));
     await settle(far, () => far.stats.levelCounts[0] === 1);
-    // The root is idle now and leaves; its relief must not leave with it.
-    await settle(far, () => far.stats.tilesResident === 1);
-    expect(far.stats.tilesResident).toBe(1);
+    // The root is drawn no more, yet stays for when its child goes missing,
+    // and is never asked for twice.
+    await settle(far, () => false, 6);
+    expect(far.stats.tilesResident).toBe(2);
     far.update(at, world);
     expect(asked()).toEqual([]);
     expect(far.stats.levelCounts).toEqual([1, 0]);
@@ -316,7 +317,7 @@ describe("FarTerrain water", () => {
       buildMesh: syncBuild,
       faceLook: () => grass,
     });
-    far.configure(descriptor);
+    far.configure({ ...descriptor, levels: 2 });
     far.update(new Vector3(2, 120, 2), world);
     // A sea floor at 60, 27 blocks under the plane at 86.875; and a dry tile.
     const heights = new Uint8Array(9 * 2);
@@ -350,6 +351,22 @@ describe("FarTerrain water", () => {
       ];
     expect(at(1, 1)).toBe(Math.round(((86.875 - 60) / 32) * 255));
     expect(at(41, 1)).toBe(0);
+    // A coarser tile over the same ground, arriving later, says less.
+    const coarse = new Uint8Array(9 * 2).fill(0);
+    for (let i = 0; i < 9; i++) coarse[i * 2] = 100;
+    far.onMethodReply(
+      FAR_TERRAIN_METHOD,
+      JSON.stringify({
+        level: 1,
+        tx: 0,
+        tz: 0,
+        step: 4,
+        size: 3,
+        heights: b64(coarse),
+        colors: b64(new Uint8Array(9)),
+      }),
+    );
+    expect(at(1, 1)).toBe(Math.round(((86.875 - 60) / 32) * 255));
   });
 });
 

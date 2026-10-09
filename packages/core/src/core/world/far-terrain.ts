@@ -747,6 +747,9 @@ export class FarTerrain extends Group {
   /** Sea depth per texel (0 dry, 255 at DEPTH_RANGE or deeper), around the viewer. */
   private depth = new Uint8Array(DEPTH_TEXELS * DEPTH_TEXELS).fill(255);
 
+  /** The level of the tile each depth texel came from (255 none), so a coarser one never overwrites a finer. */
+  private depthLevel = new Uint8Array(DEPTH_TEXELS * DEPTH_TEXELS).fill(255);
+
   private depthTexture: DataTexture;
 
   /** `(originX, originZ, blocks per texel, texels)` of the depth map. */
@@ -1170,6 +1173,23 @@ export class FarTerrain extends Group {
   ) {
     const drawnIds = new Set(drawn.map(farTileId));
     const keepIds = new Set([...wanted, ...fallback].map(farTileId));
+    // Every coarser tile over what is drawn or wanted stays: it is the
+    // stand-in the plan falls back to when the viewer outruns the finer
+    // tiles, and without it the layer opens a hole until a refetch lands.
+    const top = (this.descriptor?.levels ?? 1) - 1;
+    const ancestors = new Set<string>();
+    for (const key of [...drawn, ...wanted]) {
+      let { level, tx, tz } = key;
+      while (level < top) {
+        level += 1;
+        tx = Math.floor(tx / 2);
+        tz = Math.floor(tz / 2);
+        const id = farTileId({ level, tx, tz });
+        if (ancestors.has(id)) break;
+        ancestors.add(id);
+        keepIds.add(id);
+      }
+    }
     const step = this.options.fadeMs > 0 ? elapsed / this.options.fadeMs : 1;
     const levels = new Map<number, number>();
     let meshes = 0;
@@ -1615,10 +1635,8 @@ export class FarTerrain extends Group {
       DEPTH_TEXELS,
     );
     this.depth.fill(255);
-    const tiles = Array.from(this.resident.values(), (tile) => tile.data).sort(
-      (a, b) => b.key.level - a.key.level,
-    );
-    for (const tile of tiles) this.writeDepth(tile);
+    this.depthLevel.fill(255);
+    for (const tile of this.resident.values()) this.writeDepth(tile.data);
   }
 
   /** A tile's sea depths into the map, over each sample's own cell. */
@@ -1652,13 +1670,14 @@ export class FarTerrain extends Group {
           Math.min(1, Math.max(0, (surface - height) / DEPTH_RANGE)) * 255,
         );
         for (let tz = tz0; tz < tz1; tz++) {
-          this.depth.fill(
-            value,
-            tz * DEPTH_TEXELS + tx0,
-            tz * DEPTH_TEXELS + tx1,
-          );
+          for (let tx = tx0; tx < tx1; tx++) {
+            const at = tz * DEPTH_TEXELS + tx;
+            if (this.depthLevel[at] < tile.key.level) continue;
+            this.depth[at] = value;
+            this.depthLevel[at] = tile.key.level;
+            touched = true;
+          }
         }
-        touched = true;
       }
     }
     if (touched) this.depthTexture.needsUpdate = true;
