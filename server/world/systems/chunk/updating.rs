@@ -241,6 +241,33 @@ impl WakeBudget {
     }
 }
 
+/// Whether `voxel`'s active ticker is asked, as a written voxel or as a
+/// neighbor. A written voxel consults whatever it became, including active
+/// air (destruction propagation). A neighbor only consults real blocks and
+/// fluids, so plain air around an edit never schedules itself.
+fn asks_ticker(chunks: &Chunks, registry: &Registry, voxel: &Vec3<i32>, is_written: bool) -> bool {
+    let id = chunks.get_voxel(voxel.0, voxel.1, voxel.2);
+    let block = registry.get_block_by_id(id);
+    if is_written {
+        block.is_active
+    } else {
+        block.is_active && (block.is_fluid || !registry.is_air(id))
+    }
+}
+
+/// Whether consulting `voxel` would do anything as the world stands: ask its
+/// ticker, or tick the fluid it holds. Only those queue; whatever later makes
+/// another voxel worth consulting is a write of its own, which queues it.
+fn wants_consult(
+    chunks: &Chunks,
+    registry: &Registry,
+    voxel: &Vec3<i32>,
+    is_written: bool,
+) -> bool {
+    asks_ticker(chunks, registry, voxel, is_written)
+        || chunks.get_voxel_waterlogged(voxel.0, voxel.1, voxel.2)
+}
+
 /// Ask `voxel`'s active ticker when it next wants to run, and schedule it.
 fn consult_ticker(
     chunks: &mut Chunks,
@@ -250,19 +277,8 @@ fn consult_ticker(
     current_tick: u64,
 ) {
     let Vec3(vx, vy, vz) = voxel;
-    let id = chunks.get_voxel(vx, vy, vz);
-    let block = registry.get_block_by_id(id);
-
-    // A written voxel consults whatever it became, including active air
-    // (destruction propagation). A neighbor only consults real blocks and
-    // fluids, so plain air around an edit never schedules itself.
-    let should_consult = if is_written {
-        block.is_active
-    } else {
-        block.is_active && (block.is_fluid || !registry.is_air(id))
-    };
-
-    if should_consult {
+    if asks_ticker(chunks, registry, &voxel, is_written) {
+        let block = registry.get_block_by_id(chunks.get_voxel(vx, vy, vz));
         let ticks = (block.active_ticker.as_ref().unwrap())(Vec3(vx, vy, vz), &*chunks, registry);
         schedule_active(chunks, &Vec3(vx, vy, vz), ticks, current_tick);
         return;
@@ -737,7 +753,9 @@ fn process_pending_updates(
         .collect();
     touched.sort_by_key(|(voxel, _)| (voxel.1, voxel.0, voxel.2));
     for (voxel, is_written) in touched {
-        chunks.queue_ticker_consult(voxel, is_written);
+        if wants_consult(chunks, registry, &voxel, is_written) {
+            chunks.queue_ticker_consult(voxel, is_written);
+        }
     }
 
     drain_ticker_consults(
@@ -1605,7 +1623,11 @@ mod wake_budget_tests {
                 calls(&consulted).len() <= 1,
                 "a spent budget consults one voxel a tick"
             );
-            assert!(world.chunks().pending_ticker_consults() > 0);
+            assert_eq!(
+                world.chunks().pending_ticker_consults(),
+                wakers.len() - calls(&consulted).len(),
+                "only the wakers queue: the plain air round them has no ticker to ask"
+            );
 
             while world.chunks().pending_ticker_consults() > 0 {
                 world.tick();
