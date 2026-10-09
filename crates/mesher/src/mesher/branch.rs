@@ -303,6 +303,21 @@ impl BranchLayout {
         }
     }
 
+    /// The wood this voxel is drawn as, in cubic texels: a full block is
+    /// `texels_per_block³` (4096 at 16), a straight run at radius `r` is
+    /// `(2r)² × texels_per_block`. Volume, drops and hardness read this, so
+    /// what a tree pays out is the wood it showed.
+    pub fn volume(&self) -> u32 {
+        self.parts
+            .iter()
+            .map(|part| {
+                (0..3)
+                    .map(|axis| (part.max[axis] - part.min[axis]).max(0) as u32)
+                    .product::<u32>()
+            })
+            .sum()
+    }
+
     /// The boxes a body collides with and a ray picks, in blocks of the
     /// voxel (add the voxel's position for world space).
     pub fn aabbs(&self) -> Vec<AABB> {
