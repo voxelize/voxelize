@@ -599,6 +599,13 @@ export class RigidControls extends EventEmitter implements NetIntercept {
   public body: RigidBody;
 
   /**
+   * How many times these controls have been teleported. A reader that follows
+   * the body frame by frame (a fall meter, a trail) starts over when it
+   * changes: the body did not travel the distance a teleport moves it.
+   */
+  public teleportCount = 0;
+
+  /**
    * Whether or not the client has certain movement potentials. For example, if the forward
    * key is pressed, then "front" would be `true`. Vice versa for "back".
    */
@@ -1032,6 +1039,7 @@ export class RigidControls extends EventEmitter implements NetIntercept {
     const { bodyHeight, eyeHeight } = this.options;
     this.newPosition.set(vx + 0.5, vy + bodyHeight * eyeHeight + 1, vz + 0.5);
     this.stepSmoother.reset();
+    this.teleportCount += 1;
 
     if (this.body) {
       this.body.resting = [0, 0, 0];
@@ -1103,6 +1111,7 @@ export class RigidControls extends EventEmitter implements NetIntercept {
     this.newPosition.set(x, y, z);
     this.object.position.set(x, y, z);
     this.stepSmoother.reset();
+    this.teleportCount += 1;
 
     if (this.body) {
       const { eyeHeight, bodyHeight, restoreFootSnapEpsilon } = this.options;
