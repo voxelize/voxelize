@@ -5328,10 +5328,20 @@ export class World<T = any> extends Scene implements NetIntercept {
       this.releaseBorderSwaps(x, z);
     });
 
+    const { renderRadius } = this;
+    const { chunkRerequestIntervalMs } = this.options;
     this.chunkPipeline.forEach("requested", (name) => {
       const [x, z] = ChunkUtils.parseChunkName(name);
+      const distanceSquared = (x - centerX) ** 2 + (z - centerZ) ** 2;
 
-      if ((x - centerX) ** 2 + (z - centerZ) ** 2 > deleteRadius ** 2) {
+      // `requestChunks` retries a lost request only inside the render
+      // radius. One lost past it, but short of the delete radius that
+      // would evict it, stayed requested for as long as the player stood
+      // there: a hole that counted as pending work forever.
+      const isLostOutsideView =
+        distanceSquared > renderRadius ** 2 &&
+        this.chunkPipeline.isRequestStale(name, chunkRerequestIntervalMs);
+      if (distanceSquared > deleteRadius ** 2 || isLostOutsideView) {
         this.chunkPipeline.remove(name);
         this.sectionVisibility?.removeChunk(x, z);
         deleted.push([x, z]);
