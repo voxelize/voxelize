@@ -224,13 +224,6 @@ import {
   quantizePositions,
   quantizeUvs,
 } from "./vertex-quantization";
-import type { VoxelDelta } from "./voxel-delta";
-import {
-  WATER_OPTICS,
-  WaterOptics,
-  measureWaterColumn,
-  type WaterColumnSample,
-} from "./water-optics";
 import {
   maxVoxelBoxSide,
   voxelBoxBand,
@@ -239,6 +232,13 @@ import {
   type VoxelBoxInput,
   type VoxelBoxMesh,
 } from "./voxel-box";
+import type { VoxelDelta } from "./voxel-delta";
+import {
+  WATER_OPTICS,
+  WaterOptics,
+  measureWaterColumn,
+  type WaterColumnSample,
+} from "./water-optics";
 import LightWorker from "./workers/light-worker.ts?worker";
 import MeshWorker from "./workers/mesh-worker.ts?worker";
 import {
@@ -1660,7 +1660,7 @@ export class World<T = any> extends Scene implements NetIntercept {
       );
     }
 
-    const { maxHeight, subChunks, chunkSize, maxLightLevel } = this.options;
+    const { maxHeight, subChunks, maxLightLevel } = this.options;
     const sectionHeight = Math.floor(maxHeight / subChunks);
     const bandHeight = Math.min(box.bandHeight ?? sectionHeight, sectionHeight);
     const [ox, oy, oz] = box.origin;
@@ -1687,7 +1687,17 @@ export class World<T = any> extends Scene implements NetIntercept {
         };
         pool.addJob({
           message: {
-            chunksData: [null, null, null, null, chunkData, null, null, null, null],
+            chunksData: [
+              null,
+              null,
+              null,
+              null,
+              chunkData,
+              null,
+              null,
+              null,
+              null,
+            ],
             options: this.options,
             min: [0, 1, 0],
             max: [band.side, band.height - 1, band.side],
@@ -1695,8 +1705,9 @@ export class World<T = any> extends Scene implements NetIntercept {
           },
           buffers: [chunkData.voxels, chunkData.lights],
           timeoutMs: this.options.meshJobTimeoutMs,
-          resolve: (result: { geometries?: GeometryProtocol[] | null } | null) =>
-            resolve(result?.geometries ?? null),
+          resolve: (
+            result: { geometries?: GeometryProtocol[] | null } | null,
+          ) => resolve(result?.geometries ?? null),
         });
       });
 
