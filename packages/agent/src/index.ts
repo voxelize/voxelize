@@ -95,6 +95,19 @@ export type {
   PageUnavailableLine,
 } from "./page-availability";
 export {
+  DEFAULT_WATCH_HOLD_MS,
+  MAX_WATCH_HOLD_MS,
+  WATCH_BEAT_TIMEOUT_MS,
+  WatchError,
+  WatchLedger,
+  watchSession,
+} from "./session-watch";
+export type {
+  SessionWatch,
+  SessionWatchHandle,
+  WatchBeat,
+} from "./session-watch";
+export {
   assertMethodRan,
   describeMethodFailure,
   MethodOutcomeError,

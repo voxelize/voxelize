@@ -57,6 +57,12 @@ import {
   type SessionOrigin,
 } from "./session-meta";
 import {
+  WATCH_BEAT_TIMEOUT_MS,
+  WatchError,
+  WatchLedger,
+  type SessionWatch,
+} from "./session-watch";
+import {
   describeLastSeen,
   filterWaitCandidates,
   matchesPredicate,
@@ -129,6 +135,8 @@ export type DaemonStatus = {
   /** The cap's ms between drawn frames, or null when drawing every frame. */
   drawIntervalMs: number | null;
   lease: DaemonLeaseStatus | null;
+  /** Passive watchers whose heartbeats are keeping the session (POST /watch). */
+  watches: SessionWatch[];
   meta: SessionMeta;
   origin: SessionOrigin | null;
   client: DaemonClientStatus;
@@ -175,7 +183,8 @@ export type DaemonMetaResponse = {
 // every idle clock and no session could ever expire. Labeling is bookkeeping
 // about the session, not work done through it, so it is passive too: an
 // admin page renaming a forgotten session must not immortalize it.
-const PASSIVE_ROUTES = new Set(["/healthz", "/status", "/meta"]);
+// `/watch` counts only the beats it accepts, never the request itself.
+const PASSIVE_ROUTES = new Set(["/healthz", "/status", "/meta", "/watch"]);
 
 const metaPatchSchema = z.object({
   set: z.record(z.string(), z.string()).optional(),
@@ -449,6 +458,9 @@ export class AgentDaemon {
   private readonly onMountFailed: ((reason: string) => void) | null;
   private hasMounted = false;
   private isMountFailureReported = false;
+  private readonly watches = new WatchLedger();
+  /** Watchers already told their hold ran out, so the log says it once. */
+  private readonly refusedWatchers = new Set<string>();
 
   constructor(options: DaemonOptions) {
     this.agent = options.agent;
@@ -688,6 +700,7 @@ export class AgentDaemon {
       isDrawThrottled: this.isDrawThrottled,
       drawIntervalMs: this.drawIntervalMs,
       lease: this.leaseStatus(),
+      watches: this.watches.live(),
       meta: this.sessionMeta(),
       origin: this.origin,
       client: {
@@ -753,7 +766,19 @@ export class AgentDaemon {
     this.onMountFailed?.(reason);
   }
 
+  /** Logs every watch that stopped holding the session, and why. */
+  private sweepWatches(): void {
+    for (const { watch, reason } of this.watches.sweep()) {
+      this.refusedWatchers.delete(watch.watcher);
+      console.log(
+        `[agent-daemon] ${new Date().toISOString()} watch '${watch.watcher}' ended: ${reason}; after ${watch.beats} beat(s) since ${new Date(watch.startedAt).toISOString()}, the idle clock runs from the last activity again (idle ${Math.round(this.idleMs() / 1000)}s)`,
+      );
+      this.appendEvent("watch-ended", { watcher: watch.watcher, reason });
+    }
+  }
+
   private async pageWatchTick(): Promise<void> {
+    this.sweepWatches();
     let page: Awaited<ReturnType<Agent["pageDocument"]>>;
     try {
       page = await this.agent.pageDocument();
@@ -1357,6 +1382,76 @@ export class AgentDaemon {
       }
       return this.metaResponse();
     });
+
+    // A passive watcher's heartbeat (session-watch.ts): an accepted beat is
+    // activity, for the hold the watcher declared on its first one. Never
+    // touches the page, so a watcher can keep beating while the page works.
+    this.server.post("/watch", async (req, reply) => {
+      let beat;
+      try {
+        beat = WatchLedger.parse(req.body);
+      } catch (error) {
+        if (!(error instanceof WatchError)) throw error;
+        reply.code(400);
+        return { ok: false, error: error.message };
+      }
+      const result = this.watches.beat(beat);
+      if (!result.isAccepted) {
+        if (!this.refusedWatchers.has(beat.watcher)) {
+          this.refusedWatchers.add(beat.watcher);
+          console.log(
+            `[agent-daemon] ${new Date().toISOString()} refused a beat from watch '${beat.watcher}': ${result.reason}`,
+          );
+        }
+        reply.code(409);
+        return { ok: false, error: result.reason, watch: result.watch };
+      }
+      this.noteActivity();
+      if (result.isNew) {
+        this.refusedWatchers.delete(beat.watcher);
+        const { watch } = result;
+        console.log(
+          `[agent-daemon] ${new Date().toISOString()} watch '${watch.watcher}'${
+            watch.pid ? ` (pid ${watch.pid})` : ""
+          } holds this session until ${new Date(watch.holdUntil).toISOString()} while it beats at least every ${Math.round(WATCH_BEAT_TIMEOUT_MS / 1000)}s${
+            watch.purpose ? `: ${watch.purpose}` : ""
+          }`,
+        );
+        this.appendEvent("watch-started", {
+          watcher: watch.watcher,
+          holdUntil: watch.holdUntil,
+        });
+      }
+      return {
+        ok: true,
+        watch: result.watch,
+        beatTimeoutMs: WATCH_BEAT_TIMEOUT_MS,
+      };
+    });
+
+    this.server.delete<{ Querystring: { watcher?: string } }>(
+      "/watch",
+      async (req, reply) => {
+        const watcher = req.query.watcher ?? "";
+        const watch = this.watches.end(watcher);
+        if (watch === null) {
+          reply.code(404);
+          return {
+            ok: false,
+            error: `no watch named '${watcher}' holds this session`,
+          };
+        }
+        this.refusedWatchers.delete(watcher);
+        console.log(
+          `[agent-daemon] ${new Date().toISOString()} watch '${watch.watcher}' ended by its watcher after ${watch.beats} beat(s); the idle clock runs from the last activity again`,
+        );
+        this.appendEvent("watch-ended", {
+          watcher: watch.watcher,
+          reason: "ended by its watcher",
+        });
+        return { ok: true, watch };
+      },
+    );
 
     this.server.get<{ Querystring: { allowStale?: string } }>(
       "/me",
