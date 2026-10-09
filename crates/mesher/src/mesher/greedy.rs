@@ -287,6 +287,7 @@ fn greedy_face_data<S: VoxelAccess>(
             _ if face.stage_tint_mask != 0 && !is_fluid && block.stack_group == 0 => {
                 stage_tint_bits(stage & face.stage_tint_mask)
             }
+            _ if face.regional_tint && !is_fluid && block.stack_group == 0 => stage_tint_bits(0),
             _ => 0,
         },
         ao: aos,

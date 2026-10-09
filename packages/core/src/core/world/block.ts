@@ -249,6 +249,11 @@ export type Block = {
      * absent) means the face is never tinted from the table.
      */
     pigmentMask?: number;
+    /**
+     * Shade with the chunk's regional colour on the neutral palette, never
+     * reading the stage. Mirrors the server face's `regional_tint`.
+     */
+    regionalTint?: boolean;
   }[];
 
   /**

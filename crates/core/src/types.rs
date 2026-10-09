@@ -276,6 +276,12 @@ pub struct BlockFace {
     /// field; takes precedence over `stage_tint_mask`.
     #[serde(default)]
     pub pigment_mask: u32,
+    /// Take the chunk's regional colour (its corner colour field) without
+    /// reading the stage: the face is tint-eligible on the neutral palette,
+    /// so a block whose stage holds state of its own (a soil's fertility, a
+    /// leaf's flags) still matches the region round it.
+    #[serde(default)]
+    pub regional_tint: bool,
 }
 
 fn default_corners() -> [CornerData; 4] {
@@ -307,6 +313,7 @@ impl BlockFace {
             emissive: 0.0,
             stage_tint_mask: 0,
             pigment_mask: 0,
+            regional_tint: false,
         }
     }
 
