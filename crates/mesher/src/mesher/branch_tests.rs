@@ -348,6 +348,67 @@ fn collision_boxes_are_the_drawn_parts() {
     );
 }
 
+fn wide(radius: u32, texels_per_block: u32) -> WideBranchSection {
+    WideBranchSection {
+        radius,
+        texels_per_block,
+    }
+}
+
+#[test]
+fn a_wide_section_is_the_sum_of_its_cells_and_reaches_no_further() {
+    for t in [8, 16, 32] {
+        for radius in 1..=4 * t {
+            let section = wide(radius, t);
+            let reach = section.reach();
+            let mut sum = 0;
+            for da in -reach - 1..=reach + 1 {
+                for db in -reach - 1..=reach + 1 {
+                    let area = section.cell_area(da, db);
+                    let inside = da.abs() <= reach && db.abs() <= reach;
+                    assert_eq!(area > 0, inside, "t{t} R{radius} cell ({da}, {db})");
+                    sum += area;
+                }
+            }
+            assert_eq!(sum, section.area(), "t{t} R{radius}");
+        }
+    }
+}
+
+#[test]
+fn wide_sections_keep_the_agreed_widths() {
+    let at = |radius| wide(radius, T);
+    assert_eq!(at(8).reach(), 0, "half a block is one voxel");
+    assert_eq!(at(24).reach(), 1, "a full 3x3");
+    assert_eq!(at(24).cell_area(1, 1), 256);
+    assert_eq!(at(64).reach(), 4, "R 64 is nine cells across, not eight");
+    assert_eq!(at(64).cell_area(4, 0), 8 * 16, "outer cells half filled");
+    assert_eq!(at(9).cell_area(1, 0), 16, "one texel spills into each side");
+    assert_eq!(at(9).span(1), Some((0, 1)));
+    assert_eq!(at(9).span(-1), Some((15, 16)));
+    assert_eq!(at(9).span(2), None);
+}
+
+#[test]
+fn a_section_within_one_voxel_is_a_branch_core_and_weighs_its_wood() {
+    for r in 1..=8 {
+        let section = wide(r, T);
+        let (low, high) = section
+            .span(0)
+            .expect("the core cell always holds the tube");
+        let core = layout(r, [APART; 6]).parts[0];
+        for axis in [0, 2] {
+            assert_eq!(
+                [core.min[axis], core.max[axis]],
+                [low as i32, high as i32],
+                "r{r} across axis {axis}"
+            );
+        }
+        let run = layout(r, [APART, APART, branch(r), branch(r), APART, APART]);
+        assert_eq!(section.cell_area(0, 0) * T, run.volume(), "r{r}");
+    }
+}
+
 fn texture_face(name: &str, start_u: f32) -> BlockFace {
     BlockFace {
         name: name.into(),

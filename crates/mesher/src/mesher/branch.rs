@@ -452,6 +452,53 @@ impl BranchLayout {
     }
 }
 
+/// A branch section wider than one voxel: one square tube of half-width
+/// `radius` texels round the axis through the middle of its core cell, cut
+/// into the cells it covers. Each cell draws, collides with and weighs only
+/// the tube's overlap with its own square, so a section's cells add up to the
+/// whole tube, and a section no wider than half a block is its core cell
+/// alone, as wide as a one-voxel branch's core.
+///
+/// Cells are counted from the core on the two axes across the tube's axis.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct WideBranchSection {
+    pub radius: u32,
+    pub texels_per_block: u32,
+}
+
+impl WideBranchSection {
+    /// Cells the section reaches on each side of its core.
+    pub fn reach(&self) -> i32 {
+        let t = self.texels_per_block.max(1);
+        ((self.radius + t / 2).saturating_sub(1) / t) as i32
+    }
+
+    /// The tube's span across the cell `d` cells from the core along one
+    /// axis, in that cell's own texels (within `0..=texels_per_block`), or
+    /// `None` where the tube does not reach it.
+    pub fn span(&self, d: i32) -> Option<(u32, u32)> {
+        let t = i64::from(self.texels_per_block);
+        let (centre, radius) = (t / 2, i64::from(self.radius));
+        let start = i64::from(d) * t;
+        let low = (centre - radius).max(start);
+        let high = (centre + radius).min(start + t);
+        (high > low).then(|| ((low - start) as u32, (high - start) as u32))
+    }
+
+    /// The tube's area inside the cell `(da, db)` from the core, in texel²:
+    /// `texels_per_block²` where it fills the cell, 0 past its reach.
+    pub fn cell_area(&self, da: i32, db: i32) -> u32 {
+        let width = |d: i32| self.span(d).map_or(0, |(low, high)| high - low);
+        width(da) * width(db)
+    }
+
+    /// The whole tube's section in texel², `(2 × radius)²`: the sum of its
+    /// cells' areas.
+    pub fn area(&self) -> u32 {
+        (2 * self.radius).pow(2)
+    }
+}
+
 /// What lies beyond one side of a branch voxel, for what its faces there show.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub enum BranchBeyond {
