@@ -60,6 +60,52 @@ export interface ChunkRoundTrip {
   loadMs: number;
 }
 
+/**
+ * A chunk's outstanding request, from the first time it was asked for until
+ * data for it arrives or it leaves the world. It outlives the `requested`
+ * stage: a retry ({@link ChunkPipeline.expireRequest}) and a rejoin
+ * ({@link ChunkPipeline.resyncForRejoin}) both drop that stage so the chunk
+ * is asked for again, and the stage's own clock restarts with every attempt,
+ * so without this a chunk missing for ten minutes looked just asked for.
+ * Times are `performance.now()` milliseconds.
+ */
+export interface ChunkRequestHistory {
+  /** When the chunk was first asked for. */
+  firstRequestedAt: number;
+  /** LOAD requests queued for it so far, the first one included. */
+  attempts: number;
+  /** When the latest of them reached the socket; null if none ever has. */
+  lastSentAt: number | null;
+}
+
+export type OverdueChunkRequest = ChunkRequestHistory & { name: string };
+
+type ChunkRequestRecord = ChunkRequestHistory & {
+  /** When an overdue report last named this chunk. */
+  reportedAt: number | null;
+};
+
+const formatSeconds = (ms: number) =>
+  ms < 10_000 ? (ms / 1000).toFixed(1) : String(Math.round(ms / 1000));
+
+/**
+ * "asked 13x over 64s, last sent 1.2s ago": how long a chunk has been
+ * missing and whether its requests left this client at all. A request never
+ * sent is this client's outbound queue; one sent and never answered is the
+ * server's, or the inbound path's.
+ */
+export function describeChunkRequestHistory(
+  history: ChunkRequestHistory,
+  now: number,
+): string {
+  const asked = `asked ${history.attempts}x over ${formatSeconds(
+    now - history.firstRequestedAt,
+  )}s`;
+  return history.lastSentAt === null
+    ? `${asked}, never sent`
+    : `${asked}, last sent ${formatSeconds(now - history.lastSentAt)}s ago`;
+}
+
 /// Enough round trips to cover a teleport's worth of chunks without
 /// remembering a whole session.
 const RECENT_ROUND_TRIP_CAPACITY = 64;
@@ -110,6 +156,9 @@ export class ChunkPipeline {
    */
   private reloads = new Map<string, PendingChunkData>();
 
+  /** Outstanding requests; see {@link ChunkRequestHistory}. */
+  private requests = new Map<string, ChunkRequestRecord>();
+
   private setStage(name: string, stage: ChunkStage): void {
     const old = this.states.get(name);
     if (old) {
@@ -119,6 +168,9 @@ export class ChunkPipeline {
     this.indices[stage.stage].add(name);
     if (old?.stage === "loaded" || stage.stage === "loaded") {
       this.loadedGeneration++;
+    }
+    if (stage.stage !== "requested") {
+      this.requests.delete(name);
     }
   }
 
@@ -147,11 +199,34 @@ export class ChunkPipeline {
 
   markRequested(coords: Coords2): void {
     const name = ChunkUtils.getChunkName(coords);
+    const requestedAt = performance.now();
     this.setStage(name, {
       stage: "requested",
-      requestedAt: performance.now(),
+      requestedAt,
       sentAt: null,
     });
+    const record = this.requests.get(name);
+    if (record) {
+      record.attempts += 1;
+    } else {
+      this.requests.set(name, {
+        firstRequestedAt: requestedAt,
+        attempts: 1,
+        lastSentAt: null,
+        reportedAt: null,
+      });
+    }
+  }
+
+  /**
+   * Drop a request presumed lost so the chunk is asked for again. Unlike
+   * {@link remove}, the chunk's {@link ChunkRequestHistory} stays: the chunk
+   * is still missing.
+   */
+  expireRequest(name: string): void {
+    if (this.states.get(name)?.stage === "requested") {
+      this.removeStage(name);
+    }
   }
 
   /** How many send stamps were offered, and how many landed on a waiting request. */
@@ -161,10 +236,53 @@ export class ChunkPipeline {
   /** The queued LOAD for this chunk reached the socket at `sentAt`. */
   markSent(coords: Coords2, sentAt: number): void {
     this.sentStampAttempts += 1;
-    const state = this.states.get(ChunkUtils.getChunkName(coords));
+    const name = ChunkUtils.getChunkName(coords);
+    const record = this.requests.get(name);
+    if (record) {
+      record.lastSentAt = sentAt;
+    }
+    const state = this.states.get(name);
     if (state?.stage === "requested" && state.sentAt === null) {
       state.sentAt = sentAt;
       this.sentStampHits += 1;
+    }
+  }
+
+  /** How long this chunk has been asked for, if it still is. */
+  getRequestHistory(name: string): ChunkRequestHistory | undefined {
+    const record = this.requests.get(name);
+    if (!record) return undefined;
+    const { firstRequestedAt, attempts, lastSentAt } = record;
+    return { firstRequestedAt, attempts, lastSentAt };
+  }
+
+  /**
+   * Requests outstanding for at least `overdueMs`. Each one is returned
+   * again only once another `overdueMs` has passed, so a caller asking every
+   * frame names a stuck chunk once per interval for as long as it stays
+   * stuck.
+   */
+  takeOverdueRequests(now: number, overdueMs: number): OverdueChunkRequest[] {
+    const overdue: OverdueChunkRequest[] = [];
+    for (const [name, record] of this.requests) {
+      if (now - record.firstRequestedAt < overdueMs) continue;
+      if (record.reportedAt !== null && now - record.reportedAt < overdueMs) {
+        continue;
+      }
+      record.reportedAt = now;
+      const { firstRequestedAt, attempts, lastSentAt } = record;
+      overdue.push({ name, firstRequestedAt, attempts, lastSentAt });
+    }
+    return overdue;
+  }
+
+  /**
+   * Forget the requests of chunks the caller no longer wants, including ones
+   * between attempts that hold no stage to be removed by.
+   */
+  forgetRequestsWhere(isForgotten: (name: string) => boolean): void {
+    for (const name of [...this.requests.keys()]) {
+      if (isForgotten(name)) this.requests.delete(name);
     }
   }
 
@@ -323,12 +441,14 @@ export class ChunkPipeline {
     const chunk = this.getLoadedChunk(name);
     this.removeStage(name);
     this.reloads.delete(name);
+    this.requests.delete(name);
     return chunk;
   }
 
   resyncForRejoin(): string[] {
     // Requested chunks have no local data and the new server process holds
     // no interest for them: drop them so they are reissued as fresh requests.
+    // Their request histories stay; the chunks are still missing.
     for (const name of [...this.indices.requested]) {
       this.removeStage(name);
     }
