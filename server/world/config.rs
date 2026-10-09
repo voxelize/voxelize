@@ -49,8 +49,25 @@ pub struct WorldConfig {
     /// Maximum chunks to be processed per tick. Default is 24 chunks.
     pub max_chunks_per_tick: usize,
 
-    /// Maximum voxel updates to be processed per tick. Default is 1000 voxels.
+    /// Maximum external voxel updates (edits, methods, commands) to commit
+    /// per tick, whatever `max_update_ms_per_tick` would allow. Default is
+    /// 50000, i.e. effectively unbounded.
     pub max_updates_per_tick: usize,
+
+    /// Milliseconds a tick may spend committing external updates and
+    /// lighting them. They commit in batches of at most
+    /// `max_updates_per_batch`, each lit in full before the next starts, and
+    /// the tick takes no further batch once it has spent this. The updates it
+    /// does not reach wait, in order, at the head of their lane for the next
+    /// tick, and none is dropped: a bulk edit that floods a pit with sunlight
+    /// lands over a few ticks instead of in one long one. At least one batch
+    /// commits a tick. Default is 6.
+    pub max_update_ms_per_tick: f64,
+
+    /// The most external updates committed and lit as one batch: what
+    /// `max_update_ms_per_tick` can be overrun by is one batch's cost.
+    /// Default is 256.
+    pub max_updates_per_batch: usize,
 
     /// Maximum simulation-produced voxel updates (fluid steps, growth,
     /// active-block tickers) to commit per tick. These drain on their own
@@ -312,6 +329,10 @@ const DEFAULT_MAX_ACTIVE_UPDATES_PER_TICK: usize = 50000;
 // so a bulk edit beside costly tickers stays inside a 60 Hz tick.
 const DEFAULT_MAX_TICKER_CONSULT_MS_PER_TICK: f64 = 4.0;
 const DEFAULT_MAX_ACTIVE_PLAN_MS_PER_TICK: f64 = 4.0;
+// The writes themselves and their light, held the same way: a bulk edit
+// opening a pit to the sky floods it a few batches a tick.
+const DEFAULT_MAX_UPDATE_MS_PER_TICK: f64 = 6.0;
+const DEFAULT_MAX_UPDATES_PER_BATCH: usize = 256;
 /// Three random-tick samples per 16^3 subchunk section per world tick.
 const DEFAULT_RANDOM_TICK_SPEED: usize = 3;
 const DEFAULT_MAX_RANDOM_TICKS_PER_TICK: usize = 2048;
@@ -373,6 +394,8 @@ pub struct WorldConfigBuilder {
     max_light_level: u32,
     max_chunks_per_tick: usize,
     max_updates_per_tick: usize,
+    max_update_ms_per_tick: f64,
+    max_updates_per_batch: usize,
     max_active_updates_per_tick: usize,
     max_ticker_consult_ms_per_tick: f64,
     max_active_plan_ms_per_tick: f64,
@@ -443,6 +466,8 @@ impl WorldConfigBuilder {
             max_light_level: DEFAULT_MAX_LIGHT_LEVEL,
             max_chunks_per_tick: DEFAULT_MAX_CHUNKS_PER_TICK,
             max_updates_per_tick: DEFAULT_MAX_UPDATES_PER_TICK,
+            max_update_ms_per_tick: DEFAULT_MAX_UPDATE_MS_PER_TICK,
+            max_updates_per_batch: DEFAULT_MAX_UPDATES_PER_BATCH,
             max_active_updates_per_tick: DEFAULT_MAX_ACTIVE_UPDATES_PER_TICK,
             max_ticker_consult_ms_per_tick: DEFAULT_MAX_TICKER_CONSULT_MS_PER_TICK,
             max_active_plan_ms_per_tick: DEFAULT_MAX_ACTIVE_PLAN_MS_PER_TICK,
@@ -555,9 +580,25 @@ impl WorldConfigBuilder {
         self
     }
 
-    /// Configure the maximum amount of voxel updates to be processed per tick. Default is 1000 voxel updates.
+    /// Configure the most external voxel updates committed per tick. Default
+    /// is 50000.
     pub fn max_updates_per_tick(mut self, max_updates_per_tick: usize) -> Self {
         self.max_updates_per_tick = max_updates_per_tick;
+        self
+    }
+
+    /// Configure the milliseconds a tick may spend committing external
+    /// updates and lighting them; the rest wait, in order, for later ticks.
+    /// At least one batch commits a tick. Default is 6.
+    pub fn max_update_ms_per_tick(mut self, max_update_ms_per_tick: f64) -> Self {
+        self.max_update_ms_per_tick = max_update_ms_per_tick;
+        self
+    }
+
+    /// Configure the most external updates committed and lit as one batch.
+    /// Default is 256.
+    pub fn max_updates_per_batch(mut self, max_updates_per_batch: usize) -> Self {
+        self.max_updates_per_batch = max_updates_per_batch;
         self
     }
 
@@ -868,10 +909,15 @@ impl WorldConfigBuilder {
                 "max_active_plan_ms_per_tick",
                 self.max_active_plan_ms_per_tick,
             ),
+            ("max_update_ms_per_tick", self.max_update_ms_per_tick),
         ] {
             if !ms.is_finite() || ms < 0.0 {
                 panic!("{name} must be a finite, non-negative number of milliseconds, not {ms}.");
             }
+        }
+
+        if self.max_updates_per_batch == 0 {
+            panic!("Max updates per batch must be positive.");
         }
 
         if self.entity_flush_base_bytes_per_tick == 0 {
@@ -904,6 +950,8 @@ impl WorldConfigBuilder {
             max_light_level: self.max_light_level,
             max_chunks_per_tick: self.max_chunks_per_tick,
             max_updates_per_tick: self.max_updates_per_tick,
+            max_update_ms_per_tick: self.max_update_ms_per_tick,
+            max_updates_per_batch: self.max_updates_per_batch,
             max_active_updates_per_tick: self.max_active_updates_per_tick,
             max_ticker_consult_ms_per_tick: self.max_ticker_consult_ms_per_tick,
             max_active_plan_ms_per_tick: self.max_active_plan_ms_per_tick,

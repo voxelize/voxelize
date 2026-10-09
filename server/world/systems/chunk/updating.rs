@@ -210,30 +210,56 @@ fn schedule_active(chunks: &mut Chunks, voxel: &Vec3<i32>, delay: u64, current_t
     chunks.mark_voxel_active(voxel, delay.saturating_add(current_tick));
 }
 
-/// The milliseconds a tick allows one kind of wake work, spent rather than
+/// The milliseconds a tick allows one kind of work, spent rather than
 /// reserved: checked after each unit, because a unit cannot be split, so at
-/// least one unit runs a tick and the carried work always drains.
-struct WakeBudget {
-    started: std::time::Instant,
+/// least one unit runs a tick and the carried work always drains. Only the
+/// stretches it runs for are charged, so other work interleaved with it in
+/// the same tick costs it nothing.
+struct TickBudget {
     limit: std::time::Duration,
+    spent: std::time::Duration,
+    running_since: Option<std::time::Instant>,
     units: usize,
 }
 
-impl WakeBudget {
+impl TickBudget {
+    /// A budget charged from now.
     fn new(limit_ms: f64) -> Self {
+        let mut budget = Self::paused(limit_ms);
+        budget.resume();
+        budget
+    }
+
+    /// A budget charged only while resumed.
+    fn paused(limit_ms: f64) -> Self {
         // Past what a `Duration` holds, the budget never runs out.
         let limit = std::time::Duration::try_from_secs_f64(limit_ms.max(0.0) / 1000.0)
             .unwrap_or(std::time::Duration::MAX);
         Self {
-            started: std::time::Instant::now(),
             limit,
+            spent: std::time::Duration::ZERO,
+            running_since: None,
             units: 0,
+        }
+    }
+
+    fn resume(&mut self) {
+        self.running_since
+            .get_or_insert_with(std::time::Instant::now);
+    }
+
+    fn pause(&mut self) {
+        if let Some(since) = self.running_since.take() {
+            self.spent += since.elapsed();
         }
     }
 
     /// Whether the next unit waits for a later tick.
     fn is_spent(&self) -> bool {
-        self.units > 0 && self.started.elapsed() >= self.limit
+        let running = self
+            .running_since
+            .map_or(std::time::Duration::ZERO, |since| since.elapsed());
+        self.units > 0 && self.spent + running >= self.limit
     }
 
     fn spend(&mut self) {
@@ -295,7 +321,7 @@ fn drain_ticker_consults(
     chunks: &mut Chunks,
     registry: &Registry,
     current_tick: u64,
-    budget: &mut WakeBudget,
+    budget: &mut TickBudget,
 ) -> usize {
     let mut consulted = 0;
     while !budget.is_spent() {
@@ -399,7 +425,7 @@ fn plan_due_active_voxels(
     plan: &mut ActivePlan,
     registry: &Registry,
     current_tick: u64,
-    budget: &mut WakeBudget,
+    budget: &mut TickBudget,
 ) -> usize {
     let mut due = Vec::new();
     while let Some(Reverse(active)) = chunks.active_voxel_heap.peek() {
@@ -496,6 +522,48 @@ fn resolve_waterlogging(chunks: &Chunks, registry: &Registry, voxel: &Vec3<i32>,
     raw
 }
 
+/// Pop up to `count` writes off `lane` onto `popped`, skipping any outside
+/// the world's height or of no registered type. Returns how many it took off
+/// the lane, skipped ones included.
+fn pop_lane(
+    chunks: &mut Chunks,
+    registry: &Registry,
+    max_height: i32,
+    lane: UpdateLane,
+    count: usize,
+    popped: &mut Vec<(Vec3<i32>, u32, UpdateLane)>,
+) -> usize {
+    let count = count.min(chunks.lane_queue(lane).len());
+    for _ in 0..count {
+        let (voxel, raw) = chunks.lane_queue(lane).pop_front().unwrap();
+
+        let updated_id = BlockUtils::extract_id(raw);
+        if voxel.1 < 0 || voxel.1 >= max_height || !registry.has_type(updated_id) {
+            continue;
+        }
+
+        popped.push((voxel, raw, lane));
+    }
+    count
+}
+
+/// What a tick's batches spent in each phase. Recorded once a tick, so the
+/// profiler's averages stay per tick however many batches the tick took.
+#[derive(Default)]
+struct UpdatePhases {
+    writes: std::time::Duration,
+    consults: std::time::Duration,
+    light: std::time::Duration,
+}
+
+/// What one tick's pass committed: every write, with the voxel and light
+/// the whole tick left it, and whether the write budget stopped the external
+/// lane with writes still queued.
+struct UpdatePass {
+    results: Vec<UpdateProtocol>,
+    is_cut: bool,
+}
+
 fn process_pending_updates(
     chunks: &mut Chunks,
     mesher: &mut Mesher,
@@ -507,10 +575,9 @@ fn process_pending_updates(
     current_tick: u64,
     max_updates: usize,
     max_active_updates: usize,
-) -> Vec<UpdateProtocol> {
+) -> UpdatePass {
     let mut results = vec![];
     let max_height = config.max_height as i32;
-    let max_light_level = config.max_light_level;
 
     chunks.flush_staged_updates();
     chunks.readmit_parked_updates();
@@ -521,34 +588,165 @@ fn process_pending_updates(
         && chunks.active_updates.is_empty()
         && chunks.ticker_consults.is_empty()
     {
-        return results;
+        return UpdatePass {
+            results,
+            is_cut: false,
+        };
+    }
+
+    // External writes commit in batches until the tick's write budget is
+    // spent. Each batch is lit in full before the next pops, so the world
+    // between two batches is one a tick could have ended on, and a bulk
+    // edit's floods spread over the ticks its writes do; what a tick does not
+    // reach stays at the head of the lane. The simulation lane pops whole
+    // into the first batch, ahead of the external writes, so when a player
+    // and the simulation both touch one voxel in the same tick, the player's
+    // word is the one committed last and therefore kept. Each budget is
+    // charged only for its own work, consults across all the batches.
+    let mut writes = TickBudget::paused(config.max_update_ms_per_tick);
+    let mut consults = TickBudget::paused(config.max_ticker_consult_ms_per_tick);
+    let mut phases = UpdatePhases::default();
+    let mut external_left = max_updates;
+    let mut is_first = true;
+    let mut is_cut = false;
+    loop {
+        let mut popped = Vec::new();
+        if is_first {
+            pop_lane(
+                chunks,
+                registry,
+                max_height,
+                UpdateLane::Active,
+                max_active_updates,
+                &mut popped,
+            );
+            is_first = false;
+        }
+        let count = external_left.min(config.max_updates_per_batch.max(1));
+        external_left -= pop_lane(
+            chunks,
+            registry,
+            max_height,
+            UpdateLane::External,
+            count,
+            &mut popped,
+        );
+        commit_batch(
+            chunks,
+            lazy,
+            entities,
+            json_storage,
+            config,
+            registry,
+            current_tick,
+            popped,
+            &mut results,
+            &mut writes,
+            &mut consults,
+            &mut phases,
+        );
+        if external_left == 0 || chunks.updates.is_empty() {
+            break;
+        }
+        if writes.is_spent() {
+            is_cut = true;
+            break;
+        }
     }
 
     // Phase timings land in the generation profiler's 30s summary so a slow
     // tick can be read off the log instead of guessed at.
+    record_profile("update: writes", phases.writes);
+    record_profile("update: ticker consults", phases.consults);
+    record_profile("update: light", phases.light);
     let phase_started = std::time::Instant::now();
 
-    // Each lane pops under its own budget. The simulation lane goes first so
-    // that when a player and the simulation both touch one voxel in the same
-    // tick, the player's word is the one committed last and therefore kept.
-    let lanes = [
-        (UpdateLane::Active, max_active_updates),
-        (UpdateLane::External, max_updates),
-    ];
-    let mut popped: Vec<(Vec3<i32>, u32, UpdateLane)> = Vec::new();
-    for (lane, budget) in lanes {
-        let num_to_process = budget.min(chunks.lane_queue(lane).len());
-        for _ in 0..num_to_process {
-            let (voxel, raw) = chunks.lane_queue(lane).pop_front().unwrap();
+    if !chunks.cache.is_empty() {
+        let cache = chunks.cache.drain().collect::<Vec<Vec2<i32>>>();
 
-            let updated_id = BlockUtils::extract_id(raw);
-            if voxel.1 < 0 || voxel.1 >= max_height || !registry.has_type(updated_id) {
+        // Every chunk the pass borrowed needs a remesh, because light moved
+        // through it. Only the ones whose voxels or height map actually
+        // changed need a save.
+        for coords in &cache {
+            if chunks.is_chunk_save_dirty(coords) {
+                chunks.add_chunk_to_save(coords, true);
+            }
+        }
+
+        // Under client-only meshing the remesh job would only clear meshes
+        // that are already empty and hand the chunk back a tick later, so the
+        // chunk goes straight onto this tick's send queue instead.
+        let is_sending_directly = config.client_only_meshing
+            && perf_toggle(PerfToggle::SkipNoopRemesh);
+        let mut processes = Vec::new();
+        for coords in cache {
+            if !chunks.is_chunk_ready(&coords) {
                 continue;
             }
+            if mesher.has_chunk(&coords) {
+                mesher.mark_for_remesh(&coords);
+                continue;
+            }
+            if is_sending_directly {
+                chunks.add_chunk_to_send(&coords, &MessageType::Update, false);
+                continue;
+            }
+            let space = chunks
+                .make_space(&coords, config.max_light_level as usize)
+                .needs_height_maps()
+                .needs_voxels()
+                .needs_lights()
+                .build();
+            let chunk = chunks.raw(&coords).unwrap().to_owned();
+            processes.push((chunk, space));
+        }
+        if is_sending_directly {
+            record_profile("update: direct send", phase_started.elapsed());
+        } else {
+            record_profile("update: build spaces", phase_started.elapsed());
+        }
 
-            popped.push((voxel, raw, lane));
+        if !processes.is_empty() {
+            let phase_started = std::time::Instant::now();
+            mesher.process(processes, &MessageType::Update, registry, config);
+            record_profile("update: mesher.process", phase_started.elapsed());
         }
     }
+
+    let results = results
+        .into_iter()
+        .map(|mut update| {
+            update.voxel = chunks.get_raw_voxel(update.vx, update.vy, update.vz);
+            update.light = chunks.get_raw_light(update.vx, update.vy, update.vz);
+            update
+        })
+        .collect();
+    UpdatePass { results, is_cut }
+}
+
+/// Commit one batch of popped writes, consult the tickers they touched as
+/// far as `consults` allows, and light the batch in full. Each write it
+/// commits goes onto `results`, whose voxel and light are read once the
+/// whole tick is done. `writes` is charged for the commit and the light.
+#[allow(clippy::too_many_arguments)]
+fn commit_batch(
+    chunks: &mut Chunks,
+    lazy: &LazyUpdate,
+    entities: &Entities,
+    json_storage: &mut WriteStorage<JsonComp>,
+    config: &WorldConfig,
+    registry: &Registry,
+    current_tick: u64,
+    popped: Vec<(Vec3<i32>, u32, UpdateLane)>,
+    results: &mut Vec<UpdateProtocol>,
+    writes: &mut TickBudget,
+    consults: &mut TickBudget,
+    phases: &mut UpdatePhases,
+) {
+    let max_height = config.max_height as i32;
+    let max_light_level = config.max_light_level;
+    let phase_started = std::time::Instant::now();
+    writes.resume();
 
     // Coupled units (doors, tall plants) change whole: a write to any part
     // brings the rest of its unit into this same batch, so the pair commits,
@@ -726,10 +924,10 @@ fn process_pending_updates(
         }
     }
 
-    record_profile("update: writes", phase_started.elapsed());
+    phases.writes += phase_started.elapsed();
     let phase_started = std::time::Instant::now();
 
-    // Ticker consults run only after every write in this call has committed.
+    // Ticker consults run only after every write in this batch has committed.
     // Consulting inline read half-applied state: when a door pair committed in
     // one batch, the top's write consulted the bottom's ticker while the
     // bottom still read closed, scheduling a zero-delay wake — and since
@@ -758,15 +956,15 @@ fn process_pending_updates(
         }
     }
 
-    drain_ticker_consults(
-        chunks,
-        registry,
-        current_tick,
-        &mut WakeBudget::new(config.max_ticker_consult_ms_per_tick),
-    );
+    writes.pause();
 
-    record_profile("update: ticker consults", phase_started.elapsed());
+    consults.resume();
+    drain_ticker_consults(chunks, registry, current_tick, consults);
+    consults.pause();
+
+    phases.consults += phase_started.elapsed();
     let phase_started = std::time::Instant::now();
+    writes.resume();
 
     // Removals across the whole batch are collected first and executed as one
     // BFS per color. Removing per voxel re-floods each removal from neighbors
@@ -1166,69 +1364,9 @@ fn process_pending_updates(
         );
     }
 
-    record_profile("update: light", phase_started.elapsed());
-    let phase_started = std::time::Instant::now();
-
-    if !chunks.cache.is_empty() {
-        let cache = chunks.cache.drain().collect::<Vec<Vec2<i32>>>();
-
-        // Every chunk the pass borrowed needs a remesh, because light moved
-        // through it. Only the ones whose voxels or height map actually
-        // changed need a save.
-        for coords in &cache {
-            if chunks.is_chunk_save_dirty(coords) {
-                chunks.add_chunk_to_save(coords, true);
-            }
-        }
-
-        // Under client-only meshing the remesh job would only clear meshes
-        // that are already empty and hand the chunk back a tick later, so the
-        // chunk goes straight onto this tick's send queue instead.
-        let is_sending_directly = config.client_only_meshing
-            && perf_toggle(PerfToggle::SkipNoopRemesh);
-        let mut processes = Vec::new();
-        for coords in cache {
-            if !chunks.is_chunk_ready(&coords) {
-                continue;
-            }
-            if mesher.has_chunk(&coords) {
-                mesher.mark_for_remesh(&coords);
-                continue;
-            }
-            if is_sending_directly {
-                chunks.add_chunk_to_send(&coords, &MessageType::Update, false);
-                continue;
-            }
-            let space = chunks
-                .make_space(&coords, config.max_light_level as usize)
-                .needs_height_maps()
-                .needs_voxels()
-                .needs_lights()
-                .build();
-            let chunk = chunks.raw(&coords).unwrap().to_owned();
-            processes.push((chunk, space));
-        }
-        if is_sending_directly {
-            record_profile("update: direct send", phase_started.elapsed());
-        } else {
-            record_profile("update: build spaces", phase_started.elapsed());
-        }
-
-        if !processes.is_empty() {
-            let phase_started = std::time::Instant::now();
-            mesher.process(processes, &MessageType::Update, registry, config);
-            record_profile("update: mesher.process", phase_started.elapsed());
-        }
-    }
-
-    results
-        .into_iter()
-        .map(|mut update| {
-            update.voxel = chunks.get_raw_voxel(update.vx, update.vy, update.vz);
-            update.light = chunks.get_raw_light(update.vx, update.vy, update.vz);
-            update
-        })
-        .collect()
+    writes.pause();
+    writes.spend();
+    phases.light += phase_started.elapsed();
 }
 
 pub struct ChunkUpdatingSystem;
@@ -1277,7 +1415,7 @@ impl<'a> System<'a> for ChunkUpdatingSystem {
         // first next tick.
         let plan_started = std::time::Instant::now();
         let mut plan = ActivePlan::new();
-        let mut plan_budget = WakeBudget::new(config.max_active_plan_ms_per_tick);
+        let mut plan_budget = TickBudget::new(config.max_active_plan_ms_per_tick);
         let planned = plan_due_active_voxels(
             &mut chunks,
             &mut plan,
@@ -1326,7 +1464,10 @@ impl<'a> System<'a> for ChunkUpdatingSystem {
         active_updates.sort_by_key(|(voxel, _)| (voxel.0, voxel.1, voxel.2));
         chunks.update_active_voxels(&active_updates);
 
-        let all_results = process_pending_updates(
+        let UpdatePass {
+            results: all_results,
+            is_cut,
+        } = process_pending_updates(
             &mut chunks,
             &mut mesher,
             &lazy,
@@ -1389,6 +1530,11 @@ impl<'a> System<'a> for ChunkUpdatingSystem {
         if let Some((ticks, peak)) = chunks.note_wake_backlog(current_tick) {
             log::info!(
                 "[chunk-updating] caught up on wake work carried for {ticks} tick(s): at most {peak} ticker consults and due voxels waited past their tick's budget"
+            );
+        }
+        if let Some((ticks, peak)) = chunks.note_write_backlog(current_tick, is_cut) {
+            log::info!(
+                "[chunk-updating] caught up on external writes carried past the write budget for {ticks} tick(s): at most {peak} waited"
             );
         }
     }
@@ -1463,8 +1609,8 @@ mod wake_budget_tests {
     }
 
     /// A budget spent before it starts: one unit a tick.
-    fn one_unit() -> WakeBudget {
-        WakeBudget::new(0.0)
+    fn one_unit() -> TickBudget {
+        TickBudget::new(0.0)
     }
 
     #[test]
@@ -1639,5 +1785,312 @@ mod wake_budget_tests {
             assert_eq!(calls(&consulted), wakers);
             assert!(calls(&planned).is_empty());
         });
+    }
+}
+
+#[cfg(test)]
+mod write_budget_tests {
+    use std::time::{Duration, Instant};
+
+    use super::*;
+    use crate::world::generators::FlatlandStage;
+    use crate::{Block, LightUtils, World, WorldConfigBuilder};
+
+    const STONE: u32 = 5;
+    const GLASS: u32 = 6;
+    const LAMP: u32 = 7;
+
+    fn registry() -> Registry {
+        let mut registry = Registry::new();
+        registry.register_block(&Block::new("Stone").id(STONE).build());
+        registry.register_block(&Block::new("Glass").id(GLASS).is_transparent(true).build());
+        registry.register_block(
+            &Block::new("Lamp")
+                .id(LAMP)
+                .is_transparent(true)
+                .red_light_level(12)
+                .build(),
+        );
+        registry
+    }
+
+    /// Ready chunks round the origin, open to the sky, under `config`.
+    fn world(name: &str, config: impl FnOnce(WorldConfigBuilder) -> WorldConfigBuilder) -> World {
+        let config = config(
+            WorldConfig::new()
+                .saving(false)
+                .min_chunk([-3, -3])
+                .max_chunk([3, 3]),
+        )
+        .build();
+        let mut world = World::new(name, &config);
+        world.ecs_mut().insert(registry());
+        world.pipeline_mut().add_stage(FlatlandStage::new());
+        world.prepare();
+        for x in -1..=1 {
+            for z in -1..=1 {
+                world.pipeline_mut().add_chunk(&Vec2(x, z), false);
+            }
+        }
+        let deadline = Instant::now() + Duration::from_secs(60);
+        while !world.chunks().is_update_footprint_ready(&Vec2(0, 0)) {
+            world.tick();
+            assert!(Instant::now() < deadline, "the chunks never got ready");
+            std::thread::sleep(Duration::from_millis(1));
+        }
+        world
+    }
+
+    /// Ticks until every queued write has landed.
+    fn settle(world: &mut World) {
+        let deadline = Instant::now() + Duration::from_secs(60);
+        while world.chunks().pending_updates_count() > 0 {
+            world.tick();
+            assert!(Instant::now() < deadline, "the writes never all landed");
+        }
+    }
+
+    /// The voxels written, in the order the external lane commits them.
+    fn lane_order(writes: &[(Vec3<i32>, u32)]) -> Vec<Vec3<i32>> {
+        let mut order: Vec<Vec3<i32>> = writes.iter().map(|(voxel, _)| voxel.clone()).collect();
+        order.sort_by_key(|voxel| (voxel.1, voxel.0, voxel.2));
+        order
+    }
+
+    /// A budget the first batch spends: each tick commits one batch, the next
+    /// writes in lane order, until the last commits what is left.
+    #[test]
+    fn writes_past_the_budget_land_a_batch_a_tick_in_order_and_none_is_dropped() {
+        actix::System::new().block_on(async {
+            let mut world = world("write-budget-order", |config| {
+                config.max_updates_per_batch(37).max_update_ms_per_tick(0.0)
+            });
+            let writes: Vec<(Vec3<i32>, u32)> = (0..10)
+                .flat_map(|x| (0..10).map(move |z| (Vec3(x, 3, z), STONE)))
+                .collect();
+            let order = lane_order(&writes);
+            world.chunks_mut().update_voxels(&writes);
+            for tick in 1..=3 {
+                world.tick();
+                let landed = (37 * tick).min(writes.len());
+                let chunks = world.chunks();
+                for (index, voxel) in order.iter().enumerate() {
+                    assert_eq!(
+                        chunks.get_voxel(voxel.0, voxel.1, voxel.2) == STONE,
+                        index < landed,
+                        "after tick {tick}: write {index} of {} in lane order, at {voxel:?}",
+                        order.len()
+                    );
+                }
+            }
+            assert_eq!(world.chunks().pending_updates_count(), 0);
+        });
+    }
+
+    /// With time to spare, a tick takes batch after batch up to its count
+    /// cap, and the next tick picks up where it stopped.
+    #[test]
+    fn a_tick_with_time_to_spare_takes_batches_up_to_its_count() {
+        actix::System::new().block_on(async {
+            let mut world = world("write-budget-count", |config| {
+                config
+                    .max_updates_per_batch(7)
+                    .max_update_ms_per_tick(f64::MAX)
+                    .max_updates_per_tick(30)
+            });
+            let writes: Vec<(Vec3<i32>, u32)> = (0..50)
+                .map(|index| (Vec3(index % 10, 3 + index / 10, 1), STONE))
+                .collect();
+            let order = lane_order(&writes);
+            world.chunks_mut().update_voxels(&writes);
+            for (tick, landed) in [(1, 30), (2, 50)] {
+                world.tick();
+                let chunks = world.chunks();
+                let is_stone =
+                    |voxel: &Vec3<i32>| chunks.get_voxel(voxel.0, voxel.1, voxel.2) == STONE;
+                let leading = order.iter().take_while(|voxel| is_stone(voxel)).count();
+                let total = order.iter().filter(|voxel| is_stone(voxel)).count();
+                assert_eq!((leading, total), (landed, landed), "after tick {tick}");
+            }
+        });
+    }
+
+    /// A stone room with one hole in its roof and a lamp in a wall, full of
+    /// stone inside: what `hollow` then empties.
+    fn room() -> Vec<(Vec3<i32>, u32)> {
+        let mut writes = Vec::new();
+        for x in 2..=12 {
+            for y in 0..=10 {
+                for z in 2..=12 {
+                    let block = match (x, y, z) {
+                        (7, 10, 7) => continue,
+                        (2, 5, 7) => LAMP,
+                        _ => STONE,
+                    };
+                    writes.push((Vec3(x, y, z), block));
+                }
+            }
+        }
+        writes
+    }
+
+    /// The room's inside, emptied.
+    fn hollow() -> Vec<(Vec3<i32>, u32)> {
+        (3..=11)
+            .flat_map(|x| (1..=9).flat_map(move |y| (3..=11).map(move |z| (Vec3(x, y, z), 0))))
+            .collect()
+    }
+
+    /// Every voxel and light word in and round the room.
+    fn field(world: &World) -> Vec<(Vec3<i32>, u32, u32)> {
+        let chunks = world.chunks();
+        let mut field = Vec::new();
+        for x in 0..=14 {
+            for y in 0..=12 {
+                for z in 0..=14 {
+                    field.push((
+                        Vec3(x, y, z),
+                        chunks.get_raw_voxel(x, y, z),
+                        chunks.get_raw_light(x, y, z),
+                    ));
+                }
+            }
+        }
+        field
+    }
+
+    /// The lane splits a bulk edit wherever its budget falls, and lights each
+    /// batch in full before the next: the room ends up lit exactly as one
+    /// batch lights it, split within a tick or across ticks.
+    #[test]
+    fn a_split_bulk_edit_lights_the_world_as_one_batch_does() {
+        actix::System::new().block_on(async {
+            let lit = |name: &str, per_batch: usize, budget_ms: f64| {
+                let mut world = world(name, |config| {
+                    config
+                        .max_updates_per_batch(per_batch)
+                        .max_update_ms_per_tick(budget_ms)
+                });
+                world.chunks_mut().update_voxels(&room());
+                settle(&mut world);
+                world.chunks_mut().update_voxels(&hollow());
+                settle(&mut world);
+                field(&world)
+            };
+            let whole = lit("write-budget-whole", usize::MAX, f64::MAX);
+            let light_at = |at: Vec3<i32>| {
+                whole
+                    .iter()
+                    .find(|(voxel, _, _)| *voxel == at)
+                    .map(|(_, _, light)| *light)
+                    .unwrap()
+            };
+            assert_eq!(
+                LightUtils::extract_sunlight(light_at(Vec3(7, 1, 7))),
+                15,
+                "sunlight falls through the hole to the floor"
+            );
+            let corner = LightUtils::extract_sunlight(light_at(Vec3(3, 1, 3)));
+            assert!(corner > 0 && corner < 15, "the far corner is dim, not {corner}");
+            assert_eq!(
+                LightUtils::extract_red_light(light_at(Vec3(3, 5, 7))),
+                11,
+                "the lamp lights the room"
+            );
+
+            for (name, per_batch, budget_ms, how) in [
+                ("write-budget-batches", 37, f64::MAX, "37-write batches in one tick"),
+                ("write-budget-ticks", 37, 0.0, "one 37-write batch a tick"),
+            ] {
+                let split = lit(name, per_batch, budget_ms);
+                if let Some(((voxel, raw, light), (_, split_raw, split_light))) =
+                    whole.iter().zip(&split).find(|(one, other)| one != other)
+                {
+                    panic!(
+                        "{how}: {voxel:?} holds voxel {split_raw} light {split_light:#x}, where one batch leaves voxel {raw} light {light:#x}"
+                    );
+                }
+            }
+        });
+    }
+
+    /// A write from an early batch goes out with the light the tick's later
+    /// batches gave it: glass set on the floor of a sealed box, with the
+    /// roof above it opened a batch later, replicates in full sunlight.
+    #[test]
+    fn an_early_batch_replicates_with_the_light_a_later_batch_let_in() {
+        actix::System::new().block_on(async {
+            let mut world = world("write-budget-replicate", |config| {
+                config
+                    .max_updates_per_batch(1)
+                    .max_update_ms_per_tick(f64::MAX)
+            });
+            let shell: Vec<(Vec3<i32>, u32)> = (2..=6)
+                .flat_map(|x| (0..=6).flat_map(move |y| (2..=6).map(move |z| (x, y, z))))
+                .filter(|&(x, y, z)| x == 2 || x == 6 || y == 0 || y == 6 || z == 2 || z == 6)
+                .map(|(x, y, z)| (Vec3(x, y, z), STONE))
+                .collect();
+            world.chunks_mut().update_voxels(&shell);
+            settle(&mut world);
+            assert_eq!(world.chunks().get_sunlight(4, 1, 4), 0, "the box is sealed");
+
+            world
+                .chunks_mut()
+                .update_voxels(&[(Vec3(4, 1, 4), GLASS), (Vec3(4, 6, 4), 0)]);
+            let pass = {
+                let ecs = world.ecs();
+                let mut chunks = ecs.write_resource::<Chunks>();
+                let mut mesher = ecs.write_resource::<Mesher>();
+                let lazy = ecs.read_resource::<LazyUpdate>();
+                let entities = ecs.entities();
+                let mut json_storage = ecs.write_storage::<JsonComp>();
+                let config = ecs.read_resource::<WorldConfig>();
+                let registry = ecs.read_resource::<Registry>();
+                process_pending_updates(
+                    &mut chunks,
+                    &mut mesher,
+                    &lazy,
+                    &entities,
+                    &mut json_storage,
+                    &config,
+                    &registry,
+                    0,
+                    config.max_updates_per_tick,
+                    config.max_active_updates_per_tick,
+                )
+            };
+            assert!(!pass.is_cut, "a budget this size never cuts the lane");
+            let glass = pass
+                .results
+                .iter()
+                .find(|update| (update.vx, update.vy, update.vz) == (4, 1, 4))
+                .expect("the glass is among the tick's writes");
+            assert_eq!(BlockUtils::extract_id(glass.voxel), GLASS);
+            assert_eq!(
+                LightUtils::extract_sunlight(glass.light),
+                15,
+                "the glass goes out lit by the hole its tick opened"
+            );
+        });
+    }
+
+    /// Only the stretches a budget runs for are charged, and its first unit
+    /// always runs.
+    #[test]
+    fn a_budget_charges_only_its_own_stretches() {
+        let mut budget = TickBudget::paused(40.0);
+        budget.resume();
+        budget.spend();
+        budget.pause();
+        std::thread::sleep(Duration::from_millis(80));
+        assert!(!budget.is_spent(), "the pause was charged");
+        budget.resume();
+        std::thread::sleep(Duration::from_millis(50));
+        assert!(budget.is_spent(), "running past the limit spends it");
+
+        let mut spent = TickBudget::paused(0.0);
+        assert!(!spent.is_spent(), "the first unit always runs");
+        spent.spend();
+        assert!(spent.is_spent());
     }
 }
