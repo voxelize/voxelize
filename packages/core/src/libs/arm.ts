@@ -82,12 +82,56 @@ export type ArmOptions = {
   shadowReach?: number;
 };
 
-type ArmObjectOptions = {
+/**
+ * A slow breathing sway the held object makes while it is at rest: neither
+ * swinging nor being swapped. It is laid on top of the rest pose each frame
+ * and taken off again before the next, so it never accumulates, and it
+ * keeps real time, so every frame rate sees the same sway.
+ */
+export type ArmIdleSway = {
+  /** The point it sways about, in the arm's frame: where it is held. */
+  pivot: THREE.Vector3;
+  /** Seconds per breath. */
+  breathSeconds: number;
+  /** How far it rises at the top of a breath. */
+  breathLift: number;
+  /** How far it tips back toward the eye at the top of a breath, radians. */
+  breathTilt: number;
+  /**
+   * Seconds per drift from one side to the other and back. Not a multiple
+   * of a breath, so the two never settle into one short loop.
+   */
+  driftSeconds: number;
+  /** How far it drifts to either side. */
+  driftReach: number;
+  /** How far it rolls into the drift, radians. */
+  driftRoll: number;
+  /** Seconds it takes to come in once the object is at rest. */
+  fadeInSeconds: number;
+  /** Seconds it takes to leave when a swing starts. */
+  fadeOutSeconds: number;
+};
+
+export type ArmObjectOptions = {
   position: THREE.Vector3;
   quaternion: THREE.Quaternion;
   swingPositions?: THREE.Vector3[];
   swingQuaternions?: THREE.Quaternion[];
   swingTimes?: number[];
+  /**
+   * How far through a swing (0 to 1) it has to be before another swing
+   * request restarts it. Earlier requests are dropped, and not sent to
+   * peers, so a strike that has started always lands. 0, the default,
+   * restarts on every request.
+   */
+  swingRestartAfter?: number;
+  /**
+   * Seconds a restarted swing takes to ease out of the pose it interrupted
+   * instead of snapping to its first key. 0, the default, snaps.
+   */
+  swingRestartBlend?: number;
+  /** A breathing sway while the object is at rest. None by default. */
+  idleSway?: ArmIdleSway;
 };
 
 const defaultOptions: ArmOptions = {
@@ -111,6 +155,9 @@ const defaultOptions: ArmOptions = {
 };
 
 const shadowReachScale = new THREE.Matrix4();
+const swayEuler = new THREE.Euler();
+const swayInverse = new THREE.Quaternion();
+const swingPose = new THREE.Quaternion();
 
 export class Arm extends THREE.Group {
   public options: ArmOptions;
@@ -140,6 +187,27 @@ export class Arm extends THREE.Group {
   private initialArmY = 0;
   private targetArmY = 0;
   private currentArmObject: THREE.Object3D | null = null;
+
+  /** The options of what the arm holds now: its rest, swing and sway. */
+  private currentObjectOptions: ArmObjectOptions | undefined;
+
+  // A swing restarted part way eases out of the pose it interrupted.
+  private readonly restartFromPosition = new THREE.Vector3();
+  private readonly restartFromQuaternion = new THREE.Quaternion();
+  private restartBlendLeft = 0;
+  private restartBlendSeconds = 0;
+
+  /** Whether {@link holdSwingAt} has the swing pinned at one moment. */
+  private isSwingHeld = false;
+
+  // The idle sway laid on the held object this frame, taken off before the
+  // next one is laid.
+  private swayClock = 0;
+  private swayWeight = 0;
+  private swayedObject: THREE.Object3D | null = null;
+  private readonly swayTurn = new THREE.Quaternion();
+  private readonly swayShift = new THREE.Vector3();
+  private readonly swayPivot = new THREE.Vector3();
 
   /** One block every held object's shadowed material reads. */
   private heldObjectShadowUniforms: EntityShadowUniforms =
@@ -312,6 +380,14 @@ export class Arm extends THREE.Group {
     animate: boolean,
     customType?: string,
   ) => {
+    // The outgoing object leaves from its plain rest pose, and whatever
+    // comes in starts its own sway once it is up.
+    this.holdSwingAt(null);
+    this.liftIdleSway();
+    this.swayWeight = 0;
+    this.swayClock = 0;
+    this.restartBlendLeft = 0;
+
     if (!animate) {
       this.clear();
 
@@ -379,6 +455,7 @@ export class Arm extends THREE.Group {
     );
     arm.quaternion.multiply(this.options.armObjectOptions?.quaternion);
 
+    this.currentObjectOptions = this.options.armObjectOptions;
     this.mixer = new THREE.AnimationMixer(arm);
     this.swingAnimation = this.mixer.clipAction(this.armSwingClip);
     this.swingAnimation.setLoop(THREE.LoopOnce, 1);
@@ -402,6 +479,7 @@ export class Arm extends THREE.Group {
       this.injectHeldObjectLighting(object);
     }
 
+    this.currentObjectOptions = this.options.blockObjectOptions;
     this.mixer = new THREE.AnimationMixer(object);
     this.swingAnimation = this.mixer.clipAction(this.blockSwingClip);
     this.swingAnimation.setLoop(THREE.LoopOnce, 1);
@@ -430,6 +508,7 @@ export class Arm extends THREE.Group {
       this.injectHeldObjectLighting(object);
     }
 
+    this.currentObjectOptions = options;
     this.mixer = new THREE.AnimationMixer(object);
     this.swingAnimation = this.mixer.clipAction(this.customSwingClips[type]);
     this.swingAnimation.setLoop(THREE.LoopOnce, 1);
@@ -586,7 +665,9 @@ gl_FragColor.rgb *= shadow * uLightColor;
     this.timer.update();
     const delta = Math.min(0.1, this.timer.getDelta());
 
+    this.liftIdleSway();
     this.mixer.update(delta);
+    this.easeSwingRestart(delta);
 
     // Handle arm object transition animation if active
     if (this.isTransitioning) {
@@ -670,16 +751,59 @@ gl_FragColor.rgb *= shadow * uLightColor;
         }
       }
     }
+
+    this.layIdleSway(delta);
   }
 
   /**
-   * Perform an arm swing by playing the swing animation and sending an event to the network.
+   * Swing what the arm holds and send the swing to the network, so peers
+   * swing too. A request the swing in progress is not ready for (see
+   * {@link ArmObjectOptions.swingRestartAfter}) does neither, so peers see
+   * exactly the swings the holder sees. Returns whether a swing started.
    */
-  public doSwing = () => {
-    this.playSwingAnimation();
-    if (this.emitSwingEvent) {
-      this.emitSwingEvent();
+  public doSwing = (): boolean => {
+    if (!this.playSwingAnimation()) return false;
+    this.emitSwingEvent?.();
+    return true;
+  };
+
+  /**
+   * How far through its swing the held object is, 0 to 1, or null when it
+   * is not swinging.
+   */
+  get swingProgress(): number | null {
+    const action = this.swingAnimation;
+    if (!action || !(this.isSwingHeld || action.isRunning())) return null;
+    return action.time / action.getClip().duration;
+  }
+
+  /**
+   * Pin the held object's swing `seconds` into it, or release it with
+   * `null`. A pinned swing shows that one frame, with no sway, until it is
+   * released and the object is back at rest. For stills of a swing and the
+   * tests that check one; play never needs it.
+   */
+  public holdSwingAt = (seconds: number | null) => {
+    const action = this.swingAnimation;
+    if (!action) return;
+    if (seconds === null && !this.isSwingHeld) return;
+
+    this.liftIdleSway();
+    this.swayWeight = 0;
+    this.restartBlendLeft = 0;
+    const duration = action.getClip().duration;
+    if (seconds === null) {
+      this.isSwingHeld = false;
+      action.paused = false;
+      action.time = duration;
+    } else {
+      this.isSwingHeld = true;
+      action.reset();
+      action.play();
+      action.time = THREE.MathUtils.clamp(seconds, 0, duration);
+      action.paused = true;
     }
+    this.mixer.update(0);
   };
 
   /**
@@ -706,12 +830,118 @@ gl_FragColor.rgb *= shadow * uLightColor;
   };
 
   /**
-   * Play the "swing" animation.
+   * Play the "swing" animation, unless the swing in progress is not yet
+   * {@link ArmObjectOptions.swingRestartAfter} of the way through. Returns
+   * whether a swing started.
    */
-  private playSwingAnimation = () => {
-    if (this.swingAnimation) {
-      this.swingAnimation.reset();
-      this.swingAnimation.play();
+  private playSwingAnimation = (): boolean => {
+    const action = this.swingAnimation;
+    if (!action || this.isSwingHeld) return false;
+
+    const options = this.currentObjectOptions;
+    if (action.isRunning()) {
+      const progress = action.time / action.getClip().duration;
+      if (progress < (options?.swingRestartAfter ?? 0)) return false;
+      const blend = options?.swingRestartBlend ?? 0;
+      const object = this.currentArmObject;
+      if (blend > 0 && object) {
+        this.restartFromPosition.copy(object.position);
+        this.restartFromQuaternion.copy(object.quaternion);
+        this.restartBlendLeft = blend;
+        this.restartBlendSeconds = blend;
+      }
     }
+
+    action.reset();
+    action.play();
+    return true;
   };
+
+  /** Ease a restarted swing out of the pose it interrupted. */
+  private easeSwingRestart(delta: number) {
+    if (this.restartBlendLeft <= 0) return;
+    const object = this.currentArmObject;
+    if (!object) {
+      this.restartBlendLeft = 0;
+      return;
+    }
+
+    this.restartBlendLeft = Math.max(0, this.restartBlendLeft - delta);
+    const t = 1 - this.restartBlendLeft / this.restartBlendSeconds;
+    const k = t * t * (3 - 2 * t);
+    object.position.lerpVectors(this.restartFromPosition, object.position, k);
+    swingPose.copy(object.quaternion);
+    object.quaternion.slerpQuaternions(
+      this.restartFromQuaternion,
+      swingPose,
+      k,
+    );
+  }
+
+  /**
+   * Lay this frame's idle sway on the held object: it fades in while the
+   * object is at rest and out while it swings or is swapped, on a clock
+   * that keeps real time.
+   */
+  private layIdleSway(delta: number) {
+    const sway = this.currentObjectOptions?.idleSway;
+    const object = this.currentArmObject;
+    if (!sway || !object) {
+      this.swayWeight = 0;
+      return;
+    }
+
+    const isAtRest =
+      !this.isTransitioning &&
+      !this.isSwingHeld &&
+      this.restartBlendLeft <= 0 &&
+      !this.swingAnimation?.isRunning();
+    const fadeSeconds = isAtRest ? sway.fadeInSeconds : sway.fadeOutSeconds;
+    const step = fadeSeconds > 0 ? delta / fadeSeconds : 1;
+    this.swayWeight = isAtRest
+      ? Math.min(1, this.swayWeight + step)
+      : Math.max(0, this.swayWeight - step);
+    this.swayClock += delta;
+    if (this.swayWeight <= 0) return;
+
+    const weight = this.swayWeight;
+    const amount = weight * weight * (3 - 2 * weight);
+    const breath =
+      0.5 - 0.5 * Math.cos((2 * Math.PI * this.swayClock) / sway.breathSeconds);
+    const drift = Math.sin((2 * Math.PI * this.swayClock) / sway.driftSeconds);
+    this.swayShift
+      .set(sway.driftReach * drift, sway.breathLift * breath, 0)
+      .multiplyScalar(amount);
+    this.swayTurn.setFromEuler(
+      swayEuler.set(
+        sway.breathTilt * breath * amount,
+        0,
+        -sway.driftRoll * drift * amount,
+      ),
+    );
+    this.swayPivot.copy(sway.pivot);
+
+    object.position
+      .sub(this.swayPivot)
+      .applyQuaternion(this.swayTurn)
+      .add(this.swayPivot)
+      .add(this.swayShift);
+    object.quaternion.premultiply(this.swayTurn);
+    this.swayedObject = object;
+  }
+
+  /** Take last frame's idle sway back off the object it was laid on. */
+  private liftIdleSway() {
+    const object = this.swayedObject;
+    if (!object) return;
+    this.swayedObject = null;
+
+    swayInverse.copy(this.swayTurn).invert();
+    object.position
+      .sub(this.swayShift)
+      .sub(this.swayPivot)
+      .applyQuaternion(swayInverse)
+      .add(this.swayPivot);
+    object.quaternion.premultiply(swayInverse);
+  }
 }
