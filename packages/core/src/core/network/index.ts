@@ -64,6 +64,24 @@ export type NetworkOptions = {
   maxPacketsPerDecodeJob: number;
 
   /**
+   * Milliseconds one decode job may take before its worker is presumed dead
+   * or hung. A worker the renderer kills (out of memory, most often) dies
+   * without an error event, and its job would never settle: the page stayed
+   * connected and joined while every packet after it waited forever. Past
+   * this the worker is replaced and the job's packets are decoded again.
+   * Must be positive: decoded messages are delivered in the order their
+   * packets arrived, so a job that never settled would hold back every
+   * message behind it.
+   */
+  decodeJobTimeoutMs: number;
+
+  /**
+   * Times one job's packets are decoded before they are given up on, loudly.
+   * Bounds a packet that kills or hangs every worker it is handed to.
+   */
+  maxDecodeAttempts: number;
+
+  /**
    * Milliseconds a (re)join handshake may await its INIT before the join
    * request is sent again.
    */
@@ -87,6 +105,8 @@ const defaultOptions: NetworkOptions = {
   maxPendingCommandPackets: 256,
   maxDecodeWorkers: 4,
   maxPacketsPerDecodeJob: 64,
+  decodeJobTimeoutMs: 10000,
+  maxDecodeAttempts: 3,
 };
 
 /** Packet drops are reported at most this often, with the count since the
@@ -231,6 +251,23 @@ export class Network {
    */
   private packetArrivedAt = new WeakMap<ArrayBuffer, number>();
 
+  /**
+   * Decode jobs settle out of order (a later, smaller batch can finish
+   * first, and a job whose worker died is decoded again), but their messages
+   * are handed on in the order the packets arrived: a voxel edit applied
+   * before the one it followed would leave the older value standing. Jobs
+   * are numbered as they are dispatched; `nextDeliverySequence` is the first
+   * one not yet handed on, and `decodedAhead` holds what finished before it.
+   */
+  private nextDecodeSequence = 0;
+
+  private nextDeliverySequence = 0;
+
+  private decodedAhead = new Map<number, MessageProtocol[]>();
+
+  /** Bumped when the decode workers are torn down; older jobs are ignored. */
+  private decodeEpoch = 0;
+
   private joinStartTime = 0;
 
   private waitingForInit = false;
@@ -246,6 +283,14 @@ export class Network {
       ...defaultOptions,
       ...options,
     };
+
+    if (!(this.options.decodeJobTimeoutMs > 0)) {
+      console.warn(
+        `[NETWORK] decodeJobTimeoutMs must be positive (got ${this.options.decodeJobTimeoutMs}); ` +
+          `using ${defaultOptions.decodeJobTimeoutMs}ms`,
+      );
+      this.options.decodeJobTimeoutMs = defaultOptions.decodeJobTimeoutMs;
+    }
 
     if (typeof window !== "undefined") {
       this.ensureDecodeWorkers();
@@ -621,27 +666,41 @@ export class Network {
       Math.min(packetsWanted, jobCount * perJob),
     );
 
-    const batches: ArrayBuffer[][] = [];
     for (let i = 0; i < packets.length; i += perJob) {
-      batches.push(packets.slice(i, i + perJob));
+      const sequence = this.nextDecodeSequence++;
+      const epoch = this.decodeEpoch;
+      void this.decode(packets.slice(i, i + perJob), epoch).then((messages) =>
+        this.deliverDecoded(epoch, sequence, messages),
+      );
     }
+  };
 
-    Promise.all(
-      batches.map((batch, idx) =>
-        this.decode(batch).then((msgs) => ({ idx, msgs })),
-      ),
-    ).then((results) => {
-      if (!this.connected) {
-        return;
-      }
-
-      results.sort((a, b) => a.idx - b.idx);
-      for (const { msgs } of results) {
-        for (const message of msgs) {
+  /** Hand on every decoded job up to the first one still decoding, in order. */
+  private deliverDecoded = (
+    epoch: number,
+    sequence: number,
+    messages: MessageProtocol[],
+  ) => {
+    if (epoch !== this.decodeEpoch) return;
+    this.decodedAhead.set(sequence, messages);
+    let ready = this.decodedAhead.get(this.nextDeliverySequence);
+    while (ready !== undefined) {
+      this.decodedAhead.delete(this.nextDeliverySequence);
+      this.nextDeliverySequence++;
+      for (const message of ready) {
+        if (epoch !== this.decodeEpoch) return;
+        if (!this.connected) break;
+        try {
           this.onMessage(message);
+        } catch (error) {
+          console.error(
+            `[NETWORK] Handling an inbound ${String(message.type)} message threw; continuing with the next one`,
+            error,
+          );
         }
       }
-    });
+      ready = this.decodedAhead.get(this.nextDeliverySequence);
+    }
   };
 
   flush = () => {
@@ -949,14 +1008,51 @@ export class Network {
     return protocol.Message.encode(protocol.Message.create(message)).finish();
   }
 
-  private decodePriority = (buffer: ArrayBuffer) => {
+  private decodePriority = (buffer: ArrayBuffer, attemptNumber = 1) => {
     const priorityWorker = this.priorityWorker;
     if (!priorityWorker) {
       this.enqueuePacket(buffer);
       return;
     }
-    const handler = (e: MessageEvent) => {
+    const { decodeJobTimeoutMs, maxDecodeAttempts } = this.options;
+    const epoch = this.decodeEpoch;
+    let isSettled = false;
+    let watchdog: ReturnType<typeof setTimeout> | null = null;
+    const settle = () => {
+      isSettled = true;
+      if (watchdog !== null) clearTimeout(watchdog);
       priorityWorker.removeEventListener("message", handler);
+      priorityWorker.removeEventListener("error", fail);
+      priorityWorker.removeEventListener("messageerror", fail);
+    };
+    // The INIT a (re)join waits on is decoded here, so a worker that died or
+    // hung with it would hold the join pending forever. The packet was
+    // cloned into the worker, not transferred, and can be decoded again.
+    const fail = () => {
+      if (isSettled) return;
+      settle();
+      if (epoch !== this.decodeEpoch) return;
+      if (this.priorityWorker === priorityWorker) {
+        priorityWorker.terminate();
+        this.priorityWorker = this.createPriorityDecodeWorker();
+      }
+      if (attemptNumber >= maxDecodeAttempts) {
+        console.error(
+          `[NETWORK] The priority decode worker failed ${attemptNumber} time(s) on one packet; ` +
+            "handing it to the regular decode workers",
+        );
+        this.enqueuePacket(buffer);
+        return;
+      }
+      console.error(
+        `[NETWORK] The priority decode worker died, hung past ${decodeJobTimeoutMs}ms or threw; ` +
+          `replaced it, decoding the packet again (attempt ${attemptNumber + 1} of ${maxDecodeAttempts})`,
+      );
+      this.decodePriority(buffer, attemptNumber + 1);
+    };
+    const handler = (e: MessageEvent) => {
+      if (isSettled) return;
+      settle();
 
       if (!this.connected) {
         // Never discard a possible INIT: the join handshake would wedge with
@@ -979,50 +1075,79 @@ export class Network {
       }
     };
 
+    watchdog = setTimeout(fail, decodeJobTimeoutMs);
     priorityWorker.addEventListener("message", handler);
+    priorityWorker.addEventListener("error", fail);
+    priorityWorker.addEventListener("messageerror", fail);
     priorityWorker.postMessage([buffer]);
   };
 
-  private decode = (data: ArrayBuffer[]): Promise<MessageProtocol[]> => {
+  private decode = (
+    packets: ArrayBuffer[],
+    epoch: number,
+  ): Promise<MessageProtocol[]> => {
+    const byteSizes = isPerfLogging()
+      ? packets.map((buffer) => buffer.byteLength)
+      : null;
+    const arrivedAts = packets.map((buffer) =>
+      this.packetArrivedAt.get(buffer),
+    );
+    const { decodeJobTimeoutMs, maxDecodeAttempts } = this.options;
+
     return new Promise<MessageProtocol[]>((resolve) => {
-      const pool = this.pool;
-      if (!pool) {
-        resolve([]);
-        return;
-      }
-      const byteSizes = isPerfLogging()
-        ? data.map((buffer) => buffer.byteLength)
-        : null;
-      // Read before the transfer detaches the buffers; the WeakMap lookup
-      // itself would still work afterwards, but `byteLength` would not.
-      const arrivedAts = data.map((buffer) => this.packetArrivedAt.get(buffer));
-      pool.addJob({
-        message: data,
-        buffers: data,
-        resolve: (messages) => {
-          // A dead decode worker resolves `null`. The packets are gone (their
-          // buffers were transferred into the corpse), so say so loudly and
-          // settle with nothing rather than handing callers a non-iterable —
-          // which used to throw in the packet loop and mask the real loss.
-          if (!messages) {
+      const attempt = (attemptNumber: number) => {
+        const pool = this.pool;
+        if (!pool || epoch !== this.decodeEpoch) {
+          resolve([]);
+          return;
+        }
+        // A worker keeps the buffers transferred to it, a dead one included,
+        // so every attempt hands over copies and the packets stay here until
+        // one of them decodes.
+        const copies = packets.map((buffer) => buffer.slice(0));
+        pool.addJob({
+          message: copies,
+          buffers: copies,
+          // On timeout the pool replaces the worker and settles the job null.
+          timeoutMs: decodeJobTimeoutMs,
+          resolve: (messages) => {
+            if (messages) {
+              if (byteSizes) {
+                annotateIncomingMessages(messages, byteSizes);
+              }
+              // One message per packet, in packet order - the same 1:1 the
+              // byte size annotation relies on.
+              messages.forEach((message, index) => {
+                const arrivedAt = arrivedAts[index];
+                if (arrivedAt !== undefined) message.perfArrivedAt = arrivedAt;
+              });
+              resolve(messages);
+              return;
+            }
+            if (epoch !== this.decodeEpoch) {
+              resolve([]);
+              return;
+            }
+            if (attemptNumber >= maxDecodeAttempts) {
+              this.droppedPacketTotal += packets.length;
+              console.error(
+                `[NETWORK] Gave up decoding ${packets.length} packet(s) after ${attemptNumber} failed attempt(s); ` +
+                  `they are lost (${this.droppedPacketTotal} dropped this session). Entity and chunk state ` +
+                  "re-converge; one-shot events among them are lost.",
+              );
+              resolve([]);
+              return;
+            }
             console.error(
-              `[network] decode worker died; ${data.length} packet(s) lost`,
+              `[NETWORK] A decode job of ${packets.length} packet(s) failed: its worker died, hung past ` +
+                `${decodeJobTimeoutMs}ms or threw. Decoding them again (attempt ${attemptNumber + 1} of ` +
+                `${maxDecodeAttempts}); later messages wait so they are still handed on in order.`,
             );
-            resolve([]);
-            return;
-          }
-          if (byteSizes) {
-            annotateIncomingMessages(messages, byteSizes);
-          }
-          // One message per packet, in packet order - the same 1:1 the byte
-          // size annotation relies on.
-          messages.forEach((message, index) => {
-            const arrivedAt = arrivedAts[index];
-            if (arrivedAt !== undefined) message.perfArrivedAt = arrivedAt;
-          });
-          resolve(messages);
-        },
-      });
+            attempt(attemptNumber + 1);
+          },
+        });
+      };
+      attempt(1);
     });
   };
 
@@ -1106,5 +1231,9 @@ export class Network {
     this.pool = null;
     this.priorityWorker = null;
     this.hasTerminatedDecodeWorkers = true;
+    // Jobs on the terminated pool never settle; nothing may wait behind them.
+    this.decodeEpoch += 1;
+    this.nextDeliverySequence = this.nextDecodeSequence;
+    this.decodedAhead.clear();
   };
 }
