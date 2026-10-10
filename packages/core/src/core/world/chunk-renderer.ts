@@ -146,9 +146,22 @@ export class ChunkRenderer {
     skyFogExponent2: { value: number };
     skyFogDimension: { value: number };
     skyFogStrength: { value: number };
-    sceneColor: { value: FramebufferTexture };
+    /**
+     * What the water refracts: a copy of the frame drawn before it, or with
+     * order-independent transparency the scene target's own colour, read
+     * while the blended layers draw elsewhere.
+     */
+    sceneColor: { value: Texture };
     sceneTextureSize: { value: Vector2 };
     waterRefractionReady: { value: number };
+    /**
+     * The depth of the water near the panes in view, and how to read it
+     * (`WaterDepthPass`): which side of the water each pane fragment draws.
+     */
+    waterDepth: { value: Texture | null };
+    waterDepthState: { value: number };
+    waterDepthViewport: { value: Vector2 };
+    waterDepthClip: { value: Vector2 };
     waterRefractionStrength: { value: number };
     waterNormalMap: { value: DataTexture };
     cameraSubmersion: { value: number };
@@ -201,6 +214,10 @@ export class ChunkRenderer {
     sceneColor: { value: makeSceneColorTexture() },
     sceneTextureSize: { value: new Vector2(1, 1) },
     waterRefractionReady: { value: 0 },
+    waterDepth: { value: null },
+    waterDepthState: { value: 0 },
+    waterDepthViewport: { value: new Vector2(1, 1) },
+    waterDepthClip: { value: new Vector2(0.1, 1000) },
     waterRefractionStrength: { value: 0.08 },
     // Baked once per world, at construction: measured 20-30ms of CPU, in
     // the load phase, shared by every fluid material.

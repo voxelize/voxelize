@@ -10,6 +10,7 @@ import {
   FrontSide,
   InstancedBufferAttribute,
   InstancedMesh,
+  Matrix4,
   MeshBasicMaterial,
   NormalBlending,
   PlaneGeometry,
@@ -46,22 +47,53 @@ export type LayerSpec = {
 /** The default channel bloom-exempt particle meshes join. */
 export const PARTICLE_BLOOM_EXEMPT_LAYER = 30;
 
+/**
+ * The `userData` key a see-through object names its medium under, which
+ * `@voxelize/core`'s transparent sort reads to draw it on the right side of
+ * the water's surface.
+ */
+export const TRANSPARENT_MEDIUM_KEY = "transparentMedium";
+
 /** Below this the silhouette is a hole, above it the texel is the particle. */
 const CUTOUT_ALPHA_TEST = 0.5;
 
+/** A voxel no particle stands in, so the first frame always looks it up. */
+const UNSEEN_VOXEL = 0x7fffffff;
+
 const WHITE = new Color(0xffffff);
+
+/** One instanced draw of a layer, and the slots it fills this frame. */
+type LayerDraw = {
+  mesh: InstancedMesh<BufferGeometry, MeshBasicMaterial>;
+  alpha: InstancedBufferAttribute;
+  /** Per-instance atlas window (offsetU, offsetV, spanU, spanV). */
+  uvRect: InstancedBufferAttribute | null;
+  count: number;
+};
 
 /**
  * SoA storage plus one InstancedMesh for a single blend/shape/texture/physics
  * combination. A layer is a draw call and a capacity of its own, so an
  * ambient effect that saturates its layer can never starve explosions of
  * theirs.
+ *
+ * A soft layer draws twice: its particles in water through `wetMesh` and the
+ * rest through `mesh`. Writing no depth, a soft particle is ordered against
+ * the water by the medium it is in (see {@link TRANSPARENT_MEDIUM_KEY}), and
+ * one layer's particles are on both sides of a surface at once: mist over a
+ * pool, sparks on its bed.
  */
 export class ParticleLayer {
   readonly mesh: InstancedMesh<BufferGeometry, MeshBasicMaterial>;
-  private readonly alphaAttr: InstancedBufferAttribute;
-  /** Per-instance atlas window (offsetU, offsetV, spanU, spanV). */
-  private readonly uvRectAttr: InstancedBufferAttribute | null;
+  readonly wetMesh: InstancedMesh<BufferGeometry, MeshBasicMaterial> | null;
+  private readonly dry: LayerDraw;
+  private readonly wet: LayerDraw | null;
+  /** Each particle's atlas window, copied into its slot every frame. */
+  private readonly uvRects: Float32Array | null;
+  /** The voxel each particle's medium was last read in. */
+  readonly mediumVoxel: Int32Array;
+  /** Whether that voxel holds water. */
+  readonly isWet: Uint8Array;
   /**
    * One body per slot, allocated with the layer. A physics layer is
    * homogeneous by construction — its parameters are part of its key — so
@@ -104,24 +136,14 @@ export class ParticleLayer {
     readonly capacity: number,
     readonly spec: LayerSpec,
   ) {
-    const geometry: BufferGeometry =
+    const shape: BufferGeometry =
       spec.shape === "cube"
         ? new BoxGeometry(1, 1, 1)
         : new PlaneGeometry(1, 1);
-
-    const alphas = new Float32Array(capacity).fill(1);
-    this.alphaAttr = new InstancedBufferAttribute(alphas, 1);
-    this.alphaAttr.setUsage(DynamicDrawUsage);
-    geometry.setAttribute("instanceAlpha", this.alphaAttr);
-
-    if (spec.map) {
-      const rects = new Float32Array(capacity * 4);
-      this.uvRectAttr = new InstancedBufferAttribute(rects, 4);
-      this.uvRectAttr.setUsage(DynamicDrawUsage);
-      geometry.setAttribute("instanceUvRect", this.uvRectAttr);
-    } else {
-      this.uvRectAttr = null;
-    }
+    const hasUvRects = spec.map !== null;
+    this.uvRects = hasUvRects ? new Float32Array(capacity * 4) : null;
+    this.mediumVoxel = new Int32Array(capacity * 3).fill(UNSEEN_VOXEL);
+    this.isWet = new Uint8Array(capacity);
 
     const material = new MeshBasicMaterial({
       map: spec.map,
@@ -172,7 +194,7 @@ export class ParticleLayer {
           "vec4 diffuseColor = vec4( diffuse, opacity * vInstanceAlpha );",
         );
       }
-      if (this.uvRectAttr) {
+      if (hasUvRects) {
         shader.vertexShader = injectChunk(
           shader.vertexShader,
           "#include <common>",
@@ -186,21 +208,18 @@ export class ParticleLayer {
       }
     };
 
-    this.mesh = new InstancedMesh(geometry, material, capacity);
-    this.mesh.instanceMatrix.setUsage(DynamicDrawUsage);
-    this.mesh.frustumCulled = false;
-    this.mesh.renderOrder = spec.renderOrder ?? 0;
-    this.mesh.count = 0;
-    if (spec.bloomExemptLayer !== null) {
-      // Joined, not moved: the mesh still draws in the main pass on layer
-      // 0, and a selective bloom that renders this channel finds it there.
-      this.mesh.layers.enable(spec.bloomExemptLayer);
-      this.mesh.userData.isBloomExempt = true;
-    }
-    // Touch instanceColor into existence so the material compiles with
-    // per-instance color support from the first frame.
-    for (let i = 0; i < capacity; i += 1) {
-      this.mesh.setColorAt(i, WHITE);
+    // Shares the shape's buffers but not its instance attributes, which are
+    // added to the dry draw's geometry below.
+    const wetShape = spec.isCutout ? null : shareShape(shape);
+    this.dry = makeDraw(shape, material, capacity, spec, hasUvRects);
+    this.wet = wetShape
+      ? makeDraw(wetShape, material, capacity, spec, hasUvRects)
+      : null;
+    this.mesh = this.dry.mesh;
+    this.wetMesh = this.wet?.mesh ?? null;
+    if (this.wetMesh) {
+      this.mesh.userData[TRANSPARENT_MEDIUM_KEY] = "air";
+      this.wetMesh.userData[TRANSPARENT_MEDIUM_KEY] = "water";
     }
 
     this.posX = new Float32Array(capacity);
@@ -236,8 +255,9 @@ export class ParticleLayer {
     this.bodies = spec.physics ? makeBodies(capacity, spec.physics) : null;
   }
 
-  writeAlpha(index: number, alpha: number): void {
-    this.alphaAttr.array[index] = alpha;
+  /** Every mesh the layer draws through. */
+  get meshes(): InstancedMesh<BufferGeometry, MeshBasicMaterial>[] {
+    return this.wetMesh ? [this.mesh, this.wetMesh] : [this.mesh];
   }
 
   writeUvRect(
@@ -247,21 +267,62 @@ export class ParticleLayer {
     spanU: number,
     spanV: number,
   ): void {
-    if (!this.uvRectAttr) return;
+    if (!this.uvRects) return;
     const at = index * 4;
-    const rect = this.uvRectAttr.array;
-    rect[at] = offsetU;
-    rect[at + 1] = offsetV;
-    rect[at + 2] = spanU;
-    rect[at + 3] = spanV;
+    this.uvRects[at] = offsetU;
+    this.uvRects[at + 1] = offsetV;
+    this.uvRects[at + 2] = spanU;
+    this.uvRects[at + 3] = spanV;
+  }
+
+  /** A new particle in slot `index` reads its medium on its first frame. */
+  forgetMedium(index: number): void {
+    this.mediumVoxel[index * 3] = UNSEEN_VOXEL;
+  }
+
+  /** Starts a frame's writes: every slot is free again. */
+  beginWrite(): void {
+    this.dry.count = 0;
+    if (this.wet) this.wet.count = 0;
+  }
+
+  /**
+   * Writes particle `index`'s draw state into the next free slot of the
+   * mesh for its medium; a cutout layer has one mesh for both.
+   */
+  writeInstance(
+    index: number,
+    isWet: boolean,
+    matrix: Matrix4,
+    red: number,
+    green: number,
+    blue: number,
+    alpha: number,
+  ): void {
+    const draw = isWet && this.wet ? this.wet : this.dry;
+    const slot = draw.count++;
+    draw.mesh.setMatrixAt(slot, matrix);
+    const colors = draw.mesh.instanceColor;
+    if (colors) {
+      colors.array[slot * 3] = red;
+      colors.array[slot * 3 + 1] = green;
+      colors.array[slot * 3 + 2] = blue;
+    }
+    draw.alpha.array[slot] = alpha;
+    if (draw.uvRect && this.uvRects) {
+      const rect = draw.uvRect.array;
+      const to = slot * 4;
+      const from = index * 4;
+      rect[to] = this.uvRects[from];
+      rect[to + 1] = this.uvRects[from + 1];
+      rect[to + 2] = this.uvRects[from + 2];
+      rect[to + 3] = this.uvRects[from + 3];
+    }
   }
 
   markDirty(): void {
-    this.mesh.count = this.alive;
-    this.mesh.instanceMatrix.needsUpdate = true;
-    if (this.mesh.instanceColor) this.mesh.instanceColor.needsUpdate = true;
-    this.alphaAttr.needsUpdate = true;
-    if (this.uvRectAttr) this.uvRectAttr.needsUpdate = true;
+    markDrawDirty(this.dry);
+    if (this.wet) markDrawDirty(this.wet);
   }
 
   /** Swap-remove keeps live particles packed so `mesh.count` can clip draw. */
@@ -297,8 +358,12 @@ export class ParticleLayer {
       this.swayFreq[index] = this.swayFreq[last];
       this.isSettling[index] = this.isSettling[last];
       this.isSettled[index] = this.isSettled[last];
-      if (this.uvRectAttr) {
-        const rect = this.uvRectAttr.array;
+      this.isWet[index] = this.isWet[last];
+      this.mediumVoxel[index * 3] = this.mediumVoxel[last * 3];
+      this.mediumVoxel[index * 3 + 1] = this.mediumVoxel[last * 3 + 1];
+      this.mediumVoxel[index * 3 + 2] = this.mediumVoxel[last * 3 + 2];
+      if (this.uvRects) {
+        const rect = this.uvRects;
         const to = index * 4;
         const from = last * 4;
         rect[to] = rect[from];
@@ -316,10 +381,74 @@ export class ParticleLayer {
   }
 
   dispose(): void {
-    this.mesh.geometry.dispose();
+    for (const mesh of this.meshes) {
+      mesh.geometry.dispose();
+      mesh.dispose();
+    }
     this.mesh.material.dispose();
-    this.mesh.dispose();
   }
+}
+
+/**
+ * A geometry over `source`'s vertex buffers, without the instance attributes
+ * each draw adds to its own.
+ */
+function shareShape(source: BufferGeometry): BufferGeometry {
+  const geometry = new BufferGeometry();
+  geometry.setIndex(source.index);
+  for (const name of Object.keys(source.attributes)) {
+    geometry.setAttribute(name, source.getAttribute(name));
+  }
+  return geometry;
+}
+
+/** One instanced draw over `shape`, with its own per-instance attributes. */
+function makeDraw(
+  shape: BufferGeometry,
+  material: MeshBasicMaterial,
+  capacity: number,
+  spec: LayerSpec,
+  hasUvRects: boolean,
+): LayerDraw {
+  const alpha = new InstancedBufferAttribute(
+    new Float32Array(capacity).fill(1),
+    1,
+  );
+  alpha.setUsage(DynamicDrawUsage);
+  shape.setAttribute("instanceAlpha", alpha);
+
+  let uvRect: InstancedBufferAttribute | null = null;
+  if (hasUvRects) {
+    uvRect = new InstancedBufferAttribute(new Float32Array(capacity * 4), 4);
+    uvRect.setUsage(DynamicDrawUsage);
+    shape.setAttribute("instanceUvRect", uvRect);
+  }
+
+  const mesh = new InstancedMesh(shape, material, capacity);
+  mesh.instanceMatrix.setUsage(DynamicDrawUsage);
+  mesh.frustumCulled = false;
+  mesh.renderOrder = spec.renderOrder ?? 0;
+  mesh.count = 0;
+  if (spec.bloomExemptLayer !== null) {
+    // Joined, not moved: the mesh still draws in the main pass on layer 0,
+    // and a selective bloom that renders this channel finds it there.
+    mesh.layers.enable(spec.bloomExemptLayer);
+    mesh.userData.isBloomExempt = true;
+  }
+  // Touch instanceColor into existence so the material compiles with
+  // per-instance color support from the first frame.
+  for (let i = 0; i < capacity; i += 1) {
+    mesh.setColorAt(i, WHITE);
+  }
+  return { mesh, alpha, uvRect, count: 0 };
+}
+
+function markDrawDirty(draw: LayerDraw): void {
+  draw.mesh.count = draw.count;
+  draw.mesh.instanceMatrix.needsUpdate = true;
+  if (draw.mesh.instanceColor) draw.mesh.instanceColor.needsUpdate = true;
+  draw.alpha.needsUpdate = true;
+  if (draw.uvRect) draw.uvRect.needsUpdate = true;
 }
 
 function makeBodies(capacity: number, physics: ParticlePhysics): RigidBody[] {

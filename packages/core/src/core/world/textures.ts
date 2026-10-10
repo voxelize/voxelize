@@ -16,6 +16,14 @@ import {
   type FaceAnimationFrame,
   faceAnimationFrameAt,
 } from "./face-animation-frame";
+import {
+  classifyTexels,
+  mergeTexelClasses,
+  readImagePixels,
+  type TexelAlphaCuts,
+  type TexelClasses,
+  UNREADABLE_TEXELS,
+} from "./see-through-texels";
 import { UV } from "./uv";
 
 type AtlasAnimationPatch = {
@@ -147,6 +155,12 @@ export class AtlasTexture extends CanvasTexture {
    */
   private fallbackRangeKeys = new Set<string>();
 
+  /**
+   * {@link rangeTexelClasses} answers by range and cuts, dropped for a range
+   * whenever something draws into it. Shared with clones, like the pixels.
+   */
+  private texelClassCache = new Map<string, TexelClasses>();
+
   private static rangeKey(range: UV) {
     return `${range.startU}|${range.startV}|${range.endU}|${range.endV}`;
   }
@@ -179,6 +193,57 @@ export class AtlasTexture extends CanvasTexture {
         this.atlasMargin,
     );
     return context.getImageData(x, y, size, size).data;
+  }
+
+  /**
+   * Whether `range` holds solid or translucent texels (see
+   * `classifyTexels`): its painted pixels, every keyframe of an animation
+   * playing there, or the opaque unknown checker while nothing is painted.
+   */
+  rangeTexelClasses(range: UV, cuts: TexelAlphaCuts): TexelClasses {
+    const key = `${AtlasTexture.rangeKey(range)}|${cuts.hole}|${cuts.solid}`;
+    const cached = this.texelClassCache.get(key);
+    if (cached) return { ...cached };
+
+    const rangeKey = AtlasTexture.rangeKey(range);
+    const animation = this.animations.find(
+      (entry) => AtlasTexture.rangeKey(entry.animation.range) === rangeKey,
+    );
+    let classes: TexelClasses;
+    if (animation) {
+      classes = { solid: false, translucent: false };
+      for (const [, frame] of animation.animation.keyframes) {
+        if ((frame as Color).isColor) {
+          classes.solid = true;
+          continue;
+        }
+        const pixels = readImagePixels(frame);
+        mergeTexelClasses(
+          classes,
+          pixels ? classifyTexels(pixels, cuts) : UNREADABLE_TEXELS,
+        );
+      }
+    } else if (!this.isRangePainted(range)) {
+      classes = { solid: true, translucent: false };
+    } else {
+      const pixels = this.readRangePixels(range);
+      classes = pixels
+        ? classifyTexels(pixels, cuts)
+        : { ...UNREADABLE_TEXELS };
+    }
+    this.texelClassCache.set(key, classes);
+    return { ...classes };
+  }
+
+  private forgetTexelClasses(range?: UV) {
+    if (!range) {
+      this.texelClassCache.clear();
+      return;
+    }
+    const prefix = `${AtlasTexture.rangeKey(range)}|`;
+    for (const key of this.texelClassCache.keys()) {
+      if (key.startsWith(prefix)) this.texelClassCache.delete(key);
+    }
   }
 
   /**
@@ -310,6 +375,7 @@ export class AtlasTexture extends CanvasTexture {
     this.atlasRatio = source.atlasRatio;
     this.paintedRangeKeys = source.paintedRangeKeys;
     this.fallbackRangeKeys = source.fallbackRangeKeys;
+    this.texelClassCache = source.texelClassCache;
     return this;
   }
 
@@ -360,6 +426,8 @@ export class AtlasTexture extends CanvasTexture {
     const rangeKey = AtlasTexture.rangeKey(range);
     this.paintedRangeKeys.add(rangeKey);
     this.fallbackRangeKeys.delete(rangeKey);
+    if (range.startU === 0 && range.endU === 1) this.forgetTexelClasses();
+    else this.forgetTexelClasses(range);
 
     const context = this.canvas.getContext("2d");
 
@@ -453,6 +521,7 @@ export class AtlasTexture extends CanvasTexture {
       drawnFrame: -1,
     };
     this.animations.push(entry);
+    this.forgetTexelClasses(range);
     this.tickAnimation(entry, this.animationClock());
   }
 

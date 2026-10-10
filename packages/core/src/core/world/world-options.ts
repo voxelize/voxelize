@@ -2,6 +2,7 @@ import { ChunkRenderer } from "./chunk-renderer";
 import { CloudsOptions } from "./clouds";
 import { LocalLightsOptions } from "./local-lights/types";
 import { MemoryPressureOptions } from "./memory-pressure";
+import type { OrderIndependentTransparencyOptions } from "./order-independent-transparency";
 import { SkyOptions } from "./sky";
 
 /**
@@ -469,6 +470,19 @@ export type WorldClientOptions = {
    * Defaults to `3`.
    */
   meshApplyBudgetMs: number;
+
+  /**
+   * Draw every blended surface order-independently (see
+   * {@link OrderIndependentTransparencyOptions}): water, glass, the
+   * translucent texels of any see-through block, and every transparent
+   * material in the world's scene, accumulated in any order and composited
+   * once. Requires the host to render the world into a render target with
+   * a depth texture, and to call `World.prepareTransparency` before each
+   * frame; a render that cannot accumulate says why and draws its layers in
+   * list order. `null` (the default) keeps the sorted pipeline: per-face
+   * sorting, medium bands and the per-pixel water side of glass.
+   */
+  orderIndependentTransparency: OrderIndependentTransparencyOptions | null;
 };
 
 /**
@@ -580,6 +594,7 @@ export const defaultWorldClientOptions: WorldClientOptions = {
   },
   swayProfileCapacity: 16,
   meshApplyBudgetMs: 3,
+  orderIndependentTransparency: null,
 };
 
 /**

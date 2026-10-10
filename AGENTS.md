@@ -47,7 +47,7 @@ The rest of the shared "how to use Voxelize" guidance lives next to the code it 
 - Rules (`.cursor/rules/`): `engine-boundary`, `no-banned-game-name`, `honest-failures` (always on);
   `mesher-parity`, `frame-budget`, `uniform-texel-density`, `canvas-box`, `block-textures`,
   `server-authority`, `chunk-pipeline`, `ecs-component-storage`, `entity-lighting`,
-  `physics-grounded-bodies`, `agent-harness` (attached by path).
+  `physics-grounded-bodies`, `agent-harness`, `transparent-passes` (attached by path).
 - Skills (`.cursor/skills/`): `voxelize-engine-boundary` (the gate, excuses, extension points, the
   periodic pass), `voxelize-instanced-entities` (roster, warmup, bone textures, density painting),
   `voxelize-agent-harness` (daemon, bridge contract, scenario SDK, measurement honesty).

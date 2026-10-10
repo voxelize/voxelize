@@ -1852,6 +1852,67 @@ export const SHADER_LIGHTING_FLUID_CHUNK_SHADERS = {
     ),
 };
 
+/**
+ * What a blended see-through fragment does with the water's depth
+ * (`uWaterDepthSide`, see `WaterDepthPass`): nothing, keep only what lies
+ * behind the nearest water face, or only what lies in front of it. A
+ * material without the uniform reads 0, so 0 is the side that changes
+ * nothing.
+ */
+export const WATER_DEPTH_SIDE_OFF = 0;
+export const WATER_DEPTH_SIDE_BEHIND = 1;
+export const WATER_DEPTH_SIDE_FRONT = 2;
+
+/**
+ * What the water's depth holds for a render (`uWaterDepthState`): nothing
+ * drawn for it (every pane fragment counts as behind the water, the order
+ * from before the depth existed), no water near any pane in view (every
+ * fragment is in front), or the depth of the water near the panes in view.
+ */
+export const WATER_DEPTH_UNKNOWN = 0;
+export const WATER_DEPTH_DRY = 1;
+export const WATER_DEPTH_DRAWN = 2;
+
+/**
+ * How far behind a water face, in blocks, a pane fragment has to lie to
+ * count as behind it: a pane face flush with a water face (a tank's inner
+ * wall) stays in front of the water it holds.
+ */
+export const WATER_DEPTH_BIAS_BLOCKS = 0.02;
+
+const WATER_DEPTH_UNIFORM_DECLARATIONS = `
+uniform sampler2D uWaterDepth;
+uniform float uWaterDepthState;
+uniform vec2 uWaterDepthViewport;
+uniform vec2 uWaterDepthClip;
+uniform float uWaterDepthSide;
+
+float waterDepthDistance(float depth) {
+  float near = uWaterDepthClip.x;
+  float far = uWaterDepthClip.y;
+  return near * far / (far - depth * (far - near));
+}
+`;
+
+// First in the fragment stage, before any shading: a pane draws twice, once
+// on each side of the water, and each draw drops what the other one owns.
+// Compared as distances along the view: a bias in window-space depth would
+// grow to a block wide far off.
+const WATER_DEPTH_SIDE_TEST = `
+if (uWaterDepthSide > ${(WATER_DEPTH_SIDE_OFF + 0.5).toFixed(1)}) {
+  float waterDepthAt = uWaterDepthState > ${(WATER_DEPTH_DRY + 0.5).toFixed(1)}
+    ? texture2D(uWaterDepth, gl_FragCoord.xy / max(uWaterDepthViewport, vec2(1.0))).r
+    : (uWaterDepthState > ${(WATER_DEPTH_UNKNOWN + 0.5).toFixed(1)} ? 1.0 : 0.0);
+  bool isBehindWater = waterDepthDistance(gl_FragCoord.z)
+    > waterDepthDistance(waterDepthAt) + ${WATER_DEPTH_BIAS_BLOCKS.toFixed(4)};
+  if (isBehindWater != (uWaterDepthSide < ${(WATER_DEPTH_SIDE_BEHIND + 0.5).toFixed(1)})) {
+    discard;
+  }
+}
+`;
+
+const FAR_SEAM_TEST_OPEN = "if (uFarSeam > 0.0 && vIsFluid < 0.5) {";
+
 // See-through solids (glass, foliage) draw as stacked double-sided layers,
 // so a full-screen pane multiplies whatever the fragment costs by every
 // layer behind it. They take the same 5-tap shadow fast path as fluids —
@@ -1870,6 +1931,14 @@ export const SHADER_LIGHTING_SEE_THROUGH_CHUNK_SHADERS = {
     )
     .join(
       "float shadow1 = sampleShadowMapFast(uShadowMap1, vShadowCoord1, slopeBias * 1.5, receiverBiasScale);",
+    )
+    .replace(
+      "varying float vChunkReveal;",
+      `varying float vChunkReveal;\n${WATER_DEPTH_UNIFORM_DECLARATIONS}`,
+    )
+    .replace(
+      FAR_SEAM_TEST_OPEN,
+      `${WATER_DEPTH_SIDE_TEST}\n${FAR_SEAM_TEST_OPEN}`,
     ),
 };
 

@@ -29,6 +29,7 @@ import {
   SHADER_LIGHTING_CHUNK_SHADERS,
   SHADER_LIGHTING_FLUID_CHUNK_SHADERS,
   SHADER_LIGHTING_SEE_THROUGH_CHUNK_SHADERS,
+  WATER_DEPTH_SIDE_OFF,
 } from "./shaders";
 import { AtlasTexture, type AtlasFilteringMode } from "./textures";
 import { positionUnitsPerBlock } from "./vertex-quantization";
@@ -103,6 +104,9 @@ export function isSharedOpaqueMaterialBlock(block: Block) {
   // actual surfaces use the very same atlas shader as a solid cube.
   return !block.isFluid && !block.isSeeThrough && blockCastsShadow(block);
 }
+
+/** Below this texel alpha a see-through chunk material discards the texel. */
+export const SEE_THROUGH_ALPHA_TEST = 0.1;
 
 /** Detach a customized block without cloning the world's live uniforms/atlas. */
 export function forkChunkMaterial(material: CustomChunkShaderMaterial) {
@@ -323,6 +327,12 @@ export function makeChunkShaderMaterial(
       uSceneColor: chunksUniforms.sceneColor,
       uSceneTextureSize: chunksUniforms.sceneTextureSize,
       uWaterRefractionReady: chunksUniforms.waterRefractionReady,
+      uWaterDepth: chunksUniforms.waterDepth,
+      uWaterDepthState: chunksUniforms.waterDepthState,
+      uWaterDepthViewport: chunksUniforms.waterDepthViewport,
+      uWaterDepthClip: chunksUniforms.waterDepthClip,
+      // Per material: only a pane's two forks take a side.
+      uWaterDepthSide: { value: WATER_DEPTH_SIDE_OFF },
       uWaterRefractionStrength: chunksUniforms.waterRefractionStrength,
       uWaterNormalMap: chunksUniforms.waterNormalMap,
       uCameraSubmersion: chunksUniforms.cameraSubmersion,
@@ -495,11 +505,13 @@ export async function loadChunkMaterials(
       // capture can see them — blends its tint straight over canopies,
       // and same-order foliage meshes wash over each other by sort luck.
       // Glass keeps attenuation 0 and stays non-writing so stacked panes
-      // still layer.
+      // still layer; the part of a pane in front of the water draws after it
+      // instead (WaterDepthPass). Drawn order-independently, every
+      // see-through mesh is split by its texels instead (SeeThroughTexelSplit).
       mat.depthWrite =
         !isFluid && (transparentStandalone || lightAttenuation > 0);
-      mat.alphaTest = 0.1;
-      mat.uniforms.alphaTest.value = 0.1;
+      mat.alphaTest = SEE_THROUGH_ALPHA_TEST;
+      mat.uniforms.alphaTest.value = SEE_THROUGH_ALPHA_TEST;
     }
     mat.map = map;
     mat.uniforms.map.value = map;
@@ -562,8 +574,8 @@ export async function loadChunkMaterials(
     mat.side = side;
     mat.transparent = true;
     mat.depthWrite = true;
-    mat.alphaTest = 0.1;
-    mat.uniforms.alphaTest.value = 0.1;
+    mat.alphaTest = SEE_THROUGH_ALPHA_TEST;
+    mat.uniforms.alphaTest.value = SEE_THROUGH_ALPHA_TEST;
     mat.map = atlas;
     mat.uniforms.map.value = atlas;
     mat.userData.skipShadow = !isShadowCasting;

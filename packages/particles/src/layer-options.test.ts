@@ -1,17 +1,22 @@
 import type { Object3D } from "three";
 import { describe, expect, it } from "vitest";
 
-import { PARTICLE_BLOOM_EXEMPT_LAYER } from "./layer";
+import { PARTICLE_BLOOM_EXEMPT_LAYER, TRANSPARENT_MEDIUM_KEY } from "./layer";
 import { ParticleSystem } from "./system";
 import type { ParticleConfig, ParticleWorld } from "./types";
 
-/** Just enough world for unlit, physics-free particles. */
-function stubWorld() {
+/**
+ * Just enough world for unlit, physics-free particles: dry everywhere, or
+ * under water below `waterBelow`.
+ */
+function stubWorld(waterBelow = -Infinity) {
   const added: Object3D[] = [];
   const world = {
     isInitialized: true,
     add: (object: Object3D) => added.push(object),
     remove: () => {},
+    getBlockAt: () => null,
+    isFluidOrWaterloggedAt: (_x: number, y: number) => y < waterBelow,
   } as unknown as ParticleWorld;
   return { world, added };
 }
@@ -45,10 +50,13 @@ describe("bloom-exempt particle layers", () => {
     const system = new ParticleSystem(world, { maxFlashLights: 0 });
     system.prewarm({ ...CUBE, isBloomExempt: true });
     const exempt = system.getBloomExemptMeshes();
-    expect(exempt).toHaveLength(1);
-    expect(exempt[0].layers.isEnabled(PARTICLE_BLOOM_EXEMPT_LAYER)).toBe(true);
-    expect(exempt[0].layers.isEnabled(0)).toBe(true);
-    expect(exempt[0].userData.isBloomExempt).toBe(true);
+    // A soft layer draws through two meshes, one per medium.
+    expect(exempt).toHaveLength(2);
+    for (const mesh of exempt) {
+      expect(mesh.layers.isEnabled(PARTICLE_BLOOM_EXEMPT_LAYER)).toBe(true);
+      expect(mesh.layers.isEnabled(0)).toBe(true);
+      expect(mesh.userData.isBloomExempt).toBe(true);
+    }
   });
 
   it("never share a layer with a look bloom may take", () => {
@@ -57,7 +65,7 @@ describe("bloom-exempt particle layers", () => {
     system.prewarm(CUBE);
     const before = layerMeshes(system).length;
     system.prewarm({ ...CUBE, isBloomExempt: true });
-    expect(layerMeshes(system).length - before).toBe(1);
+    expect(layerMeshes(system).length - before).toBe(2);
     for (const mesh of layerMeshes(system)) {
       if (mesh.userData.isBloomExempt) continue;
       expect(mesh.layers.isEnabled(PARTICLE_BLOOM_EXEMPT_LAYER)).toBe(false);
@@ -111,9 +119,13 @@ describe("single-pass quads", () => {
     const system = new ParticleSystem(world, { maxFlashLights: 0 });
     system.prewarm({ ...CUBE, shape: "quad" });
     system.prewarm(CUBE);
+    // A plane has four corners, a box twenty-four.
     const isQuad = (mesh: Object3D) =>
-      (mesh as unknown as { geometry: { type: string } }).geometry.type ===
-      "PlaneGeometry";
+      (
+        mesh as unknown as {
+          geometry: { attributes: { position: { count: number } } };
+        }
+      ).geometry.attributes.position.count === 4;
     const meshes = layerMeshes(system);
     const quad = meshes.find(isQuad);
     const cube = meshes.find((mesh) => !isQuad(mesh));
@@ -162,5 +174,49 @@ describe("soft layer render order", () => {
     system.prewarm(CUBE);
     system.prewarm({ ...CUBE, isCutout: true });
     for (const mesh of layerMeshes(system)) expect(mesh.renderOrder).toBe(0);
+  });
+});
+
+describe("soft layers split by medium", () => {
+  const countIn = (system: ParticleSystem, medium: string) =>
+    layerMeshes(system)
+      .filter((mesh) => mesh.userData[TRANSPARENT_MEDIUM_KEY] === medium)
+      .reduce(
+        (sum, mesh) => sum + (mesh as unknown as { count: number }).count,
+        0,
+      );
+
+  it("draw the particles in water through a mesh of their own", () => {
+    const { world } = stubWorld(0);
+    const system = new ParticleSystem(world, { maxFlashLights: 0 });
+    system.prewarm(CUBE);
+    system.update(1, camera);
+    // Mist over a pool and sparks on its bed, from one layer.
+    system.burst(CUBE, {
+      position: { x: 0, y: 3, z: 0 },
+      count: 2,
+      speed: still,
+    });
+    system.burst(CUBE, {
+      position: { x: 0, y: -3, z: 0 },
+      count: 3,
+      speed: still,
+    });
+    system.update(0, camera);
+    expect(countIn(system, "air")).toBe(2);
+    expect(countIn(system, "water")).toBe(3);
+  });
+
+  it("keep a cutout layer on one mesh that names no medium", () => {
+    const { world } = stubWorld(0);
+    const system = new ParticleSystem(world, { maxFlashLights: 0 });
+    system.prewarm({ ...CUBE, isCutout: true });
+    const cutouts = layerMeshes(system).filter(
+      (mesh) =>
+        (mesh as unknown as { material: { depthWrite: boolean } }).material
+          .depthWrite,
+    );
+    expect(cutouts).toHaveLength(1);
+    expect(cutouts[0].userData[TRANSPARENT_MEDIUM_KEY]).toBeUndefined();
   });
 });

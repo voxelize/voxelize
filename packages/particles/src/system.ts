@@ -254,6 +254,7 @@ export class ParticleSystem {
 
     layer.isSettling[i] = config.isSettlingOnGround ? 1 : 0;
     layer.isSettled[i] = 0;
+    layer.forgetMedium(i);
 
     if (layer.bodies) {
       relaunchBody(
@@ -300,7 +301,7 @@ export class ParticleSystem {
   getBloomExemptMeshes(): ParticleLayer["mesh"][] {
     const meshes: ParticleLayer["mesh"][] = [];
     for (const layer of this.layers.values()) {
-      if (layer.spec.bloomExemptLayer !== null) meshes.push(layer.mesh);
+      if (layer.spec.bloomExemptLayer !== null) meshes.push(...layer.meshes);
     }
     return meshes;
   }
@@ -345,7 +346,7 @@ export class ParticleSystem {
       renderOrder: isCutout ? 0 : this.softLayerRenderOrder,
     });
     this.layers.set(key, layer);
-    this.group.add(layer.mesh);
+    for (const mesh of layer.meshes) this.group.add(mesh);
     return layer;
   }
 
@@ -445,8 +446,10 @@ export class ParticleSystem {
       }
     }
 
-    // Write render state after removals so instance i maps to particle i.
-    const colors = layer.mesh.instanceColor;
+    // Write render state after removals, packing each medium's particles
+    // into its own mesh.
+    layer.beginWrite();
+    const isSplitByMedium = layer.wetMesh !== null;
     const isBillboard = layer.spec.shape === "billboard";
     for (let i = 0; i < layer.alive; i += 1) {
       const t = layer.age[i] / layer.life[i];
@@ -477,25 +480,42 @@ export class ParticleSystem {
         this.scratchQuaternion,
         this.scratchScale,
       );
-      layer.mesh.setMatrixAt(i, this.scratchMatrix);
-
-      if (colors) {
-        colors.array[i * 3] =
-          layer.colStartR[i] + (layer.colEndR[i] - layer.colStartR[i]) * t;
-        colors.array[i * 3 + 1] =
-          layer.colStartG[i] + (layer.colEndG[i] - layer.colStartG[i]) * t;
-        colors.array[i * 3 + 2] =
-          layer.colStartB[i] + (layer.colEndB[i] - layer.colStartB[i]) * t;
-      }
       const hold = layer.alphaHold[i];
       const alphaT = hold > 0 ? Math.max(0, (t - hold) / (1 - hold)) : t;
-      layer.writeAlpha(
+      layer.writeInstance(
         i,
+        isSplitByMedium && this.isInWater(layer, i),
+        this.scratchMatrix,
+        layer.colStartR[i] + (layer.colEndR[i] - layer.colStartR[i]) * t,
+        layer.colStartG[i] + (layer.colEndG[i] - layer.colStartG[i]) * t,
+        layer.colStartB[i] + (layer.colEndB[i] - layer.colStartB[i]) * t,
         layer.alphaStart[i] +
           (layer.alphaEnd[i] - layer.alphaStart[i]) * alphaT,
       );
     }
     layer.markDirty();
+  }
+
+  /**
+   * Whether particle `i` stands in water, read again only when it crosses
+   * into another voxel.
+   */
+  private isInWater(layer: ParticleLayer, i: number): boolean {
+    const vx = Math.floor(layer.posX[i]);
+    const vy = Math.floor(layer.posY[i]);
+    const vz = Math.floor(layer.posZ[i]);
+    const voxel = layer.mediumVoxel;
+    const at = i * 3;
+    if (voxel[at] !== vx || voxel[at + 1] !== vy || voxel[at + 2] !== vz) {
+      voxel[at] = vx;
+      voxel[at + 1] = vy;
+      voxel[at + 2] = vz;
+      const isWater = this.world.isFluidOrWaterloggedAt
+        ? this.world.isFluidOrWaterloggedAt(vx, vy, vz)
+        : this.world.getBlockAt(vx, vy, vz)?.isFluid ?? false;
+      layer.isWet[i] = isWater ? 1 : 0;
+    }
+    return layer.isWet[i] === 1;
   }
 
   /**

@@ -23,6 +23,7 @@ import {
   Color,
   DoubleSide,
   Float32BufferAttribute,
+  type FramebufferTexture,
   FrontSide,
   Frustum,
   Group,
@@ -43,10 +44,15 @@ import {
   Vector2,
   Vector3,
   WebGLRenderer,
+  type WebGLRenderTarget,
 } from "three";
 import { mergeGeometries } from "three/examples/jsm/utils/BufferGeometryUtils.js";
 
-import { transparentChunkRenderOrder } from "../../common";
+import {
+  TRANSPARENT_SORT,
+  transparentChunkRenderOrder,
+  type TransparentMedium,
+} from "../../common";
 import { NetIntercept } from "../../core/network";
 import {
   prepareTransparentMesh,
@@ -103,6 +109,7 @@ import { Chunk } from "./chunk";
 import { ChunkIdReplacementReport } from "./chunk-id-replacements";
 import {
   CustomChunkShaderMaterial,
+  SEE_THROUGH_ALPHA_TEST,
   SHARED_CUTOUT_PLANT_MATERIAL_KEY,
   SHARED_OPAQUE_MATERIAL_KEY,
   applyQuantizedPositionDefine,
@@ -162,6 +169,10 @@ import { Loader } from "./loader";
 import { LocalLights } from "./local-lights";
 import { MemoryPressureMonitor, MemoryPressureStatus } from "./memory-pressure";
 import {
+  defaultOrderIndependentTransparencyOptions,
+  OrderIndependentTransparency,
+} from "./order-independent-transparency";
+import {
   ChunkPipeline,
   MeshPipeline,
   describeChunkRequestHistory,
@@ -174,8 +185,19 @@ import {
   nearPlaneReach,
   SectionVisibilityGraph,
 } from "./section-visibility";
+import {
+  canCutSolidTexels,
+  mergeTexelClasses,
+  SeeThroughTexelSplit,
+  type TexelClasses,
+  texelPlanOf,
+  textureTexelClasses,
+} from "./see-through-texels";
 import { ShaderClock, windAt } from "./shader-clock";
-import { SHADER_LIGHTING_CHUNK_SHADERS } from "./shaders";
+import {
+  SHADER_LIGHTING_CHUNK_SHADERS,
+  WATER_DEPTH_BIAS_BLOCKS,
+} from "./shaders";
 import { singlePassWhenOneFacing } from "./single-pass-sides";
 import { getVisibleDiscDirection, Sky } from "./sky";
 import {
@@ -210,6 +232,7 @@ import {
   VoxelBoxWork,
 } from "./voxel-box";
 import type { VoxelDelta } from "./voxel-delta";
+import { WaterDepthPass } from "./water-depth";
 import {
   WATER_OPTICS,
   WaterOptics,
@@ -250,10 +273,12 @@ export * from "./lighting";
 export * from "./local-lights";
 export * from "./loader";
 export * from "./memory-pressure";
+export * from "./order-independent-transparency";
 export * from "./pipelines";
 export * from "./quad-light";
 export * from "./registry";
 export * from "./section-visibility";
+export * from "./see-through-texels";
 export * from "./shader-clock";
 export * from "./shaders";
 export * from "./shadow-sampling";
@@ -680,6 +705,32 @@ export class World<T = any> extends Scene implements NetIntercept {
    */
   private aabbOverrideOwners = new Map<string, Coords3>();
   private waterRefractionFrame = -1;
+  /** The copy the water refracts when the frame drawn before it is copied. */
+  private refractionCapture!: FramebufferTexture;
+  private waterDepth!: WaterDepthPass;
+
+  /**
+   * The blended layers' accumulation, when
+   * {@link WorldClientOptions.orderIndependentTransparency} is set; `null`
+   * draws the sorted pipeline.
+   */
+  public orderIndependent: OrderIndependentTransparency | null = null;
+  private seeThroughTexels: SeeThroughTexelSplit | null = null;
+  /** Every see-through mesh split by its texels, re-planned on repaint. */
+  private readonly seeThroughMeshes = new Set<Mesh>();
+  /** The material each of those meshes was built with. */
+  private readonly seeThroughBases = new WeakMap<Mesh, Material>();
+  private seeThroughPlanGeneration = -1;
+  private readonly bucketTexelClasses = new Map<
+    string,
+    { generation: number; classes: TexelClasses }
+  >();
+  /** The blocks drawn by each chunk material bucket; rebuilt on demand. */
+  private bucketBlocks: Map<string, Block[]> | null = null;
+  private orderIndependentSort: {
+    camera: Camera;
+    sort: ReturnType<typeof TRANSPARENT_SORT>;
+  } | null = null;
   private animatedAtlasTextures = new Set<AtlasTexture>();
 
   setAABBOverride = (voxel: Coords3, aabbs: AABB[], owner?: Coords3) => {
@@ -748,6 +799,10 @@ export class World<T = any> extends Scene implements NetIntercept {
       waterRefractionReady.value = 0;
       return;
     }
+    if (sceneColor.value !== this.refractionCapture) {
+      sceneColor.value = this.refractionCapture;
+      this.syncSceneColorTexture(this.refractionCapture);
+    }
 
     // Submerged, only the underside reads the capture (the scene above,
     // bent by the ripples: the continuous ceiling or the Snell window); with
@@ -786,7 +841,7 @@ export class World<T = any> extends Scene implements NetIntercept {
       return;
     }
 
-    const capture = sceneColor.value;
+    const capture = this.refractionCapture;
     const isCaptureSRGB = capture.colorSpace === SRGBColorSpace;
 
     if (
@@ -796,6 +851,7 @@ export class World<T = any> extends Scene implements NetIntercept {
     ) {
       capture.dispose();
       const recreated = makeSceneColorTexture(width, height, isSRGBSource);
+      this.refractionCapture = recreated;
       sceneColor.value = recreated;
       sceneTextureSize.value.set(width, height);
       waterRefractionReady.value = 0;
@@ -809,7 +865,7 @@ export class World<T = any> extends Scene implements NetIntercept {
       return;
     }
 
-    renderer.copyFramebufferToTexture(sceneColor.value);
+    renderer.copyFramebufferToTexture(capture);
     waterRefractionReady.value = 1;
     this.waterRefractionFrame = frame;
   }
@@ -821,9 +877,13 @@ export class World<T = any> extends Scene implements NetIntercept {
   ) {
     const block = this.getBlockByIdSafe(voxel);
     const isFluid = block?.isFluid ?? false;
+    if (this.orderIndependent) {
+      this.configureOrderIndependentMesh(mesh, material, isFluid);
+      return;
+    }
     const sortData = !material.depthWrite ? prepareTransparentMesh(mesh) : null;
     // Coplanar sections (flat water surfaces, single glass walls) can never
-    // self-overlap, so they skip the sort hook entirely.
+    // self-overlap, so they skip the sort.
     const sortableData =
       sortData && sortData.classification !== "single-plane" ? sortData : null;
 
@@ -836,10 +896,25 @@ export class World<T = any> extends Scene implements NetIntercept {
       mesh.userData.transparentSortData = sortableData;
     }
 
-    if (sortableData || isFluid) {
+    // A voxel box (a felled tree) is drawn away from the chunks it was cut
+    // from, so it neither takes the water's depth nor adds to it.
+    const isChunkMesh = !mesh.userData.isVoxelBox;
+    const lifted =
+      isChunkMesh && !isFluid && !material.depthWrite
+        ? this.waterDepth.addPane(mesh)
+        : null;
+    if (isChunkMesh && isFluid) {
+      this.waterDepth.addWater(mesh);
+    }
+
+    if (sortableData || isFluid || lifted) {
       mesh.onBeforeRender = (renderer, _scene, camera) => {
         if (sortableData) {
           sortTransparentMesh(mesh, sortableData, camera);
+        }
+
+        if (lifted) {
+          this.waterDepth.prepareDraw(renderer, camera, mesh, lifted);
         }
 
         if (isFluid) {
@@ -849,6 +924,219 @@ export class World<T = any> extends Scene implements NetIntercept {
     }
 
     this.csmRenderer?.addSkipShadowObject(mesh);
+  }
+
+  /**
+   * A see-through chunk mesh when blended layers accumulate: no sort and no
+   * water side. A fluid refracts the scene target itself (the accumulation
+   * hands it over as it opens), copying the frame only on a render that
+   * could not accumulate; anything else draws its solid texels with depth
+   * and its translucent ones blended, by what its textures hold.
+   */
+  private configureOrderIndependentMesh(
+    mesh: Mesh,
+    material: CustomChunkShaderMaterial,
+    isFluid: boolean,
+  ) {
+    mesh.renderOrder = transparentChunkRenderOrder(
+      isFluid,
+      material.depthWrite,
+    );
+    if (isFluid) {
+      if (!mesh.userData.isVoxelBox) this.waterDepth.addWater(mesh);
+      mesh.onBeforeRender = (renderer) => {
+        if (!this.orderIndependent?.isOpen) {
+          this.captureWaterRefraction(renderer);
+        }
+      };
+    } else {
+      this.seeThroughBases.set(mesh, material);
+      this.seeThroughMeshes.add(mesh);
+      mesh.geometry.addEventListener("dispose", () => {
+        this.seeThroughMeshes.delete(mesh);
+      });
+      this.planSeeThroughTexels(mesh);
+    }
+    this.csmRenderer?.addSkipShadowObject(mesh);
+  }
+
+  /** Points a see-through mesh at the draws its textures call for. */
+  private planSeeThroughTexels(mesh: Mesh) {
+    const split = this.seeThroughTexels;
+    const base = this.seeThroughBases.get(mesh);
+    if (!split || !base) return;
+    const classes = this.seeThroughTexelClassesOf(
+      mesh.userData.materialBucket as string | undefined,
+      base,
+    );
+    const plan = texelPlanOf(base, classes, canCutSolidTexels(base));
+    if (plan === mesh.userData.texelPlan) return;
+    const layer = split.apply(mesh, base, plan);
+    const reveal = (mesh.userData.chunkReveal as { reveal: number } | undefined)
+      ?.reveal;
+    if (layer && reveal !== undefined) World.applyMeshReveal(layer, reveal);
+  }
+
+  /**
+   * What the textures a see-through material draws hold: an atlas bucket's
+   * slots for every block in it (shared buckets hold many), or a face's or
+   * voxel's own texture. Cached per bucket until a texture is written.
+   */
+  private seeThroughTexelClassesOf(
+    bucket: string | undefined,
+    material: Material,
+  ): TexelClasses {
+    const cuts = {
+      hole: Math.max(material.alphaTest, 1 / 255),
+      solid: this.seeThroughTexels?.cuts.solid ?? 1,
+    };
+    const map = (material as CustomChunkShaderMaterial).map ?? null;
+    const atlas = this.chunkRenderer.materials.get(SHARED_OPAQUE_MATERIAL_KEY)
+      ?.map as AtlasTexture | undefined;
+    if (!bucket || !atlas || map !== atlas) {
+      return textureTexelClasses(map, cuts);
+    }
+    const cached = this.bucketTexelClasses.get(bucket);
+    if (cached?.generation === this.blockTextureGeneration) {
+      return cached.classes;
+    }
+    const classes: TexelClasses = { solid: false, translucent: false };
+    for (const block of this.blocksInBucket(bucket)) {
+      for (const face of block.faces) {
+        if (isOwnTextureFace(face)) continue;
+        mergeTexelClasses(classes, atlas.rangeTexelClasses(face.range, cuts));
+      }
+    }
+    this.bucketTexelClasses.set(bucket, {
+      generation: this.blockTextureGeneration,
+      classes,
+    });
+    return classes;
+  }
+
+  private blocksInBucket(bucket: string): Block[] {
+    if (!this.bucketBlocks) {
+      const buckets = new Map<string, Block[]>();
+      for (const block of this.registry.blocksById.values()) {
+        const key = makeChunkMaterialKey(this, block.id);
+        const blocks = buckets.get(key);
+        if (blocks) blocks.push(block);
+        else buckets.set(key, [block]);
+      }
+      this.bucketBlocks = buckets;
+    }
+    return this.bucketBlocks.get(bucket) ?? [];
+  }
+
+  /**
+   * Call once a frame with the camera the scene is about to render with,
+   * before that render. Drawing order-independently, it draws the depth of
+   * the water in view (the surface the blended layers are split at, see
+   * `OrderIndependentSeparator`), arms the accumulation for that camera,
+   * and re-plans the see-through meshes when a block texture was written
+   * since (a texture can gain or lose its translucent texels). Sorted, it
+   * draws the depth of the water near the panes in view (`WaterDepthPass`);
+   * a frame without it draws every pane before the water.
+   */
+  prepareTransparency(renderer: WebGLRenderer, camera: Camera) {
+    if (!this.orderIndependent) {
+      this.waterDepth.render(renderer, camera);
+      return;
+    }
+    if (this.seeThroughPlanGeneration !== this.blockTextureGeneration) {
+      this.seeThroughPlanGeneration = this.blockTextureGeneration;
+      for (const mesh of this.seeThroughMeshes) this.planSeeThroughTexels(mesh);
+    }
+    // The bands only exist in a sort that asks this world for them; a host
+    // sort without it would leave the cutouts inside the accumulation.
+    if (this.orderIndependentSort?.camera !== camera) {
+      this.orderIndependentSort = {
+        camera,
+        sort: TRANSPARENT_SORT(camera, this),
+      };
+    }
+    renderer.setTransparentSort(this.orderIndependentSort.sort);
+    this.waterDepth.render(renderer, camera, "all");
+    this.orderIndependent.arm(renderer, camera);
+  }
+
+  /**
+   * Adopts every material in `materials` that can accumulate, and makes the
+   * texel forks of the see-through chunk materials among them, so a warmup
+   * compiles the programs play draws with (a material adopted after it
+   * compiled compiles again). Returns the forks: no scene holds them until
+   * a mesh's textures call for one, so a warmup has to draw them itself.
+   */
+  adoptOrderIndependentMaterials(materials: Iterable<Material>): Material[] {
+    const oit = this.orderIndependent;
+    const split = this.seeThroughTexels;
+    if (!oit || !split) return [];
+    const chunkMaterials = new Set<Material>(
+      this.chunkRenderer.materials.values(),
+    );
+    const forks: Material[] = [];
+    for (const material of materials) {
+      oit.adoptBeforeCompile(material);
+      const isSeeThroughChunk =
+        chunkMaterials.has(material) &&
+        material.transparent &&
+        material.userData.isFluid !== true;
+      if (!isSeeThroughChunk) continue;
+      const { solid, translucent } = split.forksOf(material);
+      oit.adoptBeforeCompile(translucent);
+      forks.push(solid, translucent);
+    }
+    return forks;
+  }
+
+  /** See {@link TransparentMediumSource.orderIndependentBandOf}. */
+  orderIndependentBandOf(object: Object3D, material: Material | undefined) {
+    return this.orderIndependent?.bandOf(object, material);
+  }
+
+  /**
+   * As the accumulation opens: the water refracts the scene target's colour
+   * directly, so nothing is copied. It reads the target while the blended
+   * layers draw into the accumulation, never while it is bound.
+   */
+  private pointWaterRefractionAt(target: WebGLRenderTarget) {
+    const {
+      sceneColor,
+      sceneTextureSize,
+      waterRefractionReady,
+      waterRefractionStrength,
+    } = this.chunkRenderer.uniforms;
+    if (waterRefractionStrength.value <= 0) {
+      waterRefractionReady.value = 0;
+      return;
+    }
+    if (sceneColor.value !== target.texture) {
+      sceneColor.value = target.texture;
+      this.syncSceneColorTexture(target.texture);
+    }
+    sceneTextureSize.value.set(target.width, target.height);
+    waterRefractionReady.value = 1;
+  }
+
+  /**
+   * Whether the camera is under water, by the same smoothed submersion the
+   * water shaders read: which side of the water a see-through layer in the
+   * camera's medium draws on (`TRANSPARENT_SORT`).
+   */
+  isCameraSubmerged() {
+    return this.chunkRenderer.uniforms.cameraSubmersion.value >= 0.5;
+  }
+
+  /** The medium at a world position, for `TRANSPARENT_SORT`. */
+  transparentMediumAt(x: number, y: number, z: number): TransparentMedium {
+    if (!this.isInitialized) return "air";
+    return this.isFluidOrWaterloggedAt(
+      Math.floor(x),
+      Math.floor(y),
+      Math.floor(z),
+    )
+      ? "water"
+      : "air";
   }
 
   /**
@@ -4487,6 +4775,7 @@ export class World<T = any> extends Scene implements NetIntercept {
         uvs: number[];
         indices: number[];
         material: MeshStandardMaterial | MeshBasicMaterial;
+        faces: Block["faces"];
       }
     >();
 
@@ -4529,10 +4818,12 @@ export class World<T = any> extends Scene implements NetIntercept {
           uvs: [],
           indices: [],
           material: mat,
+          faces: [],
         };
       }
 
       const { positions, uvs, indices } = geometry;
+      geometry.faces.push(face);
 
       const ndx = Math.floor(positions.length / 3);
       let { startU, endU, startV, endV } = range;
@@ -4563,21 +4854,27 @@ export class World<T = any> extends Scene implements NetIntercept {
 
     const group = new Group();
 
-    geometries.forEach(({ identifier, positions, uvs, indices, material }) => {
-      const geometry = new BufferGeometry();
-      geometry.setAttribute(
-        "position",
-        new Float32BufferAttribute(positions, 3),
-      );
-      geometry.setAttribute("uv", new Float32BufferAttribute(uvs, 2));
-      geometry.setIndex(indices);
-      computeFlatNormals(geometry);
-      geometry.computeBoundingSphere();
-      singlePassWhenOneFacing(material, geometry.getAttribute("normal")?.array);
-      const mesh = new Mesh(geometry, material);
-      mesh.name = identifier;
-      group.add(mesh);
-    });
+    geometries.forEach(
+      ({ identifier, positions, uvs, indices, material, faces }) => {
+        const geometry = new BufferGeometry();
+        geometry.setAttribute(
+          "position",
+          new Float32BufferAttribute(positions, 3),
+        );
+        geometry.setAttribute("uv", new Float32BufferAttribute(uvs, 2));
+        geometry.setIndex(indices);
+        computeFlatNormals(geometry);
+        geometry.computeBoundingSphere();
+        singlePassWhenOneFacing(
+          material,
+          geometry.getAttribute("normal")?.array,
+        );
+        const mesh = new Mesh(geometry, material);
+        mesh.name = identifier;
+        if (isSeeThrough) this.splitDisplayCopyTexels(mesh, material, faces);
+        group.add(mesh);
+      },
+    );
 
     group.name = block.name;
 
@@ -4594,6 +4891,41 @@ export class World<T = any> extends Scene implements NetIntercept {
 
     return group;
   };
+
+  /**
+   * A see-through display copy drawing order-independently: its solid
+   * texels keep the copy's depth write, its translucent ones blend, as on
+   * the block's chunk mesh.
+   */
+  private splitDisplayCopyTexels(
+    mesh: Mesh,
+    material: Material,
+    faces: Block["faces"],
+  ) {
+    const split = this.seeThroughTexels;
+    if (!split) return;
+    const cuts = {
+      hole: Math.max(material.alphaTest, 1 / 255),
+      solid: split.cuts.solid,
+    };
+    const map = (material as MeshBasicMaterial).map;
+    const atlas = this.chunkRenderer.materials.get(SHARED_OPAQUE_MATERIAL_KEY)
+      ?.map as AtlasTexture | undefined;
+    const classes: TexelClasses = { solid: false, translucent: false };
+    for (const face of faces) {
+      mergeTexelClasses(
+        classes,
+        atlas && map === atlas
+          ? atlas.rangeTexelClasses(face.range, cuts)
+          : textureTexelClasses(map, cuts),
+      );
+    }
+    split.apply(
+      mesh,
+      material,
+      texelPlanOf(material, classes, canCutSolidTexels(material)),
+    );
+  }
 
   hasCustomBlockMaterial = (id: number) => {
     return this.customMaterialBlockIds.has(id);
@@ -4722,9 +5054,28 @@ export class World<T = any> extends Scene implements NetIntercept {
       ...uniforms,
     };
     mat.needsUpdate = true;
+    this.replanSeeThroughTexels(mat);
 
     return mat;
   };
+
+  /**
+   * The next {@link prepareTransparency} re-plans every see-through mesh
+   * drawn with `changed` (every one, without it) from scratch: its shader or
+   * its bucket changed, and its texel forks copied the old.
+   */
+  private replanSeeThroughTexels(changed?: Material) {
+    if (!this.seeThroughTexels) return;
+    this.bucketBlocks = null;
+    this.bucketTexelClasses.clear();
+    if (changed) this.seeThroughTexels.forget(changed);
+    for (const mesh of this.seeThroughMeshes) {
+      if (!changed || this.seeThroughBases.get(mesh) === changed) {
+        delete mesh.userData.texelPlan;
+      }
+    }
+    this.seeThroughPlanGeneration = -1;
+  }
 
   customizeBlockDynamic = (
     idOrName: number | string,
@@ -7023,6 +7374,10 @@ export class World<T = any> extends Scene implements NetIntercept {
       for (const mesh of meshes) {
         if (!mesh) continue;
         World.applyMeshReveal(mesh, clamped);
+        const layer =
+          this.waterDepth.liftedOf(mesh) ??
+          this.seeThroughTexels?.layerOf(mesh);
+        if (layer) World.applyMeshReveal(layer, clamped);
         isApplied = true;
       }
     }
@@ -7160,6 +7515,50 @@ export class World<T = any> extends Scene implements NetIntercept {
     this.chunkPipeline = new ChunkPipeline();
     this.meshPipeline = new MeshPipeline();
     this.chunkRenderer = new ChunkRenderer();
+    this.refractionCapture = this.chunkRenderer.uniforms.sceneColor
+      .value as FramebufferTexture;
+    const orderIndependent = this.options.orderIndependentTransparency;
+    if (orderIndependent) {
+      const defaults = defaultOrderIndependentTransparencyOptions;
+      const options = {
+        ...defaults,
+        ...orderIndependent,
+        weights: { ...defaults.weights, ...orderIndependent.weights },
+      };
+      this.orderIndependent = new OrderIndependentTransparency(this, options, {
+        onOpen: (_renderer, target) => this.pointWaterRefractionAt(target),
+        // Water refracts what lies beyond it: glass, particles and farther
+        // water behind its nearest face join the scene it reads before it
+        // draws.
+        separator: {
+          depth: () => this.waterDepth.depthTexture,
+          bias: WATER_DEPTH_BIAS_BLOCKS,
+        },
+      });
+      this.seeThroughTexels = new SeeThroughTexelSplit(
+        { hole: SEE_THROUGH_ALPHA_TEST, solid: options.solidTexelAlpha },
+        (material) => {
+          const fork = (material as ShaderMaterial).isShaderMaterial
+            ? forkChunkMaterial(material as CustomChunkShaderMaterial)
+            : material.clone();
+          forwardDraws(fork, material);
+          return fork;
+        },
+      );
+    }
+    // A full-float chunk mesh stands at its section's corner.
+    this.waterDepth = new WaterDepthPass(
+      this.chunkRenderer.uniforms,
+      (mesh) => {
+        const { chunkSize, maxHeight, subChunks } = this.options;
+        const height = Math.floor(maxHeight / subChunks);
+        return [
+          Math.round(mesh.position.x / chunkSize),
+          Math.round(mesh.position.y / height),
+          Math.round(mesh.position.z / chunkSize),
+        ];
+      },
+    );
 
     // World shape and block data only exist after the server handshake, so
     // the facade resolves both lazily through these closures.
@@ -7301,6 +7700,10 @@ export class World<T = any> extends Scene implements NetIntercept {
         cloudsOptions.uUnderwaterAmbient ?? chunkUniforms.underwaterAmbient,
     });
     this.add(this.sky, this.clouds);
+    if (this.orderIndependent) {
+      const { open, split, close } = this.orderIndependent;
+      this.add(open, split, close);
+    }
 
     const lighting = this.chunkRenderer.shaderLightingUniforms;
     this.farTerrain = new FarTerrain(

@@ -34,6 +34,11 @@ const world = new VOXELIZE.World({
   textureUnitDimension: 8,
   // Sized for the local-lights benchmark scenes (10k registered emitters).
   localLights: { maxRegisteredLights: 12288 },
+  // `?transparency=sorted` draws the sorted pipeline instead, for A/B.
+  orderIndependentTransparency:
+    new URLSearchParams(window.location.search).get("transparency") === "sorted"
+      ? null
+      : VOXELIZE.defaultOrderIndependentTransparencyOptions,
 });
 // actual world setup code handled later after network and world are initialized
 
@@ -791,9 +796,10 @@ const frameStats = () => {
         const mesh = object as THREE.Mesh;
         if (!mesh.isMesh) return;
         const material = mesh.material as THREE.Material;
-        if (toLegacy && legacyOf.has(material)) {
+        const legacy = legacyOf.get(material);
+        if (toLegacy && legacy) {
           mesh.userData.__parityOriginal = material;
-          mesh.material = legacyOf.get(material)!;
+          mesh.material = legacy;
         } else if (!toLegacy && mesh.userData.__parityOriginal) {
           mesh.material = mesh.userData.__parityOriginal;
           delete mesh.userData.__parityOriginal;
@@ -868,7 +874,8 @@ const frameStats = () => {
       const canvas = document.createElement("canvas");
       canvas.width = size;
       canvas.height = size;
-      const ctx = canvas.getContext("2d")!;
+      const ctx = canvas.getContext("2d");
+      if (!ctx) throw new Error("parity harness: no 2d context for the PNG");
       const image = ctx.createImageData(size, size);
       // GL readback is bottom-up; PNGs are top-down.
       for (let row = 0; row < size; row++) {
@@ -1921,6 +1928,8 @@ let isFocused = true;
 
 const composer = new EffectComposer(renderer);
 composer.addPass(new RenderPass(world, camera));
+// The blended layers accumulate against the scene's own depth.
+composer.createDepthTexture();
 
 const overlayEffect = new VOXELIZE.BlockOverlayEffect(world, camera);
 overlayEffect.addOverlay("water", new THREE.Color("#5F9DF7"), 0.001);
@@ -1936,6 +1945,7 @@ const animate = () => {
     world.updateShaderLighting(camera, controls.object.position);
     world.renderShadowMaps(renderer, collectShadowCasters());
   }
+  if (world.isInitialized) world.prepareTransparency(renderer, camera);
   composer.render();
   renderer.clearDepth();
   renderer.render(armScene, armCamera);

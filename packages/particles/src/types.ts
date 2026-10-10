@@ -31,6 +31,12 @@ export interface ParticleWorld {
     y: number,
     z: number,
   ): { depth: number } | null;
+  /**
+   * Whether a voxel holds water, its own or a waterlogged block's: which
+   * side of the surface a soft particle there draws on. Without it the
+   * system asks `getBlockAt`, which misses waterlogging.
+   */
+  isFluidOrWaterloggedAt?(vx: number, vy: number, vz: number): boolean;
   registry: { blocksById: Map<number, ParticleBlock> };
   chunkRenderer: { uniforms: ParticleLightUniforms };
   options: { maxLightLevel: number };
@@ -281,12 +287,16 @@ export interface ParticleSystemOptions {
    */
   isQuadSinglePass: boolean;
   /**
-   * The render order of every soft (non-depth-writing) layer. Transparent
-   * objects draw in render-order order before distance, so at 0 a soft
-   * layer draws before any higher-ordered see-through geometry that writes
-   * depth (a host's leaf-like cutouts, say), which then paints over
-   * particles in front of it. Set it just above those. Cutout layers write
-   * depth themselves and keep 0.
+   * The render order of every soft (non-depth-writing) layer. Each soft
+   * layer's two meshes also name their medium (`TRANSPARENT_MEDIUM_KEY`),
+   * and a host whose transparent sort reads it (`@voxelize/core`'s does)
+   * places them by that instead, around its water, keeping this order only
+   * to rank them among other effects. A sort that ignores the medium draws
+   * transparent objects in render-order order before distance, so at 0 a
+   * soft layer draws before any higher-ordered see-through geometry that
+   * writes depth (leaf-like cutouts, say), which then paints over particles
+   * in front of it; set it just above those. Cutout layers write depth
+   * themselves and keep 0.
    */
   softLayerRenderOrder: number;
 }

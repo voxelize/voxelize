@@ -1,0 +1,66 @@
+---
+description: Blended surfaces accumulate order-independently (WorldClientOptions.orderIndependentTransparency) — depth writers first, blended split at the water surface, see-through blocks split by their texels; the sorted pipeline (bands, per-pixel glass split, effect media) stays for hosts without it
+globs: packages/core/src/common.ts,packages/core/src/core/transparent-sorter.ts,packages/core/src/core/world/index.ts,packages/core/src/core/world/chunk-materials.ts,packages/core/src/core/world/order-independent-transparency.ts,packages/core/src/core/world/see-through-texels.ts,packages/core/src/core/world/textures.ts,packages/core/src/core/world/water-depth.ts,packages/core/src/core/world/shaders.ts,packages/particles/src/**
+alwaysApply: false
+---
+
+# Transparent Passes
+
+a world draws its blended surfaces one of two ways, chosen at construction by `WorldClientOptions.orderIndependentTransparency`.
+
+## order-independent (`orderIndependentTransparency` set)
+
+weighted blended OIT (`order-independent-transparency.ts`): every blended fragment the world's scene draws — water, glass, the translucent texels of any see-through block, particles, sprites, a game's effects — adds its premultiplied colour times a depth weight into a half-float target, in whatever order the list has, and one composite divides it back out over the scene. no draw order can paint a layer over one in front of it.
+
+the transparent list, as the world's sort bands it (`OrderIndependentTransparency.bandOf`):
+
+| band | order |
+| --- | --- |
+| the sky and its clouds (any negative order) | their own |
+| transparent materials that write depth: cutouts, solid texels, masks | `OIT_DEPTH_WRITING_RENDER_ORDER` |
+| open: hand the scene's colour to the water, switch to the accumulation | `OIT_OPEN_RENDER_ORDER` |
+| every blended material, in any order | `OIT_BLENDED_RENDER_ORDER` |
+| split: composite what lies behind the water, draw the band again for the rest | `OIT_SPLIT_RENDER_ORDER` |
+| close: composite | `OIT_CLOSE_RENDER_ORDER` |
+| what cannot accumulate (additive light, multiply, odd custom blends) | `OIT_AFTER_RENDER_ORDER` |
+| overlays (selection, labels) | their own, at 1e6 and up |
+
+- **water is a separating surface.** before the frame, `world.prepareTransparency` draws the depth of every water face in view (both sides: the top from above, the underside from below). the blended band first keeps only what lies behind the nearest water face, per pixel; the split composites it into the scene, and the water then refracts the scene target itself (no copy), with the glass, bubbles, smoke and farther water behind it in it. the band draws again for the water's nearest face and what lies in front of it. water takes no rule of its own: its nearest face lies at that depth, and a face of it farther back is behind like anything else, so glass between two water layers and water seen through water both come out bent by the near water. with no water in view the band draws once.
+- **see-through blocks are split by their texels** (`see-through-texels.ts`), not by their flags. each bucket's textures (its blocks' atlas slots, or a face's or voxel's own texture; every keyframe of an animation) are read once per texture write: texels at or above `solidTexelAlpha` are solid and draw with the depth writers, writing depth, so a lead line in stained glass stays crisp and hides what is behind it; texels between the alpha test and that blend. a bucket with both draws twice from the same buffers (`SeeThroughTexelSplit`); one with only one kind draws once, as a cutout or blended. `isSeeThrough`, `transparentStandalone`, `lightAttenuation`, `standaloneFaceDepth` and the shared buckets keep their meaning for meshing, face culling and shadows. display copies (`makeBlockMesh`) are split the same way, per face.
+- **game materials accumulate as they are.** the encoder wraps a material's fragment stage (the preprocessor renames its `main`, so later hooks still find `void main() {`), for any material that is transparent, writes no depth and blends normally or as premultiplied (`blendedKindOf`). it draws its ordinary colour in every other render.
+
+### rules
+
+- render the world into a render target with a depth texture (an `EffectComposer` with a pass that needs depth, or `composer.createDepthTexture()`), at the top level (not from inside another render), single-sampled. a render that cannot accumulate says why once (`[order-independent] ...`) and draws its blended layers in list order.
+- call `world.prepareTransparency(renderer, camera)` once a frame before the scene renders with that camera. it installs the world's banded sort (the bands only exist in a sort that asks the world), draws the water's depth, arms the accumulation for that camera, and re-plans see-through meshes after a texture write. renders with another camera (shadow maps, portraits) draw in list order.
+- adopt before compiling: `world.adoptOrderIndependentMaterials(materials)` before a warmup compiles them, and draw the forks it returns. a material wrapped after it compiled compiles again (`stats.lateAdopted`, and a warning naming it). a material compiled before the warmup unadopted was drawn outside the band and is left alone.
+- `material.userData[ORDER_INDEPENDENT_KEY] = false` keeps a material out (it draws after the composite, over every blended layer).
+- read `world.orderIndependent.stats` before calling a capture a bug: `opened`, `skipped` by reason, `lateAdopted`, `drawnAfter`.
+
+### limits
+
+- layers that overlap blend by depth weight, not exactly: the nearer one dominates (a layer twice as far weighs an eighth), so glass in front of water takes more of the colour than it would composited back to front. the curve is `weights` in the options.
+- additive light draws after the composite: a spark behind a pane is not tinted by it.
+- what lies behind the nearest water face blends among itself by weight before the water bends it, and the refraction it reads is one composite deep.
+- an MSAA scene target, a logarithmic or reversed depth buffer, and a canvas target cannot accumulate.
+
+## sorted (`orderIndependentTransparency: null`, the default)
+
+water writes no depth and composites a copy of everything drawn before it (one copy a frame, at the first water mesh), so everything see-through draws on its side of the water, back to front (`common.ts`):
+
+| band | order |
+| --- | --- |
+| cutouts (alpha-tested see-through that writes depth) | `TRANSPARENT_CUTOUT_RENDER_ORDER` |
+| the part of blended chunk meshes behind the nearest water face | `TRANSPARENT_RENDER_ORDER` |
+| see-through effects seen through the surface | `transparentEffectRenderOrder(false)` |
+| water, which takes the refraction copy | `TRANSPARENT_FLUID_RENDER_ORDER` |
+| see-through effects in the camera's medium | `transparentEffectRenderOrder(true)` |
+| the part of blended chunk meshes in front of the water | `TRANSPARENT_OVER_FLUID_RENDER_ORDER` |
+| host layers over everything see-through (rain) | whole steps above the water's order |
+
+- blended chunk meshes are split per pixel (`water-depth.ts`): `world.prepareTransparency` draws the depth of the water near the panes in view, and every pane draws twice from the same buffers through two material forks, one keeping what is behind that depth, one the rest.
+- soft particle layers split per particle (`wetMesh`); other effects are placed by `TRANSPARENT_SORT` from the medium at their position against the camera's.
+- install `TRANSPARENT_SORT(camera, world)`; an object drawn in many places at once names its medium under `TRANSPARENT_MEDIUM_KEY`; a cutout texture must be binary alpha.
+- limits: glass between two water layers, water through water, glass behind water more than a section away, effects in an air pocket under water, and one effect in front of a pane painted over by it.
+
+`order-independent-transparency.test.ts`, `see-through-texels.test.ts`, `water-depth.test.ts`, `transparent-sort.test.ts`, `transparent-sorter.test.ts` and the particles package's `layer-options.test.ts` pin this down.
