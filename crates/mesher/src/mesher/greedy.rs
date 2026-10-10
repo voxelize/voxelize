@@ -249,6 +249,16 @@ pub(super) fn process_greedy_quad(
     }
 }
 
+/// The stage that picks `block`'s faces at `voxel` (see [`Block::faces_at`]);
+/// read only for a block that has stage faces.
+fn voxel_stage_for_faces<S: VoxelAccess>(block: &Block, [x, y, z]: [i32; 3], space: &S) -> u32 {
+    if block.stage_faces.is_some() {
+        space.get_voxel_stage(x, y, z)
+    } else {
+        0
+    }
+}
+
 /// The greedy-mask entry for `block`'s face toward `dir` from `center`: lit
 /// and occluded from the voxel in front of it, exposed to water on either
 /// side, tinted by the stage of `stage_voxel`.
@@ -477,7 +487,11 @@ pub fn mesh_space_greedy<S: VoxelAccess>(
                     let is_non_greedy_block = !can_greedy_mesh_block(block, &rotation);
 
                     if !is_non_greedy_block {
-                        let Some(face) = block.faces.iter().find(|face| face.dir == dir) else {
+                        let Some(face) = block
+                            .faces_at(voxel_stage_for_faces(block, [vx, vy, vz], space))
+                            .iter()
+                            .find(|face| face.dir == dir)
+                        else {
                             continue;
                         };
 
@@ -634,7 +648,12 @@ pub fn mesh_space_greedy<S: VoxelAccess>(
                     } else if block.dynamic_patterns.is_some() {
                         get_dynamic_faces(block, [vx, vy, vz], space, &rotation)
                     } else {
-                        block.faces.iter().cloned().map(|f| (f, false)).collect()
+                        block
+                            .faces_at(voxel_stage_for_faces(block, [vx, vy, vz], space))
+                            .iter()
+                            .cloned()
+                            .map(|f| (f, false))
+                            .collect()
                     };
                     let faces = match &block.connected {
                         Some(frame) => connect_faces(frame, [vx, vy, vz], faces, space, registry),

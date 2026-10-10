@@ -68,6 +68,20 @@ pub struct Block {
     /// core's faces. Never greedy-meshed. See `branch`.
     #[serde(default)]
     pub branch_shell: bool,
+    /// The faces a voxel wears instead of `faces` while its stage holds any
+    /// of the mask's bits. See [`Block::faces_at`].
+    #[serde(default)]
+    pub stage_faces: Option<StageFaces>,
+}
+
+/// Faces a block wears in place of its own on a voxel whose stage holds any
+/// of `mask`'s bits: the same cube in another look, each face standing in
+/// for the block's face toward the same side.
+#[derive(Clone, Debug, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct StageFaces {
+    pub mask: u32,
+    pub faces: Vec<BlockFace>,
 }
 
 /// A frame baked into the border of a block's face texture, drawn only where
@@ -114,6 +128,11 @@ impl Block {
                 }
             }
         }
+        if let Some(alternate) = &mut self.stage_faces {
+            for face in &mut alternate.faces {
+                face.compute_name_lower();
+            }
+        }
     }
 
     pub fn is_full_cube(&self) -> bool {
@@ -131,6 +150,15 @@ impl Block {
             &self.name
         } else {
             &self.name_lower
+        }
+    }
+
+    /// The faces a voxel of this block at `stage` wears: its stage faces
+    /// while the stage holds any of their bits, its own otherwise.
+    pub fn faces_at(&self, stage: u32) -> &[BlockFace] {
+        match &self.stage_faces {
+            Some(alternate) if stage & alternate.mask != 0 => &alternate.faces,
+            _ => &self.faces,
         }
     }
 }
