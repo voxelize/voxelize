@@ -100,6 +100,7 @@ import {
   BlockUpdate,
   BlockUpdateWithSource,
   everyFaceOf,
+  facesAt,
   PY_ROTATION,
 } from "./block";
 import { BlockAnimations } from "./block-animations";
@@ -3867,6 +3868,7 @@ export class World<T = any> extends Scene implements NetIntercept {
   private farTerrainFaceLook(
     blockId: number,
     side: FarFaceSide,
+    stage = 0,
   ): FarFaceLook | null {
     const grey: FarFaceLook = { color: [0.5, 0.5, 0.5], isTinted: false };
     const block = this.getBlockByIdSafe(blockId);
@@ -3878,11 +3880,12 @@ export class World<T = any> extends Scene implements NetIntercept {
     }
     const wanted: [number, number, number] =
       side === "top" ? [0, 1, 0] : [1, 0, 0];
+    const faces = facesAt(block, stage);
     const face =
-      block.faces.find(
+      faces.find(
         ({ dir }) =>
           dir[0] === wanted[0] && dir[1] === wanted[1] && dir[2] === wanted[2],
-      ) ?? block.faces[0];
+      ) ?? faces[0];
     const material = this.getBlockFaceMaterial(block.id, face.name);
     const atlas = material?.map;
     if (!(atlas instanceof AtlasTexture)) {
@@ -7863,7 +7866,8 @@ export class World<T = any> extends Scene implements NetIntercept {
       {
         distance: this.options.farTerrainDistance,
         palette: this.options.farTerrainPalette,
-        faceLook: (block, side) => this.farTerrainFaceLook(block, side),
+        faceLook: (block, side, stage) =>
+          this.farTerrainFaceLook(block, side, stage),
         waterColor: this.options.farTerrainWaterColor,
         skyTopColor: this.options.farTerrainSkyTopColor,
         skySideColor: this.options.farTerrainSkySideColor,

@@ -66,6 +66,10 @@ pub struct FarTerrainCover {
 pub struct FarTerrainTree {
     pub leaves: u32,
     pub log: u32,
+    /// The stage its crown's leaves mostly hold, which picks the look they
+    /// wear where the block has stage faces (`Block::faces_at`).
+    #[serde(rename = "leavesStage", default)]
+    pub leaves_stage: u32,
 }
 
 /// What the server tells every client about its far terrain in the INIT
@@ -865,6 +869,7 @@ mod tests {
             trees: vec![FarTerrainTree {
                 leaves: 41,
                 log: 42,
+                leaves_stage: 1,
             }],
             ..descriptor()
         };
@@ -874,7 +879,7 @@ mod tests {
             "{\"top\":2,\"side\":3,\"deep\":5,\"sideDepth\":4,\"covers\":[{\"block\":40,\"share\":0.5},{\"block\":41,\"share\":0.25}]}"
         ));
         assert!(json.contains("\"skyMaterial\":1"));
-        assert!(json.contains("\"trees\":[{\"leaves\":41,\"log\":42}]"));
+        assert!(json.contains("\"trees\":[{\"leaves\":41,\"log\":42,\"leavesStage\":1}]"));
         let back: FarTerrainDescriptor = serde_json::from_str(&json).unwrap();
         assert_eq!(back, painted);
         let budgeted = FarTerrainDescriptor {

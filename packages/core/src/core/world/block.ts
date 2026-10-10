@@ -346,6 +346,20 @@ export function everyFaceOf(block: Pick<Block, "faces" | "stageFaces">) {
 }
 
 /**
+ * The faces a voxel of `block` at `stage` wears: its stage faces while the
+ * stage holds any of their bits, its own otherwise (the mesher's
+ * `Block::faces_at`).
+ */
+export function facesAt(
+  block: Pick<Block, "faces" | "stageFaces">,
+  stage: number,
+): Block["faces"] {
+  return block.stageFaces && (stage & block.stageFaces.mask) !== 0
+    ? block.stageFaces.faces
+    : block.faces;
+}
+
+/**
  * A block update to make on the server.
  */
 export type BlockUpdate = {

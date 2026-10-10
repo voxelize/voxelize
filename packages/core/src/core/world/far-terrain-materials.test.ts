@@ -45,17 +45,43 @@ const texel = (table: Float32Array, cls: number, slot: number) =>
 describe("farMaterialFaces", () => {
   it("lists every face the materials and trees paint with, once each", () => {
     expect(farMaterialFaces([meadow, { top: 3, side: 3 }], trees)).toEqual([
-      [1, "top"],
-      [1, "side"],
-      [2, "side"],
-      [3, "side"],
-      [4, "top"],
-      [3, "top"],
-      [5, "top"],
-      [7, "side"],
-      [6, "top"],
-      [8, "side"],
+      [1, "top", 0],
+      [1, "side", 0],
+      [2, "side", 0],
+      [3, "side", 0],
+      [4, "top", 0],
+      [3, "top", 0],
+      [5, "top", 0],
+      [7, "side", 0],
+      [6, "top", 0],
+      [8, "side", 0],
     ]);
+  });
+
+  it("keeps a crown's staged leaves apart from the same block's plain ones", () => {
+    const flowering: FarTerrainTree[] = [
+      { leaves: 5, log: 7 },
+      { leaves: 5, log: 7, leavesStage: 1 },
+    ];
+    expect(farMaterialFaces([], flowering)).toEqual([
+      [5, "top", 0],
+      [7, "side", 0],
+      [5, "top", 1],
+    ]);
+    const looks: [number, string, number][] = [];
+    const table = buildFarMaterialTable(
+      [],
+      (block, side, stage) => {
+        looks.push([block, side, stage]);
+        return faceLook(block + stage);
+      },
+      flowering,
+    );
+    expect(looks).toContainEqual([5, "top", 1]);
+    const [plain] = texel(table.table, table.treeClass, 0);
+    const [staged] = texel(table.table, table.treeClass + 1, 0);
+    expect(plain).toBe(0 + FAR_TINTED_LAYER);
+    expect(staged).toBe(2 + FAR_TINTED_LAYER);
   });
 });
 
@@ -67,7 +93,7 @@ describe("buildFarMaterialTable", () => {
   );
   const layerOf = (block: number, side: "top" | "side") =>
     farMaterialFaces([meadow, { top: 3, side: 3 }], trees).findIndex(
-      ([b, s]) => b === block && s === side,
+      ([b, s, stage]) => b === block && s === side && stage === 0,
     );
 
   it("names the top, its flat covers by cumulative share, and the strata", () => {

@@ -45,20 +45,34 @@ export type FarMaterialTable = {
   layerCount: number;
 };
 
-export type FarFaceKey = `${number}:${FarFaceSide}`;
+export type FarFaceKey =
+  | `${number}:${FarFaceSide}`
+  | `${number}:${FarFaceSide}:${number}`;
 
-/** Every face a set of materials and tree species paints with, once each. */
+/** The key a block face's look is kept under, by the stage that picks it. */
+export function farFaceKey(
+  block: number,
+  side: FarFaceSide,
+  stage = 0,
+): FarFaceKey {
+  return stage ? `${block}:${side}:${stage}` : `${block}:${side}`;
+}
+
+/**
+ * Every face a set of materials and tree species paints with, once each, as
+ * the block, its side and the stage that picks its look.
+ */
 export function farMaterialFaces(
   materials: readonly FarTerrainMaterial[],
   trees: readonly FarTerrainTree[] = [],
-): [number, FarFaceSide][] {
+): [number, FarFaceSide, number][] {
   const seen = new Set<string>();
-  const faces: [number, FarFaceSide][] = [];
-  const add = (block: number, side: FarFaceSide) => {
-    const key = `${block}:${side}`;
+  const faces: [number, FarFaceSide, number][] = [];
+  const add = (block: number, side: FarFaceSide, stage = 0) => {
+    const key = farFaceKey(block, side, stage);
     if (seen.has(key)) return;
     seen.add(key);
-    faces.push([block, side]);
+    faces.push([block, side, stage]);
   };
   for (const material of materials) {
     add(material.top, "top");
@@ -68,7 +82,7 @@ export function farMaterialFaces(
     for (const cover of material.covers ?? []) add(cover.block, "top");
   }
   for (const tree of trees) {
-    add(tree.leaves, "top");
+    add(tree.leaves, "top", tree.leavesStage ?? 0);
     add(tree.log, "side");
   }
   return faces;
@@ -157,7 +171,7 @@ export function farLayerTexels(
  */
 export function buildFarMaterialTable(
   materials: readonly FarTerrainMaterial[],
-  look: (block: number, side: FarFaceSide) => FarFaceLook,
+  look: (block: number, side: FarFaceSide, stage: number) => FarFaceLook,
   trees: readonly FarTerrainTree[] = [],
 ): FarMaterialTable {
   const faces = farMaterialFaces(materials, trees);
@@ -165,17 +179,17 @@ export function buildFarMaterialTable(
   const layers = new Uint8Array(
     Math.max(1, faces.length) * FAR_LAYER_SIZE * FAR_LAYER_SIZE * 4,
   );
-  faces.forEach(([block, side], index) => {
-    layerOf.set(`${block}:${side}`, index);
+  faces.forEach(([block, side, stage], index) => {
+    layerOf.set(farFaceKey(block, side, stage), index);
     farLayerTexels(
-      look(block, side),
+      look(block, side, stage),
       layers,
       index * FAR_LAYER_SIZE * FAR_LAYER_SIZE * 4,
     );
   });
-  const code = (block: number, side: FarFaceSide) => {
-    const layer = layerOf.get(`${block}:${side}`) ?? 0;
-    return look(block, side).isTinted ? layer + FAR_TINTED_LAYER : layer;
+  const code = (block: number, side: FarFaceSide, stage = 0) => {
+    const layer = layerOf.get(farFaceKey(block, side, stage)) ?? 0;
+    return look(block, side, stage).isTinted ? layer + FAR_TINTED_LAYER : layer;
   };
 
   const treeClass = materials.length;
@@ -204,7 +218,7 @@ export function buildFarMaterialTable(
   });
   trees.forEach((tree, slot) => {
     const at = row(treeClass + slot);
-    const leaves = code(tree.leaves, "top");
+    const leaves = code(tree.leaves, "top", tree.leavesStage ?? 0);
     const log = code(tree.log, "side");
     table[at] = leaves;
     table.fill(0, at + 4, at + 7);

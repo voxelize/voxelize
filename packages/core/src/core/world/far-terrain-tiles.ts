@@ -41,8 +41,16 @@ export type FarTerrainBudget = {
   maxTilesPerRequest: number;
 };
 
-/** A tree species: the block its crown is made of and the log it stands on. */
-export type FarTerrainTree = { leaves: number; log: number };
+/**
+ * A tree species: the block its crown is made of and the log it stands on,
+ * and the stage its crown's leaves mostly hold (absent: 0), which picks the
+ * look they wear where the block has stage faces.
+ */
+export type FarTerrainTree = {
+  leaves: number;
+  log: number;
+  leavesStage?: number;
+};
 
 /** The blocks one material class is made of (registry block ids). */
 export type FarTerrainMaterial = {
