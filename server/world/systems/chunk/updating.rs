@@ -630,6 +630,7 @@ fn process_pending_updates(
     let mut consults = TickBudget::paused(config.max_ticker_consult_ms_per_tick);
     let mut phases = UpdatePhases::default();
     let per_batch = config.max_updates_per_batch.max(1);
+    let per_active_batch = config.max_active_updates_per_batch.max(1);
     let mut batches = 0usize;
     let mut commit = |chunks: &mut Chunks,
                       popped: Vec<(Vec3<i32>, u32, UpdateLane)>,
@@ -664,7 +665,7 @@ fn process_pending_updates(
             registry,
             max_height,
             UpdateLane::Active,
-            active_left.min(per_batch),
+            active_left.min(per_active_batch),
             &mut popped,
         );
         commit(chunks, popped, &mut results, &mut writes);
@@ -2169,7 +2170,7 @@ mod write_budget_tests {
     fn simulation_writes_past_the_budget_land_a_batch_a_tick_in_order_and_none_is_dropped() {
         actix::System::new().block_on(async {
             let mut world = world("write-budget-simulation", |config| {
-                config.max_updates_per_batch(37).max_update_ms_per_tick(0.0)
+                config.max_active_updates_per_batch(37).max_update_ms_per_tick(0.0)
             });
             let writes: Vec<(Vec3<i32>, u32)> = (0..10)
                 .flat_map(|x| (0..10).map(move |z| (Vec3(x, 3, z), STONE)))
@@ -2199,7 +2200,10 @@ mod write_budget_tests {
     fn each_lane_commits_a_batch_a_tick_whatever_the_other_spent() {
         actix::System::new().block_on(async {
             let mut world = world("write-budget-lanes", |config| {
-                config.max_updates_per_batch(10).max_update_ms_per_tick(0.0)
+                config
+                    .max_updates_per_batch(10)
+                    .max_active_updates_per_batch(10)
+                    .max_update_ms_per_tick(0.0)
             });
             let simulated: Vec<(Vec3<i32>, u32)> =
                 (0..30).map(|index| (Vec3(index % 10, 3, index / 10), STONE)).collect();
@@ -2232,7 +2236,10 @@ mod write_budget_tests {
     fn a_carried_simulation_write_yields_to_the_player_write_committed_before_it() {
         actix::System::new().block_on(async {
             let mut world = world("write-budget-supersede", |config| {
-                config.max_updates_per_batch(2).max_update_ms_per_tick(0.0)
+                config
+                    .max_updates_per_batch(2)
+                    .max_active_updates_per_batch(2)
+                    .max_update_ms_per_tick(0.0)
             });
             let contested = Vec3(5, 6, 5);
             world.chunks_mut().update_voxels(&[
@@ -2283,7 +2290,10 @@ mod write_budget_tests {
     fn a_player_write_over_a_carried_removal_wins_and_is_counted() {
         actix::System::new().block_on(async {
             let mut world = world("write-budget-carried-removal", |config| {
-                config.max_updates_per_batch(2).max_update_ms_per_tick(0.0)
+                config
+                    .max_updates_per_batch(2)
+                    .max_active_updates_per_batch(2)
+                    .max_update_ms_per_tick(0.0)
             });
             let wood: Vec<(Vec3<i32>, u32)> = (1..=4).map(|x| (Vec3(x, 3, 1), STONE)).collect();
             world.chunks_mut().update_voxels(&wood);
@@ -2326,6 +2336,7 @@ mod write_budget_tests {
                 let mut world = world(name, |config| {
                     config
                         .max_updates_per_batch(per_batch)
+                        .max_active_updates_per_batch(per_batch)
                         .max_update_ms_per_tick(budget_ms)
                 });
                 world.chunks_mut().update_voxels(&room());
