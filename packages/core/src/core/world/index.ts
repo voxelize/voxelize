@@ -104,7 +104,7 @@ import {
 import { BlockAnimations } from "./block-animations";
 import { BlockEntityLedger } from "./block-entity-ledger";
 import { BorderSwapHold } from "./border-swap-hold";
-import { branchAABBs } from "./branch";
+import { branchAABBsAt, branchHoldsWater } from "./branch";
 import { Chunk } from "./chunk";
 import { ChunkIdReplacementReport } from "./chunk-id-replacements";
 import {
@@ -232,6 +232,7 @@ import {
   VoxelBoxWork,
 } from "./voxel-box";
 import type { VoxelDelta } from "./voxel-delta";
+import { stateBitsOf, withStateBits } from "./voxel-state";
 import { WaterDepthPass } from "./water-depth";
 import {
   WATER_OPTICS,
@@ -3340,7 +3341,26 @@ export class World<T = any> extends Scene implements NetIntercept {
     this.checkIsInitialized("get voxel rotation", false);
     const chunk = this.getChunkByPosition(px, py, pz);
     if (chunk === undefined) return new BlockRotation();
+    if (
+      this.getBlockByIdSafe(chunk.getVoxel(px, py, pz))?.rotationBitsAreState
+    ) {
+      return new BlockRotation();
+    }
     return chunk.getVoxelRotation(px, py, pz);
+  }
+
+  /** The rotation a voxel of `block` in `chunk` collides at: the identity
+   * when the block's rotation bits are state. */
+  private voxelRotationOf(
+    block: Block,
+    chunk: Chunk,
+    vx: number,
+    vy: number,
+    vz: number,
+  ) {
+    return block.rotationBitsAreState
+      ? new BlockRotation()
+      : chunk.getVoxelRotation(vx, vy, vz);
   }
 
   /**
@@ -3360,6 +3380,14 @@ export class World<T = any> extends Scene implements NetIntercept {
     this.checkIsInitialized("set voxel rotation", false);
     const chunk = this.getChunkByPosition(px, py, pz);
     if (chunk === undefined) return;
+
+    const block = this.getBlockByIdSafe(chunk.getVoxel(px, py, pz));
+    if (block?.rotationBitsAreState) {
+      console.error(
+        `[World] refused to set a rotation on ${block.name} at ${px},${py},${pz}: its rotation bits are state`,
+      );
+      return;
+    }
 
     const oldRotation = chunk.getVoxelRotation(px, py, pz);
     chunk.setVoxelRotation(px, py, pz, rotation);
@@ -4193,7 +4221,7 @@ export class World<T = any> extends Scene implements NetIntercept {
     if (!block) {
       return [];
     }
-    if (block.branch) {
+    if (block.branch || block.branchShell) {
       return this.getBranchAABBsAt(block, vx, vy, vz);
     }
     if (block.dynamicPatterns && block.dynamicPatterns.length > 0) {
@@ -4215,15 +4243,15 @@ export class World<T = any> extends Scene implements NetIntercept {
 
   /**
    * The boxes the branch voxel of `block` at `vx, vy, vz` is drawn and
-   * collides as, in blocks of the voxel: its core and an arm toward each
-   * joined neighbour (see `branch.ts`). Empty for a block that is not a
-   * branch.
+   * collides as, in blocks of the voxel: a one-voxel branch or fin's core
+   * and arms, or a wide section cell's slice of its core's tube (see
+   * `branch.ts`). Empty for a block that is not a branch, a cut core and a
+   * shell whose core is gone.
    */
   getBranchAABBsAt = (block: Block, vx: number, vy: number, vz: number) => {
-    if (!block.branch) return [];
-    return branchAABBs(block.branch, vx | 0, vy | 0, vz | 0, {
-      getVoxelAt: (x, y, z) => this.getVoxelAt(x, y, z),
-      getVoxelStageAt: (x, y, z) => this.getVoxelStageAt(x, y, z),
+    if (!block.branch && !block.branchShell) return [];
+    return branchAABBsAt(vx | 0, vy | 0, vz | 0, {
+      getRawVoxelAt: (x, y, z) => this.getRawVoxelAt(x, y, z),
       getBlockById: (id) => this.getBlockByIdSafe(id),
     });
   };
@@ -4437,13 +4465,16 @@ export class World<T = any> extends Scene implements NetIntercept {
    * into water does not watch a block-shaped air pocket for a round trip.
    * The server's echo is authoritative and overwrites whatever this guessed.
    */
-  private predictWaterlogging({ vx, vy, vz, type }: BlockUpdate) {
+  private predictWaterlogging({ vx, vy, vz, type, stage = 0 }: BlockUpdate) {
     const current = this.getBlockAt(vx, vy, vz);
     if (!current) return null;
 
     const holdsFluid =
       current.isFluid || this.getVoxelWaterloggedAt(vx, vy, vz);
-    const canHold = this.getBlockByIdSafe(type)?.isWaterloggable ?? false;
+    const placed = this.getBlockByIdSafe(type);
+    const canHold =
+      (placed?.isWaterloggable ?? false) &&
+      (!placed?.branch || branchHoldsWater(placed.branch, stage));
     if (!holdsFluid || !canHold) return null;
 
     const chunk = this.getChunkByPosition(vx, vy, vz);
@@ -4578,6 +4609,9 @@ export class World<T = any> extends Scene implements NetIntercept {
       const type = BlockUtils.extractID(voxel);
       const rotation = BlockUtils.extractRotation(voxel);
       const [rotationValue, yRotationValue] = BlockRotation.decode(rotation);
+      // A block whose rotation bits are state keeps its byte as it came: the
+      // rotation decode above folds most of its values to "up".
+      const stateBits = stateBitsOf(this.getBlockByIdSafe(type), voxel);
       const stage = BlockUtils.extractStage(voxel);
       const isWaterlogged = BlockUtils.extractWaterlogged(voxel);
       const waterlogLevel = BlockUtils.extractWaterlogLevel(voxel);
@@ -4594,7 +4628,9 @@ export class World<T = any> extends Scene implements NetIntercept {
         currentRotation.yRotation !== rotation.yRotation ||
         currentStage !== stage ||
         isCurrentWaterlogged !== isWaterlogged ||
-        currentWaterlogLevel !== waterlogLevel;
+        currentWaterlogLevel !== waterlogLevel ||
+        (stateBits !== undefined &&
+          stateBits !== ((this.getRawVoxelAt(vx, vy, vz) >>> 16) & 0xff));
 
       if (needsUpdate) {
         blockUpdates.push({
@@ -4606,6 +4642,7 @@ export class World<T = any> extends Scene implements NetIntercept {
             type,
             rotation: rotationValue,
             yRotation: yRotationValue,
+            stateBits,
             stage,
             isWaterlogged,
             waterlogLevel,
@@ -5168,21 +5205,24 @@ export class World<T = any> extends Scene implements NetIntercept {
       if (!Array.isArray(block.branchSockets)) {
         block.branchSockets = [];
       }
+      block.branchShell = block.branchShell ?? false;
+      block.rotationBitsAreState = block.rotationBitsAreState ?? false;
 
       if (isDynamic) {
-        block.dynamicFn = block.branch
-          ? (pos) => ({
-              aabbs: this.getBranchAABBsAt(block, pos[0], pos[1], pos[2]),
-              faces: block.faces,
-              isTransparent: block.isTransparent,
-            })
-          : () => {
-              return {
-                aabbs: block.aabbs,
+        block.dynamicFn =
+          block.branch || block.branchShell
+            ? (pos) => ({
+                aabbs: this.getBranchAABBsAt(block, pos[0], pos[1], pos[2]),
                 faces: block.faces,
                 isTransparent: block.isTransparent,
+              })
+            : () => {
+                return {
+                  aabbs: block.aabbs,
+                  faces: block.faces,
+                  isTransparent: block.isTransparent,
+                };
               };
-            };
       }
 
       // Guarantee the `isLight` flag is correctly set even if the server did not provide it
@@ -7770,7 +7810,7 @@ export class World<T = any> extends Scene implements NetIntercept {
 
         const { aabbs, isPassable, isFluid, dynamicPatterns } = block;
 
-        if (block.branch) {
+        if (block.branch || block.branchShell) {
           if (isPassable || isFluid) return [];
           return this.getBranchAABBsAt(block, vx, vy, vz).map((aabb) =>
             aabb.translate([vx, vy, vz]),
@@ -7787,7 +7827,7 @@ export class World<T = any> extends Scene implements NetIntercept {
           );
           if (passable || isFluid) return [];
 
-          const rotation = chunk.getVoxelRotation(vx, vy, vz);
+          const rotation = this.voxelRotationOf(block, chunk, vx, vy, vz);
           const aabbsWithFlags = this.getBlockAABBsForDynamicPatterns(
             vx,
             vy,
@@ -7803,7 +7843,7 @@ export class World<T = any> extends Scene implements NetIntercept {
 
         if (isPassable || isFluid) return [];
 
-        const rotation = chunk.getVoxelRotation(vx, vy, vz);
+        const rotation = this.voxelRotationOf(block, chunk, vx, vy, vz);
         return aabbs.map((aabb) =>
           rotation.rotateAABB(aabb).translate([vx, vy, vz]),
         );
@@ -7831,7 +7871,7 @@ export class World<T = any> extends Scene implements NetIntercept {
 
         if (!isClimbable) return [];
 
-        const rotation = chunk.getVoxelRotation(vx, vy, vz);
+        const rotation = this.voxelRotationOf(block, chunk, vx, vy, vz);
         return aabbs.map((aabb) =>
           rotation.rotateAABB(aabb).translate([vx, vy, vz]),
         );
@@ -7888,6 +7928,7 @@ export class World<T = any> extends Scene implements NetIntercept {
           vz,
           rotation,
           yRotation,
+          stateBits,
           stage,
           isWaterlogged,
           waterlogLevel,
@@ -7903,13 +7944,16 @@ export class World<T = any> extends Scene implements NetIntercept {
       const currentStage = this.getVoxelStageAt(vx, vy, vz);
       const newRotation = BlockRotation.encode(rotation, yRotation);
 
-      const newValue = BlockUtils.insertAll(
+      const packed = BlockUtils.insertAll(
         newBlock.id,
         newBlock.rotatable || newBlock.yRotatable ? newRotation : undefined,
         stage,
         isWaterlogged,
         waterlogLevel,
       );
+      const newValue = newBlock.rotationBitsAreState
+        ? withStateBits(packed, stateBits ?? 0)
+        : packed;
       this.attemptBlockCache(vx, vy, vz, newValue, source);
       const oldRaw = this.getRawVoxelAt(vx, vy, vz);
 
@@ -7920,7 +7964,15 @@ export class World<T = any> extends Scene implements NetIntercept {
         this.setVoxelWaterloggedAt(vx, vy, vz, isWaterlogged ?? false);
         this.setVoxelWaterlogLevelAt(vx, vy, vz, waterlogLevel ?? 0);
 
-        if (newBlock.rotatable || newBlock.yRotatable) {
+        if (newBlock.rotationBitsAreState) {
+          const chunk = this.getChunkByPosition(vx, vy, vz);
+          chunk?.setRawValue(
+            vx,
+            vy,
+            vz,
+            withStateBits(chunk.getRawValue(vx, vy, vz), stateBits ?? 0),
+          );
+        } else if (newBlock.rotatable || newBlock.yRotatable) {
           this.setVoxelRotationAt(vx, vy, vz, newRotation);
         }
 

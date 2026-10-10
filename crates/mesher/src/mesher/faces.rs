@@ -40,6 +40,7 @@ pub(super) fn can_greedy_mesh_block(block: &Block, rotation: &BlockRotation) -> 
         && block.dynamic_patterns.is_none()
         && block.connected.is_none()
         && block.branch.is_none()
+        && !block.branch_shell
         && matches!(rotation, BlockRotation::PY(r) if *r == 0.0)
         && block.is_full_cube()
         && block.faces.iter().all(|face| !face.isolated)

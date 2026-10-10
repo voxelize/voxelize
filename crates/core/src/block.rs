@@ -13,6 +13,10 @@ pub const ROTATION_MASK: u32 = 0xFFF0FFFF;
 pub const Y_ROTATION_MASK: u32 = 0xFF0FFFFF;
 pub const STAGE_MASK: u32 = 0xF0FFFFFF;
 
+/// Bits 16-23 of the voxel word: the rotation and y-rotation nibbles, or the
+/// state of a block whose rotation bits are state.
+pub const ROTATION_BYTE_MASK: u32 = 0x00FF0000;
+
 /// Bit 28 of the voxel word: this voxel holds the world's waterlogging fluid
 /// in addition to its block.
 pub const WATERLOGGED_BIT: u32 = 1 << 28;

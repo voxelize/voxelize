@@ -4,7 +4,7 @@ use hashbrown::{HashMap, HashSet};
 use log::info;
 use serde::{Deserialize, Serialize};
 
-use crate::{BlockFace, Vec3, VoxelAccess, VoxelUpdate};
+use crate::{BlockFace, BlockUtils, Vec3, VoxelAccess, VoxelUpdate};
 
 use super::voxels::{assert_coupled_blocks_consistent, Block};
 
@@ -391,6 +391,26 @@ impl Registry {
         self.get_block_by_id(id).is_waterloggable
     }
 
+    /// Whether this voxel can hold the waterlogging fluid alongside itself:
+    /// its block can, and a branch voxel's wood leaves it room at its stage
+    /// ([`BranchShape::holds_water`]).
+    pub fn is_waterloggable_voxel(&self, raw: u32) -> bool {
+        let block = self.get_block_by_id(BlockUtils::extract_id(raw));
+        block.is_waterloggable
+            && block
+                .branch
+                .as_ref()
+                .is_none_or(|shape| shape.holds_water(BlockUtils::extract_stage(raw)))
+    }
+
+    /// Whether `raw` holds water its own voxel has no room for: a waterlogged
+    /// branch of a waterloggable block at a stage that fills the voxel.
+    pub fn is_overfull_waterlog(&self, raw: u32) -> bool {
+        BlockUtils::extract_waterlogged(raw)
+            && self.is_waterloggable(BlockUtils::extract_id(raw))
+            && !self.is_waterloggable_voxel(raw)
+    }
+
     /// The block waterlogging fills voxels with, or `None` in a registry that
     /// never declared one — in which case nothing ever waterlogs.
     pub fn waterlogging_fluid(&self) -> Option<&Block> {
@@ -644,7 +664,10 @@ mod atlas_layout_tests {
                 continue;
             }
             let current = slot(&range);
-            assert!(current > previous, "block {id} {face} was allocated out of order");
+            assert!(
+                current > previous,
+                "block {id} {face} was allocated out of order"
+            );
             previous = current;
         }
     }

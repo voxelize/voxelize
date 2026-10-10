@@ -2,7 +2,7 @@ use base64::{engine::general_purpose::STANDARD, Engine};
 use byteorder::{ByteOrder, LittleEndian};
 use hashbrown::{HashMap, HashSet};
 use libflate::zlib::{Decoder, Encoder};
-use log::{error, info, warn};
+use log::{debug, error, info, warn};
 use serde::{Deserialize, Serialize};
 use specs::Entity;
 use std::sync::Arc;
@@ -92,14 +92,19 @@ fn backfill_waterlogged_voxels(chunk: &mut Chunk, registry: &Registry) -> bool {
     let Vec3(max_x, max_y, max_z) = chunk.max;
 
     let mut submerged = Vec::new();
+    let mut overfull = Vec::new();
     for vx in min_x..max_x {
         for vz in min_z..max_z {
             for vy in min_y..max_y {
                 let raw = chunk.get_raw_voxel(vx, vy, vz);
+                if registry.is_overfull_waterlog(raw) {
+                    overfull.push(Vec3(vx, vy, vz));
+                    continue;
+                }
                 if BlockUtils::extract_waterlogged(raw) {
                     continue;
                 }
-                if !registry.is_waterloggable(BlockUtils::extract_id(raw)) {
+                if !registry.is_waterloggable_voxel(raw) {
                     continue;
                 }
                 let touches_fluid = ORTHOGONAL_NEIGHBORS.iter().any(|[ox, oy, oz]| {
@@ -116,8 +121,28 @@ fn backfill_waterlogged_voxels(chunk: &mut Chunk, registry: &Registry) -> bool {
     for Vec3(vx, vy, vz) in &submerged {
         chunk.set_voxel_waterlogged(*vx, *vy, *vz, true);
     }
+    // A branch saved waterlogged at a stage that fills its voxel is invalid:
+    // it loads dry, and the water it held is reported lost.
+    for voxel in &overfull {
+        let Vec3(vx, vy, vz) = *voxel;
+        let raw = chunk.get_raw_voxel(vx, vy, vz);
+        error!(
+            "{} at {:?} was saved waterlogged at stage {}, which leaves it no room for water: \
+             loaded it dry, losing water at level {}",
+            registry.get_block_by_id(BlockUtils::extract_id(raw)).name,
+            voxel,
+            BlockUtils::extract_stage(raw),
+            BlockUtils::extract_waterlog_level(raw),
+        );
+        chunk.set_raw_voxel(
+            vx,
+            vy,
+            vz,
+            BlockUtils::insert_waterlog_level(BlockUtils::insert_waterlogged(raw, false), 0),
+        );
+    }
 
-    !submerged.is_empty()
+    !submerged.is_empty() || !overfull.is_empty()
 }
 
 /// Work carried past a tick's budget, from the tick it first was.
@@ -181,6 +206,10 @@ pub struct Chunks {
 
     /// Staging area for `active_updates`, deduplicated before flushing.
     pub(crate) active_updates_staging: HashMap<Vec3<i32>, u32>,
+
+    /// Simulation writes an external write to the same voxel superseded,
+    /// since the world started (`superseded_active_updates`).
+    superseded_active_updates: u64,
 
     /// Writes popped for a chunk whose light footprint was not ready, keyed
     /// by that chunk. They wait here instead of back at the head of their
@@ -892,14 +921,31 @@ impl Chunks {
             // An external write to a voxel supersedes whatever the simulation
             // still has queued for it: player intent wins, and the fluid or
             // growth ticker that produced the stale write re-plans from the
-            // committed state on its next tick anyway.
-            self.active_updates
-                .retain(|(v, _)| !self.updates_staging.contains_key(v));
-            self.active_updates_staging
-                .retain(|v, _| !self.updates_staging.contains_key(v));
-            Self::retain_parked(&mut self.parked_updates, |(v, _, _)| {
-                !self.updates_staging.contains_key(v)
-            });
+            // committed state on its next tick anyway. Each one counts, and
+            // names its voxel at debug, so a write that never landed (a block
+            // a felled tree left standing) can be traced to the one that won.
+            let staging = &self.updates_staging;
+            let mut superseded = 0u64;
+            let mut supersede = |voxel: &Vec3<i32>, raw: u32| {
+                let is_superseded = staging.contains_key(voxel);
+                if is_superseded {
+                    superseded += 1;
+                    debug!(
+                        "[chunk-updating] an external write to {voxel:?} supersedes the simulation's queued {raw:#x} there"
+                    );
+                }
+                !is_superseded
+            };
+            self.active_updates.retain(|(v, raw)| supersede(v, *raw));
+            self.active_updates_staging.retain(|v, raw| supersede(v, *raw));
+            for updates in self.parked_updates.values_mut() {
+                updates.retain(|(v, raw, lane)| match lane {
+                    UpdateLane::Active => supersede(v, *raw),
+                    UpdateLane::External => !staging.contains_key(v),
+                });
+            }
+            self.parked_updates.retain(|_, updates| !updates.is_empty());
+            self.superseded_active_updates += superseded;
 
             let mut staged: Vec<(Vec3<i32>, u32)> = self.updates_staging.drain().collect();
             staged.sort_by_key(|(voxel, _)| (voxel.1, voxel.0, voxel.2));
@@ -917,6 +963,40 @@ impl Chunks {
             staged.sort_by_key(|(voxel, _)| (voxel.1, voxel.0, voxel.2));
             self.active_updates.extend(staged);
         }
+    }
+
+    /// Drop the simulation's queued and parked writes to `voxels`, each of
+    /// which an external write has just committed over: planned from the
+    /// world before it, they are stale, and the player's word is kept, as
+    /// for an external write staged after them (`flush_staged_updates`).
+    /// Each counts in `superseded_active_updates` and names its voxel at
+    /// debug. Returns how many went.
+    pub(crate) fn supersede_active_updates(&mut self, voxels: &HashSet<Vec3<i32>>) -> u64 {
+        let mut superseded = 0u64;
+        let mut supersede = |voxel: &Vec3<i32>, raw: u32| {
+            let is_superseded = voxels.contains(voxel);
+            if is_superseded {
+                superseded += 1;
+                debug!(
+                    "[chunk-updating] an external write committed at {voxel:?} supersedes the simulation's carried {raw:#x} there"
+                );
+            }
+            !is_superseded
+        };
+        self.active_updates.retain(|(voxel, raw)| supersede(voxel, *raw));
+        for updates in self.parked_updates.values_mut() {
+            updates.retain(|(voxel, raw, lane)| *lane != UpdateLane::Active || supersede(voxel, *raw));
+        }
+        self.parked_updates.retain(|_, updates| !updates.is_empty());
+        self.superseded_active_updates += superseded;
+        superseded
+    }
+
+    /// How many of the simulation's writes an external write to the same
+    /// voxel has superseded since the world started, staged after them or
+    /// committed while they were carried.
+    pub fn superseded_active_updates(&self) -> u64 {
+        self.superseded_active_updates
     }
 
     fn retain_parked(

@@ -124,7 +124,11 @@ impl FluidView<'_> {
         if id == 0 {
             return Some(FluidTarget::Air);
         }
-        if self.is_waterlogging && self.registry.is_waterloggable(id) {
+        if self.is_waterlogging
+            && self
+                .registry
+                .is_waterloggable_voxel(self.space.get_raw_voxel(vx, vy, vz))
+        {
             return Some(FluidTarget::Waterloggable);
         }
         None

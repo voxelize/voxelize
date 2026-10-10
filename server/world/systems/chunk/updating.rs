@@ -5,11 +5,12 @@ use nanoid::nanoid;
 use specs::{Entities, LazyUpdate, ReadExpect, System, WorldExt, WriteExpect, WriteStorage};
 
 use crate::{
-    beer_lambert_transmit, expand_coupled_updates, record_profile, sample_random_ticks, BlockUtils,
-    ChunkInterests, ChunkUtils, Chunks, ClientFilter, CurrentChunkComp, ETypeComp, EntityFlag,
-    IDComp, JsonComp, LightColor, LightNode, Lights, Mesher, Message, MessageQueues, MessageType,
-    MetadataComp, PerfToggle, RandomTickCatchUp, Registry, Stats, UpdateLane, UpdateProtocol, Vec2, Vec3,
-    VoxelAccess, VoxelComp, VoxelPacker, WorldConfig, perf_toggle,
+    beer_lambert_transmit, expand_coupled_updates, perf_toggle, record_profile,
+    sample_random_ticks, BlockUtils, ChunkInterests, ChunkUtils, Chunks, ClientFilter,
+    CurrentChunkComp, ETypeComp, EntityFlag, IDComp, JsonComp, LightColor, LightNode, Lights,
+    Mesher, Message, MessageQueues, MessageType, MetadataComp, PerfToggle, RandomTickCatchUp,
+    Registry, Stats, UpdateLane, UpdateProtocol, Vec2, Vec3, VoxelAccess, VoxelComp, VoxelPacker,
+    WorldConfig, ROTATION_BYTE_MASK,
 };
 
 pub const VOXEL_NEIGHBORS: [[i32; 3]; 6] = [
@@ -487,7 +488,28 @@ fn mark_waterlogged_fluid_active(
 /// fluid simulation drain a waterlogged voxel by clearing the bit. Any
 /// disagreement heals on the next fluid tick, since waterloggable voxels are
 /// themselves flow targets.
+///
+/// A word that would leave water in a branch voxel too full to hold it (a
+/// waterlogged twig thickened to a full block) is invalid: it is committed
+/// dry, and the water it carried is reported lost.
 fn resolve_waterlogging(chunks: &Chunks, registry: &Registry, voxel: &Vec3<i32>, raw: u32) -> u32 {
+    let resolved = carry_waterlogging(chunks, registry, voxel, raw);
+    if !registry.is_overfull_waterlog(resolved) {
+        return resolved;
+    }
+    log::error!(
+        "{} at {:?} cannot hold water at stage {}: committed it dry, losing water at level {}",
+        registry
+            .get_block_by_id(BlockUtils::extract_id(resolved))
+            .name,
+        voxel,
+        BlockUtils::extract_stage(resolved),
+        BlockUtils::extract_waterlog_level(resolved),
+    );
+    BlockUtils::insert_waterlog_level(BlockUtils::insert_waterlogged(resolved, false), 0)
+}
+
+fn carry_waterlogging(chunks: &Chunks, registry: &Registry, voxel: &Vec3<i32>, raw: u32) -> u32 {
     let Some(fluid_id) = registry.waterlogging_fluid_id() else {
         return raw;
     };
@@ -515,7 +537,7 @@ fn resolve_waterlogging(chunks: &Chunks, registry: &Registry, voxel: &Vec3<i32>,
     }
 
     let holds_fluid = is_current_waterlogged || current_id == fluid_id;
-    if holds_fluid && registry.is_waterloggable(updated_id) {
+    if holds_fluid && registry.is_waterloggable_voxel(raw) {
         return BlockUtils::insert_waterlog_level(BlockUtils::insert_waterlogged(raw, true), level);
     }
 
@@ -594,43 +616,26 @@ fn process_pending_updates(
         };
     }
 
-    // External writes commit in batches until the tick's write budget is
-    // spent. Each batch is lit in full before the next pops, so the world
-    // between two batches is one a tick could have ended on, and a bulk
-    // edit's floods spread over the ticks its writes do; what a tick does not
-    // reach stays at the head of the lane. The simulation lane pops whole
-    // into the first batch, ahead of the external writes, so when a player
-    // and the simulation both touch one voxel in the same tick, the player's
-    // word is the one committed last and therefore kept. Each budget is
-    // charged only for its own work, consults across all the batches.
+    // Both lanes commit in batches until the tick's write budget is spent:
+    // the simulation's first, then the external writes, so when a player and
+    // the simulation both touch one voxel in the same tick, the player's word
+    // is the one committed last and therefore kept. Each batch is lit in full
+    // before the next pops, so the world between two batches is one a tick
+    // could have ended on, and a bulk edit's or a felled tree's floods spread
+    // over the ticks its writes do. Each lane commits at least one batch a
+    // tick, so neither waits behind the other, and what a tick does not reach
+    // stays at the head of its lane. Each budget is charged only for its own
+    // work, consults across all the batches.
     let mut writes = TickBudget::paused(config.max_update_ms_per_tick);
     let mut consults = TickBudget::paused(config.max_ticker_consult_ms_per_tick);
     let mut phases = UpdatePhases::default();
-    let mut external_left = max_updates;
-    let mut is_first = true;
-    let mut is_cut = false;
-    loop {
-        let mut popped = Vec::new();
-        if is_first {
-            pop_lane(
-                chunks,
-                registry,
-                max_height,
-                UpdateLane::Active,
-                max_active_updates,
-                &mut popped,
-            );
-            is_first = false;
-        }
-        let count = external_left.min(config.max_updates_per_batch.max(1));
-        external_left -= pop_lane(
-            chunks,
-            registry,
-            max_height,
-            UpdateLane::External,
-            count,
-            &mut popped,
-        );
+    let per_batch = config.max_updates_per_batch.max(1);
+    let per_active_batch = config.max_active_updates_per_batch.max(1);
+    let mut batches = 0usize;
+    let mut commit = |chunks: &mut Chunks,
+                      popped: Vec<(Vec3<i32>, u32, UpdateLane)>,
+                      results: &mut Vec<UpdateProtocol>,
+                      writes: &mut TickBudget| {
         commit_batch(
             chunks,
             lazy,
@@ -640,19 +645,72 @@ fn process_pending_updates(
             registry,
             current_tick,
             popped,
-            &mut results,
-            &mut writes,
+            results,
+            writes,
             &mut consults,
             &mut phases,
         );
-        if external_left == 0 || chunks.updates.is_empty() {
+    };
+
+    let mut active_left = max_active_updates;
+    let mut is_active_cut = false;
+    while active_left > 0 && !chunks.active_updates.is_empty() {
+        if batches > 0 && writes.is_spent() {
+            is_active_cut = true;
             break;
         }
-        if writes.is_spent() {
+        let mut popped = Vec::new();
+        active_left -= pop_lane(
+            chunks,
+            registry,
+            max_height,
+            UpdateLane::Active,
+            active_left.min(per_active_batch),
+            &mut popped,
+        );
+        commit(chunks, popped, &mut results, &mut writes);
+        batches += 1;
+    }
+
+    // A simulation write carried past this tick was planned from a world
+    // without the external writes this tick commits after it: the one the
+    // player made to its voxel supersedes it, as one staged after an
+    // external write already is (`Chunks::flush_staged_updates`).
+    let mut externally_written: HashSet<Vec3<i32>> = HashSet::new();
+    let mut external_left = max_updates;
+    let mut external_batches = 0usize;
+    let mut is_cut = false;
+    while external_left > 0 && !chunks.updates.is_empty() {
+        if external_batches > 0 && writes.is_spent() {
             is_cut = true;
             break;
         }
+        let mut popped = Vec::new();
+        external_left -= pop_lane(
+            chunks,
+            registry,
+            max_height,
+            UpdateLane::External,
+            external_left.min(per_batch),
+            &mut popped,
+        );
+        if is_active_cut {
+            externally_written.extend(popped.iter().map(|(voxel, _, _)| voxel.clone()));
+        }
+        commit(chunks, popped, &mut results, &mut writes);
+        batches += 1;
+        external_batches += 1;
     }
+    if !externally_written.is_empty() {
+        chunks.supersede_active_updates(&externally_written);
+    }
+
+    // Consults carried from an earlier tick drain in a tick that writes
+    // nothing too.
+    if batches == 0 {
+        commit(chunks, Vec::new(), &mut results, &mut writes);
+    }
+    drop(commit);
 
     // Phase timings land in the generation profiler's 30s summary so a slow
     // tick can be read off the log instead of guessed at.
@@ -826,7 +884,9 @@ fn commit_batch(
             let preserve_entity = current_id == updated_id
                 && BlockUtils::extract_rotation(current_raw) == rotation
                 && chunks.block_entities.contains_key(&voxel);
-            let existing_entity = if preserve_entity { None } else {
+            let existing_entity = if preserve_entity {
+                None
+            } else {
                 chunks.block_entities.remove(&voxel)
             };
             if let Some(existing_entity) = existing_entity {
@@ -890,7 +950,17 @@ fn commit_batch(
                 neighbor_voxels.insert(Vec3(vx + ox, vy + oy, vz + oz));
             }
 
-            if updated_type.rotatable || updated_type.y_rotatable {
+            if updated_type.rotation_bits_are_state {
+                // Written as they came: decoding them as a rotation would fold
+                // most values to "up".
+                let written = chunks.get_raw_voxel(vx, vy, vz);
+                chunks.set_raw_voxel(
+                    vx,
+                    vy,
+                    vz,
+                    (written & !ROTATION_BYTE_MASK) | (raw & ROTATION_BYTE_MASK),
+                );
+            } else if updated_type.rotatable || updated_type.y_rotatable {
                 chunks.set_voxel_rotation(vx, vy, vz, &rotation);
             }
 
@@ -2092,5 +2162,203 @@ mod write_budget_tests {
         assert!(!spent.is_spent(), "the first unit always runs");
         spent.spend();
         assert!(spent.is_spent());
+    }
+
+    /// The simulation's writes keep to the budget too: a felled tree's
+    /// removal or a lake's spill lands a batch a tick, in lane order.
+    #[test]
+    fn simulation_writes_past_the_budget_land_a_batch_a_tick_in_order_and_none_is_dropped() {
+        actix::System::new().block_on(async {
+            let mut world = world("write-budget-simulation", |config| {
+                config.max_active_updates_per_batch(37).max_update_ms_per_tick(0.0)
+            });
+            let writes: Vec<(Vec3<i32>, u32)> = (0..10)
+                .flat_map(|x| (0..10).map(move |z| (Vec3(x, 3, z), STONE)))
+                .collect();
+            let order = lane_order(&writes);
+            world.chunks_mut().update_active_voxels(&writes);
+            for tick in 1..=3 {
+                world.tick();
+                let landed = (37 * tick).min(writes.len());
+                let chunks = world.chunks();
+                for (index, voxel) in order.iter().enumerate() {
+                    assert_eq!(
+                        chunks.get_voxel(voxel.0, voxel.1, voxel.2) == STONE,
+                        index < landed,
+                        "after tick {tick}: simulation write {index} of {} in lane order, at {voxel:?}",
+                        order.len()
+                    );
+                }
+            }
+            assert_eq!(world.chunks().pending_updates_count(), 0);
+        });
+    }
+
+    /// Neither lane waits behind the other: with the budget spent by the
+    /// first batch, each still commits a batch every tick.
+    #[test]
+    fn each_lane_commits_a_batch_a_tick_whatever_the_other_spent() {
+        actix::System::new().block_on(async {
+            let mut world = world("write-budget-lanes", |config| {
+                config
+                    .max_updates_per_batch(10)
+                    .max_active_updates_per_batch(10)
+                    .max_update_ms_per_tick(0.0)
+            });
+            let simulated: Vec<(Vec3<i32>, u32)> =
+                (0..30).map(|index| (Vec3(index % 10, 3, index / 10), STONE)).collect();
+            let edited: Vec<(Vec3<i32>, u32)> =
+                (0..30).map(|index| (Vec3(index % 10, 5, index / 10), GLASS)).collect();
+            world.chunks_mut().update_active_voxels(&simulated);
+            world.chunks_mut().update_voxels(&edited);
+            for tick in 1..=3 {
+                world.tick();
+                let chunks = world.chunks();
+                let landed = |writes: &[(Vec3<i32>, u32)]| {
+                    writes
+                        .iter()
+                        .filter(|(voxel, id)| chunks.get_voxel(voxel.0, voxel.1, voxel.2) == *id)
+                        .count()
+                };
+                assert_eq!(
+                    (landed(&simulated), landed(&edited)),
+                    (10 * tick, 10 * tick),
+                    "after tick {tick}: (simulation, external) writes landed"
+                );
+            }
+        });
+    }
+
+    /// A simulation write carried past a tick in which the player's write to
+    /// its voxel commits is superseded by it, as one staged after it is: the
+    /// player's word stays.
+    #[test]
+    fn a_carried_simulation_write_yields_to_the_player_write_committed_before_it() {
+        actix::System::new().block_on(async {
+            let mut world = world("write-budget-supersede", |config| {
+                config
+                    .max_updates_per_batch(2)
+                    .max_active_updates_per_batch(2)
+                    .max_update_ms_per_tick(0.0)
+            });
+            let contested = Vec3(5, 6, 5);
+            world.chunks_mut().update_voxels(&[
+                (Vec3(1, 2, 1), STONE),
+                (Vec3(2, 2, 1), STONE),
+                (contested.clone(), GLASS),
+            ]);
+            world.tick();
+            assert_eq!(
+                world.chunks().get_voxel(5, 6, 5),
+                0,
+                "the player's write to the contested voxel is carried"
+            );
+            let simulated = [
+                (Vec3(1, 3, 1), STONE),
+                (Vec3(2, 3, 1), STONE),
+                (Vec3(3, 3, 1), STONE),
+                (contested.clone(), STONE),
+            ];
+            world.chunks_mut().update_active_voxels(&simulated);
+            settle(&mut world);
+            let chunks = world.chunks();
+            assert_eq!(
+                chunks.get_voxel(5, 6, 5),
+                GLASS,
+                "the player's word is kept over the simulation write planned before it landed"
+            );
+            assert_eq!(
+                chunks.superseded_active_updates(),
+                1,
+                "the simulation write it superseded is counted"
+            );
+            for (voxel, _) in &simulated[..3] {
+                assert_eq!(
+                    chunks.get_voxel(voxel.0, voxel.1, voxel.2),
+                    STONE,
+                    "the simulation's other writes all landed, at {voxel:?}"
+                );
+            }
+        });
+    }
+
+    /// A removal the simulation carries past a tick (a felled tree's wood
+    /// going to air under the budget) and a player's block placed where it
+    /// was still to go: the block stays, and the removal it superseded is
+    /// counted, not lost without a trace.
+    #[test]
+    fn a_player_write_over_a_carried_removal_wins_and_is_counted() {
+        actix::System::new().block_on(async {
+            let mut world = world("write-budget-carried-removal", |config| {
+                config
+                    .max_updates_per_batch(2)
+                    .max_active_updates_per_batch(2)
+                    .max_update_ms_per_tick(0.0)
+            });
+            let wood: Vec<(Vec3<i32>, u32)> = (1..=4).map(|x| (Vec3(x, 3, 1), STONE)).collect();
+            world.chunks_mut().update_voxels(&wood);
+            settle(&mut world);
+            let removal: Vec<(Vec3<i32>, u32)> =
+                wood.iter().map(|(voxel, _)| (voxel.clone(), 0)).collect();
+            world.chunks_mut().update_active_voxels(&removal);
+            world.tick();
+            let placed = Vec3(4, 3, 1);
+            assert_eq!(
+                world.chunks().get_voxel(placed.0, placed.1, placed.2),
+                STONE,
+                "the last of the removal is carried past the first tick"
+            );
+            let before = world.chunks().superseded_active_updates();
+
+            world.chunks_mut().update_voxel(&placed, GLASS);
+            settle(&mut world);
+            let chunks = world.chunks();
+            assert_eq!(
+                chunks.get_voxel(placed.0, placed.1, placed.2),
+                GLASS,
+                "the player's block stays where the removal was still to go"
+            );
+            assert_eq!(chunks.superseded_active_updates(), before + 1);
+            for x in 1..=3 {
+                assert_eq!(chunks.get_voxel(x, 3, 1), 0, "the rest of the removal landed at x {x}");
+            }
+        });
+    }
+
+    /// The simulation lane splits its writes wherever the budget falls and
+    /// lights each batch in full before the next, as the external lane does:
+    /// a room emptied by the simulation ends up lit exactly as one batch
+    /// lights it.
+    #[test]
+    fn a_split_simulation_lane_lights_the_world_as_one_batch_does() {
+        actix::System::new().block_on(async {
+            let lit = |name: &str, per_batch: usize, budget_ms: f64| {
+                let mut world = world(name, |config| {
+                    config
+                        .max_updates_per_batch(per_batch)
+                        .max_active_updates_per_batch(per_batch)
+                        .max_update_ms_per_tick(budget_ms)
+                });
+                world.chunks_mut().update_voxels(&room());
+                settle(&mut world);
+                world.chunks_mut().update_active_voxels(&hollow());
+                settle(&mut world);
+                field(&world)
+            };
+            let whole = lit("simulation-budget-whole", usize::MAX, f64::MAX);
+            for (name, per_batch, budget_ms, how) in [
+                ("simulation-budget-batches", 37, f64::MAX, "37-write batches in one tick"),
+                ("simulation-budget-ticks", 37, 0.0, "one 37-write batch a tick"),
+            ] {
+                let split = lit(name, per_batch, budget_ms);
+                if let Some(((voxel, raw, light), (_, split_raw, split_light))) =
+                    whole.iter().zip(&split).find(|(one, other)| one != other)
+                {
+                    panic!(
+                        "{how}: {voxel:?} holds voxel {split_raw} light {split_light:#x}, where one batch leaves voxel {raw} light {light:#x}"
+                    );
+                }
+            }
+        });
     }
 }

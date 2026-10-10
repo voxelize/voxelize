@@ -11,7 +11,7 @@ use std::{f32, marker::Sync, sync::Arc};
 
 use serde::{Deserialize, Serialize};
 
-use crate::{LightColor, Registry, Vec3, VoxelAccess, VoxelUpdate, AABB};
+use crate::{BlockUtils, LightColor, Registry, Vec3, VoxelAccess, VoxelUpdate, AABB};
 
 pub use builder::*;
 pub use coupled::*;
@@ -20,11 +20,12 @@ pub use rules::*;
 
 pub use voxelize_core::{
     BlockRotation, CornerData, NX_ROTATION, NY_ROTATION, NZ_ROTATION, PX_ROTATION, PY_ROTATION,
-    PZ_ROTATION, ROTATION_MASK, STAGE_MASK, Y_ROTATION_MASK, Y_ROT_SEGMENTS,
+    PZ_ROTATION, ROTATION_BYTE_MASK, ROTATION_MASK, STAGE_MASK, Y_ROTATION_MASK, Y_ROT_SEGMENTS,
 };
 pub use voxelize_mesher::{
-    BranchLayout, BranchPart, BranchPartKind, BranchSeat, BranchShape, BranchSide, BranchSocket,
-    ConnectedFrame, WideBranchSection,
+    branch_cell, BranchBlocks, BranchCell, BranchKind, BranchLayout, BranchPart, BranchPartKind,
+    BranchSeat, BranchShape, BranchSide, BranchSocket, ConnectedFrame, WideBranchBits,
+    WideBranchSection, WideCell,
 };
 
 #[derive(Clone, Serialize, Deserialize)]
@@ -207,6 +208,22 @@ pub struct Block {
     #[serde(default)]
     pub branch_sockets: Vec<BranchSocket>,
 
+    /// Draws every voxel of this block as a cell of a wide branch section:
+    /// its slice of the tube of the core its raw bits point at
+    /// ([`WideBranchBits::shell_offset`]), wearing that core's faces. A shell
+    /// whose core is gone draws and collides as nothing. Declared with
+    /// [`BlockBuilder::branch_shell`].
+    #[serde(default)]
+    pub branch_shell: bool,
+
+    /// Raw bits 16–23 of this block's voxels hold state the block keeps for
+    /// itself, not a rotation: every path that would decode them as one reads
+    /// the identity rotation instead ([`Block::rotation_of`]), and the update
+    /// intake writes them as they come. Declared with
+    /// [`BlockBuilder::rotation_bits_are_state`].
+    #[serde(default)]
+    pub rotation_bits_are_state: bool,
+
     /// Dynamic aabb and face generation function. Defaults to `None`.
     #[serde(skip)]
     pub dynamic_fn: Option<
@@ -272,29 +289,19 @@ impl Block {
 
     /// How the branch voxel at `pos` is put together: its radius, what each
     /// side joins and the boxes it is drawn and collides as. `None` for a
-    /// block that is not a branch.
+    /// block that is not a branch, and for a shell with no core.
     pub fn branch_layout_at(
         &self,
         pos: &Vec3<i32>,
         space: &dyn VoxelAccess,
         registry: &Registry,
     ) -> Option<BranchLayout> {
-        let shape = self.branch.as_ref()?;
+        if self.branch.is_none() && !self.branch_shell {
+            return None;
+        }
         let &Vec3(vx, vy, vz) = pos;
-        let sides = voxelize_mesher::VOXEL_NEIGHBORS.map(|[dx, dy, dz]| {
-            let (x, y, z) = (vx + dx, vy + dy, vz + dz);
-            let neighbor = registry.get_block_by_id(space.get_voxel(x, y, z));
-            shape.side(
-                neighbor.branch.as_ref(),
-                &neighbor.branch_sockets,
-                space.get_voxel_stage(x, y, z),
-            )
-        });
-        Some(BranchLayout::new(
-            shape,
-            space.get_voxel_stage(vx, vy, vz),
-            sides,
-        ))
+        let raw_at = |x: i32, y: i32, z: i32| space.get_raw_voxel(x, y, z);
+        voxelize_mesher::branch_layout_at([vx, vy, vz], &raw_at, registry).map(|(layout, _)| layout)
     }
 
     pub fn get_aabbs(
@@ -303,8 +310,10 @@ impl Block {
         space: &dyn VoxelAccess,
         registry: &Registry,
     ) -> Vec<AABB> {
-        if let Some(layout) = self.branch_layout_at(pos, space, registry) {
-            return layout.aabbs();
+        if self.branch.is_some() || self.branch_shell {
+            return self
+                .branch_layout_at(pos, space, registry)
+                .map_or_else(Vec::new, |layout| layout.aabbs());
         }
         if self.is_dynamic {
             if let Some(dynamic_patterns) = &self.dynamic_patterns {
@@ -329,7 +338,7 @@ impl Block {
         space: &dyn VoxelAccess,
         registry: &Registry,
     ) -> Vec<BlockFace> {
-        if self.branch.is_some() {
+        if self.branch.is_some() || self.branch_shell {
             // The mesher lays a branch out from its neighbours; the faces
             // here are the textures it wears.
             return self.faces.clone();
@@ -402,6 +411,16 @@ impl Block {
 
     pub fn get_rotated_transparency(&self, rotation: &BlockRotation) -> [bool; 6] {
         rotation.rotate_transparency(self.is_transparent)
+    }
+
+    /// The rotation a voxel of this block holding `raw` is drawn and collides
+    /// at: the identity for a block whose rotation bits are state.
+    pub fn rotation_of(&self, raw: u32) -> BlockRotation {
+        if self.rotation_bits_are_state {
+            BlockRotation::default()
+        } else {
+            BlockUtils::extract_rotation(raw)
+        }
     }
 
     /// Evaluate the dynamic pattern and return the combined faces and AABBs based on the rules.
@@ -506,6 +525,7 @@ impl Block {
             connected: self.connected.clone(),
             branch: self.branch.clone(),
             branch_sockets: self.branch_sockets.clone(),
+            branch_shell: self.branch_shell,
         }
     }
 }
@@ -529,4 +549,18 @@ fn default_ground_friction_multiplier() -> f32 {
 
 fn default_swim_speed_multiplier() -> f32 {
     1.0
+}
+
+impl BranchBlocks for Registry {
+    fn branch_shape(&self, id: u32) -> Option<&BranchShape> {
+        self.get_block_by_id(id).branch.as_ref()
+    }
+
+    fn branch_sockets(&self, id: u32) -> &[BranchSocket] {
+        &self.get_block_by_id(id).branch_sockets
+    }
+
+    fn is_branch_shell(&self, id: u32) -> bool {
+        self.get_block_by_id(id).branch_shell
+    }
 }

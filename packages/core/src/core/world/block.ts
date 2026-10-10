@@ -278,12 +278,27 @@ export type Block = {
    * Draws every voxel of this block as a branch of the radius its stage
    * holds, joined to its neighbours. `null` for an ordinary block. Mirrors
    * the server `branch` field; collision and picking follow the drawn shape
-   * through {@link branchAABBs}.
+   * through {@link branchAABBsAt}.
    */
   branch: BranchShape | null;
 
   /** The branches this block takes without being one (a leaf, a soil). */
   branchSockets: BranchSocket[];
+
+  /**
+   * Draws every voxel of this block as a cell of a wide branch section: its
+   * slice of the tube of the core its raw bits point at, wearing that core's
+   * faces. Mirrors the server `branch_shell`.
+   */
+  branchShell: boolean;
+
+  /**
+   * Raw bits 16-23 of this block's voxels hold the block's own state, not a
+   * rotation: {@link World.getVoxelRotationAt} reads the identity rotation
+   * for it, and its rotation cannot be set. Mirrors the server
+   * `rotation_bits_are_state`.
+   */
+  rotationBitsAreState: boolean;
 
   /**
    * If this block is dynamic, this function will be called to generate the faces and AABB's. By default, this
@@ -345,6 +360,14 @@ export type BlockUpdate = {
    * The optional y-rotation of the updated block.
    */
   yRotation?: number;
+
+  /**
+   * Bits 16-23 of the word for a block whose rotation bits are state
+   * ({@link Block.rotationBitsAreState}), written exactly as they are and
+   * never decoded as a rotation. Only the server authors them; a client
+   * update leaves them zero.
+   */
+  stateBits?: number;
 
   /**
    * The optional stage of the updated block.

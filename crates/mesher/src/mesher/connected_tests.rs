@@ -174,6 +174,7 @@ fn block(id: u32, name: &str) -> Block {
         dynamic_patterns: None,
         connected: None,
         branch: None,
+        branch_shell: false,
         branch_sockets: vec![],
     }
 }

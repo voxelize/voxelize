@@ -200,7 +200,7 @@ pub fn trace_solids(
             return false;
         }
 
-        let rotation = space.get_voxel_rotation(vx, vy, vz);
+        let rotation = block.rotation_of(space.get_raw_voxel(vx, vy, vz));
         let mut cell_nearest = f32::MAX;
         for aabb in &aabbs {
             let mut solid = rotation.rotate_aabb(aabb, true, true);
