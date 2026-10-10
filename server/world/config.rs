@@ -54,24 +54,26 @@ pub struct WorldConfig {
     /// 50000, i.e. effectively unbounded.
     pub max_updates_per_tick: usize,
 
-    /// Milliseconds a tick may spend committing external updates and
-    /// lighting them. They commit in batches of at most
-    /// `max_updates_per_batch`, each lit in full before the next starts, and
-    /// the tick takes no further batch once it has spent this. The updates it
-    /// does not reach wait, in order, at the head of their lane for the next
-    /// tick, and none is dropped: a bulk edit that floods a pit with sunlight
-    /// lands over a few ticks instead of in one long one. At least one batch
-    /// commits a tick. Default is 6.
+    /// Milliseconds a tick may spend committing voxel updates and lighting
+    /// them, on both lanes: the simulation's first, then the external ones.
+    /// They commit in batches of at most `max_updates_per_batch`, each lit in
+    /// full before the next starts, and the tick takes no further batch once
+    /// it has spent this, but each lane commits at least one batch a tick.
+    /// The updates it does not reach wait, in order, at the head of their
+    /// lane for the next tick, and none is dropped: a bulk edit that floods a
+    /// pit with sunlight, or a felled tree taken to air, lands over a few
+    /// ticks instead of in one long one. Default is 6.
     pub max_update_ms_per_tick: f64,
 
-    /// The most external updates committed and lit as one batch: what
-    /// `max_update_ms_per_tick` can be overrun by is one batch's cost.
-    /// Default is 256.
+    /// The most updates of one lane committed and lit as one batch: what
+    /// `max_update_ms_per_tick` can be overrun by is one batch's cost on each
+    /// lane. Default is 256.
     pub max_updates_per_batch: usize,
 
     /// Maximum simulation-produced voxel updates (fluid steps, growth,
-    /// active-block tickers) to commit per tick. These drain on their own
-    /// lane, so a world that budgets external edits tightly (a shared world
+    /// active-block tickers) to commit per tick, whatever
+    /// `max_update_ms_per_tick` would allow. These drain on their own lane,
+    /// so a world that budgets external edits tightly (a shared world
     /// throttling bulk builds) still lets its water flow at full cadence.
     /// Default is 50000, i.e. effectively unbounded.
     pub max_active_updates_per_tick: usize,

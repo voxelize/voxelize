@@ -2,7 +2,7 @@ use base64::{engine::general_purpose::STANDARD, Engine};
 use byteorder::{ByteOrder, LittleEndian};
 use hashbrown::{HashMap, HashSet};
 use libflate::zlib::{Decoder, Encoder};
-use log::{error, info, warn};
+use log::{debug, error, info, warn};
 use serde::{Deserialize, Serialize};
 use specs::Entity;
 use std::sync::Arc;
@@ -206,6 +206,10 @@ pub struct Chunks {
 
     /// Staging area for `active_updates`, deduplicated before flushing.
     pub(crate) active_updates_staging: HashMap<Vec3<i32>, u32>,
+
+    /// Simulation writes an external write to the same voxel superseded,
+    /// since the world started (`superseded_active_updates`).
+    superseded_active_updates: u64,
 
     /// Writes popped for a chunk whose light footprint was not ready, keyed
     /// by that chunk. They wait here instead of back at the head of their
@@ -917,14 +921,31 @@ impl Chunks {
             // An external write to a voxel supersedes whatever the simulation
             // still has queued for it: player intent wins, and the fluid or
             // growth ticker that produced the stale write re-plans from the
-            // committed state on its next tick anyway.
-            self.active_updates
-                .retain(|(v, _)| !self.updates_staging.contains_key(v));
-            self.active_updates_staging
-                .retain(|v, _| !self.updates_staging.contains_key(v));
-            Self::retain_parked(&mut self.parked_updates, |(v, _, _)| {
-                !self.updates_staging.contains_key(v)
-            });
+            // committed state on its next tick anyway. Each one counts, and
+            // names its voxel at debug, so a write that never landed (a block
+            // a felled tree left standing) can be traced to the one that won.
+            let staging = &self.updates_staging;
+            let mut superseded = 0u64;
+            let mut supersede = |voxel: &Vec3<i32>, raw: u32| {
+                let is_superseded = staging.contains_key(voxel);
+                if is_superseded {
+                    superseded += 1;
+                    debug!(
+                        "[chunk-updating] an external write to {voxel:?} supersedes the simulation's queued {raw:#x} there"
+                    );
+                }
+                !is_superseded
+            };
+            self.active_updates.retain(|(v, raw)| supersede(v, *raw));
+            self.active_updates_staging.retain(|v, raw| supersede(v, *raw));
+            for updates in self.parked_updates.values_mut() {
+                updates.retain(|(v, raw, lane)| match lane {
+                    UpdateLane::Active => supersede(v, *raw),
+                    UpdateLane::External => !staging.contains_key(v),
+                });
+            }
+            self.parked_updates.retain(|_, updates| !updates.is_empty());
+            self.superseded_active_updates += superseded;
 
             let mut staged: Vec<(Vec3<i32>, u32)> = self.updates_staging.drain().collect();
             staged.sort_by_key(|(voxel, _)| (voxel.1, voxel.0, voxel.2));
@@ -942,6 +963,40 @@ impl Chunks {
             staged.sort_by_key(|(voxel, _)| (voxel.1, voxel.0, voxel.2));
             self.active_updates.extend(staged);
         }
+    }
+
+    /// Drop the simulation's queued and parked writes to `voxels`, each of
+    /// which an external write has just committed over: planned from the
+    /// world before it, they are stale, and the player's word is kept, as
+    /// for an external write staged after them (`flush_staged_updates`).
+    /// Each counts in `superseded_active_updates` and names its voxel at
+    /// debug. Returns how many went.
+    pub(crate) fn supersede_active_updates(&mut self, voxels: &HashSet<Vec3<i32>>) -> u64 {
+        let mut superseded = 0u64;
+        let mut supersede = |voxel: &Vec3<i32>, raw: u32| {
+            let is_superseded = voxels.contains(voxel);
+            if is_superseded {
+                superseded += 1;
+                debug!(
+                    "[chunk-updating] an external write committed at {voxel:?} supersedes the simulation's carried {raw:#x} there"
+                );
+            }
+            !is_superseded
+        };
+        self.active_updates.retain(|(voxel, raw)| supersede(voxel, *raw));
+        for updates in self.parked_updates.values_mut() {
+            updates.retain(|(voxel, raw, lane)| *lane != UpdateLane::Active || supersede(voxel, *raw));
+        }
+        self.parked_updates.retain(|_, updates| !updates.is_empty());
+        self.superseded_active_updates += superseded;
+        superseded
+    }
+
+    /// How many of the simulation's writes an external write to the same
+    /// voxel has superseded since the world started, staged after them or
+    /// committed while they were carried.
+    pub fn superseded_active_updates(&self) -> u64 {
+        self.superseded_active_updates
     }
 
     fn retain_parked(
