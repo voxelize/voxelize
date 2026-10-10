@@ -1,0 +1,8 @@
+{
+  "label": "Rendering",
+  "position": 4,
+  "link": {
+    "type": "generated-index",
+    "description": "How a world draws what you see through."
+  }
+}
