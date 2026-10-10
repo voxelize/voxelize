@@ -59,7 +59,7 @@ ___
 
 ### indices
 
-• **indices**: `Uint8Array`\<`ArrayBufferLike`\>
+• **indices**: `Uint8Array`<`ArrayBufferLike`\>
 
 Geometry indices.
 
@@ -71,7 +71,7 @@ ___
 
 ### lights
 
-• **lights**: `Uint8Array`\<`ArrayBufferLike`\>
+• **lights**: `Uint8Array`<`ArrayBufferLike`\>
 
 Geometry lights.
 
@@ -83,7 +83,7 @@ ___
 
 ### positions
 
-• **positions**: `Uint8Array`\<`ArrayBufferLike`\>
+• **positions**: `Uint8Array`<`ArrayBufferLike`\>
 
 Geometry positions.
 
@@ -95,7 +95,7 @@ ___
 
 ### uvs
 
-• **uvs**: `Uint8Array`\<`ArrayBufferLike`\>
+• **uvs**: `Uint8Array`<`ArrayBufferLike`\>
 
 Geometry uvs.
 
@@ -147,7 +147,7 @@ Decodes a Geometry message from the specified reader or buffer.
 
 | Name | Type | Description |
 | :------ | :------ | :------ |
-| `reader` | `Uint8Array`\<`ArrayBufferLike`\> \| `Reader` | Reader or buffer to decode from |
+| `reader` | `Uint8Array`<`ArrayBufferLike`\> \| `Reader` | Reader or buffer to decode from |
 | `length?` | `number` | Message length if known beforehand |
 
 #### Returns
@@ -176,7 +176,7 @@ Decodes a Geometry message from the specified reader or buffer, length delimited
 
 | Name | Type | Description |
 | :------ | :------ | :------ |
-| `reader` | `Uint8Array`\<`ArrayBufferLike`\> \| `Reader` | Reader or buffer to decode from |
+| `reader` | `Uint8Array`<`ArrayBufferLike`\> \| `Reader` | Reader or buffer to decode from |
 
 #### Returns
 

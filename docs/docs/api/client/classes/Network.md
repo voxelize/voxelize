@@ -16,7 +16,7 @@ custom_edit_url: null
 
 | Name | Type |
 | :------ | :------ |
-| `options` | `Partial`\<[`NetworkOptions`](../modules.md#networkoptions)\> |
+| `options` | `Partial`<[`NetworkOptions`](../#networkoptions)\> |
 
 #### Returns
 
@@ -33,7 +33,7 @@ custom_edit_url: null
 | Name | Type |
 | :------ | :------ |
 | `id` | `string` |
-| `metadata?` | `Record`\<`string`, `any`\> |
+| `metadata?` | `Record`<`string`, `any`\> |
 | `username` | `string` |
 
 ___
@@ -132,7 +132,7 @@ ___
 
 ### options
 
-• **options**: [`NetworkOptions`](../modules.md#networkoptions)
+• **options**: [`NetworkOptions`](../#networkoptions)
 
 ___
 
@@ -144,7 +144,7 @@ ___
 
 ### url
 
-• **url**: `Url`\<\{ `[key: string]`: `any`;  }\>
+• **url**: `Url`<\{ `[key: string]`: `any`;  }\>
 
 ___
 
@@ -156,13 +156,76 @@ ___
 
 ### ws
 
-• **ws**: [`ProtocolWS`](../modules.md#protocolws) = `null`
+• **ws**: [`ProtocolWS`](../#protocolws) = `null`
 
 ## Accessors
 
 ### concurrentWorkers
 
 • `get` **concurrentWorkers**(): `number`
+
+#### Returns
+
+`number`
+
+___
+
+### droppedCommandCount
+
+• `get` **droppedCommandCount**(): `number`
+
+Command packets dropped for good, with an error logged for each batch.
+
+#### Returns
+
+`number`
+
+___
+
+### droppedPacketCount
+
+• `get` **droppedPacketCount**(): `number`
+
+Inbound packets dropped unprocessed this session, each reported in an
+error log (see [NetworkOptions.maxQueuedPackets](../#maxqueuedpackets)).
+
+#### Returns
+
+`number`
+
+___
+
+### isClientOutdated
+
+• `get` **isClientOutdated**(): `boolean`
+
+Terminal protocol rejection: only a fresh client build can reconnect.
+
+#### Returns
+
+`boolean`
+
+___
+
+### isJoinPending
+
+• `get` **isJoinPending**(): `boolean`
+
+True between a (re)join request and its INIT: reads of world state are
+answered from a map the server may no longer agree with.
+
+#### Returns
+
+`boolean`
+
+___
+
+### joinGeneration
+
+• `get` **joinGeneration**(): `number`
+
+Completed INIT handshakes so far; bumps on first join, every rejoin,
+and every world switch.
 
 #### Returns
 
@@ -180,6 +243,18 @@ ___
 
 ___
 
+### pendingCommandCount
+
+• `get` **pendingCommandCount**(): `number`
+
+Command packets waiting for a live session to retry on.
+
+#### Returns
+
+`number`
+
+___
+
 ### rtcConnected
 
 • `get` **rtcConnected**(): `boolean`
@@ -188,11 +263,21 @@ ___
 
 `boolean`
 
+___
+
+### serverUrl
+
+• `get` **serverUrl**(): `string`
+
+#### Returns
+
+`string`
+
 ## Methods
 
 ### action
 
-▸ **action**(`type`, `data?`): `Promise`\<`void`\>
+▸ **action**(`type`, `data?`): `Promise`<`void`\>
 
 #### Parameters
 
@@ -203,34 +288,34 @@ ___
 
 #### Returns
 
-`Promise`\<`void`\>
+`Promise`<`void`\>
 
 ___
 
 ### connect
 
-▸ **connect**(`serverURL`, `options?`): `Promise`\<[`Network`](Network.md)\>
+▸ **connect**(`serverURL`, `options?`): `Promise`<[`Network`](Network.md)\>
 
 #### Parameters
 
 | Name | Type |
 | :------ | :------ |
 | `serverURL` | `string` |
-| `options` | [`NetworkConnectionOptions`](../modules.md#networkconnectionoptions) |
+| `options` | [`NetworkConnectionOptions`](../#networkconnectionoptions) |
 
 #### Returns
 
-`Promise`\<[`Network`](Network.md)\>
+`Promise`<[`Network`](Network.md)\>
 
 ___
 
 ### connectWebRTC
 
-▸ **connectWebRTC**(): `Promise`\<`void`\>
+▸ **connectWebRTC**(): `Promise`<`void`\>
 
 #### Returns
 
-`Promise`\<`void`\>
+`Promise`<`void`\>
 
 ___
 
@@ -254,9 +339,29 @@ ___
 
 ___
 
+### isPacketPendingSend
+
+▸ **isPacketPendingSend**(`packet`): `boolean`
+
+Whether this exact packet object is still waiting in the command retry
+queue. Together with the packet's absence from its intercept queue this
+lets a caller prove a command was handed to an OPEN socket.
+
+#### Parameters
+
+| Name | Type |
+| :------ | :------ |
+| `packet` | `MessageProtocol` |
+
+#### Returns
+
+`boolean`
+
+___
+
 ### join
 
-▸ **join**(`world`): `Promise`\<[`Network`](Network.md)\>
+▸ **join**(`world`): `Promise`<[`Network`](Network.md)\>
 
 #### Parameters
 
@@ -266,7 +371,7 @@ ___
 
 #### Returns
 
-`Promise`\<[`Network`](Network.md)\>
+`Promise`<[`Network`](Network.md)\>
 
 ___
 
@@ -277,6 +382,20 @@ ___
 #### Returns
 
 `void`
+
+___
+
+### reconnectNow
+
+▸ **reconnectNow**(): `boolean`
+
+Trigger an immediate reconnect attempt, bypassing the periodic backoff.
+Returns false when there is nothing to do: already connected, never
+connected, or terminally rejected (outdated client build).
+
+#### Returns
+
+`boolean`
 
 ___
 
@@ -298,7 +417,12 @@ ___
 
 ### send
 
-▸ **send**(`event`): `void`
+▸ **send**(`event`): `boolean`
+
+Hand one event to the socket. Returns whether the packet was actually
+given to an OPEN socket: `false` means it was NOT sent (no socket, still
+connecting, closing, or closed). Callers that carry one-shot intent must
+check the answer; [flush](Network.md#flush) does this for every intercept packet.
 
 #### Parameters
 
@@ -308,7 +432,7 @@ ___
 
 #### Returns
 
-`void`
+`boolean`
 
 ___
 
@@ -336,7 +460,7 @@ ___
 
 | Name | Type |
 | :------ | :------ |
-| `metadata` | `Record`\<`string`, `any`\> |
+| `metadata` | `Record`<`string`, `any`\> |
 
 #### Returns
 

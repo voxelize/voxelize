@@ -69,6 +69,30 @@ ChatMessage sender.
 
 ___
 
+### sentAt
+
+• **sentAt**: `number`
+
+ChatMessage sentAt.
+
+#### Implementation of
+
+[IChatMessage](../interfaces/protocol.IChatMessage.md).[sentAt](../interfaces/protocol.IChatMessage.md#sentat)
+
+___
+
+### seq
+
+• **seq**: `number` \| `Long`
+
+ChatMessage seq.
+
+#### Implementation of
+
+[IChatMessage](../interfaces/protocol.IChatMessage.md).[seq](../interfaces/protocol.IChatMessage.md#seq)
+
+___
+
 ### tSendMs
 
 • **tSendMs**: `number`
@@ -135,7 +159,7 @@ Decodes a ChatMessage message from the specified reader or buffer.
 
 | Name | Type | Description |
 | :------ | :------ | :------ |
-| `reader` | `Uint8Array`\<`ArrayBufferLike`\> \| `Reader` | Reader or buffer to decode from |
+| `reader` | `Uint8Array`<`ArrayBufferLike`\> \| `Reader` | Reader or buffer to decode from |
 | `length?` | `number` | Message length if known beforehand |
 
 #### Returns
@@ -164,7 +188,7 @@ Decodes a ChatMessage message from the specified reader or buffer, length delimi
 
 | Name | Type | Description |
 | :------ | :------ | :------ |
-| `reader` | `Uint8Array`\<`ArrayBufferLike`\> \| `Reader` | Reader or buffer to decode from |
+| `reader` | `Uint8Array`<`ArrayBufferLike`\> \| `Reader` | Reader or buffer to decode from |
 
 #### Returns
 

@@ -12,7 +12,7 @@ A sprite that can be used to display text. This is highly inspired by the
 Sprite text uses [ColorText](ColorText.md) internally to generate the texture that supports
 multiple colors in the same text.
 
-Sprite texts live exclusively on [SCENE_OVERLAY_LAYER](../modules.md#scene_overlay_layer), so they only
+Sprite texts live exclusively on [SCENE_OVERLAY_LAYER](../#scene_overlay_layer), so they only
 render through cameras that have that layer enabled.
 
 ![Sprite text](/img/docs/sprite-text.png)
@@ -359,6 +359,20 @@ Set the text height to display. This will regenerate the sprite.
 | Name | Type |
 | :------ | :------ |
 | `textHeight` | `number` |
+
+#### Returns
+
+`void`
+
+## Methods
+
+### dispose
+
+▸ **dispose**(): `void`
+
+Free the label's GPU texture and material. The quad geometry is three's
+shared sprite geometry and stays. Call once the sprite has left the
+scene for good.
 
 #### Returns
 

@@ -33,6 +33,18 @@ Constructs a new Chunk.
 
 ## Properties
 
+### biomeTints
+
+• **biomeTints**: `Uint8Array`<`ArrayBufferLike`\>
+
+Chunk biomeTints.
+
+#### Implementation of
+
+[IChunk](../interfaces/protocol.IChunk.md).[biomeTints](../interfaces/protocol.IChunk.md#biometints)
+
+___
+
 ### id
 
 • **id**: `string`
@@ -47,7 +59,7 @@ ___
 
 ### lights
 
-• **lights**: `Uint8Array`\<`ArrayBufferLike`\>
+• **lights**: `Uint8Array`<`ArrayBufferLike`\>
 
 Chunk lights.
 
@@ -71,7 +83,7 @@ ___
 
 ### voxels
 
-• **voxels**: `Uint8Array`\<`ArrayBufferLike`\>
+• **voxels**: `Uint8Array`<`ArrayBufferLike`\>
 
 Chunk voxels.
 
@@ -135,7 +147,7 @@ Decodes a Chunk message from the specified reader or buffer.
 
 | Name | Type | Description |
 | :------ | :------ | :------ |
-| `reader` | `Uint8Array`\<`ArrayBufferLike`\> \| `Reader` | Reader or buffer to decode from |
+| `reader` | `Uint8Array`<`ArrayBufferLike`\> \| `Reader` | Reader or buffer to decode from |
 | `length?` | `number` | Message length if known beforehand |
 
 #### Returns
@@ -164,7 +176,7 @@ Decodes a Chunk message from the specified reader or buffer, length delimited.
 
 | Name | Type | Description |
 | :------ | :------ | :------ |
-| `reader` | `Uint8Array`\<`ArrayBufferLike`\> \| `Reader` | Reader or buffer to decode from |
+| `reader` | `Uint8Array`<`ArrayBufferLike`\> \| `Reader` | Reader or buffer to decode from |
 
 #### Returns
 

@@ -52,6 +52,16 @@ ___
 
 ___
 
+### viewExtinctionScale
+
+• **viewExtinctionScale**: `number` = `1`
+
+A/B knob on the underwater view extinction, relative to the baked
+`viewExtinctionScale`: 1 is the shipped clarity, 0.35 / 0.22 the
+earlier, murkier water.
+
+___
+
 ### waterPlaneY
 
 • **waterPlaneY**: `number` = `0`
@@ -66,7 +76,7 @@ ___
 
 | Name | Type |
 | :------ | :------ |
-| `input` | [`WaterOpticsFrameInput`](../modules.md#wateropticsframeinput) |
+| `input` | [`WaterOpticsFrameInput`](../#wateropticsframeinput) |
 
 #### Returns
 

@@ -23,7 +23,7 @@ custom_edit_url: null
 | Name | Type |
 | :------ | :------ |
 | `itemDef` | [`ItemDef`](../interfaces/ItemDef.md) |
-| `world` | [`World`](World.md)\<`any`\> |
+| `world` | [`World`](World.md)<`any`\> |
 
 #### Returns
 
@@ -79,11 +79,11 @@ ___
 
 ### getDropMesh
 
-▸ **getDropMesh**(): `Object3D`\<`Object3DEventMap`\>
+▸ **getDropMesh**(): `Object3D`<`Object3DEventMap`\>
 
 #### Returns
 
-`Object3D`\<`Object3DEventMap`\>
+`Object3D`<`Object3DEventMap`\>
 
 #### Overrides
 
@@ -93,7 +93,7 @@ ___
 
 ### getHeldMesh
 
-▸ **getHeldMesh**(`useAlt?`): `Object3D`\<`Object3DEventMap`\>
+▸ **getHeldMesh**(`useAlt?`): `Object3D`<`Object3DEventMap`\>
 
 #### Parameters
 
@@ -103,7 +103,7 @@ ___
 
 #### Returns
 
-`Object3D`\<`Object3DEventMap`\>
+`Object3D`<`Object3DEventMap`\>
 
 #### Overrides
 
@@ -185,8 +185,8 @@ ___
 
 ### waitForLoad
 
-▸ **waitForLoad**(): `Promise`\<`void`\>
+▸ **waitForLoad**(): `Promise`<`void`\>
 
 #### Returns
 
-`Promise`\<`void`\>
+`Promise`<`void`\>

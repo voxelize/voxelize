@@ -62,7 +62,7 @@ world.update(controls.position);
 
 ### constructor
 
-• **new World**\<`T`\>(`options?`): [`World`](World.md)\<`T`\>
+• **new World**<`T`\>(`options?`): [`World`](World.md)<`T`\>
 
 Create a new Voxelize world.
 
@@ -76,17 +76,42 @@ Create a new Voxelize world.
 
 | Name | Type | Description |
 | :------ | :------ | :------ |
-| `options` | `Partial`\<[`WorldOptions`](../modules.md#worldoptions)\> | The options to create the world. |
+| `options` | `Partial`<[`WorldOptions`](../#worldoptions)\> | The options to create the world. |
 
 #### Returns
 
-[`World`](World.md)\<`T`\>
+[`World`](World.md)<`T`\>
 
 #### Overrides
 
 Scene.constructor
 
 ## Properties
+
+### blockAnimations
+
+• **blockAnimations**: [`BlockAnimations`](BlockAnimations.md)
+
+How animated blocks (`Block.isAnimated`: doors, and whatever else moves
+between its states) swing from one state's geometry into the next. The
+game registers a [BlockAnimation](../#blockanimation) per block name; the engine
+tracks each such voxel's mesh across remeshes and drives the motion.
+
+___
+
+### blockTextureGeneration
+
+• **blockTextureGeneration**: `number` = `0`
+
+How many times a block texture has been written, bumped by every texture
+API. Every atlas slot starts life as the magenta-and-black unknown
+checker, and painting is spread over the load (image loads resolve
+whenever they resolve), so anything that samples the atlas into its own
+table has to be able to tell that its table predates the paint. Compare
+this against the value read when the table was built; unequal means
+rebuild.
+
+___
 
 ### chunkPipeline
 
@@ -122,7 +147,17 @@ ___
 
 ### extraInitData
 
-• **extraInitData**: `Record`\<`string`, `unknown`\> = `{}`
+• **extraInitData**: `Record`<`string`, `unknown`\> = `{}`
+
+___
+
+### farTerrain
+
+• **farTerrain**: [`FarTerrain`](FarTerrain.md)
+
+Coarse terrain past the loaded chunks, drawn from server-sampled tiles
+when the world serves them (`farTerrain` in the INIT options) and
+`farTerrainDistance` is above 0. See [FarTerrain](FarTerrain.md).
 
 ___
 
@@ -160,6 +195,26 @@ An asset loader to load in things like textures, images, GIFs and audio buffers.
 
 ___
 
+### localLights
+
+• **localLights**: [`LocalLights`](LocalLights.md)
+
+Local light emitters: block-anchored sources scanned out of chunks plus
+game-registered dynamic sources, clustered into the chunk shaders. The
+game declares semantic block profiles and dynamic lights; the engine
+owns scanning, selection, culling, and GPU representation.
+
+___
+
+### meshApplyStats
+
+• **meshApplyStats**: [`MeshApplyStats`](../#meshapplystats)
+
+Running cost of applying mesh results on the main thread; see
+[MeshApplyStats](../#meshapplystats).
+
+___
+
 ### meshPipeline
 
 • **meshPipeline**: [`MeshPipeline`](MeshPipeline.md)
@@ -178,12 +233,12 @@ Configure and inspect mesh worker buffer transfer (transfer vs SharedArrayBuffer
 
 | Name | Type |
 | :------ | :------ |
-| `benchmark` | (`options`: [`MeshTransferBenchmarkOptions`](../modules.md#meshtransferbenchmarkoptions)) => `Promise`\<[`MeshTransferBenchmarkResult`](../modules.md#meshtransferbenchmarkresult)\> |
-| `configure` | (`config`: \{ `mode?`: [`WorkerTransferMode`](../modules.md#workertransfermode)  }) => `void` |
-| `getMode` | () => [`WorkerTransferMode`](../modules.md#workertransfermode) |
-| `getStats` | () => [`MeshWorkerTransferStats`](../modules.md#meshworkertransferstats) \| `Record`\<[`WorkerTransferStrategy`](../modules.md#workertransferstrategy), [`MeshWorkerTransferStats`](../modules.md#meshworkertransferstats)\> |
-| `getStatus` | () => \{ `isCrossOriginIsolated`: `boolean` ; `isSharedArrayBufferAvailable`: `boolean` ; `mode`: [`WorkerTransferMode`](../modules.md#workertransfermode) ; `pool`: [`ChunkSharedPoolStats`](../modules.md#chunksharedpoolstats) ; `stats`: [`MeshWorkerTransferStats`](../modules.md#meshworkertransferstats) \| `Record`\<[`WorkerTransferStrategy`](../modules.md#workertransferstrategy), [`MeshWorkerTransferStats`](../modules.md#meshworkertransferstats)\> ; `strategy`: [`WorkerTransferStrategy`](../modules.md#workertransferstrategy)  } |
-| `getStrategy` | () => [`WorkerTransferStrategy`](../modules.md#workertransferstrategy) |
+| `benchmark` | (`options`: [`MeshTransferBenchmarkOptions`](../#meshtransferbenchmarkoptions)) => `Promise`<[`MeshTransferBenchmarkResult`](../#meshtransferbenchmarkresult)\> |
+| `configure` | (`config`: \{ `mode?`: [`WorkerTransferMode`](../#workertransfermode)  }) => `void` |
+| `getMode` | () => [`WorkerTransferMode`](../#workertransfermode) |
+| `getStats` | () => [`MeshWorkerTransferStats`](../#meshworkertransferstats) \| `Record`<[`WorkerTransferStrategy`](../#workertransferstrategy), [`MeshWorkerTransferStats`](../#meshworkertransferstats)\> |
+| `getStatus` | () => \{ `isCrossOriginIsolated`: `boolean` ; `isSharedArrayBufferAvailable`: `boolean` ; `mode`: [`WorkerTransferMode`](../#workertransfermode) ; `pool`: [`ChunkSharedPoolStats`](../#chunksharedpoolstats) ; `stats`: [`MeshWorkerTransferStats`](../#meshworkertransferstats) \| `Record`<[`WorkerTransferStrategy`](../#workertransferstrategy), [`MeshWorkerTransferStats`](../#meshworkertransferstats)\> ; `strategy`: [`WorkerTransferStrategy`](../#workertransferstrategy)  } |
+| `getStrategy` | () => [`WorkerTransferStrategy`](../#workertransferstrategy) |
 | `isSharedArrayBufferAvailable` | () => `boolean` |
 | `resetStats` | () => `void` |
 | `setStrategy` | (`strategy`: ``"transfer"`` \| ``"shared"``) => `void` |
@@ -192,9 +247,19 @@ ___
 
 ### options
 
-• **options**: [`WorldOptions`](../modules.md#worldoptions)
+• **options**: [`WorldOptions`](../#worldoptions)
 
 The options to create the world.
+
+___
+
+### orderIndependent
+
+• **orderIndependent**: [`OrderIndependentTransparency`](OrderIndependentTransparency.md) = `null`
+
+The blended layers' accumulation, when
+WorldClientOptions.orderIndependentTransparency is set; `null`
+draws the sorted pipeline.
 
 ___
 
@@ -206,11 +271,31 @@ The voxel physics engine using `@voxelize/physics-engine`.
 
 ___
 
+### regionArenas
+
+• **regionArenas**: [`ChunkRegionArenas`](ChunkRegionArenas.md) = `null`
+
+Region buffer arenas batching the shared-opaque bucket, one
+`BatchedMesh` per region; `null` until the first opaque section lands or
+when WorldClientOptions.regionArenas disables batching.
+
+___
+
 ### registry
 
 • **registry**: [`Registry`](Registry.md)
 
 The block registry that holds all block data, such as texture and block properties.
+
+___
+
+### shaderClock
+
+• `Readonly` **shaderClock**: [`ShaderClock`](ShaderClock.md)
+
+The clock chunk shaders animate on (waves, sway, flicker, animated
+atlas frames): the shared clock, slewed and wrapped for the GPU, so
+every player sees the same wave at the same moment.
 
 ___
 
@@ -222,6 +307,16 @@ The sky that renders the sky and the sun.
 
 ___
 
+### swayProfileTable
+
+• `Readonly` **swayProfileTable**: `Uniform`<`any`\>
+
+Flat vec4-pair table behind the shared cutout buckets' sway shader; see
+[createSwayTableShader](../#createswaytableshader). Slot 0 stays zeroed as the "no sway"
+profile.
+
+___
+
 ### waterOptics
 
 • **waterOptics**: [`WaterOptics`](WaterOptics.md)
@@ -229,7 +324,46 @@ ___
 The camera-driven underwater optics state, updated via
 [World.updateWaterOptics](World.md#updatewateroptics).
 
+___
+
+### waterOpticsFluidFilter
+
+• **waterOpticsFluidFilter**: (`block`: [`Block`](../#block)) => `boolean` = `null`
+
+Which fluid blocks count as water for the camera's underwater optics.
+`null` (the default) treats every fluid as water. A game with other
+fluids (lava) returns false for them, so a camera inside one does not
+get water fog, sky fade and the backside water surface.
+
+#### Type declaration
+
+▸ (`block`): `boolean`
+
+##### Parameters
+
+| Name | Type |
+| :------ | :------ |
+| `block` | [`Block`](../#block) |
+
+##### Returns
+
+`boolean`
+
 ## Accessors
+
+### day
+
+• `get` **day**(): `number`
+
+Days the world clock has completed. With [World.time](World.md#time) it forms
+[World.sharedClock](World.md#sharedclock); on its own it is what a moon phase or a
+"day N" readout would count.
+
+#### Returns
+
+`number`
+
+___
 
 ### deleteRadius
 
@@ -238,6 +372,72 @@ The camera-driven underwater optics state, updated via
 #### Returns
 
 `number`
+
+___
+
+### disposed
+
+• `get` **disposed**(): `boolean`
+
+Whether [dispose](World.md#dispose) has run. A disposed world is a corpse: its
+workers are gone and its chunks released, and anything still holding it
+is holding the whole scene graph in memory for nothing.
+
+#### Returns
+
+`boolean`
+
+___
+
+### farTerrainDistance
+
+• `get` **farTerrainDistance**(): `number`
+
+How far the far-terrain layer reaches past the viewer, in blocks; 0
+turns it off. Takes effect only in a world that serves far terrain.
+The fog range follows it. See `WorldOptions.farTerrainDistance`.
+
+#### Returns
+
+`number`
+
+• `set` **farTerrainDistance**(`distance`): `void`
+
+#### Parameters
+
+| Name | Type |
+| :------ | :------ |
+| `distance` | `number` |
+
+#### Returns
+
+`void`
+
+___
+
+### fogDistance
+
+• `get` **fogDistance**(): `number`
+
+A fixed fog distance in blocks, independent of `renderRadius`; `null`
+when fog is still derived from the radius. See
+`WorldOptions.fogDistance`.
+
+#### Returns
+
+`number`
+
+• `set` **fogDistance**(`distance`): `void`
+
+#### Parameters
+
+| Name | Type |
+| :------ | :------ |
+| `distance` | `number` |
+
+#### Returns
+
+`void`
 
 ___
 
@@ -260,6 +460,45 @@ ___
 #### Returns
 
 `void`
+
+___
+
+### sectionVisibilityStats
+
+• `get` **sectionVisibilityStats**(): `Object`
+
+#### Returns
+
+`Object`
+
+| Name | Type |
+| :------ | :------ |
+| `constrained` | `number` |
+| `isComplete` | `boolean` |
+| `reached` | `number` |
+| `sections` | `number` |
+| `visible` | `number` |
+
+___
+
+### sharedClock
+
+• `get` **sharedClock**(): `number`
+
+Seconds since the world's clock began: `day * timePerDay + time`. Unlike
+[World.time](World.md#time) it never wraps at midnight, and every client of a
+world agrees on it to within the STATS sync threshold, which makes it
+the clock for cosmetic motion all players must see alike — cloud drift,
+the shooting-star schedule. A `/time` jump moves it within the current
+day, so those effects jump with the sky rather than diverging from it.
+
+A world whose clock is frozen (`doesTickTime` false) has no shared game
+clock at all, so the wall clock stands in: clients agree to within their
+NTP skew, which is all a cosmetic schedule needs.
+
+#### Returns
+
+`number`
 
 ___
 
@@ -293,7 +532,7 @@ ___
 
 | Name | Type |
 | :------ | :------ |
-| `listener` | [`BlockEntityUpdateListener`](../modules.md#blockentityupdatelistener)\<`T`\> |
+| `listener` | [`BlockEntityUpdateListener`](../#blockentityupdatelistener)<`T`\> |
 
 #### Returns
 
@@ -315,7 +554,7 @@ ___
 
 | Name | Type |
 | :------ | :------ |
-| `listener` | [`BlockUpdateListener`](../modules.md#blockupdatelistener) |
+| `listener` | [`BlockUpdateListener`](../#blockupdatelistener) |
 
 #### Returns
 
@@ -337,7 +576,7 @@ ___
 
 | Name | Type |
 | :------ | :------ |
-| `coords` | [`Coords2`](../modules.md#coords2) |
+| `coords` | [`Coords2`](../#coords2) |
 | `listener` | (`chunk`: [`Chunk`](Chunk.md)) => `void` |
 
 #### Returns
@@ -352,9 +591,31 @@ ___
 
 ___
 
+### adoptOrderIndependentMaterials
+
+▸ **adoptOrderIndependentMaterials**(`materials`): `Material`[]
+
+Adopts every material in `materials` that can accumulate, and makes the
+texel forks of the see-through chunk materials among them, so a warmup
+compiles the programs play draws with (a material adopted after it
+compiled compiles again). Returns the forks: no scene holds them until
+a mesh's textures call for one, so a warmup has to draw them itself.
+
+#### Parameters
+
+| Name | Type |
+| :------ | :------ |
+| `materials` | `Iterable`<`Material`, `any`, `any`\> |
+
+#### Returns
+
+`Material`[]
+
+___
+
 ### applyBlockFrames
 
-▸ **applyBlockFrames**(`idOrName`, `faceNames`, `keyframes`, `fadeFrames?`): `Promise`\<`void`\>
+▸ **applyBlockFrames**(`idOrName`, `faceNames`, `keyframes`, `fadeFrames?`): `Promise`<`void`\>
 
 Apply a set of keyframes to a block. This will load the keyframes from the sources and start the animation
 to play the keyframes on the block's texture atlas.
@@ -370,13 +631,13 @@ to play the keyframes on the block's texture atlas.
 
 #### Returns
 
-`Promise`\<`void`\>
+`Promise`<`void`\>
 
 ___
 
 ### applyBlockGif
 
-▸ **applyBlockGif**(`idOrName`, `faceNames`, `source`, `interval?`): `Promise`\<`void`\>
+▸ **applyBlockGif**(`idOrName`, `faceNames`, `source`, `interval?`): `Promise`<`void`\>
 
 Apply a GIF animation to a block. This will load the GIF from the source and start the animation
 using [applyBlockFrames](World.md#applyblockframes) internally.
@@ -392,7 +653,7 @@ using [applyBlockFrames](World.md#applyblockframes) internally.
 
 #### Returns
 
-`Promise`\<`void`\>
+`Promise`<`void`\>
 
 ___
 
@@ -403,13 +664,18 @@ ___
 Apply a texture to a face or faces of a block. This will automatically load the image from the source
 and draw it onto the block's texture atlas.
 
+An isolated face, whose pixels belong to a voxel, takes this as its
+default — what the face looks like where there is no voxel to ask, which
+is every display mesh: a held block, a drop, an inventory thumbnail.
+[applyBlockTextureAt](World.md#applyblocktextureat) still overrides it per voxel.
+
 #### Parameters
 
 | Name | Type | Description |
 | :------ | :------ | :------ |
 | `idOrName` | `string` \| `number` | The ID or name of the block. |
 | `faceNames` | `string` \| `string`[] | The face names to apply the texture to. |
-| `source` | `string` \| `Color` \| `Texture`\<`unknown`\> \| `HTMLImageElement` | The source of the texture. |
+| `source` | `string` \| `Color` \| `Texture`<`unknown`\> \| `HTMLImageElement` | The source of the texture. |
 
 #### Returns
 
@@ -425,7 +691,7 @@ ___
 
 ### applyBlockTextureAt
 
-▸ **applyBlockTextureAt**(`idOrName`, `faceName`, `source`, `voxel`): [`CustomChunkShaderMaterial`](../modules.md#customchunkshadermaterial)
+▸ **applyBlockTextureAt**(`idOrName`, `faceName`, `source`, `voxel`): [`CustomChunkShaderMaterial`](../#customchunkshadermaterial)
 
 #### Parameters
 
@@ -433,18 +699,18 @@ ___
 | :------ | :------ |
 | `idOrName` | `string` \| `number` |
 | `faceName` | `string` |
-| `source` | `string` \| `Color` \| `Texture`\<`unknown`\> \| `HTMLImageElement` |
-| `voxel` | [`Coords3`](../modules.md#coords3) |
+| `source` | `string` \| `Color` \| `Texture`<`unknown`\> \| `HTMLImageElement` |
+| `voxel` | [`Coords3`](../#coords3) |
 
 #### Returns
 
-[`CustomChunkShaderMaterial`](../modules.md#customchunkshadermaterial)
+[`CustomChunkShaderMaterial`](../#customchunkshadermaterial)
 
 ___
 
 ### applyBlockTextures
 
-▸ **applyBlockTextures**(`data`): `Promise`\<`void`[]\>
+▸ **applyBlockTextures**(`data`): `Promise`<`void`[]\>
 
 Apply multiple block textures at once. See [applyBlockTexture](World.md#applyblocktexture) for more information.
 
@@ -456,7 +722,7 @@ Apply multiple block textures at once. See [applyBlockTexture](World.md#applyblo
 
 #### Returns
 
-`Promise`\<`void`[]\>
+`Promise`<`void`[]\>
 
 A promise that resolves when all the textures are applied.
 
@@ -477,7 +743,7 @@ ___
 | Name | Type |
 | :------ | :------ |
 | `groupName` | `string` |
-| `source` | `string` \| `Color` \| `Texture`\<`unknown`\> \| `HTMLImageElement` |
+| `source` | `string` \| `Color` \| `Texture`<`unknown`\> \| `HTMLImageElement` |
 
 #### Returns
 
@@ -487,33 +753,33 @@ ___
 
 ### applyTextureGroups
 
-▸ **applyTextureGroups**(`data`): `Promise`\<`any`[]\>
+▸ **applyTextureGroups**(`data`): `Promise`<`any`[]\>
 
 #### Parameters
 
 | Name | Type |
 | :------ | :------ |
-| `data` | \{ `groupName`: `string` ; `source`: `string` \| `Color` \| `Texture`\<`unknown`\> \| `HTMLImageElement`  }[] |
+| `data` | \{ `groupName`: `string` ; `source`: `string` \| `Color` \| `Texture`<`unknown`\> \| `HTMLImageElement`  }[] |
 
 #### Returns
 
-`Promise`\<`any`[]\>
+`Promise`<`any`[]\>
 
 ___
 
 ### benchmarkMeshTransfer
 
-▸ **benchmarkMeshTransfer**(`options`): `Promise`\<[`MeshTransferBenchmarkResult`](../modules.md#meshtransferbenchmarkresult)\>
+▸ **benchmarkMeshTransfer**(`options`): `Promise`<[`MeshTransferBenchmarkResult`](../#meshtransferbenchmarkresult)\>
 
 #### Parameters
 
 | Name | Type |
 | :------ | :------ |
-| `options` | [`MeshTransferBenchmarkOptions`](../modules.md#meshtransferbenchmarkoptions) |
+| `options` | [`MeshTransferBenchmarkOptions`](../#meshtransferbenchmarkoptions) |
 
 #### Returns
 
-`Promise`\<[`MeshTransferBenchmarkResult`](../modules.md#meshtransferbenchmarkresult)\>
+`Promise`<[`MeshTransferBenchmarkResult`](../#meshtransferbenchmarkresult)\>
 
 ___
 
@@ -526,7 +792,7 @@ ___
 | Name | Type |
 | :------ | :------ |
 | `idOrName` | `string` \| `number` |
-| `fn` | (`pos`: [`Coords3`](../modules.md#coords3)) => \{ `aabbs`: `AABB`[] ; `faces`: \{ `corners`: \{ `pos`: [`number`, `number`, `number`] ; `uv`: `number`[]  }[] ; `dir`: [`number`, `number`, `number`] ; `independent`: `boolean` ; `isolated`: `boolean` ; `name`: `string` ; `range`: [`UV`](../modules.md#uv) ; `textureGroup`: `string`  }[] ; `isTransparent`: [`boolean`, `boolean`, `boolean`, `boolean`, `boolean`, `boolean`]  } |
+| `fn` | (`pos`: [`Coords3`](../#coords3)) => \{ `aabbs`: `AABB`[] ; `faces`: \{ `corners`: \{ `pos`: [`number`, `number`, `number`] ; `uv`: `number`[]  }[] ; `dir`: [`number`, `number`, `number`] ; `emissive?`: `number` ; `independent`: `boolean` ; `isolated`: `boolean` ; `name`: `string` ; `pigmentMask?`: `number` ; `range`: [`UV`](../#uv) ; `regionalTint?`: `boolean` ; `stageTintMask?`: `number` ; `textureGroup`: `string`  }[] ; `isTransparent`: [`boolean`, `boolean`, `boolean`, `boolean`, `boolean`, `boolean`]  } |
 
 #### Returns
 
@@ -536,7 +802,7 @@ ___
 
 ### customizeMaterialShaders
 
-▸ **customizeMaterialShaders**(`idOrName`, `faceName?`, `data?`): [`CustomChunkShaderMaterial`](../modules.md#customchunkshadermaterial)
+▸ **customizeMaterialShaders**(`idOrName`, `faceName?`, `data?`): [`CustomChunkShaderMaterial`](../#customchunkshadermaterial)
 
 #### Parameters
 
@@ -551,7 +817,7 @@ ___
 
 #### Returns
 
-[`CustomChunkShaderMaterial`](../modules.md#customchunkshadermaterial)
+[`CustomChunkShaderMaterial`](../#customchunkshadermaterial)
 
 ___
 
@@ -565,18 +831,69 @@ ___
 
 ___
 
-### floodLight
+### expandCoupledUpdates
 
-▸ **floodLight**(`queue`, `color`, `min?`, `max?`): `void`
+▸ **expandCoupledUpdates**(`updates`): [`BlockUpdate`](../#blockupdate)[]
+
+Expand a batch of updates so every coupled unit it touches changes
+whole — the mirror of the server's update intake, run on every batch
+`updateVoxels` receives. Exposed so a caller can learn the outcome of a
+placement before committing to it (an anchor whose partner voxel is
+occupied expands to nothing); the result is idempotent, so it can be
+handed straight back to [World.updateVoxels](World.md#updatevoxels). See
+[expandCoupledUpdates](../#expandcoupledupdates).
 
 #### Parameters
 
 | Name | Type |
 | :------ | :------ |
-| `queue` | [`LightNode`](../modules.md#lightnode)[] |
-| `color` | [`LightColor`](../modules.md#lightcolor) |
-| `min?` | [`Coords3`](../modules.md#coords3) |
-| `max?` | [`Coords3`](../modules.md#coords3) |
+| `updates` | [`BlockUpdate`](../#blockupdate)[] |
+
+#### Returns
+
+[`BlockUpdate`](../#blockupdate)[]
+
+___
+
+### fillUnpaintedSurfaces
+
+▸ **fillUnpaintedSurfaces**(`options?`): [`TextureFillResult`](../#texturefillresult)
+
+Dress every surface still on the unknown checker: an isolated face in
+its default if that has landed, everything else in
+`options.unpaintedFallbackColor`. The census keeps reporting them as
+`fallback`, so a stage made presentable this way does not pass for a
+finished one.
+
+#### Parameters
+
+| Name | Type |
+| :------ | :------ |
+| `options` | `Object` |
+| `options.color?` | `string` |
+
+#### Returns
+
+[`TextureFillResult`](../#texturefillresult)
+
+___
+
+### floodLight
+
+▸ **floodLight**(`queue`, `color`, `min?`, `max?`): `void`
+
+Propagate light nodes outward through the loaded chunks. The algorithm
+itself lives in "./lighting" and senses the world through the
+[VoxelLightVolume](../interfaces/VoxelLightVolume.md) slice this class satisfies.
+
+#### Parameters
+
+| Name | Type |
+| :------ | :------ |
+| `queue` | [`LightNode`](../#lightnode)[] |
+| `color` | [`LightColor`](../#lightcolor) |
+| `min?` | [`Coords3`](../#coords3) |
+| `max?` | [`Coords3`](../#coords3) |
 
 #### Returns
 
@@ -592,7 +909,7 @@ ___
 
 | Name | Type |
 | :------ | :------ |
-| `voxel` | [`Coords3`](../modules.md#coords3) |
+| `voxel` | [`Coords3`](../#coords3) |
 
 #### Returns
 
@@ -600,13 +917,31 @@ ___
 
 ___
 
-### getBaseFogRange
+### getAABBOverrideOwner
 
-▸ **getBaseFogRange**(): [`WorldFogRange`](../modules.md#worldfogrange)
+▸ **getAABBOverrideOwner**(`voxel`): [`Coords3`](../#coords3)
+
+The block voxel an override cell answers for, when it has one.
+
+#### Parameters
+
+| Name | Type |
+| :------ | :------ |
+| `voxel` | [`Coords3`](../#coords3) |
 
 #### Returns
 
-[`WorldFogRange`](../modules.md#worldfogrange)
+[`Coords3`](../#coords3)
+
+___
+
+### getBaseFogRange
+
+▸ **getBaseFogRange**(): [`WorldFogRange`](../#worldfogrange)
+
+#### Returns
+
+[`WorldFogRange`](../#worldfogrange)
 
 ___
 
@@ -668,7 +1003,7 @@ ___
 
 ### getBlockAt
 
-▸ **getBlockAt**(`px`, `py`, `pz`): [`Block`](../modules.md#block)
+▸ **getBlockAt**(`px`, `py`, `pz`): [`Block`](../#block)
 
 Get the block type data by a 3D world position.
 
@@ -682,7 +1017,7 @@ Get the block type data by a 3D world position.
 
 #### Returns
 
-[`Block`](../modules.md#block)
+[`Block`](../#block)
 
 The block at the given position, or null if it does not exist.
 
@@ -690,7 +1025,7 @@ ___
 
 ### getBlockById
 
-▸ **getBlockById**(`id`): [`Block`](../modules.md#block)
+▸ **getBlockById**(`id`): [`Block`](../#block)
 
 Get the block type data by a block id. Unknown ids resolve to air
 (logged once per id) so a server/client registry gap can never take
@@ -704,7 +1039,7 @@ down meshing, lighting, or the agent bridge.
 
 #### Returns
 
-[`Block`](../modules.md#block)
+[`Block`](../#block)
 
 The block data for the given id, or air if it is unknown.
 
@@ -712,7 +1047,7 @@ ___
 
 ### getBlockByIdSafe
 
-▸ **getBlockByIdSafe**(`id`): [`Block`](../modules.md#block)
+▸ **getBlockByIdSafe**(`id`): [`Block`](../#block)
 
 #### Parameters
 
@@ -722,13 +1057,13 @@ ___
 
 #### Returns
 
-[`Block`](../modules.md#block)
+[`Block`](../#block)
 
 ___
 
 ### getBlockByName
 
-▸ **getBlockByName**(`name`): [`Block`](../modules.md#block)
+▸ **getBlockByName**(`name`): [`Block`](../#block)
 
 Get the block type data by a block name.
 
@@ -740,7 +1075,7 @@ Get the block type data by a block name.
 
 #### Returns
 
-[`Block`](../modules.md#block)
+[`Block`](../#block)
 
 The block data for the given name, or null if it does not exist.
 
@@ -784,7 +1119,7 @@ ___
 
 ### getBlockFaceMaterial
 
-▸ **getBlockFaceMaterial**(`idOrName`, `faceName?`, `voxel?`): [`CustomChunkShaderMaterial`](../modules.md#customchunkshadermaterial)
+▸ **getBlockFaceMaterial**(`idOrName`, `faceName?`, `voxel?`): [`CustomChunkShaderMaterial`](../#customchunkshadermaterial)
 
 #### Parameters
 
@@ -792,17 +1127,17 @@ ___
 | :------ | :------ |
 | `idOrName` | `string` \| `number` |
 | `faceName?` | `string` |
-| `voxel?` | [`Coords3`](../modules.md#coords3) |
+| `voxel?` | [`Coords3`](../#coords3) |
 
 #### Returns
 
-[`CustomChunkShaderMaterial`](../modules.md#customchunkshadermaterial)
+[`CustomChunkShaderMaterial`](../#customchunkshadermaterial)
 
 ___
 
 ### getBlockFacesByFaceNames
 
-▸ **getBlockFacesByFaceNames**(`id`, `faceNames`, `warnUnknown?`): \{ `corners`: \{ `pos`: [`number`, `number`, `number`] ; `uv`: `number`[]  }[] ; `dir`: [`number`, `number`, `number`] ; `independent`: `boolean` ; `isolated`: `boolean` ; `name`: `string` ; `range`: [`UV`](../modules.md#uv) ; `textureGroup`: `string`  }[]
+▸ **getBlockFacesByFaceNames**(`id`, `faceNames`, `warnUnknown?`): \{ `corners`: \{ `pos`: [`number`, `number`, `number`] ; `uv`: `number`[]  }[] ; `dir`: [`number`, `number`, `number`] ; `emissive?`: `number` ; `independent`: `boolean` ; `isolated`: `boolean` ; `name`: `string` ; `pigmentMask?`: `number` ; `range`: [`UV`](../#uv) ; `regionalTint?`: `boolean` ; `stageTintMask?`: `number` ; `textureGroup`: `string`  }[]
 
 #### Parameters
 
@@ -814,13 +1149,13 @@ ___
 
 #### Returns
 
-\{ `corners`: \{ `pos`: [`number`, `number`, `number`] ; `uv`: `number`[]  }[] ; `dir`: [`number`, `number`, `number`] ; `independent`: `boolean` ; `isolated`: `boolean` ; `name`: `string` ; `range`: [`UV`](../modules.md#uv) ; `textureGroup`: `string`  }[]
+\{ `corners`: \{ `pos`: [`number`, `number`, `number`] ; `uv`: `number`[]  }[] ; `dir`: [`number`, `number`, `number`] ; `emissive?`: `number` ; `independent`: `boolean` ; `isolated`: `boolean` ; `name`: `string` ; `pigmentMask?`: `number` ; `range`: [`UV`](../#uv) ; `regionalTint?`: `boolean` ; `stageTintMask?`: `number` ; `textureGroup`: `string`  }[]
 
 ___
 
 ### getBlockFacesForDynamicPatterns
 
-▸ **getBlockFacesForDynamicPatterns**(`blockId`, `dynamicPatterns`): \{ `corners`: \{ `pos`: [`number`, `number`, `number`] ; `uv`: `number`[]  }[] ; `dir`: [`number`, `number`, `number`] ; `independent`: `boolean` ; `isolated`: `boolean` ; `name`: `string` ; `range`: [`UV`](../modules.md#uv) ; `textureGroup`: `string`  }[]
+▸ **getBlockFacesForDynamicPatterns**(`blockId`, `dynamicPatterns`): \{ `corners`: \{ `pos`: [`number`, `number`, `number`] ; `uv`: `number`[]  }[] ; `dir`: [`number`, `number`, `number`] ; `emissive?`: `number` ; `independent`: `boolean` ; `isolated`: `boolean` ; `name`: `string` ; `pigmentMask?`: `number` ; `range`: [`UV`](../#uv) ; `regionalTint?`: `boolean` ; `stageTintMask?`: `number` ; `textureGroup`: `string`  }[]
 
 #### Parameters
 
@@ -831,13 +1166,13 @@ ___
 
 #### Returns
 
-\{ `corners`: \{ `pos`: [`number`, `number`, `number`] ; `uv`: `number`[]  }[] ; `dir`: [`number`, `number`, `number`] ; `independent`: `boolean` ; `isolated`: `boolean` ; `name`: `string` ; `range`: [`UV`](../modules.md#uv) ; `textureGroup`: `string`  }[]
+\{ `corners`: \{ `pos`: [`number`, `number`, `number`] ; `uv`: `number`[]  }[] ; `dir`: [`number`, `number`, `number`] ; `emissive?`: `number` ; `independent`: `boolean` ; `isolated`: `boolean` ; `name`: `string` ; `pigmentMask?`: `number` ; `range`: [`UV`](../#uv) ; `regionalTint?`: `boolean` ; `stageTintMask?`: `number` ; `textureGroup`: `string`  }[]
 
 ___
 
 ### getBlockOf
 
-▸ **getBlockOf**(`idOrName`): [`Block`](../modules.md#block)
+▸ **getBlockOf**(`idOrName`): [`Block`](../#block)
 
 #### Parameters
 
@@ -847,7 +1182,7 @@ ___
 
 #### Returns
 
-[`Block`](../modules.md#block)
+[`Block`](../#block)
 
 ___
 
@@ -868,6 +1203,30 @@ ___
 #### Returns
 
 `boolean`
+
+___
+
+### getBranchAABBsAt
+
+▸ **getBranchAABBsAt**(`block`, `vx`, `vy`, `vz`): `AABB`[]
+
+The boxes the branch voxel of `block` at `vx, vy, vz` is drawn and
+collides as, in blocks of the voxel: its core and an arm toward each
+joined neighbour (see `branch.ts`). Empty for a block that is not a
+branch.
+
+#### Parameters
+
+| Name | Type |
+| :------ | :------ |
+| `block` | [`Block`](../#block) |
+| `vx` | `number` |
+| `vy` | `number` |
+| `vz` | `number` |
+
+#### Returns
+
+`AABB`[]
 
 ___
 
@@ -957,19 +1316,19 @@ ___
 
 ### getIsolatedBlockMaterialAt
 
-▸ **getIsolatedBlockMaterialAt**(`voxel`, `faceName`, `defaultDimension?`): [`CustomChunkShaderMaterial`](../modules.md#customchunkshadermaterial)
+▸ **getIsolatedBlockMaterialAt**(`voxel`, `faceName`, `defaultDimension?`): [`CustomChunkShaderMaterial`](../#customchunkshadermaterial)
 
 #### Parameters
 
 | Name | Type |
 | :------ | :------ |
-| `voxel` | [`Coords3`](../modules.md#coords3) |
+| `voxel` | [`Coords3`](../#coords3) |
 | `faceName` | `string` |
 | `defaultDimension?` | `number` |
 
 #### Returns
 
-[`CustomChunkShaderMaterial`](../modules.md#customchunkshadermaterial)
+[`CustomChunkShaderMaterial`](../#customchunkshadermaterial)
 
 ___
 
@@ -1047,7 +1406,7 @@ ___
 
 ### getMemoryCounters
 
-▸ **getMemoryCounters**(): [`WorldMemoryCounters`](../modules.md#worldmemorycounters)
+▸ **getMemoryCounters**(): [`WorldMemoryCounters`](../#worldmemorycounters)
 
 Live sizes of every queue and in-flight set in the voxel update ->
 relight -> remesh pipeline, plus the bytes of serialized chunk payloads
@@ -1057,7 +1416,7 @@ carving and watch which stage balloons.
 
 #### Returns
 
-[`WorldMemoryCounters`](../modules.md#worldmemorycounters)
+[`WorldMemoryCounters`](../#worldmemorycounters)
 
 ___
 
@@ -1075,6 +1434,29 @@ Get the previous value of a voxel by a 3D world position.
 | `py` | `number` | `undefined` | The y coordinate of the position. |
 | `pz` | `number` | `undefined` | The z coordinate of the position. |
 | `count` | `number` | `1` | By how much to look back in the history. Defaults to `1`. |
+
+#### Returns
+
+`number`
+
+___
+
+### getRawVoxelAt
+
+▸ **getRawVoxelAt**(`px`, `py`, `pz`): `number`
+
+The whole packed voxel word at a 3D world position — id, rotation,
+stage and waterlogging together — or 0 where no chunk is loaded. For
+callers that compare voxel states as a unit; `getVoxelAt` and its
+siblings unpack one field each.
+
+#### Parameters
+
+| Name | Type |
+| :------ | :------ |
+| `px` | `number` |
+| `py` | `number` |
+| `pz` | `number` |
 
 #### Returns
 
@@ -1117,7 +1499,7 @@ ___
 | `sharedAtlas` | \{ `canvas`: `HTMLCanvasElement` ; `countPerSide`: `number`  } |
 | `sharedAtlas.canvas` | `HTMLCanvasElement` |
 | `sharedAtlas.countPerSide` | `number` |
-| `textures` | [`TextureInfo`](../modules.md#textureinfo)[] |
+| `textures` | [`TextureInfo`](../#textureinfo)[] |
 
 ___
 
@@ -1134,7 +1516,7 @@ Get a voxel torch light by a 3D world position.
 | `px` | `number` | The x coordinate of the position. |
 | `py` | `number` | The y coordinate of the position. |
 | `pz` | `number` | The z coordinate of the position. |
-| `color` | [`LightColor`](../modules.md#lightcolor) | The color of the torch light. |
+| `color` | [`LightColor`](../#lightcolor) | The color of the torch light. |
 
 #### Returns
 
@@ -1210,16 +1592,87 @@ The voxel stage at the given position, or 0 if it does not exist.
 
 ___
 
+### getVoxelWaterlogLevelAt
+
+▸ **getVoxelWaterlogLevelAt**(`px`, `py`, `pz`): `number`
+
+The level of waterlogging fluid held by the voxel at a 3D world position.
+
+#### Parameters
+
+| Name | Type | Description |
+| :------ | :------ | :------ |
+| `px` | `number` | The x coordinate of the position. |
+| `py` | `number` | The y coordinate of the position. |
+| `pz` | `number` | The z coordinate of the position. |
+
+#### Returns
+
+`number`
+
+___
+
+### getVoxelWaterloggedAt
+
+▸ **getVoxelWaterloggedAt**(`px`, `py`, `pz`): `boolean`
+
+Whether the voxel at a 3D world position holds the world's waterlogging
+fluid alongside its block.
+
+#### Parameters
+
+| Name | Type | Description |
+| :------ | :------ | :------ |
+| `px` | `number` | The x coordinate of the position. |
+| `py` | `number` | The y coordinate of the position. |
+| `pz` | `number` | The z coordinate of the position. |
+
+#### Returns
+
+`boolean`
+
+___
+
+### hasCustomBlockMaterial
+
+▸ **hasCustomBlockMaterial**(`id`): `boolean`
+
+#### Parameters
+
+| Name | Type |
+| :------ | :------ |
+| `id` | `number` |
+
+#### Returns
+
+`boolean`
+
+___
+
 ### initialize
 
-▸ **initialize**(): `Promise`\<`void`\>
+▸ **initialize**(): `Promise`<`void`\>
 
 Initialize the world with the data received from the server. This includes populating
 the registry, setting the options, and creating the texture atlas.
 
 #### Returns
 
-`Promise`\<`void`\>
+`Promise`<`void`\>
+
+___
+
+### isCameraSubmerged
+
+▸ **isCameraSubmerged**(): `boolean`
+
+Whether the camera is under water, by the same smoothed submersion the
+water shaders read: which side of the water a see-through layer in the
+camera's medium draws on (`TRANSPARENT_SORT`).
+
+#### Returns
+
+`boolean`
 
 ___
 
@@ -1231,10 +1684,33 @@ ___
 
 | Name | Type |
 | :------ | :------ |
-| `center` | [`Coords2`](../modules.md#coords2) |
-| `target` | [`Coords2`](../modules.md#coords2) |
+| `center` | [`Coords2`](../#coords2) |
+| `target` | [`Coords2`](../#coords2) |
 | `direction` | `Vector3` |
 | `threshold` | `number` |
+
+#### Returns
+
+`boolean`
+
+___
+
+### isFluidOrWaterloggedAt
+
+▸ **isFluidOrWaterloggedAt**(`vx`, `vy`, `vz`): `boolean`
+
+Whether the voxel at a world position holds water: either it is a fluid
+block or a block waterlogged with the world's fluid. Reads the packed
+voxel word once off the chunk instead of resolving the chunk twice (once
+for the waterlogging bit, once for the block).
+
+#### Parameters
+
+| Name | Type |
+| :------ | :------ |
+| `vx` | `number` |
+| `vy` | `number` |
+| `vz` | `number` |
 
 #### Returns
 
@@ -1247,7 +1723,7 @@ ___
 ▸ **isWithinWorld**(`cx`, `cz`): `boolean`
 
 Whether or not if this chunk coordinate is within (inclusive) the world's bounds. That is, if this chunk coordinate
-is within [WorldServerOptions.minChunk](../modules.md#worldserveroptions) and [WorldServerOptions.maxChunk](../modules.md#worldserveroptions).
+is within [WorldServerOptions.minChunk](../#worldserveroptions) and [WorldServerOptions.maxChunk](../#worldserveroptions).
 
 #### Parameters
 
@@ -1264,26 +1740,9 @@ Whether or not this chunk is within the bounds of the world.
 
 ___
 
-### makeBlockFragments
-
-▸ **makeBlockFragments**(`idOrName`, `count`): `Group`\<`Object3DEventMap`\>[]
-
-#### Parameters
-
-| Name | Type |
-| :------ | :------ |
-| `idOrName` | `string` \| `number` |
-| `count` | `number` |
-
-#### Returns
-
-`Group`\<`Object3DEventMap`\>[]
-
-___
-
 ### makeBlockMesh
 
-▸ **makeBlockMesh**(`idOrName`, `options?`): `Group`\<`Object3DEventMap`\>
+▸ **makeBlockMesh**(`idOrName`, `options?`): `Group`<`Object3DEventMap`\>
 
 Get a mesh of the model of the given block.
 
@@ -1292,19 +1751,47 @@ Get a mesh of the model of the given block.
 | Name | Type | Description |
 | :------ | :------ | :------ |
 | `idOrName` | `string` \| `number` | - |
-| `options` | `Partial`\<\{ `cached`: `boolean` ; `centered`: `boolean` ; `crumbs`: `boolean` ; `material`: ``"basic"`` \| ``"standard"`` ; `separateFaces`: `boolean`  }\> | The options of creating this block mesh. |
+| `options` | `Partial`<\{ `cached`: `boolean` ; `centered`: `boolean` ; `crumbs`: `boolean` ; `material`: ``"basic"`` \| ``"standard"`` ; `separateFaces`: `boolean`  }\> | The options of creating this block mesh. |
 
 #### Returns
 
-`Group`\<`Object3DEventMap`\>
+`Group`<`Object3DEventMap`\>
 
 A 3D mesh (group) of the block model.
 
 ___
 
+### measureWaterColumnAt
+
+▸ **measureWaterColumnAt**(`x`, `y`, `z`): [`WaterColumnSample`](../#watercolumnsample)
+
+The water column standing over a point — its depth below the resting
+surface and where that surface sits — or `null` when the point is not
+in water. See [measureWaterColumn](../#measurewatercolumn) for the walk itself.
+
+A column is one (x, z), so it lives in exactly one chunk: the chunk
+resolves once and every block of the walk is a raw read off it. The
+per-block `getBlockAt` walk this replaces paid a chunk name lookup and
+a registry lookup for every block between the point and the surface,
+so a fish forty blocks down cost forty of each, several times a second.
+
+#### Parameters
+
+| Name | Type |
+| :------ | :------ |
+| `x` | `number` |
+| `y` | `number` |
+| `z` | `number` |
+
+#### Returns
+
+[`WaterColumnSample`](../#watercolumnsample)
+
+___
+
 ### meshChunkLocally
 
-▸ **meshChunkLocally**(`cx`, `cz`, `level`, `generation?`, `isPriority?`): `Promise`\<`void`\>
+▸ **meshChunkLocally**(`cx`, `cz`, `level`, `generation?`, `isPriority?`): `Promise`<`void`\>
 
 #### Parameters
 
@@ -1318,13 +1805,29 @@ ___
 
 #### Returns
 
-`Promise`\<`void`\>
+`Promise`<`void`\>
+
+___
+
+### meshVoxelBox
+
+▸ **meshVoxelBox**(`box`): `Promise`<[`VoxelBoxMesh`](../#voxelboxmesh)\>
+
+#### Parameters
+
+| Name | Type |
+| :------ | :------ |
+| `box` | [`VoxelBoxInput`](../#voxelboxinput) |
+
+#### Returns
+
+`Promise`<[`VoxelBoxMesh`](../#voxelboxmesh)\>
 
 ___
 
 ### off
 
-▸ **off**\<`K`\>(`event`, `listener`): `this`
+▸ **off**<`K`\>(`event`, `listener`): `this`
 
 Unregister a typed event listener for chunk lifecycle events.
 
@@ -1332,14 +1835,14 @@ Unregister a typed event listener for chunk lifecycle events.
 
 | Name | Type |
 | :------ | :------ |
-| `K` | extends keyof [`WorldChunkEvents`](../modules.md#worldchunkevents) |
+| `K` | extends keyof [`WorldChunkEvents`](../#worldchunkevents) |
 
 #### Parameters
 
 | Name | Type | Description |
 | :------ | :------ | :------ |
 | `event` | `K` | The event name to stop listening to. |
-| `listener` | [`WorldChunkEvents`](../modules.md#worldchunkevents)[`K`] | The callback function to remove. |
+| `listener` | [`WorldChunkEvents`](../#worldchunkevents)[`K`] | The callback function to remove. |
 
 #### Returns
 
@@ -1351,7 +1854,7 @@ ___
 
 ### on
 
-▸ **on**\<`K`\>(`event`, `listener`): `this`
+▸ **on**<`K`\>(`event`, `listener`): `this`
 
 Register a typed event listener for chunk lifecycle events.
 
@@ -1359,14 +1862,14 @@ Register a typed event listener for chunk lifecycle events.
 
 | Name | Type |
 | :------ | :------ |
-| `K` | extends keyof [`WorldChunkEvents`](../modules.md#worldchunkevents) |
+| `K` | extends keyof [`WorldChunkEvents`](../#worldchunkevents) |
 
 #### Parameters
 
 | Name | Type | Description |
 | :------ | :------ | :------ |
 | `event` | `K` | The event name to listen to. |
-| `listener` | [`WorldChunkEvents`](../modules.md#worldchunkevents)[`K`] | The callback function to execute when the event is emitted. |
+| `listener` | [`WorldChunkEvents`](../#worldchunkevents)[`K`] | The callback function to execute when the event is emitted. |
 
 #### Returns
 
@@ -1376,9 +1879,61 @@ The world instance for chaining.
 
 ___
 
+### onContextRestored
+
+▸ **onContextRestored**(): `void`
+
+GPU context restored: every chunk atlas already mirrors its animated
+patches onto its own backing canvas as they draw (`AtlasTexture.
+commitAnimationPatch`), so re-uploading it is just `needsUpdate = true`
+on the texture three.js already holds — nothing to rebuild from
+scratch. Local lights pack their own GPU-resident grids and shadow
+atlas outside three's texture pipeline, so they get their own hook.
+Wire this to the canvas's `webglcontextrestored` event (after calling
+`preventDefault()` in a `webglcontextlost` listener — without it the
+browser never attempts to restore the context at all).
+
+#### Returns
+
+`void`
+
+___
+
+### onDispose
+
+▸ **onDispose**(`callback`): () => `void`
+
+Tie a resource to this world's lifetime: `callback` runs once when the
+world is disposed (at once, if it already has been). For timers, DOM
+listeners and other things that close over the world from outside the
+scene graph -- a texture repainted on an interval, a subscription -- and
+would otherwise outlive it. A page that mounts a second world (a
+hot-reload remount) keeps every such closure of the first alive, and the
+world behind it, until the tab is reloaded.
+
+#### Parameters
+
+| Name | Type |
+| :------ | :------ |
+| `callback` | () => `void` |
+
+#### Returns
+
+`fn`
+
+A function that unregisters the callback.
+
+▸ (): `void`
+
+##### Returns
+
+`void`
+
+___
+
 ### once
 
-▸ **once**\<`K`\>(`event`, `listener`): `this`
+▸ **once**<`K`\>(`event`, `listener`): `this`
 
 Register a one-time typed event listener for chunk lifecycle events.
 
@@ -1386,20 +1941,65 @@ Register a one-time typed event listener for chunk lifecycle events.
 
 | Name | Type |
 | :------ | :------ |
-| `K` | extends keyof [`WorldChunkEvents`](../modules.md#worldchunkevents) |
+| `K` | extends keyof [`WorldChunkEvents`](../#worldchunkevents) |
 
 #### Parameters
 
 | Name | Type | Description |
 | :------ | :------ | :------ |
 | `event` | `K` | The event name to listen to once. |
-| `listener` | [`WorldChunkEvents`](../modules.md#worldchunkevents)[`K`] | The callback function to execute when the event is emitted. |
+| `listener` | [`WorldChunkEvents`](../#worldchunkevents)[`K`] | The callback function to execute when the event is emitted. |
 
 #### Returns
 
 `this`
 
 The world instance for chaining.
+
+___
+
+### orderIndependentBandOf
+
+▸ **orderIndependentBandOf**(`object`, `material`): `number`
+
+See [TransparentMediumSource.orderIndependentBandOf](../interfaces/TransparentMediumSource.md#orderindependentbandof).
+
+#### Parameters
+
+| Name | Type |
+| :------ | :------ |
+| `object` | `Object3D`<`Object3DEventMap`\> |
+| `material` | `Material` |
+
+#### Returns
+
+`number`
+
+___
+
+### prepareTransparency
+
+▸ **prepareTransparency**(`renderer`, `camera`): `void`
+
+Call once a frame with the camera the scene is about to render with,
+before that render. Drawing order-independently, it draws the depth of
+the water in view (the surface the blended layers are split at, see
+`OrderIndependentSeparator`), arms the accumulation for that camera,
+and re-plans the see-through meshes when a block texture was written
+since (a texture can gain or lose its translucent texels). Sorted, it
+draws the depth of the water near the panes in view (`WaterDepthPass`);
+a frame without it draws every pane before the water.
+
+#### Parameters
+
+| Name | Type |
+| :------ | :------ |
+| `renderer` | `WebGLRenderer` |
+| `camera` | `Camera` |
+
+#### Returns
+
+`void`
 
 ___
 
@@ -1413,8 +2013,8 @@ Raycast through the world of voxels and return the details of the first block in
 
 | Name | Type | Description |
 | :------ | :------ | :------ |
-| `origin` | [`Coords3`](../modules.md#coords3) | The origin of the ray. |
-| `direction` | [`Coords3`](../modules.md#coords3) | The direction of the ray. |
+| `origin` | [`Coords3`](../#coords3) | The origin of the ray. |
+| `direction` | [`Coords3`](../#coords3) | The direction of the ray. |
 | `maxDistance` | `number` | The maximum distance of the ray. |
 | `options` | `Object` | The options for the ray. |
 | `options.ignoreFluids?` | `boolean` | Whether or not to ignore fluids. Defaults to `true`. |
@@ -1442,7 +2042,7 @@ ___
 
 | Name | Type |
 | :------ | :------ |
-| `voxel` | [`Coords3`](../modules.md#coords3) |
+| `voxel` | [`Coords3`](../#coords3) |
 
 #### Returns
 
@@ -1458,8 +2058,8 @@ ___
 
 | Name | Type |
 | :------ | :------ |
-| `voxel` | [`Coords3`](../modules.md#coords3) |
-| `color` | [`LightColor`](../modules.md#lightcolor) |
+| `voxel` | [`Coords3`](../#coords3) |
+| `color` | [`LightColor`](../#lightcolor) |
 
 #### Returns
 
@@ -1478,8 +2078,8 @@ This drastically improves performance when many contiguous light sources are rem
 
 | Name | Type |
 | :------ | :------ |
-| `voxels` | [`Coords3`](../modules.md#coords3)[] |
-| `color` | [`LightColor`](../modules.md#lightcolor) |
+| `voxels` | [`Coords3`](../#coords3)[] |
+| `color` | [`LightColor`](../#lightcolor) |
 
 #### Returns
 
@@ -1496,8 +2096,8 @@ ___
 | Name | Type |
 | :------ | :------ |
 | `renderer` | `WebGLRenderer` |
-| `entities?` | `Object3D`\<`Object3DEventMap`\>[] |
-| `instancePools?` | `Group`\<`Object3DEventMap`\>[] |
+| `entities?` | `Object3D`<`Object3DEventMap`\>[] |
+| `instancePools?` | `Group`<`Object3DEventMap`\>[] |
 
 #### Returns
 
@@ -1507,14 +2107,15 @@ ___
 
 ### setAABBOverride
 
-▸ **setAABBOverride**(`voxel`, `aabbs`): `void`
+▸ **setAABBOverride**(`voxel`, `aabbs`, `owner?`): `void`
 
 #### Parameters
 
 | Name | Type |
 | :------ | :------ |
-| `voxel` | [`Coords3`](../modules.md#coords3) |
+| `voxel` | [`Coords3`](../#coords3) |
 | `aabbs` | `AABB`[] |
+| `owner?` | [`Coords3`](../#coords3) |
 
 #### Returns
 
@@ -1543,9 +2144,54 @@ ___
 
 ___
 
+### setBlockSway
+
+▸ **setBlockSway**(`idOrName`, `options?`): `void`
+
+Register a sway profile for a cutout block instead of compiling it a
+bespoke material: the block stays in its shared cutout bucket and its
+quads carry the profile's index into the table
+[createSwayTableShader](../#createswaytableshader) reads. Parameter defaults mirror
+[createSwayShader](../#createswayshader); `isCrossShaded` selects the flattened
+cross-quad shading the dedicated cross materials used to bake in.
+
+#### Parameters
+
+| Name | Type |
+| :------ | :------ |
+| `idOrName` | `string` \| `number` |
+| `options` | `Partial`<\{ `amplitude`: `number` ; `isCrossShaded`: `boolean` ; `rooted`: `boolean` ; `scale`: `number` ; `speed`: `number` ; `yScale`: `number`  }\> |
+
+#### Returns
+
+`void`
+
+___
+
+### setBlockTextureFiltering
+
+▸ **setBlockTextureFiltering**(`mode`): `void`
+
+Flips how every chunk atlas samples at glancing angles, live: no world
+rebuild, no chunk remesh, just the texture's filter/mip state (see
+`AtlasTexture.applyFiltering`, `WorldOptions.blockTextureFiltering`).
+Meant for an A/B run — flip it, hold a pose, measure, flip it back.
+
+#### Parameters
+
+| Name | Type |
+| :------ | :------ |
+| `mode` | ``"nearest"`` \| ``"mip-aniso"`` |
+
+#### Returns
+
+`void`
+
+___
+
 ### setResolutionOf
 
-▸ **setResolutionOf**(`idOrName`, `faceNames`, `resolution`): `Promise`\<`void`\>
+▸ **setResolutionOf**(`idOrName`, `faceNames`, `resolution`): `Promise`<`void`\>
 
 Apply a resolution to a block. This will set the resolution of the block's texture atlas.
 Keep in mind that this face or faces must be independent.
@@ -1560,7 +2206,37 @@ Keep in mind that this face or faces must be independent.
 
 #### Returns
 
-`Promise`\<`void`\>
+`Promise`<`void`\>
+
+___
+
+### setSectionReveal
+
+▸ **setSectionReveal**(`cx`, `cz`, `level`, `reveal`): `boolean`
+
+Draw a section partway through its own fog color: `0` is pure fog tint
+(the sky-dome gradient it would vanish into at distance), `1` is the
+section as itself. The terrain fade-in drives this per frame.
+
+Reaches both render paths of a section. Its shared-opaque geometry lives
+in a region arena slot, whose per-instance batching color carries the
+value into `vChunkReveal`; everything else is a per-section mesh on a
+shared material, which gets the value through a per-draw `uChunkReveal`
+that is reset after each draw so the same material draws every other
+chunk unrevealed. Returns whether the section had anything to draw.
+
+#### Parameters
+
+| Name | Type |
+| :------ | :------ |
+| `cx` | `number` |
+| `cz` | `number` |
+| `level` | `number` |
+| `reveal` | `number` |
+
+#### Returns
+
+`boolean`
 
 ___
 
@@ -1611,7 +2287,7 @@ ___
 | `py` | `number` |
 | `pz` | `number` |
 | `level` | `number` |
-| `color` | [`LightColor`](../modules.md#lightcolor) |
+| `color` | [`LightColor`](../#lightcolor) |
 
 #### Returns
 
@@ -1678,16 +2354,91 @@ ___
 
 ___
 
-### update
+### setVoxelWaterlogLevelAt
 
-▸ **update**(`position?`, `direction?`): `void`
+▸ **setVoxelWaterlogLevelAt**(`px`, `py`, `pz`, `level`): `void`
 
 #### Parameters
 
 | Name | Type |
 | :------ | :------ |
-| `position` | `Vector3` |
-| `direction` | `Vector3` |
+| `px` | `number` |
+| `py` | `number` |
+| `pz` | `number` |
+| `level` | `number` |
+
+#### Returns
+
+`void`
+
+___
+
+### setVoxelWaterloggedAt
+
+▸ **setVoxelWaterloggedAt**(`px`, `py`, `pz`, `isWaterlogged`): `void`
+
+#### Parameters
+
+| Name | Type |
+| :------ | :------ |
+| `px` | `number` |
+| `py` | `number` |
+| `pz` | `number` |
+| `isWaterlogged` | `boolean` |
+
+#### Returns
+
+`void`
+
+___
+
+### textureCensus
+
+▸ **textureCensus**(): [`TextureCensus`](../#texturecensus)
+
+What every block surface is wearing right now: atlas slots, own-texture
+face defaults, and every voxel's isolated face, with the ones not yet
+in their own art listed worst first. The harness asserts on this after
+a load; a human would otherwise be hunting the scene for magenta.
+
+#### Returns
+
+[`TextureCensus`](../#texturecensus)
+
+___
+
+### transparentMediumAt
+
+▸ **transparentMediumAt**(`x`, `y`, `z`): [`TransparentMedium`](../#transparentmedium)
+
+The medium at a world position, for `TRANSPARENT_SORT`.
+
+#### Parameters
+
+| Name | Type |
+| :------ | :------ |
+| `x` | `number` |
+| `y` | `number` |
+| `z` | `number` |
+
+#### Returns
+
+[`TransparentMedium`](../#transparentmedium)
+
+___
+
+### update
+
+▸ **update**(`position?`, `direction?`, `camera?`, `isSpectating?`): `void`
+
+#### Parameters
+
+| Name | Type | Default value |
+| :------ | :------ | :------ |
+| `position` | `Vector3` | `undefined` |
+| `direction` | `Vector3` | `undefined` |
+| `camera?` | `Camera` | `undefined` |
+| `isSpectating` | `boolean` | `false` |
 
 #### Returns
 
@@ -1733,13 +2484,13 @@ ___
 ▸ **updateVoxel**(`vx`, `vy`, `vz`, `type`, `options`): `void`
 
 This sends a block update to the server and updates across the network. Block updates are queued to
-World.chunks | World.chunks.toUpdate and scaffolded to the server [WorldClientOptions.maxUpdatesPerUpdate](../modules.md#worldclientoptions) times
+World.chunks | World.chunks.toUpdate and scaffolded to the server [WorldClientOptions.maxUpdatesPerUpdate](../#worldclientoptions) times
 per tick. Keep in mind that for rotation and y-rotation, the value should be one of the following:
-- Rotation: [PX_ROTATION](../modules.md#px_rotation) | [NX_ROTATION](../modules.md#nx_rotation) | [PY_ROTATION](../modules.md#py_rotation) | [NY_ROTATION](../modules.md#ny_rotation) | [PZ_ROTATION](../modules.md#pz_rotation) | [NZ_ROTATION](../modules.md#nz_rotation)
-- Y-rotation: 0 to [Y_ROT_SEGMENTS](../modules.md#y_rot_segments) - 1.
+- Rotation: [PX_ROTATION](../#px_rotation) | [NX_ROTATION](../#nx_rotation) | [PY_ROTATION](../#py_rotation) | [NY_ROTATION](../#ny_rotation) | [PZ_ROTATION](../#pz_rotation) | [NZ_ROTATION](../#nz_rotation)
+- Y-rotation: 0 to [Y_ROT_SEGMENTS](../#y_rot_segments) - 1.
 
-This ignores blocks that are not defined, and also ignores rotations for blocks that are not [Block.rotatable](../modules.md#block) (Same for if
-block is not [Block.yRotatable](../modules.md#block)).
+This ignores blocks that are not defined, and also ignores rotations for blocks that are not [Block.rotatable](../#block) (Same for if
+block is not [Block.yRotatable](../#block)).
 
 #### Parameters
 
@@ -1765,22 +2516,12 @@ ___
 
 ▸ **updateVoxels**(`updates`, `source?`): `void`
 
-This sends a list of block updates to the server and updates across the network. Block updates are queued to
-World.chunks | World.chunks.toUpdate and scaffolded to the server [WorldClientOptions.maxUpdatesPerUpdate](../modules.md#worldclientoptions) times
-per tick. Keep in mind that for rotation and y-rotation, the value should be one of the following:
-
-- Rotation: [PX_ROTATION](../modules.md#px_rotation) | [NX_ROTATION](../modules.md#nx_rotation) | [PY_ROTATION](../modules.md#py_rotation) | [NY_ROTATION](../modules.md#ny_rotation) | [PZ_ROTATION](../modules.md#pz_rotation) | [NZ_ROTATION](../modules.md#nz_rotation)
-- Y-rotation: 0 to [Y_ROT_SEGMENTS](../modules.md#y_rot_segments) - 1.
-
-This ignores blocks that are not defined, and also ignores rotations for blocks that are not [Block.rotatable](../modules.md#block) (Same for if
-block is not [Block.yRotatable](../modules.md#block)).
-
 #### Parameters
 
-| Name | Type | Default value | Description |
-| :------ | :------ | :------ | :------ |
-| `updates` | [`BlockUpdate`](../modules.md#blockupdate)[] | `undefined` | A list of updates to send to the server. |
-| `source` | ``"client"`` \| ``"server"`` | `"client"` | - |
+| Name | Type | Default value |
+| :------ | :------ | :------ |
+| `updates` | [`BlockUpdate`](../#blockupdate)[] | `undefined` |
+| `source` | ``"client"`` \| ``"server"`` | `"client"` |
 
 #### Returns
 

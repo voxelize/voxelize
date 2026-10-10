@@ -33,7 +33,7 @@ Create a new [Clouds](Clouds.md) instance, initializing it asynchronously automa
 
 | Name | Type | Description |
 | :------ | :------ | :------ |
-| `options` | `Partial`\<[`CloudsOptions`](../modules.md#cloudsoptions)\> | Parameters used to create a new [Clouds](Clouds.md) instance. |
+| `options` | `Partial`<[`CloudsOptions`](../#cloudsoptions)\> | Parameters used to create a new [Clouds](Clouds.md) instance. |
 
 #### Returns
 
@@ -45,6 +45,23 @@ Group.constructor
 
 ## Properties
 
+### baseColorHSL
+
+• **baseColorHSL**: `Object`
+
+The authored cloud colour, kept because the day/night cycle overwrites the
+live uniform every frame and would otherwise have nothing to scale from.
+
+#### Type declaration
+
+| Name | Type |
+| :------ | :------ |
+| `h` | `number` |
+| `l` | `number` |
+| `s` | `number` |
+
+___
+
 ### isInitialized
 
 • **isInitialized**: `boolean` = `false`
@@ -55,7 +72,7 @@ ___
 
 ### locatedCell
 
-• **locatedCell**: [`Coords2`](../modules.md#coords2)
+• **locatedCell**: [`Coords2`](../#coords2)
 
 The cell that this cloud is currently centered around.
 
@@ -71,7 +88,7 @@ ___
 
 ### meshes
 
-• **meshes**: `Mesh`\<`BufferGeometry`\<`NormalBufferAttributes`, `BufferGeometryEventMap`\>, `Material` \| `Material`[], `Object3DEventMap`\>[][] = `[]`
+• **meshes**: `Mesh`<`BufferGeometry`<`NormalBufferAttributes`, `BufferGeometryEventMap`\>, `Material` \| `Material`[], `Object3DEventMap`\>[][] = `[]`
 
 A 2D array of cloud meshes. The first dimension is the x-axis, and the second dimension is the z-axis.
 
@@ -79,7 +96,7 @@ ___
 
 ### options
 
-• **options**: [`CloudsOptions`](../modules.md#cloudsoptions)
+• **options**: [`CloudsOptions`](../#cloudsoptions)
 
 Parameters used to create a new [Clouds](Clouds.md) instance.
 
@@ -115,19 +132,39 @@ ___
 
 ### reset
 
-▸ **reset**(): `Promise`\<`void`\>
+▸ **reset**(): `Promise`<`void`\>
 
-Reset the clouds to their initial state.
+Regrow the deck around the current cell, after any grid work already in
+flight has finished.
 
 #### Returns
 
-`Promise`\<`void`\>
+`Promise`<`void`\>
+
+___
+
+### setSeed
+
+▸ **setSeed**(`seed`): `Promise`<`void`\>
+
+Regrow the deck from a new seed. A `World` calls this with the server's
+world seed once INIT delivers it, so all of its clients see one deck.
+
+#### Parameters
+
+| Name | Type |
+| :------ | :------ |
+| `seed` | `number` |
+
+#### Returns
+
+`Promise`<`void`\>
 
 ___
 
 ### update
 
-▸ **update**(`position`): `void`
+▸ **update**(`position`, `driftClock?`): `void`
 
 Move the clouds to centering around the passed in position. If there aren't enough cloud
 cells at any side, new clouds are generated.
@@ -137,6 +174,7 @@ cells at any side, new clouds are generated.
 | Name | Type | Description |
 | :------ | :------ | :------ |
 | `position` | `Vector3` | The new position that this cloud should be centered around. |
+| `driftClock?` | `number` | Seconds on a clock every viewer of this deck shares (`World.sharedClock`). Given, the deck's drift is a pure function of it, so two clients looking up see the same cloud in the same place; without it the deck drifts by this instance's own frame time. |
 
 #### Returns
 

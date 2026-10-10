@@ -20,7 +20,7 @@ silence (a lost entity that should be released) from whole-stream silence
 
 | Name | Type |
 | :------ | :------ |
-| `options` | [`EntityLivenessOptions`](../modules.md#entitylivenessoptions) |
+| `options` | [`EntityLivenessOptions`](../#entitylivenessoptions) |
 
 #### Returns
 

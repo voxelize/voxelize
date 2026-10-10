@@ -16,7 +16,7 @@ custom_edit_url: null
 
 ### constructor
 
-• **new ItemSlots**\<`T`\>(`options?`): [`ItemSlots`](ItemSlots.md)\<`T`\>
+• **new ItemSlots**<`T`\>(`options?`): [`ItemSlots`](ItemSlots.md)<`T`\>
 
 #### Type parameters
 
@@ -28,11 +28,11 @@ custom_edit_url: null
 
 | Name | Type |
 | :------ | :------ |
-| `options` | `Partial`\<[`ItemSlotsOptions`](../modules.md#itemslotsoptions)\> |
+| `options` | `Partial`<[`ItemSlotsOptions`](../#itemslotsoptions)\> |
 
 #### Returns
 
-[`ItemSlots`](ItemSlots.md)\<`T`\>
+[`ItemSlots`](ItemSlots.md)<`T`\>
 
 ## Properties
 
@@ -74,7 +74,7 @@ ___
 
 ### onSlotClick
 
-• **onSlotClick**: (`slot`: [`ItemSlot`](ItemSlot.md)\<`T`\>) => `void` = `noop`
+• **onSlotClick**: (`slot`: [`ItemSlot`](ItemSlot.md)<`T`\>) => `void` = `noop`
 
 #### Type declaration
 
@@ -84,7 +84,7 @@ ___
 
 | Name | Type |
 | :------ | :------ |
-| `slot` | [`ItemSlot`](ItemSlot.md)\<`T`\> |
+| `slot` | [`ItemSlot`](ItemSlot.md)<`T`\> |
 
 ##### Returns
 
@@ -94,7 +94,7 @@ ___
 
 ### onSlotUpdate
 
-• **onSlotUpdate**: (`slot`: [`ItemSlot`](ItemSlot.md)\<`T`\>) => `void` = `noop`
+• **onSlotUpdate**: (`slot`: [`ItemSlot`](ItemSlot.md)<`T`\>) => `void` = `noop`
 
 #### Type declaration
 
@@ -104,7 +104,7 @@ ___
 
 | Name | Type |
 | :------ | :------ |
-| `slot` | [`ItemSlot`](ItemSlot.md)\<`T`\> |
+| `slot` | [`ItemSlot`](ItemSlot.md)<`T`\> |
 
 ##### Returns
 
@@ -114,7 +114,7 @@ ___
 
 ### options
 
-• **options**: [`ItemSlotsOptions`](../modules.md#itemslotsoptions)
+• **options**: [`ItemSlotsOptions`](../#itemslotsoptions)
 
 ___
 
@@ -170,7 +170,7 @@ ___
 
 | Name | Type | Default value |
 | :------ | :------ | :------ |
-| `inputs` | [`Inputs`](Inputs.md)\<`any`\> | `undefined` |
+| `inputs` | [`Inputs`](Inputs.md)<`any`\> | `undefined` |
 | `namespace` | `string` | `"*"` |
 
 #### Returns
@@ -224,17 +224,17 @@ ___
 
 ### getFocused
 
-▸ **getFocused**(): [`ItemSlot`](ItemSlot.md)\<`T`\>
+▸ **getFocused**(): [`ItemSlot`](ItemSlot.md)<`T`\>
 
 #### Returns
 
-[`ItemSlot`](ItemSlot.md)\<`T`\>
+[`ItemSlot`](ItemSlot.md)<`T`\>
 
 ___
 
 ### getObject
 
-▸ **getObject**(`row`, `col`): `Object3D`\<`Object3DEventMap`\>
+▸ **getObject**(`row`, `col`): `Object3D`<`Object3DEventMap`\>
 
 #### Parameters
 
@@ -245,7 +245,7 @@ ___
 
 #### Returns
 
-`Object3D`\<`Object3DEventMap`\>
+`Object3D`<`Object3DEventMap`\>
 
 ___
 
@@ -272,7 +272,7 @@ ___
 
 ### getSlot
 
-▸ **getSlot**(`row`, `col`): [`ItemSlot`](ItemSlot.md)\<`T`\>
+▸ **getSlot**(`row`, `col`): [`ItemSlot`](ItemSlot.md)<`T`\>
 
 #### Parameters
 
@@ -283,7 +283,7 @@ ___
 
 #### Returns
 
-[`ItemSlot`](ItemSlot.md)\<`T`\>
+[`ItemSlot`](ItemSlot.md)<`T`\>
 
 ___
 
@@ -306,15 +306,27 @@ ___
 
 ### onFocusChange
 
-▸ **onFocusChange**(`callbackFunc`): `void`
+▸ **onFocusChange**(`callbackFunc`): () => `void`
+
+Listen for the focused slot changing.
 
 #### Parameters
 
 | Name | Type |
 | :------ | :------ |
-| `callbackFunc` | (`prevSlot`: [`ItemSlot`](ItemSlot.md)\<`T`\>, `nextSlot`: [`ItemSlot`](ItemSlot.md)\<`T`\>) => `void` |
+| `callbackFunc` | (`prevSlot`: [`ItemSlot`](ItemSlot.md)<`T`\>, `nextSlot`: [`ItemSlot`](ItemSlot.md)<`T`\>) => `void` |
 
 #### Returns
+
+`fn`
+
+A function to unsubscribe. A listener owned by something with a
+lifetime shorter than the hotbar's — a mounted UI component, say — must
+call it, or every remount leaves another copy running.
+
+▸ (): `void`
+
+##### Returns
 
 `void`
 
@@ -385,7 +397,7 @@ ___
 | :------ | :------ |
 | `row` | `number` |
 | `col` | `number` |
-| `object` | `Object3D`\<`Object3DEventMap`\> \| `HTMLImageElement` |
+| `object` | `Object3D`<`Object3DEventMap`\> \| `HTMLImageElement` |
 
 #### Returns
 
@@ -419,8 +431,8 @@ ___
 
 | Name | Type |
 | :------ | :------ |
-| `prevSlot` | [`ItemSlot`](ItemSlot.md)\<`T`\> |
-| `nextSlot` | [`ItemSlot`](ItemSlot.md)\<`T`\> |
+| `prevSlot` | [`ItemSlot`](ItemSlot.md)<`T`\> |
+| `nextSlot` | [`ItemSlot`](ItemSlot.md)<`T`\> |
 
 #### Returns
 

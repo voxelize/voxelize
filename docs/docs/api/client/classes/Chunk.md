@@ -23,7 +23,7 @@ custom_edit_url: null
 | Name | Type |
 | :------ | :------ |
 | `id` | `string` |
-| `coords` | [`Coords2`](../modules.md#coords2) |
+| `coords` | [`Coords2`](../#coords2) |
 | `options` | `RawChunkOptions` |
 
 #### Returns
@@ -42,9 +42,15 @@ RawChunk.constructor
 
 ___
 
+### biomeTints
+
+• **biomeTints**: `Uint8Array`<`ArrayBufferLike`\>
+
+___
+
 ### coords
 
-• **coords**: [`Coords2`](../modules.md#coords2)
+• **coords**: [`Coords2`](../#coords2)
 
 #### Inherited from
 
@@ -54,7 +60,7 @@ ___
 
 ### group
 
-• **group**: `Group`\<`Object3DEventMap`\>
+• **group**: [`StaticGroup`](StaticGroup.md)
 
 ___
 
@@ -76,7 +82,7 @@ ___
 
 ### lights
 
-• **lights**: `NdArray`\<`Uint32Array`\<`ArrayBufferLike`\>\>
+• **lights**: `NdArray`<`Uint32Array`<`ArrayBufferLike`\>\>
 
 #### Inherited from
 
@@ -86,7 +92,7 @@ ___
 
 ### max
 
-• **max**: [`Coords3`](../modules.md#coords3)
+• **max**: [`Coords3`](../#coords3)
 
 #### Inherited from
 
@@ -96,13 +102,13 @@ ___
 
 ### meshes
 
-• **meshes**: `Map`\<`number`, `Mesh`\<`BufferGeometry`\<`NormalBufferAttributes`, `BufferGeometryEventMap`\>, `Material` \| `Material`[], `Object3DEventMap`\>[]\>
+• **meshes**: `Map`<`number`, `Mesh`<`BufferGeometry`<`NormalBufferAttributes`, `BufferGeometryEventMap`\>, `Material` \| `Material`[], `Object3DEventMap`\>[]\>
 
 ___
 
 ### min
 
-• **min**: [`Coords3`](../modules.md#coords3)
+• **min**: [`Coords3`](../#coords3)
 
 #### Inherited from
 
@@ -130,9 +136,30 @@ RawChunk.options
 
 ___
 
+### plantsShown
+
+• **plantsShown**: `boolean` = `null`
+
+Whether this chunk's plant meshes are currently shown, or `null` when the
+question has not been asked since its meshes last changed. Lets the
+per-frame distance check skip chunks whose band has not moved.
+
+___
+
+### sectionVisibleMask
+
+• **sectionVisibleMask**: `number` = `null`
+
+Bit-per-level mask of which sections the occlusion walk last left
+visible, or `null` when it must be reapplied (fresh meshes default to
+visible). Lets the per-frame walk skip rewriting mesh visibility for
+chunks whose answer has not changed.
+
+___
+
 ### voxels
 
-• **voxels**: `NdArray`\<`Uint32Array`\<`ArrayBufferLike`\>\>
+• **voxels**: `NdArray`<`Uint32Array`<`ArrayBufferLike`\>\>
 
 #### Inherited from
 
@@ -356,7 +383,7 @@ Get the colored torch light level at a given voxel coordinate.
 | `vx` | `number` | The x voxel coordinate |
 | `vy` | `number` | The y voxel coordinate |
 | `vz` | `number` | The z voxel coordinate |
-| `color` | [`LightColor`](../modules.md#lightcolor) | The color of the light to get at the given voxel coordinate. |
+| `color` | [`LightColor`](../#lightcolor) | The color of the light to get at the given voxel coordinate. |
 
 #### Returns
 
@@ -448,6 +475,82 @@ RawChunk.getVoxelStage
 
 ___
 
+### getVoxelWaterlogLevel
+
+▸ **getVoxelWaterlogLevel**(`vx`, `vy`, `vz`): `number`
+
+The level of waterlogging fluid held by the voxel at a given coordinate.
+
+#### Parameters
+
+| Name | Type | Description |
+| :------ | :------ | :------ |
+| `vx` | `number` | The x voxel coordinate. |
+| `vy` | `number` | The y voxel coordinate. |
+| `vz` | `number` | The z voxel coordinate. |
+
+#### Returns
+
+`number`
+
+#### Inherited from
+
+RawChunk.getVoxelWaterlogLevel
+
+___
+
+### getVoxelWaterlogged
+
+▸ **getVoxelWaterlogged**(`vx`, `vy`, `vz`): `boolean`
+
+Whether the voxel at a given coordinate holds the world's waterlogging
+fluid alongside its block.
+
+#### Parameters
+
+| Name | Type | Description |
+| :------ | :------ | :------ |
+| `vx` | `number` | The x voxel coordinate. |
+| `vy` | `number` | The y voxel coordinate. |
+| `vz` | `number` | The z voxel coordinate. |
+
+#### Returns
+
+`boolean`
+
+#### Inherited from
+
+RawChunk.getVoxelWaterlogged
+
+___
+
+### isAirRange
+
+▸ **isAirRange**(`minY`, `maxY`): `boolean`
+
+Whether a full-width, half-open vertical range contains only raw air.
+Used before serializing a meshing stencil: empty sky needs no worker.
+Reads current storage every time, so bulk loads, edits and shared-buffer
+replacement cannot leave a stale occupancy cache. Nonzero metadata is
+conservatively sent to the mesher too.
+
+#### Parameters
+
+| Name | Type |
+| :------ | :------ |
+| `minY` | `number` |
+| `maxY` | `number` |
+
+#### Returns
+
+`boolean`
+
+#### Inherited from
+
+RawChunk.isAirRange
+
+___
+
 ### serialize
 
 ▸ **serialize**(): [`SerializedChunkPayload`, `ArrayBuffer`[]]
@@ -493,7 +596,9 @@ ___
 
 ### setData
 
-▸ **setData**(`data`): `void`
+▸ **setData**(`data`): `boolean`
+
+See RawChunk.setData: adopts a new server id for the same coordinates.
 
 #### Parameters
 
@@ -503,7 +608,7 @@ ___
 
 #### Returns
 
-`void`
+`boolean`
 
 #### Overrides
 
@@ -672,7 +777,7 @@ Note: This method is purely client-side and does not affect the actual values on
 | `vy` | `number` | The y voxel coordinate |
 | `vz` | `number` | The z voxel coordinate |
 | `level` | `number` | The light level to set at the given voxel coordinate. |
-| `color` | [`LightColor`](../modules.md#lightcolor) | The color of the light to set at the given voxel coordinate. |
+| `color` | [`LightColor`](../#lightcolor) | The color of the light to set at the given voxel coordinate. |
 
 #### Returns
 
@@ -768,3 +873,57 @@ The voxel stage at the given voxel coordinate.
 #### Inherited from
 
 RawChunk.setVoxelStage
+
+___
+
+### setVoxelWaterlogLevel
+
+▸ **setVoxelWaterlogLevel**(`vx`, `vy`, `vz`, `level`): `number`
+
+Set the level of waterlogging fluid held by the voxel at a coordinate.
+
+Note: This method is purely client-side and does not affect the actual values on the server.
+
+#### Parameters
+
+| Name | Type | Description |
+| :------ | :------ | :------ |
+| `vx` | `number` | The x voxel coordinate. |
+| `vy` | `number` | The y voxel coordinate. |
+| `vz` | `number` | The z voxel coordinate. |
+| `level` | `number` | The fluid level, 0 through 7. |
+
+#### Returns
+
+`number`
+
+#### Inherited from
+
+RawChunk.setVoxelWaterlogLevel
+
+___
+
+### setVoxelWaterlogged
+
+▸ **setVoxelWaterlogged**(`vx`, `vy`, `vz`, `isWaterlogged`): `boolean`
+
+Set whether the voxel at a given coordinate holds the waterlogging fluid.
+
+Note: This method is purely client-side and does not affect the actual values on the server.
+
+#### Parameters
+
+| Name | Type | Description |
+| :------ | :------ | :------ |
+| `vx` | `number` | The x voxel coordinate. |
+| `vy` | `number` | The y voxel coordinate. |
+| `vz` | `number` | The z voxel coordinate. |
+| `isWaterlogged` | `boolean` | Whether the voxel holds the waterlogging fluid. |
+
+#### Returns
+
+`boolean`
+
+#### Inherited from
+
+RawChunk.setVoxelWaterlogged

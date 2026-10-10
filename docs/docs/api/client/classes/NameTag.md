@@ -9,6 +9,12 @@ custom_edit_url: null
 A class that allows you to create a name tag mesh. This name tag mesh also supports colored text
 using the [ColorText](ColorText.md) syntax. Name tags can be treated like any other mesh.
 
+A name tag is a label, not world geometry: it does not take the scene's
+fog (`material.fog` is off), and it fades out with camera distance
+([NameTagDistance](../#nametagdistance)) instead. It is a world-sized sprite, so on
+screen it shrinks with distance like everything else until the fade
+retires it.
+
 ![Name tag](/img/docs/nametag.png)
 
 ## Hierarchy
@@ -28,7 +34,7 @@ using the [ColorText](ColorText.md) syntax. Name tags can be treated like any ot
 | Name | Type |
 | :------ | :------ |
 | `text` | `string` |
-| `options` | `Partial`\<[`NameTagOptions`](../modules.md#nametagoptions)\> |
+| `options` | `Partial`<[`NameTagOptions`](../#nametagoptions)\> |
 
 #### Returns
 
@@ -37,6 +43,53 @@ using the [ColorText](ColorText.md) syntax. Name tags can be treated like any ot
 #### Overrides
 
 [SpriteText](SpriteText.md).[constructor](SpriteText.md#constructor)
+
+## Properties
+
+### distanceDefaults
+
+▪ `Static` **distanceDefaults**: [`NameTagDistance`](../#nametagdistance)
+
+The distance behaviour a tag uses wherever its own options leave a
+field unset. Read on every draw, so an app can set it once at startup,
+before or after its first tags exist. The engine default keeps every
+tag at every distance, drawn over everything.
+
+___
+
+### distanceFade
+
+▪ `Static` **distanceFade**: `boolean` = `true`
+
+Global switch for the distance behaviour. Off, tags behave as they did
+before distance fading existed: drawn at every distance, over
+everything, and taking the scene's fog like the world around them. The
+fade, the cull and the depth test read it on every draw; the fog is
+set when a tag is made. For side-by-side comparisons.
+
+___
+
+### fadeEnd
+
+• `Optional` **fadeEnd**: `number`
+
+This tag's own fade end; unset uses [NameTag.distanceDefaults](NameTag.md#distancedefaults).
+
+___
+
+### fadeStart
+
+• `Optional` **fadeStart**: `number`
+
+This tag's own fade start; unset uses [NameTag.distanceDefaults](NameTag.md#distancedefaults).
+
+___
+
+### seeThroughDistance
+
+• `Optional` **seeThroughDistance**: `number`
+
+This tag's own see-through range; unset uses [NameTag.distanceDefaults](NameTag.md#distancedefaults).
 
 ## Accessors
 
@@ -278,6 +331,32 @@ SpriteText.fontWeight
 
 ___
 
+### opacity
+
+• `get` **opacity**(): `number`
+
+How opaque the owner wants the tag (a label fading out with its owner).
+The distance fade multiplies it on every draw, so set this rather than
+`material.opacity`, which the fade rewrites.
+
+#### Returns
+
+`number`
+
+• `set` **opacity**(`opacity`): `void`
+
+#### Parameters
+
+| Name | Type |
+| :------ | :------ |
+| `opacity` | `number` |
+
+#### Returns
+
+`void`
+
+___
+
 ### padding
 
 • `get` **padding**(): `number`
@@ -449,3 +528,72 @@ Set the text height to display. This will regenerate the sprite.
 #### Inherited from
 
 SpriteText.textHeight
+
+## Methods
+
+### dispose
+
+▸ **dispose**(): `void`
+
+Free the label's GPU texture and material. The quad geometry is three's
+shared sprite geometry and stays. Call once the sprite has left the
+scene for good.
+
+#### Returns
+
+`void`
+
+#### Inherited from
+
+[SpriteText](SpriteText.md).[dispose](SpriteText.md#dispose)
+
+___
+
+### onBeforeRender
+
+▸ **onBeforeRender**(`_renderer`, `_scene`, `camera`): `void`
+
+Fade, depth test and retire the tag for the camera about to draw it.
+Three calls this only for tags it draws, so the per-frame cost follows
+the tags on screen, and it allocates nothing.
+
+#### Parameters
+
+| Name | Type |
+| :------ | :------ |
+| `_renderer` | `WebGLRenderer` |
+| `_scene` | `Scene`<`Object3DEventMap`\> |
+| `camera` | `Camera` |
+
+#### Returns
+
+`void`
+
+#### Overrides
+
+SpriteText.onBeforeRender
+
+___
+
+### updateMatrixWorld
+
+▸ **updateMatrixWorld**(`force?`): `void`
+
+A retired tag is never drawn, so it cannot see the camera come back in
+range from its draw hook. The scene's matrix pass reaches it every frame
+regardless, and that is where it rejoins: one distance check, and only
+for retired tags.
+
+#### Parameters
+
+| Name | Type |
+| :------ | :------ |
+| `force?` | `boolean` |
+
+#### Returns
+
+`void`
+
+#### Overrides
+
+SpriteText.updateMatrixWorld

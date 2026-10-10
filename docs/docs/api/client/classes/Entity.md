@@ -22,7 +22,7 @@ custom_edit_url: null
 
 ### constructor
 
-• **new Entity**\<`T`\>(`id`): [`Entity`](Entity.md)\<`T`\>
+• **new Entity**<`T`\>(`id`): [`Entity`](Entity.md)<`T`\>
 
 #### Type parameters
 
@@ -38,7 +38,7 @@ custom_edit_url: null
 
 #### Returns
 
-[`Entity`](Entity.md)\<`T`\>
+[`Entity`](Entity.md)<`T`\>
 
 #### Overrides
 
@@ -161,6 +161,27 @@ ___
 ### update
 
 • `Optional` **update**: () => `void`
+
+#### Type declaration
+
+▸ (): `void`
+
+##### Returns
+
+`void`
+
+___
+
+### updateFrozen
+
+• `Optional` **updateFrozen**: () => `void`
+
+Called each frame in place of `update` while the server holds the
+entity frozen. The pose holds, but state that belongs to the world
+rather than the pose — the voxel light an instance is shaded with —
+should keep tracking it, or a creature frozen at dusk stays lit as
+it was when it froze (or as the pool's default, if it streamed in
+frozen).
 
 #### Type declaration
 

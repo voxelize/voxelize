@@ -22,7 +22,7 @@ custom_edit_url: null
 
 | Name | Type |
 | :------ | :------ |
-| `options` | `Partial`\<[`CreatureOptions`](../modules.md#creatureoptions)\> |
+| `options` | `Partial`<[`CreatureOptions`](../#creatureoptions)\> |
 
 #### Returns
 
@@ -42,7 +42,7 @@ ___
 
 ### backLeftLegGroup
 
-• **backLeftLegGroup**: `Group`\<`Object3DEventMap`\>
+• **backLeftLegGroup**: `Group`<`Object3DEventMap`\>
 
 ___
 
@@ -54,7 +54,7 @@ ___
 
 ### backRightLegGroup
 
-• **backRightLegGroup**: `Group`\<`Object3DEventMap`\>
+• **backRightLegGroup**: `Group`<`Object3DEventMap`\>
 
 ___
 
@@ -66,7 +66,7 @@ ___
 
 ### bodyGroup
 
-• **bodyGroup**: `Group`\<`Object3DEventMap`\>
+• **bodyGroup**: `Group`<`Object3DEventMap`\>
 
 ___
 
@@ -84,7 +84,7 @@ ___
 
 ### frontLeftLegGroup
 
-• **frontLeftLegGroup**: `Group`\<`Object3DEventMap`\>
+• **frontLeftLegGroup**: `Group`<`Object3DEventMap`\>
 
 ___
 
@@ -96,7 +96,7 @@ ___
 
 ### frontRightLegGroup
 
-• **frontRightLegGroup**: `Group`\<`Object3DEventMap`\>
+• **frontRightLegGroup**: `Group`<`Object3DEventMap`\>
 
 ___
 
@@ -108,7 +108,7 @@ ___
 
 ### headGroup
 
-• **headGroup**: `Group`\<`Object3DEventMap`\>
+• **headGroup**: `Group`<`Object3DEventMap`\>
 
 ___
 
@@ -172,7 +172,7 @@ ___
 
 ### options
 
-• **options**: [`CreatureOptions`](../modules.md#creatureoptions)
+• **options**: [`CreatureOptions`](../#creatureoptions)
 
 ___
 

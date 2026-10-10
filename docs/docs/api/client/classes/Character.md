@@ -49,7 +49,7 @@ Create a new Voxelize character.
 
 | Name | Type | Description |
 | :------ | :------ | :------ |
-| `options` | `Partial`\<[`CharacterOptions`](../modules.md#characteroptions)\> | Parameters to create a Voxelize character. |
+| `options` | `Partial`<[`CharacterOptions`](../#characteroptions)\> | Parameters to create a Voxelize character. |
 
 #### Returns
 
@@ -71,7 +71,7 @@ ___
 
 ### bodyGroup
 
-• **bodyGroup**: `Group`\<`Object3DEventMap`\>
+• **bodyGroup**: `Group`<`Object3DEventMap`\>
 
 The sub-mesh holding the character's body.
 
@@ -95,7 +95,7 @@ ___
 
 ### headGroup
 
-• **headGroup**: `Group`\<`Object3DEventMap`\>
+• **headGroup**: `Group`<`Object3DEventMap`\>
 
 The sub-mesh holding the character's head.
 
@@ -111,7 +111,7 @@ ___
 
 ### leftArmGroup
 
-• **leftArmGroup**: `Group`\<`Object3DEventMap`\>
+• **leftArmGroup**: `Group`<`Object3DEventMap`\>
 
 The sub-mesh holding the character's left arm.
 
@@ -127,7 +127,7 @@ ___
 
 ### leftLegGroup
 
-• **leftLegGroup**: `Group`\<`Object3DEventMap`\>
+• **leftLegGroup**: `Group`<`Object3DEventMap`\>
 
 The sub-mesh holding the character's left leg.
 
@@ -199,7 +199,7 @@ ___
 
 ### options
 
-• **options**: [`CharacterOptions`](../modules.md#characteroptions)
+• **options**: [`CharacterOptions`](../#characteroptions)
 
 Parameters to create a Voxelize character.
 
@@ -226,7 +226,7 @@ ___
 
 ### rightArmGroup
 
-• **rightArmGroup**: `Group`\<`Object3DEventMap`\>
+• **rightArmGroup**: `Group`<`Object3DEventMap`\>
 
 The sub-mesh holding the character's right arm.
 
@@ -242,9 +242,22 @@ ___
 
 ### rightLegGroup
 
-• **rightLegGroup**: `Group`\<`Object3DEventMap`\>
+• **rightLegGroup**: `Group`<`Object3DEventMap`\>
 
 The sub-mesh holding the character's right leg.
+
+___
+
+### shadowSelfBounds
+
+• `Readonly` **shadowSelfBounds**: `Vector4`
+
+The body's bounding sphere in world space (centre xyz, radius w). Every
+part's entity shadow uniforms read it as `uShadowSelfBounds`, so no face
+is shaded by the body it belongs to while anything beyond the body
+still shades it. Kept current by [update](Character.md#update) and
+[updateShadowUniforms](Character.md#updateshadowuniforms); [bindShadowSelfBounds](Character.md#bindshadowselfbounds) shares it
+with an accessory's uniforms.
 
 ___
 
@@ -449,11 +462,78 @@ Change the content of the user's nametag. If the nametag is empty, nothing will 
 
 ## Methods
 
+### bindShadowSelfBounds
+
+▸ **bindShadowSelfBounds**(`uniforms`): `void`
+
+Have `uniforms` read this body's [shadowSelfBounds](Character.md#shadowselfbounds): for an
+accessory with a shadowed material of its own (armour, a hat), so it is
+shaded like the body it is worn on.
+
+#### Parameters
+
+| Name | Type |
+| :------ | :------ |
+| `uniforms` | [`EntityShadowUniforms`](../interfaces/EntityShadowUniforms.md) |
+
+#### Returns
+
+`void`
+
+___
+
+### dispose
+
+▸ **dispose**(): `void`
+
+Free the GPU resources this character owns: every canvas box layer
+under it (its six body parts and any hat, cape or extra hung on them)
+and every sprite label (the nametag, a speech bubble). Objects held in
+the hands are left alone: they are usually clones of cached block
+meshes that share geometry and materials with the rest of the world.
+Call once, after the character has left the scene for good.
+
+#### Returns
+
+`void`
+
+___
+
+### fitShadowSelfBounds
+
+▸ **fitShadowSelfBounds**(): `void`
+
+Grow [shadowSelfBounds](Character.md#shadowselfbounds) to hold every mesh under the parts as
+posed now: for a body whose attachments reach past its anatomical boxes
+(splayed legs, a tail, a crest). Call once the body is built; the reach
+is measured in the body's own frame, so it turns and scales with it.
+
+#### Returns
+
+`void`
+
+___
+
 ### playArmSwingAnimation
 
 ▸ **playArmSwingAnimation**(): `void`
 
 Play the "swing" animation.
+
+#### Returns
+
+`void`
+
+___
+
+### refreshShadowSelfBounds
+
+▸ **refreshShadowSelfBounds**(): `void`
+
+Recompute [shadowSelfBounds](Character.md#shadowselfbounds) from the current pose: a sphere about
+the middle of the body that holds every part however the arms swing,
+carried, turned and scaled with the root (a swimmer lies along it, a
+fallen body rolls with it).
 
 #### Returns
 
@@ -493,7 +573,7 @@ Set the character's arm holding object.
 
 | Name | Type | Default value | Description |
 | :------ | :------ | :------ | :------ |
-| `object` | `Object3D`\<`Object3DEventMap`\> | `undefined` | The object to set as the arm holding object. |
+| `object` | `Object3D`<`Object3DEventMap`\> | `undefined` | The object to set as the arm holding object. |
 | `side` | ``"left"`` \| ``"right"`` | `"right"` | - |
 
 #### Returns

@@ -25,7 +25,7 @@ packets to the server.
 
 ### onMessage
 
-• `Optional` **onMessage**: (`message`: `MessageProtocol`, `clientInfo`: \{ `id`: `string` ; `metadata?`: `Record`\<`string`, `any`\> ; `username`: `string`  }) => `void`
+• `Optional` **onMessage**: (`message`: `MessageProtocol`, `clientInfo`: \{ `id`: `string` ; `metadata?`: `Record`<`string`, `any`\> ; `username`: `string`  }) => `void`
 
 A listener to be implemented to handle incoming packets.
 
@@ -40,8 +40,33 @@ A listener to be implemented to handle incoming packets.
 | `message` | `MessageProtocol` | The message received from the server. |
 | `clientInfo` | `Object` | The client information. |
 | `clientInfo.id` | `string` | The client's ID. |
-| `clientInfo.metadata?` | `Record`\<`string`, `any`\> | The client's metadata (device info, etc.). |
+| `clientInfo.metadata?` | `Record`<`string`, `any`\> | The client's metadata (device info, etc.). |
 | `clientInfo.username` | `string` | The client's username. |
+
+##### Returns
+
+`void`
+
+___
+
+### onPacketsSent
+
+• `Optional` **onPacketsSent**: (`packets`: `MessageProtocol`[]) => `void`
+
+Called by `network.flush()` with the packets from `packets` that were
+actually handed to an open socket, right after they were. A packet
+queued in `packets` may wait for the next flush and for the main thread
+to be free; this is where a sender learns when it truly left.
+
+#### Type declaration
+
+▸ (`packets`): `void`
+
+##### Parameters
+
+| Name | Type |
+| :------ | :------ |
+| `packets` | `MessageProtocol`[] |
 
 ##### Returns
 

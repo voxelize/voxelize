@@ -13,7 +13,7 @@ and can be accessed via [World.loader](World.md#loader).
 
 ### audioBuffers
 
-• **audioBuffers**: `Map`\<`string`, `AudioBuffer`\>
+• **audioBuffers**: `Map`<`string`, `AudioBuffer`\>
 
 A map of all audios loaded by Voxelize.
 
@@ -21,7 +21,7 @@ ___
 
 ### images
 
-• **images**: `Map`\<`string`, `HTMLImageElement` \| `HTMLImageElement`[]\>
+• **images**: `Map`<`string`, `HTMLImageElement` \| `HTMLImageElement`[]\>
 
 ___
 
@@ -43,15 +43,29 @@ ___
 
 ### textures
 
-• **textures**: `Map`\<`string`, `Texture`\<`unknown`\>\>
+• **textures**: `Map`<`string`, `Texture`<`unknown`\>\>
 
 A map of all textures loaded by Voxelize.
 
 ## Methods
 
+### dispose
+
+▸ **dispose**(): `void`
+
+Release everything the loader holds: the pending first-click audio
+gate, cached textures and images, and the decoded audio. The world
+calls this from its own dispose.
+
+#### Returns
+
+`void`
+
+___
+
 ### getGifTexture
 
-▸ **getGifTexture**(`source`): `Texture`\<`unknown`\>[]
+▸ **getGifTexture**(`source`): `Texture`<`unknown`\>[]
 
 Get a loaded gif texture with this function.
 
@@ -63,7 +77,7 @@ Get a loaded gif texture with this function.
 
 #### Returns
 
-`Texture`\<`unknown`\>[]
+`Texture`<`unknown`\>[]
 
 A list of textures for each frame of the gif.
 
@@ -71,7 +85,7 @@ ___
 
 ### getTexture
 
-▸ **getTexture**(`source`): `Texture`\<`unknown`\>
+▸ **getTexture**(`source`): `Texture`<`unknown`\>
 
 Get a loaded texture by its source.
 
@@ -83,7 +97,7 @@ Get a loaded texture by its source.
 
 #### Returns
 
-`Texture`\<`unknown`\>
+`Texture`<`unknown`\>
 
 A texture instance loaded from the source.
 
@@ -91,14 +105,14 @@ ___
 
 ### load
 
-▸ **load**(): `Promise`\<`void`\>
+▸ **load**(): `Promise`<`void`\>
 
 Load all assets other than the textures. Called internally by the world.
 This can be used to ensure that a function runs after all assets are loaded.
 
 #### Returns
 
-`Promise`\<`void`\>
+`Promise`<`void`\>
 
 A promise that resolves when all assets are loaded.
 
@@ -112,7 +126,7 @@ ___
 
 ### loadAudioBuffer
 
-▸ **loadAudioBuffer**(`source`, `onLoaded?`): `Promise`\<`AudioBuffer`\>
+▸ **loadAudioBuffer**(`source`, `onLoaded?`): `Promise`<`AudioBuffer`\>
 
 Add an audio file to be loaded from.
 
@@ -125,13 +139,13 @@ Add an audio file to be loaded from.
 
 #### Returns
 
-`Promise`\<`AudioBuffer`\>
+`Promise`<`AudioBuffer`\>
 
 ___
 
 ### loadGifImages
 
-▸ **loadGifImages**(`source`, `onLoaded?`): `Promise`\<`HTMLImageElement`[]\>
+▸ **loadGifImages**(`source`, `onLoaded?`): `Promise`<`HTMLImageElement`[]\>
 
 #### Parameters
 
@@ -142,13 +156,13 @@ ___
 
 #### Returns
 
-`Promise`\<`HTMLImageElement`[]\>
+`Promise`<`HTMLImageElement`[]\>
 
 ___
 
 ### loadImage
 
-▸ **loadImage**(`source`, `onLoaded?`): `Promise`\<`HTMLImageElement`\>
+▸ **loadImage**(`source`, `onLoaded?`): `Promise`<`HTMLImageElement`\>
 
 #### Parameters
 
@@ -159,21 +173,21 @@ ___
 
 #### Returns
 
-`Promise`\<`HTMLImageElement`\>
+`Promise`<`HTMLImageElement`\>
 
 ___
 
 ### loadTexture
 
-▸ **loadTexture**(`source`, `onLoaded?`): `Promise`\<`Texture`\<`unknown`\>\>
+▸ **loadTexture**(`source`, `onLoaded?`): `Promise`<`Texture`<`unknown`\>\>
 
 #### Parameters
 
 | Name | Type |
 | :------ | :------ |
 | `source` | `string` |
-| `onLoaded?` | (`texture`: `Texture`\<`unknown`\>) => `void` |
+| `onLoaded?` | (`texture`: `Texture`<`unknown`\>) => `void` |
 
 #### Returns
 
-`Promise`\<`Texture`\<`unknown`\>\>
+`Promise`<`Texture`<`unknown`\>\>

@@ -16,7 +16,7 @@ custom_edit_url: null
 
 ### constructor
 
-• **new ItemSlot**\<`T`\>(`itemSlots`, `row`, `col`): [`ItemSlot`](ItemSlot.md)\<`T`\>
+• **new ItemSlot**<`T`\>(`itemSlots`, `row`, `col`): [`ItemSlot`](ItemSlot.md)<`T`\>
 
 #### Type parameters
 
@@ -28,13 +28,13 @@ custom_edit_url: null
 
 | Name | Type |
 | :------ | :------ |
-| `itemSlots` | [`ItemSlots`](ItemSlots.md)\<`T`\> |
+| `itemSlots` | [`ItemSlots`](ItemSlots.md)<`T`\> |
 | `row` | `number` |
 | `col` | `number` |
 
 #### Returns
 
-[`ItemSlot`](ItemSlot.md)\<`T`\>
+[`ItemSlot`](ItemSlot.md)<`T`\>
 
 ## Properties
 
@@ -76,7 +76,7 @@ ___
 
 ### itemSlots
 
-• **itemSlots**: [`ItemSlots`](ItemSlots.md)\<`T`\>
+• **itemSlots**: [`ItemSlots`](ItemSlots.md)<`T`\>
 
 ___
 
@@ -94,7 +94,7 @@ ___
 
 ### object
 
-• **object**: `Object3D`\<`Object3DEventMap`\>
+• **object**: `Object3D`<`Object3DEventMap`\>
 
 ___
 
@@ -112,7 +112,7 @@ ___
 
 ### scene
 
-• **scene**: `Scene`\<`Object3DEventMap`\>
+• **scene**: `Scene`<`Object3DEventMap`\>
 
 ___
 
@@ -158,7 +158,7 @@ ___
 
 | Name | Type |
 | :------ | :------ |
-| `styles` | `Partial`\<`CSSStyleDeclaration`\> |
+| `styles` | `Partial`<`CSSStyleDeclaration`\> |
 
 #### Returns
 
@@ -190,7 +190,7 @@ ___
 
 | Name | Type |
 | :------ | :------ |
-| `styles` | `Partial`\<`CSSStyleDeclaration`\> |
+| `styles` | `Partial`<`CSSStyleDeclaration`\> |
 
 #### Returns
 
@@ -220,11 +220,11 @@ ___
 
 ### getObject
 
-▸ **getObject**(): `Object3D`\<`Object3DEventMap`\>
+▸ **getObject**(): `Object3D`<`Object3DEventMap`\>
 
 #### Returns
 
-`Object3D`\<`Object3DEventMap`\>
+`Object3D`<`Object3DEventMap`\>
 
 ___
 
@@ -310,7 +310,7 @@ ___
 
 | Name | Type |
 | :------ | :------ |
-| `object` | `Object3D`\<`Object3DEventMap`\> \| `HTMLImageElement` |
+| `object` | `Object3D`<`Object3DEventMap`\> \| `HTMLImageElement` |
 
 #### Returns
 
@@ -326,7 +326,7 @@ ___
 
 | Name | Type |
 | :------ | :------ |
-| `perspective` | [`CameraPerspective`](../modules.md#cameraperspective) |
+| `perspective` | [`CameraPerspective`](../#cameraperspective) |
 
 #### Returns
 

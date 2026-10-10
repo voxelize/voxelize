@@ -22,7 +22,7 @@ ___
 
 ### faces
 
-• **faces**: \{ `corners`: \{ `pos`: [`number`, `number`, `number`] ; `uv`: `number`[]  }[] ; `dir`: [`number`, `number`, `number`] ; `independent`: `boolean` ; `isolated`: `boolean` ; `name`: `string` ; `range`: [`UV`](../modules.md#uv) ; `textureGroup`: `string`  }[]
+• **faces**: \{ `corners`: \{ `pos`: [`number`, `number`, `number`] ; `uv`: `number`[]  }[] ; `dir`: [`number`, `number`, `number`] ; `emissive?`: `number` ; `independent`: `boolean` ; `isolated`: `boolean` ; `name`: `string` ; `pigmentMask?`: `number` ; `range`: [`UV`](../#uv) ; `regionalTint?`: `boolean` ; `stageTintMask?`: `number` ; `textureGroup`: `string`  }[]
 
 ___
 
@@ -52,4 +52,4 @@ ___
 
 ### rule
 
-• **rule**: [`BlockRule`](../modules.md#blockrule)
+• **rule**: [`BlockRule`](../#blockrule)

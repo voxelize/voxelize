@@ -24,17 +24,17 @@ frame (`beginFrame` + `pushCone`); every material that binds
 
 ### uniforms
 
-• `Readonly` **uniforms**: [`LightConeUniforms`](../modules.md#lightconeuniforms)
+• `Readonly` **uniforms**: [`LightConeUniforms`](../#lightconeuniforms)
 
 ## Accessors
 
 ### uniformBindings
 
-• `get` **uniformBindings**(): `Record`\<`string`, [`LightConeUniformBinding`](../modules.md#lightconeuniformbinding)\>
+• `get` **uniformBindings**(): `Record`<`string`, [`LightConeUniformBinding`](../#lightconeuniformbinding)\>
 
 #### Returns
 
-`Record`\<`string`, [`LightConeUniformBinding`](../modules.md#lightconeuniformbinding)\>
+`Record`<`string`, [`LightConeUniformBinding`](../#lightconeuniformbinding)\>
 
 ## Methods
 
@@ -56,7 +56,7 @@ ___
 
 | Name | Type |
 | :------ | :------ |
-| `input` | [`LightConeInput`](../modules.md#lightconeinput) |
+| `input` | [`LightConeInput`](../#lightconeinput) |
 
 #### Returns
 

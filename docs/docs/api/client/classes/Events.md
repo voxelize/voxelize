@@ -32,7 +32,7 @@ TODO-DOC
 
 ## Hierarchy
 
-- `Map`\<`string`, [`EventHandler`](../modules.md#eventhandler)\>
+- `Map`<`string`, [`EventHandler`](../#eventhandler)\>
 
   ↳ **`Events`**
 
@@ -60,7 +60,7 @@ Map\&lt;string, EventHandler\&gt;.constructor
 
 ### addEventListener
 
-▸ **addEventListener**\<`TPayload`\>(`name`, `handler`): `void`
+▸ **addEventListener**<`TPayload`\>(`name`, `handler`): `void`
 
 Synonym for [on](Events.md#on), adds a listener to a Voxelize server event.
 If the payload cannot be parsed by JSON, `null` is set.
@@ -69,14 +69,14 @@ If the payload cannot be parsed by JSON, `null` is set.
 
 | Name | Type |
 | :------ | :------ |
-| `TPayload` | [`EventPayload`](../modules.md#eventpayload) |
+| `TPayload` | [`EventPayload`](../#eventpayload) |
 
 #### Parameters
 
 | Name | Type | Description |
 | :------ | :------ | :------ |
 | `name` | `string` | The name of the event to listen on. Case sensitive. |
-| `handler` | [`EventHandler`](../modules.md#eventhandler)\<`TPayload`\> | What to do when this event is received? |
+| `handler` | [`EventHandler`](../#eventhandler)<`TPayload`\> | What to do when this event is received? |
 
 #### Returns
 
@@ -95,7 +95,35 @@ Emit an event to the server.
 | Name | Type | Description |
 | :------ | :------ | :------ |
 | `name` | `string` | The name of the event to emit. |
-| `payload` | [`EventPayload`](../modules.md#eventpayload) | The payload to send with the event. |
+| `payload` | [`EventPayload`](../#eventpayload) | The payload to send with the event. |
+
+#### Returns
+
+`void`
+
+___
+
+### emitRelayed
+
+▸ **emitRelayed**(`name`, `payload?`, `position?`): `void`
+
+Show a cosmetic effect you caused to the players around you: your own
+client draws it locally, and this sends it to peers. The server stamps
+your client id on it (so a payload can never claim to be someone else),
+leaves you out, refuses a `position` implausibly far from you, and
+delivers it to the clients that have the chunk it happens in. Peers
+receive it through [onRelayed](Events.md#onrelayed).
+
+The server must open `name` with `World::relay_client_event`; anything
+else is refused there, with a warning.
+
+#### Parameters
+
+| Name | Type | Description |
+| :------ | :------ | :------ |
+| `name` | `string` | The effect's name. Case-insensitive. |
+| `payload` | [`EventPayload`](../#eventpayload) | What peers need to draw it. Keep it small. |
+| `position?` | [`number`, `number`, `number`] | Where it happens, in world coordinates. |
 
 #### Returns
 
@@ -111,7 +139,7 @@ ___
 
 | Name | Type |
 | :------ | :------ |
-| `payload` | [`SoundEffectEventPayload`](../modules.md#soundeffecteventpayload) |
+| `payload` | [`SoundEffectEventPayload`](../#soundeffecteventpayload) |
 
 #### Returns
 
@@ -121,7 +149,7 @@ ___
 
 ### off
 
-▸ **off**\<`TPayload`\>(`name`, `handler`): `void`
+▸ **off**<`TPayload`\>(`name`, `handler`): `void`
 
 Remove a previously registered listener. No-op if the handler was not
 registered for this name.
@@ -130,14 +158,39 @@ registered for this name.
 
 | Name | Type |
 | :------ | :------ |
-| `TPayload` | [`EventPayload`](../modules.md#eventpayload) |
+| `TPayload` | [`EventPayload`](../#eventpayload) |
 
 #### Parameters
 
 | Name | Type |
 | :------ | :------ |
 | `name` | `string` |
-| `handler` | [`EventHandler`](../modules.md#eventhandler)\<`TPayload`\> |
+| `handler` | [`EventHandler`](../#eventhandler)<`TPayload`\> |
+
+#### Returns
+
+`void`
+
+___
+
+### offRelayed
+
+▸ **offRelayed**<`TPayload`\>(`name`, `handler`): `void`
+
+Remove a listener added with [onRelayed](Events.md#onrelayed).
+
+#### Type parameters
+
+| Name | Type |
+| :------ | :------ |
+| `TPayload` | [`EventPayload`](../#eventpayload) |
+
+#### Parameters
+
+| Name | Type |
+| :------ | :------ |
+| `name` | `string` |
+| `handler` | [`RelayedEventHandler`](../#relayedeventhandler)<`TPayload`\> |
 
 #### Returns
 
@@ -147,7 +200,7 @@ ___
 
 ### on
 
-▸ **on**\<`TPayload`\>(`name`, `handler`): `void`
+▸ **on**<`TPayload`\>(`name`, `handler`): `void`
 
 Synonym for [addEventListener](Events.md#addeventlistener), adds a listener to a Voxelize server event.
 If the payload cannot be parsed by JSON, `null` is set.
@@ -159,14 +212,40 @@ no longer canceled.
 
 | Name | Type |
 | :------ | :------ |
-| `TPayload` | [`EventPayload`](../modules.md#eventpayload) |
+| `TPayload` | [`EventPayload`](../#eventpayload) |
 
 #### Parameters
 
 | Name | Type | Description |
 | :------ | :------ | :------ |
 | `name` | `string` | The name of the event to listen on. Case sensitive. |
-| `handler` | [`EventHandler`](../modules.md#eventhandler)\<`TPayload`\> | What to do when this event is received? |
+| `handler` | [`EventHandler`](../#eventhandler)<`TPayload`\> | What to do when this event is received? |
+
+#### Returns
+
+`void`
+
+___
+
+### onRelayed
+
+▸ **onRelayed**<`TPayload`\>(`name`, `handler`): `void`
+
+Draw a peer's relayed effect. The handler gets the payload the peer
+sent and the server-stamped sender id and position.
+
+#### Type parameters
+
+| Name | Type |
+| :------ | :------ |
+| `TPayload` | [`EventPayload`](../#eventpayload) |
+
+#### Parameters
+
+| Name | Type | Description |
+| :------ | :------ | :------ |
+| `name` | `string` | The effect's name. Case-insensitive. |
+| `handler` | [`RelayedEventHandler`](../#relayedeventhandler)<`TPayload`\> | - |
 
 #### Returns
 
@@ -182,7 +261,7 @@ ___
 
 | Name | Type |
 | :------ | :------ |
-| `handler` | [`SoundEffectEventHandler`](../modules.md#soundeffecteventhandler) |
+| `handler` | [`SoundEffectEventHandler`](../#soundeffecteventhandler) |
 
 #### Returns
 
@@ -192,7 +271,7 @@ ___
 
 ### removeEventListener
 
-▸ **removeEventListener**\<`TPayload`\>(`name`, `handler`): `void`
+▸ **removeEventListener**<`TPayload`\>(`name`, `handler`): `void`
 
 Synonym for [off](Events.md#off).
 
@@ -200,14 +279,14 @@ Synonym for [off](Events.md#off).
 
 | Name | Type |
 | :------ | :------ |
-| `TPayload` | [`EventPayload`](../modules.md#eventpayload) |
+| `TPayload` | [`EventPayload`](../#eventpayload) |
 
 #### Parameters
 
 | Name | Type |
 | :------ | :------ |
 | `name` | `string` |
-| `handler` | [`EventHandler`](../modules.md#eventhandler)\<`TPayload`\> |
+| `handler` | [`EventHandler`](../#eventhandler)<`TPayload`\> |
 
 #### Returns
 

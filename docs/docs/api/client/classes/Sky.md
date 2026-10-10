@@ -46,7 +46,7 @@ Create a new sky instance.
 
 | Name | Type |
 | :------ | :------ |
-| `options` | `Partial`\<[`SkyOptions`](../modules.md#skyoptions)\> |
+| `options` | `Partial`<[`SkyOptions`](../#skyoptions)\> |
 
 #### Returns
 
@@ -96,7 +96,7 @@ ___
 
 ### options
 
-• **options**: [`CanvasBoxOptions`](../modules.md#canvasboxoptions) & [`SkyOptions`](../modules.md#skyoptions)
+• **options**: [`CanvasBoxOptions`](../#canvasboxoptions) & [`SkyOptions`](../#skyoptions)
 
 Parameters for creating a canvas box.
 
@@ -108,7 +108,7 @@ ___
 
 ### shadingData
 
-• **shadingData**: [`SkyShadingCycleData`](../modules.md#skyshadingcycledata)[] = `[]`
+• **shadingData**: [`SkyShadingCycleData`](../#skyshadingcycledata)[] = `[]`
 
 ___
 
@@ -123,6 +123,36 @@ The bottom color of the sky gradient. Change this by calling Sky.setBottomColor.
 | Name | Type |
 | :------ | :------ |
 | `value` | `Color` |
+
+___
+
+### uCelestialDirection
+
+• **uCelestialDirection**: `Object`
+
+The celestial disc's direction, colour and light, for the refracted
+disc the dome draws inside the Snell window.
+
+#### Type declaration
+
+| Name | Type |
+| :------ | :------ |
+| `value` | `Vector3` |
+
+___
+
+### uDirectSunlight
+
+• **uDirectSunlight**: `Object`
+
+The share of the disc's light that reaches the world as a beam (the
+chunk renderer's `directSunlight`): a veiled disc is not drawn.
+
+#### Type declaration
+
+| Name | Type |
+| :------ | :------ |
+| `value` | `number` |
 
 ___
 
@@ -143,6 +173,30 @@ ___
 ### uSkyOffset
 
 • **uSkyOffset**: `Object`
+
+#### Type declaration
+
+| Name | Type |
+| :------ | :------ |
+| `value` | `number` |
+
+___
+
+### uSunColor
+
+• **uSunColor**: `Object`
+
+#### Type declaration
+
+| Name | Type |
+| :------ | :------ |
+| `value` | `Color` |
+
+___
+
+### uSunlightIntensity
+
+• **uSunlightIntensity**: `Object`
 
 #### Type declaration
 
@@ -220,6 +274,22 @@ driven by camera depth.
 
 ___
 
+### uUnderwaterSubmerged
+
+• **uUnderwaterSubmerged**: `Object`
+
+1 while the camera is under water: the dome then shows the sky only
+through the Snell window, refracted, and the water's in-scatter
+everywhere else.
+
+#### Type declaration
+
+| Name | Type |
+| :------ | :------ |
+| `value` | `number` |
+
+___
+
 ### uVoidOffset
 
 • **uVoidOffset**: `Object`
@@ -246,13 +316,13 @@ The width of the canvas box.
 
 ### boxMaterials
 
-• `get` **boxMaterials**(): `Map`\<`string`, `MeshBasicMaterial`\>
+• `get` **boxMaterials**(): `Map`<`string`, `MeshBasicMaterial`\>
 
 The first layer of the canvas box.
 
 #### Returns
 
-`Map`\<`string`, `MeshBasicMaterial`\>
+`Map`<`string`, `MeshBasicMaterial`\>
 
 #### Inherited from
 
@@ -293,6 +363,23 @@ layer). Returns null if underwaterFog is false.
 CanvasBox.underwaterUniforms
 
 ## Methods
+
+### dispose
+
+▸ **dispose**(): `void`
+
+Free every layer's geometry, face textures and materials. Call once the
+box has left the scene for good.
+
+#### Returns
+
+`void`
+
+#### Inherited from
+
+[CanvasBox](CanvasBox.md).[dispose](CanvasBox.md#dispose)
+
+___
 
 ### getBottomColor
 
@@ -347,8 +434,8 @@ Add art to the canvas(s) of this box layer.
 
 | Name | Type | Default value | Description |
 | :------ | :------ | :------ | :------ |
-| `side` | [`BoxSides`](../modules.md#boxsides) \| [`BoxSides`](../modules.md#boxsides)[] | `undefined` | The side(s) of the box layer to draw on. |
-| `art` | `Color` \| `Texture`\<`unknown`\> \| [`ArtFunction`](../modules.md#artfunction) | `undefined` | The art or art function to draw on the box layer's side. |
+| `side` | [`BoxSides`](../#boxsides) \| [`BoxSides`](../#boxsides)[] | `undefined` | The side(s) of the box layer to draw on. |
+| `art` | `Color` \| `Texture`<`unknown`\> \| [`ArtFunction`](../#artfunction) | `undefined` | The art or art function to draw on the box layer's side. |
 | `layer` | `number` | `0` | The layer to draw on. |
 
 #### Returns
@@ -369,7 +456,7 @@ ___
 
 | Name | Type |
 | :------ | :------ |
-| `data` | [`SkyShadingCycleData`](../modules.md#skyshadingcycledata)[] |
+| `data` | [`SkyShadingCycleData`](../#skyshadingcycledata)[] |
 
 #### Returns
 

@@ -25,8 +25,8 @@ a permanently `steady` monitor rather than a throw.
 
 | Name | Type | Default value |
 | :------ | :------ | :------ |
-| `options` | `Partial`\<[`MemoryPressureOptions`](../modules.md#memorypressureoptions)\> | `{}` |
-| `readHeap` | [`HeapReader`](../modules.md#heapreader) | `readChromiumHeap` |
+| `options` | `Partial`<[`MemoryPressureOptions`](../#memorypressureoptions)\> | `{}` |
+| `readHeap` | [`HeapReader`](../#heapreader) | `readChromiumHeap` |
 
 #### Returns
 
@@ -36,23 +36,23 @@ a permanently `steady` monitor rather than a throw.
 
 ### options
 
-• `Readonly` **options**: [`MemoryPressureOptions`](../modules.md#memorypressureoptions)
+• `Readonly` **options**: [`MemoryPressureOptions`](../#memorypressureoptions)
 
 ## Methods
 
 ### getStatus
 
-▸ **getStatus**(): [`MemoryPressureStatus`](../modules.md#memorypressurestatus)
+▸ **getStatus**(): [`MemoryPressureStatus`](../#memorypressurestatus)
 
 #### Returns
 
-[`MemoryPressureStatus`](../modules.md#memorypressurestatus)
+[`MemoryPressureStatus`](../#memorypressurestatus)
 
 ___
 
 ### sample
 
-▸ **sample**(`nowMs`): [`MemoryPressureVerdict`](../modules.md#memorypressureverdict)
+▸ **sample**(`nowMs`): [`MemoryPressureVerdict`](../#memorypressureverdict)
 
 #### Parameters
 
@@ -62,7 +62,7 @@ ___
 
 #### Returns
 
-[`MemoryPressureVerdict`](../modules.md#memorypressureverdict)
+[`MemoryPressureVerdict`](../#memorypressureverdict)
 
 ___
 
@@ -74,7 +74,7 @@ ___
 
 | Name | Type |
 | :------ | :------ |
-| `onVerdict` | (`verdict`: ``"shed"`` \| ``"relieved"``, `status`: [`MemoryPressureStatus`](../modules.md#memorypressurestatus)) => `void` |
+| `onVerdict` | (`verdict`: ``"shed"`` \| ``"relieved"``, `status`: [`MemoryPressureStatus`](../#memorypressurestatus)) => `void` |
 
 #### Returns
 

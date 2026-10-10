@@ -15,6 +15,14 @@ Properties of a Chunk.
 
 ## Properties
 
+### biomeTints
+
+• `Optional` **biomeTints**: `Uint8Array`<`ArrayBufferLike`\>
+
+Chunk biomeTints
+
+___
+
 ### id
 
 • `Optional` **id**: `string`
@@ -25,7 +33,7 @@ ___
 
 ### lights
 
-• `Optional` **lights**: `Uint8Array`\<`ArrayBufferLike`\>
+• `Optional` **lights**: `Uint8Array`<`ArrayBufferLike`\>
 
 Chunk lights
 
@@ -41,7 +49,7 @@ ___
 
 ### voxels
 
-• `Optional` **voxels**: `Uint8Array`\<`ArrayBufferLike`\>
+• `Optional` **voxels**: `Uint8Array`<`ArrayBufferLike`\>
 
 Chunk voxels
 

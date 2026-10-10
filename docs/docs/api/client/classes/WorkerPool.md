@@ -25,7 +25,7 @@ Create a new worker pool.
 | Name | Type | Default value | Description |
 | :------ | :------ | :------ | :------ |
 | `Proto` | (`options?`: `WorkerOptions`) => `Worker` | `undefined` | The worker class to create. |
-| `options` | [`WorkerPoolOptions`](../modules.md#workerpooloptions) | `defaultOptions` | The options to create the worker pool. |
+| `options` | [`WorkerPoolOptions`](../#workerpooloptions) | `defaultOptions` | The options to create the worker pool. |
 
 #### Returns
 
@@ -65,7 +65,7 @@ ___
 
 ### options
 
-• **options**: [`WorkerPoolOptions`](../modules.md#workerpooloptions) = `defaultOptions`
+• **options**: [`WorkerPoolOptions`](../#workerpooloptions) = `defaultOptions`
 
 The options to create the worker pool.
 
@@ -73,7 +73,7 @@ ___
 
 ### queue
 
-• **queue**: [`WorkerPoolJob`](../modules.md#workerpooljob)[] = `[]`
+• **queue**: [`WorkerPoolJob`](../#workerpooljob)[] = `[]`
 
 The queue of jobs that are waiting to be executed.
 
@@ -139,7 +139,7 @@ Append a new job to be executed by a worker.
 
 | Name | Type | Description |
 | :------ | :------ | :------ |
-| `job` | [`WorkerPoolJob`](../modules.md#workerpooljob) | The job to queue. |
+| `job` | [`WorkerPoolJob`](../#workerpooljob) | The job to queue. |
 
 #### Returns
 

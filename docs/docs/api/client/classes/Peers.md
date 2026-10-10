@@ -62,7 +62,7 @@ peers.update();
 
 ### constructor
 
-• **new Peers**\<`C`, `T`\>(`object?`, `options?`): [`Peers`](Peers.md)\<`C`, `T`\>
+• **new Peers**<`C`, `T`\>(`object?`, `options?`): [`Peers`](Peers.md)<`C`, `T`\>
 
 Create a peers manager to add multiplayer functionality to your Voxelize game.
 
@@ -70,19 +70,19 @@ Create a peers manager to add multiplayer functionality to your Voxelize game.
 
 | Name | Type |
 | :------ | :------ |
-| `C` | extends `Object3D`\<`Object3DEventMap`\> = `Object3D`\<`Object3DEventMap`\> |
+| `C` | extends `Object3D`<`Object3DEventMap`\> = `Object3D`<`Object3DEventMap`\> |
 | `T` | \{ `direction`: `number`[] ; `position`: `number`[]  } |
 
 #### Parameters
 
 | Name | Type | Description |
 | :------ | :------ | :------ |
-| `object?` | `Object3D`\<`Object3DEventMap`\> | The object that is used to send client's own data back to the server. |
-| `options` | `Partial`\<[`PeersOptions`](../modules.md#peersoptions)\> | Parameters to customize the effect. |
+| `object?` | `Object3D`<`Object3DEventMap`\> | The object that is used to send client's own data back to the server. |
+| `options` | `Partial`<[`PeersOptions`](../#peersoptions)\> | Parameters to customize the effect. |
 
 #### Returns
 
-[`Peers`](Peers.md)\<`C`, `T`\>
+[`Peers`](Peers.md)<`C`, `T`\>
 
 #### Overrides
 
@@ -115,7 +115,7 @@ ___
 
 ### map
 
-• **map**: `Map`\<`string`, `C`\>
+• **map**: `Map`<`string`, `C`\>
 
 Maps the peer ID to the peer object.
 
@@ -123,7 +123,7 @@ ___
 
 ### object
 
-• `Optional` **object**: `Object3D`\<`Object3DEventMap`\>
+• `Optional` **object**: `Object3D`<`Object3DEventMap`\>
 
 The object that is used to send client's own data back to the server.
 
@@ -207,7 +207,7 @@ ___
 
 ### options
 
-• **options**: [`PeersOptions`](../modules.md#peersoptions)
+• **options**: [`PeersOptions`](../#peersoptions)
 
 Parameters to customize the peers manager.
 
@@ -223,7 +223,7 @@ ___
 
 ### ownMetadata
 
-• `Optional` **ownMetadata**: `Record`\<`string`, `any`\>
+• `Optional` **ownMetadata**: `Record`<`string`, `any`\>
 
 The client's own metadata (device info, etc.). This is set when the client first connects to the server.
 
@@ -242,6 +242,35 @@ ___
 The client's own username. This is set when the client first connects to the server.
 
 ## Methods
+
+### collectShadowCasters
+
+▸ **collectShadowCasters**(`out`): `Object3D`<`Object3DEventMap`\>[]
+
+Append every peer avatar render root that should cast dynamic shadows
+(the CSM entity pass and the local-light overlay tier) to `out`: the
+client's own avatar when visible (third person), then every remote
+peer's avatar. Pass the result to `World.renderShadowMaps` as part of
+the `entities` list — anything omitted from that list is treated as
+world geometry by the cached shadow passes, so a missing avatar both
+loses its live shadow and can be baked into a cached cell as a frozen
+stamp. Rebuild per frame into a caller-owned scratch array (zero
+allocation): the peers map is the live truth, so join, leave, and
+reconnect churn is picked up the same frame it happens.
+
+#### Parameters
+
+| Name | Type | Description |
+| :------ | :------ | :------ |
+| `out` | `Object3D`<`Object3DEventMap`\>[] | The array to append render roots to (not cleared first). |
+
+#### Returns
+
+`Object3D`<`Object3DEventMap`\>[]
+
+The same array, for chaining.
+
+___
 
 ### getPeerById
 
@@ -265,7 +294,7 @@ ___
 
 ### packInfo
 
-▸ **packInfo**(): `void` \| `PeerProtocol`\<`T`\>
+▸ **packInfo**(): `void` \| `PeerProtocol`<`T`\>
 
 Create a packet to send to the server. By default, this function sends the position and direction
 as metadata to the server. Override this function to customize the information sent.
@@ -274,7 +303,7 @@ If customized and nothing is returned, no packets will be sent.
 
 #### Returns
 
-`void` \| `PeerProtocol`\<`T`\>
+`void` \| `PeerProtocol`<`T`\>
 
 A peer protocol message
 

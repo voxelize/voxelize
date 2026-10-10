@@ -39,6 +39,22 @@ ChatMessage sender
 
 ___
 
+### sentAt
+
+• `Optional` **sentAt**: `number`
+
+ChatMessage sentAt
+
+___
+
+### seq
+
+• `Optional` **seq**: `number` \| `Long`
+
+ChatMessage seq
+
+___
+
 ### tSendMs
 
 • `Optional` **tSendMs**: `number`

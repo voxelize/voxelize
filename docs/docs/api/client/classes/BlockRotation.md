@@ -90,6 +90,27 @@ A new block rotation.
 
 ___
 
+### fromServerRotation
+
+▸ **fromServerRotation**(`rotation`): [`BlockRotation`](BlockRotation.md)
+
+Resolve a rotation that may still be in its server-serialized rule shape
+(`{ "PX": angle }`) into a block rotation instance. Server-authored block
+rules arrive as raw JSON and are handed to the wasm mesher untouched, so
+they are normalized here at evaluation time instead of at parse time.
+
+#### Parameters
+
+| Name | Type |
+| :------ | :------ |
+| `rotation` | [`SerializedBlockRotation`](../#serializedblockrotation) \| [`BlockRotation`](BlockRotation.md) |
+
+#### Returns
+
+[`BlockRotation`](BlockRotation.md)
+
+___
+
 ### rotateAABB
 
 ▸ **rotateAABB**(`aabb`, `yRotate?`, `translate?`): `AABB`
@@ -123,7 +144,7 @@ Rotate a 3D coordinate by this block rotation.
 
 | Name | Type | Default value | Description |
 | :------ | :------ | :------ | :------ |
-| `node` | [`Coords3`](../modules.md#coords3) | `undefined` | A 3D coordinate in the form of [x, y, z] to be rotated by this block rotation. |
+| `node` | [`Coords3`](../#coords3) | `undefined` | A 3D coordinate in the form of [x, y, z] to be rotated by this block rotation. |
 | `yRotate` | `boolean` | `true` | Whether or not should the y-rotation be applied. |
 | `translate` | `boolean` | `true` | Whether or not should the translation be applied. |
 

@@ -51,8 +51,8 @@ to the world's physics engine, and applies movement to the camera.
 | :------ | :------ | :------ |
 | `camera` | `PerspectiveCamera` | The camera to apply the controls to. |
 | `domElement` | `HTMLElement` | The DOM element to apply the controls to. |
-| `world` | [`World`](World.md)\<`any`\> | The world to apply the controls to. |
-| `options` | `Partial`\<[`RigidControlsOptions`](../modules.md#rigidcontrolsoptions)\> | The options to initialize the controls with. |
+| `world` | [`World`](World.md)<`any`\> | The world to apply the controls to. |
+| `options` | `Partial`<[`RigidControlsOptions`](../#rigidcontrolsoptions)\> | The options to initialize the controls with. |
 
 #### Returns
 
@@ -122,7 +122,7 @@ ___
 
 ### inputs
 
-• `Optional` **inputs**: [`Inputs`](Inputs.md)\<`any`\>
+• `Optional` **inputs**: [`Inputs`](Inputs.md)<`any`\>
 
 Reference linking to the Voxelize [Inputs](Inputs.md) instance. You can link an inputs manager by calling
 [RigidControls.connect](RigidControls.md#connect), which registers the keyboard inputs for the controls.
@@ -160,7 +160,7 @@ ___
 
 ### object
 
-• **object**: `Group`\<`Object3DEventMap`\>
+• **object**: `Group`<`Object3DEventMap`\>
 
 A THREE.JS object, parent to the camera for pointerlock controls.
 
@@ -168,7 +168,7 @@ ___
 
 ### options
 
-• **options**: [`RigidControlsOptions`](../modules.md#rigidcontrolsoptions)
+• **options**: [`RigidControlsOptions`](../#rigidcontrolsoptions)
 
 Parameters to initialize the Voxelize controls.
 
@@ -184,15 +184,25 @@ ___
 
 ### state
 
-• **state**: [`RigidControlState`](../modules.md#rigidcontrolstate)
+• **state**: [`RigidControlState`](../#rigidcontrolstate)
 
 The state of the control, indicating things like whether or not the client is running.
 
 ___
 
+### teleportCount
+
+• **teleportCount**: `number` = `0`
+
+How many times these controls have been teleported. A reader that follows
+the body frame by frame (a fall meter, a trail) starts over when it
+changes: the body did not travel the distance a teleport moves it.
+
+___
+
 ### world
 
-• **world**: [`World`](World.md)\<`any`\>
+• **world**: [`World`](World.md)<`any`\>
 
 Reference linking to the Voxelize world instance.
 
@@ -200,13 +210,13 @@ Reference linking to the Voxelize world instance.
 
 ### chunk
 
-• `get` **chunk**(): [`Coords2`](../modules.md#coords2)
+• `get` **chunk**(): [`Coords2`](../#coords2)
 
 The chunk that the client is situated in.
 
 #### Returns
 
-[`Coords2`](../modules.md#coords2)
+[`Coords2`](../#coords2)
 
 ___
 
@@ -288,14 +298,14 @@ ___
 
 ### voxel
 
-• `get` **voxel**(): [`Coords3`](../modules.md#coords3)
+• `get` **voxel**(): [`Coords3`](../#coords3)
 
 The voxel coordinates that the client is at. This is where the bottom of the client's body is located,
 floored to the voxel coordinate.
 
 #### Returns
 
-[`Coords3`](../modules.md#coords3)
+[`Coords3`](../#coords3)
 
 ## Methods
 
@@ -319,16 +329,24 @@ ___
 
 ### attachCharacter
 
-▸ **attachCharacter**(`character`, `newLerpFactor?`): `void`
+▸ **attachCharacter**(`character`, `newLerpFactor?`, `newRotationLerpFactor?`): `void`
 
 Attach a [Character](Character.md) to this controls instance. This can be seen in 2nd/3rd person mode.
+
+The character's height drives the collision height and eye level so the
+camera sits where the model's eyes are. Width and depth deliberately stay
+at `options.bodyWidth`/`options.bodyDepth`: the visual model is wider
+than the hull should be (a model-width hull could not fit through an
+open door's leaf gap), and a collision hull narrower than the body is
+the norm players expect.
 
 #### Parameters
 
 | Name | Type | Default value | Description |
 | :------ | :------ | :------ | :------ |
 | `character` | [`Character`](Character.md) | `undefined` | The [Character](Character.md) to attach to this controls instance. |
-| `newLerpFactor` | `number` | `1` | The new lerp factor to use for the character. |
+| `newLerpFactor` | `number` | `1` | The position lerp factor to use for the character. `1` pins the body to the eye, which is what the controls' own body wants: its pose is local and known every frame, not a network sample. |
+| `newRotationLerpFactor?` | `number` | `undefined` | The rotation lerp factor for the character's head and body; left as the character's own setting when omitted. |
 
 #### Returns
 
@@ -355,7 +373,7 @@ not be unbound when the returned function is called.
 
 | Name | Type | Default value |
 | :------ | :------ | :------ |
-| `inputs` | [`Inputs`](Inputs.md)\<`any`\> | `undefined` |
+| `inputs` | [`Inputs`](Inputs.md)<`any`\> | `undefined` |
 | `namespace` | `string` | `"*"` |
 
 #### Returns
@@ -501,7 +519,7 @@ ___
 
 | Name | Type |
 | :------ | :------ |
-| `message` | `MessageProtocol`\<`any`, `any`, `any`, [`number`, `number`, `number`]\> |
+| `message` | `MessageProtocol`<`any`, `any`, `any`, [`number`, `number`, `number`]\> |
 
 #### Returns
 
@@ -558,6 +576,23 @@ ___
 | `dx` | `number` |
 | `dy` | `number` |
 | `dz` | `number` |
+
+#### Returns
+
+`void`
+
+___
+
+### snapBodyHeight
+
+▸ **snapBodyHeight**(): `void`
+
+Snap the smoothed body height (the crouch-transition ease) straight to
+its target and re-derive the eye anchor from the rigid body now. Call
+this after re-anchoring the body instantaneously — e.g. attaching to a
+mount — where easing the eye toward the new height would misplace
+everything derived from the anchor (mount attachment, streamed
+position) for the duration of the ease.
 
 #### Returns
 

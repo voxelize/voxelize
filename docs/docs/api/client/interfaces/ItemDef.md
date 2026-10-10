@@ -10,7 +10,7 @@ custom_edit_url: null
 
 ### components
 
-• **components**: `Record`\<`string`, `unknown`\>
+• **components**: `Record`<`string`, `unknown`\>
 
 ___
 

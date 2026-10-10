@@ -26,8 +26,8 @@ custom_edit_url: null
 
 | Name | Type |
 | :------ | :------ |
-| `a` | [`SlotContent`](../modules.md#slotcontent) |
-| `b` | [`SlotContent`](../modules.md#slotcontent) |
+| `a` | [`SlotContent`](../#slotcontent) |
+| `b` | [`SlotContent`](../#slotcontent) |
 
 #### Returns
 
@@ -111,7 +111,7 @@ ___
 
 | Name | Type |
 | :------ | :------ |
-| `slot` | [`SlotContent`](../modules.md#slotcontent) |
+| `slot` | [`SlotContent`](../#slotcontent) |
 
 #### Returns
 
@@ -191,7 +191,7 @@ ___
 
 | Name | Type |
 | :------ | :------ |
-| `resolver` | [`ImageResolver`](../modules.md#imageresolver) |
+| `resolver` | [`ImageResolver`](../#imageresolver) |
 
 #### Returns
 
@@ -208,7 +208,7 @@ ___
 | Name | Type |
 | :------ | :------ |
 | `name` | `string` |
-| `factory` | [`ItemRendererFactory`](../modules.md#itemrendererfactory) |
+| `factory` | [`ItemRendererFactory`](../#itemrendererfactory) |
 
 #### Returns
 
@@ -224,7 +224,7 @@ ___
 
 | Name | Type |
 | :------ | :------ |
-| `world` | [`World`](World.md)\<`any`\> |
+| `world` | [`World`](World.md)<`any`\> |
 
 #### Returns
 
@@ -240,8 +240,8 @@ ___
 
 | Name | Type |
 | :------ | :------ |
-| `a` | [`SlotContent`](../modules.md#slotcontent) |
-| `b` | [`SlotContent`](../modules.md#slotcontent) |
+| `a` | [`SlotContent`](../#slotcontent) |
+| `b` | [`SlotContent`](../#slotcontent) |
 
 #### Returns
 
@@ -251,8 +251,8 @@ ___
 
 ### waitForRenderers
 
-▸ **waitForRenderers**(): `Promise`\<`void`\>
+▸ **waitForRenderers**(): `Promise`<`void`\>
 
 #### Returns
 
-`Promise`\<`void`\>
+`Promise`<`void`\>

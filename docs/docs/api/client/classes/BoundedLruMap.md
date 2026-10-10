@@ -25,7 +25,7 @@ cache a capacity that lives in an option field.
 
 ### constructor
 
-• **new BoundedLruMap**\<`K`, `V`\>(`capacity`): [`BoundedLruMap`](BoundedLruMap.md)\<`K`, `V`\>
+• **new BoundedLruMap**<`K`, `V`\>(`capacity`): [`BoundedLruMap`](BoundedLruMap.md)<`K`, `V`\>
 
 #### Type parameters
 
@@ -42,7 +42,7 @@ cache a capacity that lives in an option field.
 
 #### Returns
 
-[`BoundedLruMap`](BoundedLruMap.md)\<`K`, `V`\>
+[`BoundedLruMap`](BoundedLruMap.md)<`K`, `V`\>
 
 ## Properties
 
@@ -162,10 +162,10 @@ ___
 
 ### values
 
-▸ **values**(): `IterableIterator`\<`V`, `any`, `any`\>
+▸ **values**(): `IterableIterator`<`V`, `any`, `any`\>
 
 Entries from least- to most-recently-used.
 
 #### Returns
 
-`IterableIterator`\<`V`, `any`, `any`\>
+`IterableIterator`<`V`, `any`, `any`\>

@@ -21,7 +21,7 @@ Apply styles directly onto DOM element(s).
 | Name | Type | Description |
 | :------ | :------ | :------ |
 | `ele` | `HTMLElement` \| `HTMLElement`[] | The element(s) to add styles to. |
-| `style` | `Partial`\<`CSSStyleDeclaration`\> | The style(s) to add. |
+| `style` | `Partial`<`CSSStyleDeclaration`\> | The style(s) to add. |
 
 #### Returns
 

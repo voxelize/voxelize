@@ -45,7 +45,7 @@ network.register(chat);
 
 ### constructor
 
-• **new Chat**\<`T`\>(): [`Chat`](Chat.md)\<`T`\>
+• **new Chat**<`T`\>(): [`Chat`](Chat.md)<`T`\>
 
 #### Type parameters
 
@@ -55,9 +55,18 @@ network.register(chat);
 
 #### Returns
 
-[`Chat`](Chat.md)\<`T`\>
+[`Chat`](Chat.md)<`T`\>
 
 ## Properties
+
+### joinHistory
+
+• **joinHistory**: [`ChatHistoryUpdate`](../#chathistoryupdate) = `null`
+
+The history replay of the latest (re)join, kept so a listener attached
+after the INIT arrived can still read it.
+
+___
 
 ### onChat
 
@@ -72,6 +81,31 @@ network.register(chat);
 | Name | Type |
 | :------ | :------ |
 | `chat` | `T` |
+
+##### Returns
+
+`void`
+
+___
+
+### onHistory
+
+• `Optional` **onHistory**: (`update`: [`ChatHistoryUpdate`](../#chathistoryupdate)) => `void`
+
+Called with every page of the world's chat history: the replay a
+(re)join brings, then each page `requestHistory` asks for. Those lines
+never pass through `onChat`, so nothing a live line triggers (speech
+bubbles, client actions in its metadata) runs again for them.
+
+#### Type declaration
+
+▸ (`update`): `void`
+
+##### Parameters
+
+| Name | Type |
+| :------ | :------ |
+| `update` | [`ChatHistoryUpdate`](../#chathistoryupdate) |
 
 ##### Returns
 
@@ -99,11 +133,23 @@ ___
 
 `string`
 
+___
+
+### isHistoryPending
+
+• `get` **isHistoryPending**(): `boolean`
+
+Whether a history page request is waiting for its answer.
+
+#### Returns
+
+`boolean`
+
 ## Methods
 
 ### addCommand
 
-▸ **addCommand**\<`T`\>(`trigger`, `process`, `options`): () => `void`
+▸ **addCommand**<`T`\>(`trigger`, `process`, `options`): () => `void`
 
 Add a command to the chat system. Commands are case sensitive.
 
@@ -111,15 +157,15 @@ Add a command to the chat system. Commands are case sensitive.
 
 | Name | Type |
 | :------ | :------ |
-| `T` | extends `ZodObject`\<`Record`\<`string`, `ZodTypeAny`\>, `UnknownKeysParam`, `ZodTypeAny`, {}, {}\> = `ZodObject`\<`Record`\<`string`, `never`\>, `UnknownKeysParam`, `ZodTypeAny`, {}, {}\> |
+| `T` | extends `ZodObject`<`Record`<`string`, `ZodTypeAny`\>, `UnknownKeysParam`, `ZodTypeAny`, {}, {}\> = `ZodObject`<`Record`<`string`, `never`\>, `UnknownKeysParam`, `ZodTypeAny`, {}, {}\> |
 
 #### Parameters
 
 | Name | Type | Description |
 | :------ | :------ | :------ |
 | `trigger` | `string` | The text to trigger the command, needs to be one single word without spaces. |
-| `process` | (`args`: `TypeOf`\<`T`\>) => `void` | The process run when this command is triggered, receives parsed typed args. |
-| `options` | [`CommandOptions`](../modules.md#commandoptions)\<`T`\> | Configuration for the command including Zod schema for args. |
+| `process` | (`args`: `TypeOf`<`T`\>) => `void` | The process run when this command is triggered, receives parsed typed args. |
+| `options` | [`CommandOptions`](../#commandoptions)<`T`\> | Configuration for the command including Zod schema for args. |
 
 #### Returns
 
@@ -135,14 +181,14 @@ ___
 
 ### getAllCommands
 
-▸ **getAllCommands**(): \{ `aliases`: `string`[] ; `args`: [`ArgMetadata`](../modules.md#argmetadata)[] ; `category?`: `string` ; `description`: `string` ; `flags`: `string`[] ; `isTabCompletePreFiltered`: `boolean` ; `trigger`: `string`  }[]
+▸ **getAllCommands**(): \{ `aliases`: `string`[] ; `args`: [`ArgMetadata`](../#argmetadata)[] ; `category?`: `string` ; `description`: `string` ; `flags`: `string`[] ; `isTabCompletePreFiltered`: `boolean` ; `trigger`: `string`  }[]
 
 Get all registered commands with their documentation.
 This filters out aliases and returns only the primary command triggers.
 
 #### Returns
 
-\{ `aliases`: `string`[] ; `args`: [`ArgMetadata`](../modules.md#argmetadata)[] ; `category?`: `string` ; `description`: `string` ; `flags`: `string`[] ; `isTabCompletePreFiltered`: `boolean` ; `trigger`: `string`  }[]
+\{ `aliases`: `string`[] ; `args`: [`ArgMetadata`](../#argmetadata)[] ; `category?`: `string` ; `description`: `string` ; `flags`: `string`[] ; `isTabCompletePreFiltered`: `boolean` ; `trigger`: `string`  }[]
 
 An array of command triggers with their descriptions, categories, aliases, and arg schemas.
 
@@ -159,6 +205,27 @@ Remove a command from the chat system. Case sensitive.
 | Name | Type | Description |
 | :------ | :------ | :------ |
 | `trigger` | `string` | The trigger to remove. |
+
+#### Returns
+
+`boolean`
+
+___
+
+### requestHistory
+
+▸ **requestHistory**(`before`, `limit?`): `boolean`
+
+Ask the server for up to `limit` lines older than `before` (a line's
+`seq`). One request is in flight at a time; returns whether this one was
+queued.
+
+#### Parameters
+
+| Name | Type | Default value |
+| :------ | :------ | :------ |
+| `before` | `number` | `undefined` |
+| `limit` | `number` | `CHAT_HISTORY_PAGE_SIZE` |
 
 #### Returns
 

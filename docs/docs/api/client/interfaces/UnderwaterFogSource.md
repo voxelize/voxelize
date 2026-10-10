@@ -20,6 +20,12 @@ ___
 
 ___
 
+### viewExtinctionScale
+
+• `Optional` **viewExtinctionScale**: `number`
+
+___
+
 ### waterPlaneY
 
 • **waterPlaneY**: `number`

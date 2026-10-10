@@ -33,7 +33,7 @@ ___
 
 ### motion
 
-• `Optional` **motion**: `Uint8Array`\<`ArrayBufferLike`\>
+• `Optional` **motion**: `Uint8Array`<`ArrayBufferLike`\>
 
 Entity motion
 

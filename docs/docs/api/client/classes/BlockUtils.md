@@ -12,7 +12,8 @@ The voxel data is stored in the following format:
 - Voxel type: `0x0000ffff`
 - Rotation: `0x000f0000`
 - Y-rotation: `0x00f00000`
-- Stage: `0xff000000`
+- Stage: `0x0f000000`
+- Waterlogged: `0x10000000`
 
 TODO-DOCS
 For more information about voxel data, see [here](/)
@@ -33,8 +34,8 @@ const number = VoxelUtils.insertID(0, 13);
 
 | Name | Type |
 | :------ | :------ |
-| `rule` | [`BlockRule`](../modules.md#blockrule) |
-| `voxel` | [`Coords3`](../modules.md#coords3) |
+| `rule` | [`BlockRule`](../#blockrule) |
+| `voxel` | [`Coords3`](../#coords3) |
 | `functions` | `Object` |
 | `functions.getVoxelAt` | (`x`: `number`, `y`: `number`, `z`: `number`) => `number` |
 | `functions.getVoxelRotationAt` | (`x`: `number`, `y`: `number`, `z`: `number`) => [`BlockRotation`](BlockRotation.md) |
@@ -43,6 +44,26 @@ const number = VoxelUtils.insertID(0, 13);
 #### Returns
 
 `boolean`
+
+___
+
+### extractFluidLevel
+
+▸ **extractFluidLevel**(`voxel`): `number`
+
+The level of fluid standing in this voxel, wherever it is stored: a
+waterlogged block keeps its water's level in its own field, a fluid block
+keeps its own in `stage`. Mirrors `BlockUtils::extract_fluid_level`.
+
+#### Parameters
+
+| Name | Type | Description |
+| :------ | :------ | :------ |
+| `voxel` | `number` | The voxel value to extract from. |
+
+#### Returns
+
+`number`
 
 ___
 
@@ -106,6 +127,44 @@ The extracted voxel stage.
 
 ___
 
+### extractWaterlogLevel
+
+▸ **extractWaterlogLevel**(`voxel`): `number`
+
+The level of fluid a waterlogged voxel holds, in the same 0-7 range as a
+fluid block's stage.
+
+#### Parameters
+
+| Name | Type | Description |
+| :------ | :------ | :------ |
+| `voxel` | `number` | The voxel value to extract from. |
+
+#### Returns
+
+`number`
+
+___
+
+### extractWaterlogged
+
+▸ **extractWaterlogged**(`voxel`): `boolean`
+
+Whether this voxel holds the world's waterlogging fluid alongside its
+block. Mirrors `BlockUtils::extract_waterlogged` on the server.
+
+#### Parameters
+
+| Name | Type | Description |
+| :------ | :------ | :------ |
+| `voxel` | `number` | The voxel value to extract from. |
+
+#### Returns
+
+`boolean`
+
+___
+
 ### getBlockEntityId
 
 ▸ **getBlockEntityId**(`id`, `voxel`): `string`
@@ -115,7 +174,7 @@ ___
 | Name | Type |
 | :------ | :------ |
 | `id` | `string` |
-| `voxel` | [`Coords3`](../modules.md#coords3) |
+| `voxel` | [`Coords3`](../#coords3) |
 
 #### Returns
 
@@ -131,7 +190,7 @@ ___
 
 | Name | Type |
 | :------ | :------ |
-| `block` | [`Block`](../modules.md#block) |
+| `block` | [`Block`](../#block) |
 | `rotation` | [`BlockRotation`](BlockRotation.md) |
 
 #### Returns
@@ -148,8 +207,8 @@ ___
 
 | Name | Type |
 | :------ | :------ |
-| `block` | [`Block`](../modules.md#block) |
-| `color` | [`LightColor`](../modules.md#lightcolor) |
+| `block` | [`Block`](../#block) |
+| `color` | [`LightColor`](../#lightcolor) |
 
 #### Returns
 
@@ -165,9 +224,9 @@ ___
 
 | Name | Type |
 | :------ | :------ |
-| `block` | [`Block`](../modules.md#block) |
-| `color` | [`LightColor`](../modules.md#lightcolor) |
-| `voxel` | [`Coords3`](../modules.md#coords3) |
+| `block` | [`Block`](../#block) |
+| `color` | [`LightColor`](../#lightcolor) |
+| `voxel` | [`Coords3`](../#coords3) |
 | `functions` | `Object` |
 | `functions.getVoxelAt` | (`x`: `number`, `y`: `number`, `z`: `number`) => `number` |
 | `functions.getVoxelRotationAt` | (`x`: `number`, `y`: `number`, `z`: `number`) => [`BlockRotation`](BlockRotation.md) |
@@ -181,7 +240,7 @@ ___
 
 ### insertAll
 
-▸ **insertAll**(`id`, `rotation?`, `stage?`): `number`
+▸ **insertAll**(`id`, `rotation?`, `stage?`, `isWaterlogged?`, `waterlogLevel?`): `number`
 
 #### Parameters
 
@@ -190,6 +249,8 @@ ___
 | `id` | `number` |
 | `rotation?` | [`BlockRotation`](BlockRotation.md) |
 | `stage?` | `number` |
+| `isWaterlogged?` | `boolean` |
+| `waterlogLevel?` | `number` |
 
 #### Returns
 
@@ -257,3 +318,45 @@ Insert a voxel stage into a number.
 `number`
 
 The inserted voxel value.
+
+___
+
+### insertWaterlogLevel
+
+▸ **insertWaterlogLevel**(`voxel`, `level`): `number`
+
+Insert the waterlogging fluid's level into a voxel value.
+
+The level occupies the top three bits, so the result is normalised back to
+unsigned: JavaScript's bitwise operators work on signed 32-bit integers
+and a level of 4 or more would otherwise come back negative.
+
+#### Parameters
+
+| Name | Type | Description |
+| :------ | :------ | :------ |
+| `voxel` | `number` | The voxel value to insert the level into. |
+| `level` | `number` | The fluid level, 0 through 7. |
+
+#### Returns
+
+`number`
+
+___
+
+### insertWaterlogged
+
+▸ **insertWaterlogged**(`voxel`, `isWaterlogged`): `number`
+
+Insert the waterlogged flag into a voxel value.
+
+#### Parameters
+
+| Name | Type | Description |
+| :------ | :------ | :------ |
+| `voxel` | `number` | The voxel value to insert the flag into. |
+| `isWaterlogged` | `boolean` | Whether the voxel holds the waterlogging fluid. |
+
+#### Returns
+
+`number`

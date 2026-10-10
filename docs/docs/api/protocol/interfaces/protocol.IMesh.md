@@ -15,6 +15,14 @@ Properties of a Mesh.
 
 ## Properties
 
+### connectivity
+
+• `Optional` **connectivity**: `number`
+
+Mesh connectivity
+
+___
+
 ### geometries
 
 • `Optional` **geometries**: [`IGeometry`](protocol.IGeometry.md)[]

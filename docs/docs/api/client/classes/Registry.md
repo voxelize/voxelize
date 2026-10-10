@@ -10,25 +10,25 @@ custom_edit_url: null
 
 ### blocksById
 
-• **blocksById**: `Map`\<`number`, [`Block`](../modules.md#block)\>
+• **blocksById**: `Map`<`number`, [`Block`](../#block)\>
 
 ___
 
 ### blocksByName
 
-• **blocksByName**: `Map`\<`string`, [`Block`](../modules.md#block)\>
+• **blocksByName**: `Map`<`string`, [`Block`](../#block)\>
 
 ___
 
 ### idMap
 
-• **idMap**: `Map`\<`number`, `string`\>
+• **idMap**: `Map`<`number`, `string`\>
 
 ___
 
 ### nameMap
 
-• **nameMap**: `Map`\<`string`, `number`\>
+• **nameMap**: `Map`<`string`, `number`\>
 
 ## Methods
 
@@ -40,7 +40,7 @@ ___
 
 | Name | Type |
 | :------ | :------ |
-| `data` | `any` |
+| `data` | [`SerializedRegistry`](../#serializedregistry) |
 
 #### Returns
 
@@ -48,10 +48,31 @@ ___
 
 ___
 
-### serialize
+### parseSerialized
 
-▸ **serialize**(): `object`
+▸ **parseSerialized**(`data`): [`ParsedRegistry`](../#parsedregistry)
+
+Decodes what [Registry.serialize](Registry.md#serialize) produced into plain block
+entries, keyed both ways with shared block objects. Workers that keep
+their own block tables (the wasm mesher) read this directly;
+[Registry.deserialize](Registry.md#deserialize) wraps it into a `Registry`.
+
+#### Parameters
+
+| Name | Type |
+| :------ | :------ |
+| `data` | [`SerializedRegistry`](../#serializedregistry) |
 
 #### Returns
 
-`object`
+[`ParsedRegistry`](../#parsedregistry)
+
+___
+
+### serialize
+
+▸ **serialize**(): `string`
+
+#### Returns
+
+`string`

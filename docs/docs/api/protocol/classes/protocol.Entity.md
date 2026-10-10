@@ -59,7 +59,7 @@ ___
 
 ### motion
 
-• `Optional` **motion**: `Uint8Array`\<`ArrayBufferLike`\>
+• `Optional` **motion**: `Uint8Array`<`ArrayBufferLike`\>
 
 Entity motion.
 
@@ -123,7 +123,7 @@ Decodes an Entity message from the specified reader or buffer.
 
 | Name | Type | Description |
 | :------ | :------ | :------ |
-| `reader` | `Uint8Array`\<`ArrayBufferLike`\> \| `Reader` | Reader or buffer to decode from |
+| `reader` | `Uint8Array`<`ArrayBufferLike`\> \| `Reader` | Reader or buffer to decode from |
 | `length?` | `number` | Message length if known beforehand |
 
 #### Returns
@@ -152,7 +152,7 @@ Decodes an Entity message from the specified reader or buffer, length delimited.
 
 | Name | Type | Description |
 | :------ | :------ | :------ |
-| `reader` | `Uint8Array`\<`ArrayBufferLike`\> \| `Reader` | Reader or buffer to decode from |
+| `reader` | `Uint8Array`<`ArrayBufferLike`\> \| `Reader` | Reader or buffer to decode from |
 
 #### Returns
 

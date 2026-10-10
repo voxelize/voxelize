@@ -24,7 +24,7 @@ existing `@voxelize/core` consumers continue to work unchanged.
 | Name | Type |
 | :------ | :------ |
 | `domElement?` | `HTMLElement` |
-| `options?` | [`DebugOptions`](../modules.md#debugoptions) |
+| `options?` | [`DebugOptions`](../#debugoptions) |
 
 #### Returns
 
@@ -100,17 +100,17 @@ ___
 
 ### options
 
-• **options**: `Required`\<`Omit`\<[`DebugOptions`](../modules.md#debugoptions), ``"dataStyles"`` \| ``"entriesStyles"`` \| ``"lineStyles"`` \| ``"newLineStyles"`` \| ``"statsStyles"``\>\> & \{ `dataStyles`: `Partial`\<`CSSStyleDeclaration`\> ; `entriesStyles`: `Partial`\<`CSSStyleDeclaration`\> ; `lineStyles`: `Partial`\<`CSSStyleDeclaration`\> ; `newLineStyles`: `Partial`\<`CSSStyleDeclaration`\> ; `statsStyles`: `Partial`\<`CSSStyleDeclaration`\>  }
+• **options**: `Required`<`Omit`<[`DebugOptions`](../#debugoptions), ``"dataStyles"`` \| ``"entriesStyles"`` \| ``"lineStyles"`` \| ``"newLineStyles"`` \| ``"statsStyles"``\>\> & \{ `dataStyles`: `Partial`<`CSSStyleDeclaration`\> ; `entriesStyles`: `Partial`<`CSSStyleDeclaration`\> ; `lineStyles`: `Partial`<`CSSStyleDeclaration`\> ; `newLineStyles`: `Partial`<`CSSStyleDeclaration`\> ; `statsStyles`: `Partial`<`CSSStyleDeclaration`\>  }
 
 ___
 
 ### registerDisplay
 
-• **registerDisplay**: \<T\>(`title`: `string`, `object?`: `T` \| () => `unknown`, `attribute?`: keyof `T`, `formatter?`: (`value`: `unknown`) => `string`) => `this`
+• **registerDisplay**: <T\>(`title`: `string`, `object?`: `T` \| () => `unknown`, `attribute?`: keyof `T`, `formatter?`: (`value`: `unknown`) => `string`) => `this`
 
 #### Type declaration
 
-▸ \<`T`\>(`title`, `object?`, `attribute?`, `formatter?`): `this`
+▸ <`T`\>(`title`, `object?`, `attribute?`, `formatter?`): `this`
 
 ##### Type parameters
 

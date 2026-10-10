@@ -38,8 +38,8 @@ perspective is the first person perspective.
 | Name | Type | Description |
 | :------ | :------ | :------ |
 | `controls` | [`RigidControls`](RigidControls.md) | The rigid controls that this perspective instance is attached to. |
-| `world` | [`World`](World.md)\<`any`\> | The world that this perspective instance is working with. |
-| `options` | `Partial`\<[`PerspectiveOptions`](../modules.md#perspectiveoptions)\> | Parameters to configure the perspective. |
+| `world` | [`World`](World.md)<`any`\> | The world that this perspective instance is working with. |
+| `options` | `Partial`<[`PerspectiveOptions`](../#perspectiveoptions)\> | Parameters to configure the perspective. |
 
 #### Returns
 
@@ -66,7 +66,7 @@ ___
 
 ### inputs
 
-• `Optional` **inputs**: [`Inputs`](Inputs.md)\<`any`\>
+• `Optional` **inputs**: [`Inputs`](Inputs.md)<`any`\>
 
 The input manager that binds the perspective's keyboard inputs.
 
@@ -96,7 +96,7 @@ ___
 
 ### options
 
-• **options**: [`PerspectiveOptions`](../modules.md#perspectiveoptions)
+• **options**: [`PerspectiveOptions`](../#perspectiveoptions)
 
 Parameters to configure the perspective.
 
@@ -104,7 +104,7 @@ ___
 
 ### world
 
-• **world**: [`World`](World.md)\<`any`\>
+• **world**: [`World`](World.md)<`any`\>
 
 The world that this perspective instance is working with.
 
@@ -149,7 +149,7 @@ function useless.
 
 | Name | Type | Default value | Description |
 | :------ | :------ | :------ | :------ |
-| `inputs` | [`Inputs`](Inputs.md)\<`any`\> | `undefined` | The [Inputs](Inputs.md) instance to bind the perspective's keyboard inputs to. |
+| `inputs` | [`Inputs`](Inputs.md)<`any`\> | `undefined` | The [Inputs](Inputs.md) instance to bind the perspective's keyboard inputs to. |
 | `namespace` | `string` | `"*"` | The namespace to bind the perspective's keyboard inputs to. |
 
 #### Returns

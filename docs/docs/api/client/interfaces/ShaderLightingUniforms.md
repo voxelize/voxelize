@@ -20,6 +20,20 @@ custom_edit_url: null
 
 ___
 
+### bedCausticScale
+
+• **bedCausticScale**: `Object`
+
+0..1 scale on the caustic net seen on submerged faces from below.
+
+#### Type declaration
+
+| Name | Type |
+| :------ | :------ |
+| `value` | `number` |
+
+___
+
 ### cascadeSplit0
 
 • **cascadeSplit0**: `Object`
@@ -47,6 +61,42 @@ ___
 ### cascadeSplit2
 
 • **cascadeSplit2**: `Object`
+
+#### Type declaration
+
+| Name | Type |
+| :------ | :------ |
+| `value` | `number` |
+
+___
+
+### celestialDirection
+
+• **celestialDirection**: `Object`
+
+The celestial disc above the horizon as the sky box actually draws it
+(`getVisibleDiscDirection`): the sun by day, the moon by night, never
+clamped or tilted. Specular reflections read this, so the sun on the
+water sits under the sun in the sky.
+
+#### Type declaration
+
+| Name | Type |
+| :------ | :------ |
+| `value` | `Vector3` |
+
+___
+
+### directSunlight
+
+• **directSunlight**: `Object`
+
+The share of the sun (the moon by night) that reaches the world as a
+direct beam, 0..1: 1 under a clear sky, falling as cloud veils the
+disc. What only a beam draws (glints on water, caustics, the disc seen
+through the surface from below) scales by it; diffuse daylight
+(`sunlightIntensity`) does not. The engine leaves it at 1; a host with
+weather lowers it.
 
 #### Type declaration
 
@@ -88,7 +138,7 @@ ___
 
 | Name | Type |
 | :------ | :------ |
-| `value` | `Texture`\<`unknown`\> |
+| `value` | `Texture`<`unknown`\> |
 
 ___
 
@@ -100,7 +150,7 @@ ___
 
 | Name | Type |
 | :------ | :------ |
-| `value` | `Texture`\<`unknown`\> |
+| `value` | `Texture`<`unknown`\> |
 
 ___
 
@@ -112,7 +162,7 @@ ___
 
 | Name | Type |
 | :------ | :------ |
-| `value` | `Texture`\<`unknown`\> |
+| `value` | `Texture`<`unknown`\> |
 
 ___
 
@@ -264,6 +314,10 @@ ___
 
 • **sunDirection**: `Object`
 
+The shading light: held above a minimum elevation, tilted off the sun's
+plane, and blended toward the moon through twilight, so terrain shading
+and shadows stay readable at every hour. Not where the sun is drawn.
+
 #### Type declaration
 
 | Name | Type |
@@ -281,6 +335,40 @@ ___
 | Name | Type |
 | :------ | :------ |
 | `value` | `number` |
+
+___
+
+### surfaceUndersideScale
+
+• **surfaceUndersideScale**: `Object`
+
+The surface's underside while submerged: 0 off, 1 one continuous
+rippled ceiling the scene above shows through most straight up, 2 the
+texel-stepped window and caustic web, 3 the clear Snell window over a
+calm mirror (2 and 3 kept for A/B captures).
+
+#### Type declaration
+
+| Name | Type |
+| :------ | :------ |
+| `value` | `number` |
+
+___
+
+### surfaceUndersideTuning
+
+• **surfaceUndersideTuning**: `Object`
+
+Style 1's ceiling, live-tunable: x film brightness against the water's
+scatter colour, y the share of the scene above shown straight up, z the
+power of the cosine it falls off with toward grazing, w the ripples'
+light-and-shade on the film. Defaults are `WATER_OPTICS.underside*`.
+
+#### Type declaration
+
+| Name | Type |
+| :------ | :------ |
+| `value` | `Vector4` |
 
 ___
 
@@ -323,6 +411,22 @@ ___
 ### waterStreakStrength
 
 • **waterStreakStrength**: `Object`
+
+#### Type declaration
+
+| Name | Type |
+| :------ | :------ |
+| `value` | `number` |
+
+___
+
+### waterSurfaceCrisp
+
+• **waterSurfaceCrisp**: `Object`
+
+1 draws the water surface per 1/16-block texel (ripples sampled at
+texel centres, fresnel and glint in three flat steps); 0 the earlier
+smooth surface, for A/B.
 
 #### Type declaration
 

@@ -20,7 +20,7 @@ custom_edit_url: null
 
 ### buildComparison
 
-▸ **buildComparison**(`cx`, `cz`, `level`, `transfer`, `shared`): [`MeshTransferBenchmarkResult`](../modules.md#meshtransferbenchmarkresult)
+▸ **buildComparison**(`cx`, `cz`, `level`, `transfer`, `shared`): [`MeshTransferBenchmarkResult`](../#meshtransferbenchmarkresult)
 
 #### Parameters
 
@@ -29,12 +29,12 @@ custom_edit_url: null
 | `cx` | `number` |
 | `cz` | `number` |
 | `level` | `number` |
-| `transfer` | [`MeshTransferBenchmarkModeResult`](../modules.md#meshtransferbenchmarkmoderesult) |
-| `shared` | [`MeshTransferBenchmarkModeResult`](../modules.md#meshtransferbenchmarkmoderesult) |
+| `transfer` | [`MeshTransferBenchmarkModeResult`](../#meshtransferbenchmarkmoderesult) |
+| `shared` | [`MeshTransferBenchmarkModeResult`](../#meshtransferbenchmarkmoderesult) |
 
 #### Returns
 
-[`MeshTransferBenchmarkResult`](../modules.md#meshtransferbenchmarkresult)
+[`MeshTransferBenchmarkResult`](../#meshtransferbenchmarkresult)
 
 ___
 
@@ -46,7 +46,7 @@ ___
 
 | Name | Type |
 | :------ | :------ |
-| `config` | `Partial`\<[`WorkerTransferConfig`](../modules.md#workertransferconfig)\> |
+| `config` | `Partial`<[`WorkerTransferConfig`](../#workertransferconfig)\> |
 
 #### Returns
 
@@ -56,37 +56,37 @@ ___
 
 ### getMode
 
-▸ **getMode**(): [`WorkerTransferMode`](../modules.md#workertransfermode)
+▸ **getMode**(): [`WorkerTransferMode`](../#workertransfermode)
 
 #### Returns
 
-[`WorkerTransferMode`](../modules.md#workertransfermode)
+[`WorkerTransferMode`](../#workertransfermode)
 
 ___
 
 ### getStats
 
-▸ **getStats**(`strategy?`): [`MeshWorkerTransferStats`](../modules.md#meshworkertransferstats) \| `Record`\<[`WorkerTransferStrategy`](../modules.md#workertransferstrategy), [`MeshWorkerTransferStats`](../modules.md#meshworkertransferstats)\>
+▸ **getStats**(`strategy?`): [`MeshWorkerTransferStats`](../#meshworkertransferstats) \| `Record`<[`WorkerTransferStrategy`](../#workertransferstrategy), [`MeshWorkerTransferStats`](../#meshworkertransferstats)\>
 
 #### Parameters
 
 | Name | Type |
 | :------ | :------ |
-| `strategy?` | [`WorkerTransferStrategy`](../modules.md#workertransferstrategy) |
+| `strategy?` | [`WorkerTransferStrategy`](../#workertransferstrategy) |
 
 #### Returns
 
-[`MeshWorkerTransferStats`](../modules.md#meshworkertransferstats) \| `Record`\<[`WorkerTransferStrategy`](../modules.md#workertransferstrategy), [`MeshWorkerTransferStats`](../modules.md#meshworkertransferstats)\>
+[`MeshWorkerTransferStats`](../#meshworkertransferstats) \| `Record`<[`WorkerTransferStrategy`](../#workertransferstrategy), [`MeshWorkerTransferStats`](../#meshworkertransferstats)\>
 
 ___
 
 ### getStrategy
 
-▸ **getStrategy**(): [`WorkerTransferStrategy`](../modules.md#workertransferstrategy)
+▸ **getStrategy**(): [`WorkerTransferStrategy`](../#workertransferstrategy)
 
 #### Returns
 
-[`WorkerTransferStrategy`](../modules.md#workertransferstrategy)
+[`WorkerTransferStrategy`](../#workertransferstrategy)
 
 ___
 
@@ -108,7 +108,7 @@ ___
 
 | Name | Type |
 | :------ | :------ |
-| `sample` | [`MeshWorkerTransferSample`](../modules.md#meshworkertransfersample) |
+| `sample` | [`MeshWorkerTransferSample`](../#meshworkertransfersample) |
 
 #### Returns
 
@@ -134,7 +134,7 @@ ___
 
 | Name | Type |
 | :------ | :------ |
-| `strategy` | [`WorkerTransferStrategy`](../modules.md#workertransferstrategy) |
+| `strategy` | [`WorkerTransferStrategy`](../#workertransferstrategy) |
 
 #### Returns
 
@@ -144,16 +144,16 @@ ___
 
 ### summarizeIterations
 
-▸ **summarizeIterations**(`strategy`, `warmupIterations`, `measuredIterations`): [`MeshTransferBenchmarkModeResult`](../modules.md#meshtransferbenchmarkmoderesult)
+▸ **summarizeIterations**(`strategy`, `warmupIterations`, `measuredIterations`): [`MeshTransferBenchmarkModeResult`](../#meshtransferbenchmarkmoderesult)
 
 #### Parameters
 
 | Name | Type |
 | :------ | :------ |
-| `strategy` | [`WorkerTransferStrategy`](../modules.md#workertransferstrategy) |
+| `strategy` | [`WorkerTransferStrategy`](../#workertransferstrategy) |
 | `warmupIterations` | `number` |
-| `measuredIterations` | [`MeshTransferBenchmarkIteration`](../modules.md#meshtransferbenchmarkiteration)[] |
+| `measuredIterations` | [`MeshTransferBenchmarkIteration`](../#meshtransferbenchmarkiteration)[] |
 
 #### Returns
 
-[`MeshTransferBenchmarkModeResult`](../modules.md#meshtransferbenchmarkmoderesult)
+[`MeshTransferBenchmarkModeResult`](../#meshtransferbenchmarkmoderesult)

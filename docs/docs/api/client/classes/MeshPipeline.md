@@ -28,6 +28,34 @@ custom_edit_url: null
 
 ## Methods
 
+### expireStuckJobs
+
+▸ **expireStuckJobs**(`nowMs`, `maxAgeMs`): `string`[]
+
+The leak watchdog: release any in-flight generation older than
+`maxAgeMs` and re-queue its key. Single-flight dispatch turns one
+unsettled job into a chunk level that never re-meshes again for the
+whole session, and every historical instance of that (a shed queue, a
+dispatch path missing its release, a worker that died) has looked like
+this exact symptom: a walkable chunk that stopped rendering hours into
+a long session and stayed gone until reload. Expiry converts whichever
+such path still exists — or gets written next — from a permanent hole
+into a logged self-heal. Returns the expired keys for the caller to
+report.
+
+#### Parameters
+
+| Name | Type |
+| :------ | :------ |
+| `nowMs` | `number` |
+| `maxAgeMs` | `number` |
+
+#### Returns
+
+`string`[]
+
+___
+
 ### failJob
 
 ▸ **failJob**(`key`, `jobGeneration`): `void`
@@ -51,7 +79,18 @@ ___
 
 ### getDirtyKeys
 
-▸ **getDirtyKeys**(): `string`[]
+▸ **getDirtyKeys**(`center?`): `string`[]
+
+Dirty keys ready for dispatch: the urgent lane first in insertion order
+(player edits stay latency-ordered), then regular keys nearest-first
+around `center` so remesh work reaches the camera before the horizon.
+Without a center the regular lane keeps insertion order.
+
+#### Parameters
+
+| Name | Type |
+| :------ | :------ |
+| `center?` | [`Coords2`](../#coords2) |
 
 #### Returns
 
@@ -72,6 +111,24 @@ ___
 ### hasDirtyChunks
 
 ▸ **hasDirtyChunks**(): `boolean`
+
+#### Returns
+
+`boolean`
+
+___
+
+### hasDisplayed
+
+▸ **hasDisplayed**(`key`): `boolean`
+
+Whether some mesh of this section, current or not, has been applied.
+
+#### Parameters
+
+| Name | Type |
+| :------ | :------ |
+| `key` | `string` |
 
 #### Returns
 
@@ -102,6 +159,24 @@ ___
 #### Returns
 
 `number`
+
+___
+
+### isDirty
+
+▸ **isDirty**(`key`): `boolean`
+
+Whether a mesh job for this section is waiting to be dispatched.
+
+#### Parameters
+
+| Name | Type |
+| :------ | :------ |
+| `key` | `string` |
+
+#### Returns
+
+`boolean`
 
 ___
 
@@ -266,13 +341,14 @@ ___
 
 ### startJob
 
-▸ **startJob**(`key`): `number`
+▸ **startJob**(`key`, `nowMs?`): `number`
 
 #### Parameters
 
 | Name | Type |
 | :------ | :------ |
 | `key` | `string` |
+| `nowMs` | `number` |
 
 #### Returns
 

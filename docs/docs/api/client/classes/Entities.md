@@ -49,7 +49,7 @@ network.register(entities);
 
 | Name | Type |
 | :------ | :------ |
-| `options` | `Partial`\<[`EntitiesOptions`](../modules.md#entitiesoptions)\> |
+| `options` | `Partial`<[`EntitiesOptions`](../#entitiesoptions)\> |
 
 #### Returns
 
@@ -63,25 +63,47 @@ Group.constructor
 
 ### map
 
-• **map**: `Map`\<`string`, [`Entity`](Entity.md)\<`any`\>\>
+• **map**: `Map`<`string`, [`Entity`](Entity.md)<`any`\>\>
 
 ___
 
 ### options
 
-• **options**: [`EntitiesOptions`](../modules.md#entitiesoptions)
+• **options**: [`EntitiesOptions`](../#entitiesoptions)
 
 ___
 
 ### types
 
-• **types**: `Map`\<`string`, (`id`: `string`) => [`Entity`](Entity.md)\<`any`\> \| (`id`: `string`) => [`Entity`](Entity.md)\<`any`\>\>
+• **types**: `Map`<`string`, (`id`: `string`) => [`Entity`](Entity.md)<`any`\> \| (`id`: `string`) => [`Entity`](Entity.md)<`any`\>\>
 
 ## Methods
 
+### appliedTick
+
+▸ **appliedTick**(`id`): `number`
+
+The server tick stamp of the newest state applied for entity `id`, or
+`undefined` before any stamped message reached it. A client can name it
+in a request that acts on what it sees, so an authoritative server can
+tell how old that view was, however long the message queue held it,
+and resolve the request against the entity as the client saw it.
+
+#### Parameters
+
+| Name | Type |
+| :------ | :------ |
+| `id` | `string` |
+
+#### Returns
+
+`number`
+
+___
+
 ### getEntityById
 
-▸ **getEntityById**(`id`): [`Entity`](Entity.md)\<`any`\>
+▸ **getEntityById**(`id`): [`Entity`](Entity.md)<`any`\>
 
 Get an entity instance by its ID.
 
@@ -93,7 +115,7 @@ Get an entity instance by its ID.
 
 #### Returns
 
-[`Entity`](Entity.md)\<`any`\>
+[`Entity`](Entity.md)<`any`\>
 
 The entity object with the given ID.
 
@@ -108,7 +130,7 @@ ___
 | Name | Type |
 | :------ | :------ |
 | `type` | `string` |
-| `entity` | (`id`: `string`) => [`Entity`](Entity.md)\<`any`\> \| (`id`: `string`) => [`Entity`](Entity.md)\<`any`\> |
+| `entity` | (`id`: `string`) => [`Entity`](Entity.md)<`any`\> \| (`id`: `string`) => [`Entity`](Entity.md)<`any`\> |
 
 #### Returns
 

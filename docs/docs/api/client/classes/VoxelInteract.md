@@ -51,9 +51,9 @@ Create a new VoxelInteract instance.
 
 | Name | Type | Description |
 | :------ | :------ | :------ |
-| `object` | `Object3D`\<`Object3DEventMap`\> | The object that the interactions should be raycasting from. |
-| `world` | [`World`](World.md)\<`any`\> | The [World](World.md) instance that the interactions should be raycasting in. |
-| `options` | `Partial`\<[`VoxelInteractOptions`](../modules.md#voxelinteractoptions)\> | Parameters to customize the [VoxelInteract](VoxelInteract.md) instance. |
+| `object` | `Object3D`<`Object3DEventMap`\> | The object that the interactions should be raycasting from. |
+| `world` | [`World`](World.md)<`any`\> | The [World](World.md) instance that the interactions should be raycasting in. |
+| `options` | `Partial`<[`VoxelInteractOptions`](../#voxelinteractoptions)\> | Parameters to customize the [VoxelInteract](VoxelInteract.md) instance. |
 
 #### Returns
 
@@ -73,9 +73,19 @@ Whether or not is this [VoxelInteract](VoxelInteract.md) instance currently acti
 
 ___
 
+### isHighlightHidden
+
+• **isHighlightHidden**: `boolean` = `false`
+
+Hide the highlight while targeting carries on. A capture that must not
+draw the outline still needs [VoxelInteract.target](VoxelInteract.md#target) for whatever
+reads it (breaking, placing); `toggle(false)` stops targeting itself.
+
+___
+
 ### object
 
-• **object**: `Object3D`\<`Object3DEventMap`\>
+• **object**: `Object3D`<`Object3DEventMap`\>
 
 The object that the interactions should be raycasting from.
 
@@ -83,7 +93,7 @@ ___
 
 ### options
 
-• **options**: [`VoxelInteractOptions`](../modules.md#voxelinteractoptions)
+• **options**: [`VoxelInteractOptions`](../#voxelinteractoptions)
 
 Parameters to customize the [VoxelInteract](VoxelInteract.md) instance.
 
@@ -106,8 +116,8 @@ The potential orientation and location of the block placement. If no block place
 | `placement.facingPlayerYRotation8` | `number` | The Y-rotation value (8 segments) that would make the block face toward the player. |
 | `placement.verticalHalf` | ``"bottom"`` \| ``"top"`` | Whether the hit point is in the top or bottom half of the target voxel space. Useful for determining slab placement (top slab vs bottom slab). |
 | `rotation` | `number` | The rotation that the block placement's major axis should be facing. |
-| `voxel` | [`Coords3`](../modules.md#coords3) | The 3D coordinates of the potential block placement. |
-| `yRotation` | `number` | The rotation along the Y axis that the block placement's major axis should be facing. This only works if rotation is [PY_ROTATION](../modules.md#py_rotation) or [NY_ROTATION](../modules.md#ny_rotation). |
+| `voxel` | [`Coords3`](../#coords3) | The 3D coordinates of the potential block placement. |
+| `yRotation` | `number` | The rotation along the Y axis that the block placement's major axis should be facing. This only works if rotation is [PY_ROTATION](../#py_rotation) or [NY_ROTATION](../#ny_rotation). |
 | `yRotation4` | `number` | - |
 | `yRotation8` | `number` | - |
 
@@ -115,7 +125,7 @@ ___
 
 ### target
 
-• **target**: [`Coords3`](../modules.md#coords3)
+• **target**: [`Coords3`](../#coords3)
 
 The targeted voxel coordinates of the block that the camera is looking at. If no block is targeted, this will be `null`.
 
@@ -123,7 +133,7 @@ ___
 
 ### world
 
-• **world**: [`World`](World.md)\<`any`\>
+• **world**: [`World`](World.md)<`any`\>
 
 The [World](World.md) instance that the interactions should be raycasting in.
 
@@ -131,13 +141,13 @@ The [World](World.md) instance that the interactions should be raycasting in.
 
 ### lookingAt
 
-• `get` **lookingAt**(): [`Block`](../modules.md#block)
+• `get` **lookingAt**(): [`Block`](../#block)
 
 Get the voxel ID of the targeted voxel. `null` if no voxel is targeted.
 
 #### Returns
 
-[`Block`](../modules.md#block)
+[`Block`](../#block)
 
 ## Methods
 
@@ -149,7 +159,7 @@ Get the voxel ID of the targeted voxel. `null` if no voxel is targeted.
 
 | Name | Type |
 | :------ | :------ |
-| `voxel` | [`Coords3`](../modules.md#coords3) |
+| `voxel` | [`Coords3`](../#coords3) |
 
 #### Returns
 
@@ -165,7 +175,7 @@ ___
 
 | Name | Type |
 | :------ | :------ |
-| `voxel` | [`Coords3`](../modules.md#coords3) |
+| `voxel` | [`Coords3`](../#coords3) |
 
 #### Returns
 
@@ -175,14 +185,15 @@ ___
 
 ### setAABBOverride
 
-▸ **setAABBOverride**(`voxel`, `aabbs`): `void`
+▸ **setAABBOverride**(`voxel`, `aabbs`, `owner?`): `void`
 
 #### Parameters
 
 | Name | Type |
 | :------ | :------ |
-| `voxel` | [`Coords3`](../modules.md#coords3) |
+| `voxel` | [`Coords3`](../#coords3) |
 | `aabbs` | `AABB`[] |
+| `owner?` | [`Coords3`](../#coords3) |
 
 #### Returns
 
@@ -198,7 +209,7 @@ ___
 
 | Name | Type | Default value |
 | :------ | :------ | :------ |
-| `force` | `any` | `null` |
+| `force` | `boolean` | `null` |
 
 #### Returns
 

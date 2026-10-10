@@ -36,11 +36,11 @@ ___
 
 ### getStats
 
-▸ **getStats**(): [`ChunkSharedPoolStats`](../modules.md#chunksharedpoolstats)
+▸ **getStats**(): [`ChunkSharedPoolStats`](../#chunksharedpoolstats)
 
 #### Returns
 
-[`ChunkSharedPoolStats`](../modules.md#chunksharedpoolstats)
+[`ChunkSharedPoolStats`](../#chunksharedpoolstats)
 
 ___
 

@@ -35,6 +35,24 @@ ___
 
 ▪ `Static` `Readonly` **BEER\_LAMBERT\_TRANSMITTANCE\_NUM**: ``222``
 
+___
+
+### LEVEL\_FROM\_NEIGHBORS
+
+▪ `Static` `Readonly` **LEVEL\_FROM\_NEIGHBORS**: ``-1``
+
+Marker level for a flood seed whose light is to be read where the flood
+runs, not where the edit was analysed.
+
+A cell opened out of an opaque block is lit by whatever stands around it,
+and the analysis used to seed the flood from the neighbours' light as it
+was on the main thread at that moment. Light lands a worker round-trip
+later, so a neighbour opened by the previous packet could still read
+zero: the cell then got no seed at all, and since nothing ever revisits
+a lit-looking-enough cell, a pit cut into stone stayed black until a
+reload. Seeded this way, the cell's neighbours are read from the flood's
+own snapshot, which already holds every earlier batch's result.
+
 ## Methods
 
 ### beerLambertTransmit
@@ -106,7 +124,7 @@ ___
 
 ### dedupeFillQueue
 
-▸ **dedupeFillQueue**\<`T`\>(`nodes`): `T`[]
+▸ **dedupeFillQueue**<`T`\>(`nodes`): `T`[]
 
 #### Type parameters
 
@@ -312,9 +330,41 @@ The inserted light value.
 
 ___
 
+### resolveDeferredSeeds
+
+▸ **resolveDeferredSeeds**<`TNode`\>(`volume`, `seeds`, `color`, `maxHeight`): \{ `level`: `number` ; `voxel`: [`Coords3`](../#coords3)  }[]
+
+Replace every deferred seed ([LightUtils.LEVEL_FROM_NEIGHBORS](LightUtils.md#level_from_neighbors)) with
+ordinary seeds at its lit neighbours, read from `volume` now; other
+seeds pass through. Duplicates collapse, so a wall of opened cells does
+not seed the same lit neighbour a dozen times.
+
+#### Type parameters
+
+| Name | Type |
+| :------ | :------ |
+| `TNode` | extends `Object` |
+
+#### Parameters
+
+| Name | Type |
+| :------ | :------ |
+| `volume` | `Object` |
+| `volume.getSunlightAt` | (`vx`: `number`, `vy`: `number`, `vz`: `number`) => `number` |
+| `volume.getTorchLightAt` | (`vx`: `number`, `vy`: `number`, `vz`: `number`, `color`: [`LightColor`](../#lightcolor)) => `number` |
+| `seeds` | `TNode`[] |
+| `color` | [`LightColor`](../#lightcolor) |
+| `maxHeight` | `number` |
+
+#### Returns
+
+\{ `level`: `number` ; `voxel`: [`Coords3`](../#coords3)  }[]
+
+___
+
 ### retainLiveFillNodes
 
-▸ **retainLiveFillNodes**\<`T`\>(`nodes`, `getLevelAt`): `T`[]
+▸ **retainLiveFillNodes**<`T`\>(`nodes`, `getLevelAt`): `T`[]
 
 #### Type parameters
 

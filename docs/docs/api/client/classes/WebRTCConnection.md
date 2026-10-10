@@ -88,7 +88,12 @@ ___
 
 ### connect
 
-▸ **connect**(`serverUrl`, `clientId`): `Promise`\<`void`\>
+▸ **connect**(`serverUrl`, `clientId`, `ticket?`): `Promise`<`void`\>
+
+Open the data channel for an already-registered session. `ticket` is the
+same signed session credential the WebSocket upgrade carried; the server
+derives the acting client id from it, so without one the offer is only
+accepted on servers that trust client-chosen ids.
 
 #### Parameters
 
@@ -96,7 +101,8 @@ ___
 | :------ | :------ |
 | `serverUrl` | `string` |
 | `clientId` | `string` |
+| `ticket?` | `string` |
 
 #### Returns
 
-`Promise`\<`void`\>
+`Promise`<`void`\>

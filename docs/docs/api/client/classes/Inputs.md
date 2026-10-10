@@ -51,7 +51,7 @@ rigidControls.connect(inputs);
 
 ### constructor
 
-• **new Inputs**\<`T`\>(): [`Inputs`](Inputs.md)\<`T`\>
+• **new Inputs**<`T`\>(): [`Inputs`](Inputs.md)<`T`\>
 
 Construct a Voxelize inputs instance.
 
@@ -63,7 +63,7 @@ Construct a Voxelize inputs instance.
 
 #### Returns
 
-[`Inputs`](Inputs.md)\<`T`\>
+[`Inputs`](Inputs.md)<`T`\>
 
 #### Overrides
 
@@ -93,7 +93,7 @@ Bind a keyboard key to a callback.
 | `key` | `string` | `undefined` | The key to listen for. This checks the `event.key` or the `event.code` property. |
 | `callback` | (`event`: `KeyboardEvent`) => `boolean` \| `void` | `undefined` | The callback to call when the key is pressed. |
 | `namespaces` | ``"*"`` \| `T` \| `T`[] | `"*"` | - |
-| `specifics` | [`InputSpecifics`](../modules.md#inputspecifics) | `{}` | The specific options of the key to listen for. |
+| `specifics` | [`InputSpecifics`](../#inputspecifics) | `{}` | The specific options of the key to listen for. |
 
 #### Returns
 
@@ -111,7 +111,7 @@ ___
 
 ### click
 
-▸ **click**(`type`, `callback`, `namespace?`): () => `boolean`
+▸ **click**(`type`, `callback`, `namespace?`, `occasion?`): () => `boolean`
 
 Add a mouse click event listener.
 
@@ -119,9 +119,10 @@ Add a mouse click event listener.
 
 | Name | Type | Default value | Description |
 | :------ | :------ | :------ | :------ |
-| `type` | [`ClickType`](../modules.md#clicktype) | `undefined` | The type of click to listen for. Either "left", "middle" or "right". |
+| `type` | [`ClickType`](../#clicktype) | `undefined` | The type of click to listen for. Either "left", "middle" or "right". |
 | `callback` | (`event`: `MouseEvent`) => `boolean` \| `void` | `undefined` | The callback to call when the click is fired, passing the MouseEvent. |
 | `namespace` | ``"*"`` \| `T` | `"*"` | The namespace to bind the click to. Defaults to "*", which means that the click will be fired regardless of the namespace. |
+| `occasion` | [`ClickOccasion`](../#clickoccasion) | `"mousedown"` | Whether to fire on press or on release. Defaults to "mousedown". |
 
 #### Returns
 
@@ -137,9 +138,29 @@ A function to unbind the click.
 
 ___
 
+### dispose
+
+▸ **dispose**(): `void`
+
+Take the instance off the document for good: every key, click and
+scroll listener it installed is removed and every binding dropped.
+
+The listeners close over this instance, and through its bindings over
+whatever the callbacks reach -- the controls, the world, the scene. An
+`Inputs` that is simply let go of keeps hearing every keystroke and
+keeps all of that alive with it. A page that mounts a new `Inputs`
+(a hot-reload remount, a world switch without a page load) must
+dispose the old one first.
+
+#### Returns
+
+`void`
+
+___
+
 ### on
 
-▸ **on**(`event`, `listener`): [`Inputs`](Inputs.md)\<`T`\>
+▸ **on**(`event`, `listener`): [`Inputs`](Inputs.md)<`T`\>
 
 Listen to an event emitted by the input instance. The following events are emitted:
 - `namespace`: Emitted when the namespace is changed.
@@ -153,7 +174,7 @@ Listen to an event emitted by the input instance. The following events are emitt
 
 #### Returns
 
-[`Inputs`](Inputs.md)\<`T`\>
+[`Inputs`](Inputs.md)<`T`\>
 
 The input instance for chaining.
 
@@ -176,9 +197,9 @@ Remap a key to another key.
 | `oldKey` | `string` | The old key to replace. |
 | `newKey` | `string` | The new key to replace the old key with. |
 | `specifics` | `Object` | The specifics of the keys to replace. |
-| `specifics.checkType?` | ``"code"`` \| ``"key"`` | - |
+| `specifics.checkType?` | ``"key"`` \| ``"code"`` | - |
 | `specifics.identifier?` | `string` | - |
-| `specifics.occasion?` | [`InputOccasion`](../modules.md#inputoccasion) | - |
+| `specifics.occasion?` | [`InputOccasion`](../#inputoccasion) | - |
 
 #### Returns
 
@@ -257,9 +278,9 @@ Swap two keys with each other.
 | `keyA` | `string` | The first key to swap. |
 | `keyB` | `string` | The second key to swap. |
 | `specifics` | `Object` | The specifics of the keys to swap. |
-| `specifics.checkType?` | ``"code"`` \| ``"key"`` | - |
+| `specifics.checkType?` | ``"key"`` \| ``"code"`` | - |
 | `specifics.identifier?` | `string` | - |
-| `specifics.occasion?` | [`InputOccasion`](../modules.md#inputoccasion) | - |
+| `specifics.occasion?` | [`InputOccasion`](../#inputoccasion) | - |
 
 #### Returns
 
@@ -278,7 +299,7 @@ Unbind a keyboard key.
 | Name | Type | Description |
 | :------ | :------ | :------ |
 | `key` | `string` | The key to unbind. |
-| `specifics` | [`InputSpecifics`](../modules.md#inputspecifics) | The specifics of the key to unbind. |
+| `specifics` | [`InputSpecifics`](../#inputspecifics) | The specifics of the key to unbind. |
 
 #### Returns
 

@@ -16,13 +16,13 @@ ___
 
 ### colors
 
-• **colors**: `Float32Array`\<`ArrayBufferLike`\>
+• **colors**: `Float32Array`<`ArrayBufferLike`\>
 
 ___
 
 ### indices
 
-• **indices**: `Uint32Array`\<`ArrayBufferLike`\>
+• **indices**: `Uint32Array`<`ArrayBufferLike`\>
 
 ___
 
@@ -34,7 +34,7 @@ ___
 
 ### positions
 
-• **positions**: `Float32Array`\<`ArrayBufferLike`\>
+• **positions**: `Float32Array`<`ArrayBufferLike`\>
 
 ___
 
