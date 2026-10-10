@@ -99,6 +99,7 @@ import {
   BlockRotation,
   BlockUpdate,
   BlockUpdateWithSource,
+  everyFaceOf,
   PY_ROTATION,
 } from "./block";
 import { BlockAnimations } from "./block-animations";
@@ -1005,7 +1006,7 @@ export class World<T = any> extends Scene implements NetIntercept {
     }
     const classes: TexelClasses = { solid: false, translucent: false };
     for (const block of this.blocksInBucket(bucket)) {
-      for (const face of block.faces) {
+      for (const face of everyFaceOf(block)) {
         if (isOwnTextureFace(face)) continue;
         mergeTexelClasses(classes, atlas.rangeTexelClasses(face.range, cuts));
       }
@@ -2744,7 +2745,7 @@ export class World<T = any> extends Scene implements NetIntercept {
       // An empty block (air, a chest drawn by its own model) is never
       // meshed, so its slots are never sampled and cannot show anything.
       if (block.isEmpty) continue;
-      for (const face of block.faces) {
+      for (const face of everyFaceOf(block)) {
         const surface = {
           blockId: block.id,
           blockName: block.name,
@@ -2833,7 +2834,7 @@ export class World<T = any> extends Scene implements NetIntercept {
 
     for (const block of this.registry.blocksById.values()) {
       if (block.isEmpty) continue;
-      for (const face of block.faces) {
+      for (const face of everyFaceOf(block)) {
         if (isOwnTextureFace(face)) {
           const mat = this.getBlockFaceMaterial(block.id, face.name);
           if (!mat || (mat.map && mat.map !== unknown)) continue;
@@ -2913,7 +2914,7 @@ export class World<T = any> extends Scene implements NetIntercept {
     const facesInGroup: { blockId: number; face: Block["faces"][0] }[] = [];
 
     for (const [id, block] of this.registry.blocksById) {
-      for (const face of block.faces) {
+      for (const face of everyFaceOf(block)) {
         if (face.textureGroup === groupName) {
           facesInGroup.push({ blockId: id, face });
         }

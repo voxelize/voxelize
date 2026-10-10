@@ -6,6 +6,8 @@ mod connected_parity_tests;
 mod coupled;
 mod faces;
 mod rules;
+#[cfg(test)]
+mod stage_faces_parity_tests;
 
 use std::{f32, marker::Sync, sync::Arc};
 
@@ -223,6 +225,12 @@ pub struct Block {
     /// [`BlockBuilder::rotation_bits_are_state`].
     #[serde(default)]
     pub rotation_bits_are_state: bool,
+
+    /// The faces a voxel of this block wears instead of `faces` while its
+    /// stage holds any of the mask's bits. Declared with
+    /// [`BlockBuilder::stage_faces`].
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub stage_faces: Option<StageFaces>,
 
     /// Dynamic aabb and face generation function. Defaults to `None`.
     #[serde(skip)]
@@ -526,8 +534,35 @@ impl Block {
             branch: self.branch.clone(),
             branch_sockets: self.branch_sockets.clone(),
             branch_shell: self.branch_shell,
+            stage_faces: self
+                .stage_faces
+                .as_ref()
+                .map(|alternate| voxelize_mesher::StageFaces {
+                    mask: alternate.mask,
+                    faces: alternate.faces.iter().map(|f| f.to_mesher_face()).collect(),
+                }),
         }
     }
+
+    /// The faces a voxel of this block at `stage` wears: its stage faces
+    /// while the stage holds any of their bits, its own otherwise.
+    pub fn faces_at(&self, stage: u32) -> &[BlockFace] {
+        match &self.stage_faces {
+            Some(alternate) if stage & alternate.mask != 0 => &alternate.faces,
+            _ => &self.faces,
+        }
+    }
+}
+
+/// Faces a block wears in place of its own on a voxel whose stage holds any
+/// of `mask`'s bits: the same cube in another look, as a canopy in flower
+/// wears its blossoms over its leaves. Each face stands in for the block's
+/// face toward the same side.
+#[derive(Clone, Debug, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct StageFaces {
+    pub mask: u32,
+    pub faces: Vec<BlockFace>,
 }
 
 #[derive(Clone, Serialize, Deserialize)]
