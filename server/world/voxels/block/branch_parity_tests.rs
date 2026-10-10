@@ -20,8 +20,8 @@ use serde_json::{json, Value};
 use std::collections::HashMap;
 
 use crate::{
-    Block, BlockFaces, BranchKind, BranchSeat, BranchShape, BranchSocket, LightUtils, Registry,
-    Vec3, VoxelAccess, WideBranchBits, WideBranchSection,
+    Block, BlockFaces, BlockUtils, BranchKind, BranchSeat, BranchShape, BranchSocket, LightUtils,
+    Registry, Vec3, VoxelAccess, WideBranchBits, WideBranchSection,
 };
 
 const FIXTURE: &str = concat!(
@@ -40,6 +40,7 @@ const TRUNK: u32 = 6;
 const FIN: u32 = 7;
 const SHELL: u32 = 8;
 const INNER: u32 = 9;
+const WATER: u32 = 10;
 
 fn shape(seat: BranchSeat, kind: BranchKind) -> BranchShape {
     BranchShape {
@@ -65,6 +66,7 @@ fn wood(name: &str, id: u32, seat: BranchSeat, kind: BranchKind) -> Block {
         .faces(&faces)
         .branch(shape(seat, kind))
         .is_transparent(true)
+        .is_waterloggable(kind == BranchKind::Voxel)
         .build()
 }
 
@@ -112,6 +114,18 @@ fn registry() -> Registry {
             })
             .build(),
     );
+    registry.register_block(
+        &Block::new("Water")
+            .id(WATER)
+            .faces(&BlockFaces::six_faces().texture_group("water").build())
+            .is_fluid(true)
+            .is_waterlogging_fluid(true)
+            .is_transparent(true)
+            .is_see_through(true)
+            .light_reduce(false)
+            .is_passable(true)
+            .build(),
+    );
     registry.generate();
     registry
 }
@@ -126,6 +140,24 @@ fn voxel(id: u32, radius: u32) -> u32 {
 }
 
 type Voxels = Vec<[u32; 4]>;
+
+/// A branch voxel holding a full voxel's water round its wood.
+fn wet(raw: u32) -> u32 {
+    BlockUtils::insert_waterlog_level(BlockUtils::insert_waterlogged(raw, true), 0)
+}
+
+/// `raw` filling the box from `min` to `max`, inclusive.
+fn fill(min: [u32; 3], max: [u32; 3], raw: u32) -> Voxels {
+    let mut cells = Vec::new();
+    for x in min[0]..=max[0] {
+        for y in min[1]..=max[1] {
+            for z in min[2]..=max[2] {
+                cells.push([x, y, z, raw]);
+            }
+        }
+    }
+    cells
+}
 
 /// A fin `height` texels tall.
 fn fin(radius: u32, height: u32) -> u32 {
@@ -268,6 +300,32 @@ fn scenes() -> Vec<(&'static str, Voxels)> {
                 [10, 4, 10, WideBranchBits::with_shell_offset(SHELL, 1, 0)],
                 [6, 4, 6, voxel(LIMB, 4)],
             ],
+        ),
+        (
+            "a thin trunk, its roots and a twig standing in water",
+            [
+                fill([4, 2, 4], [8, 2, 8], SOIL),
+                fill([4, 3, 4], [8, 4, 8], WATER),
+                vec![
+                    [6, 3, 6, wet(voxel(LIMB, 6))],
+                    [6, 4, 6, wet(voxel(LIMB, 5))],
+                    [6, 5, 6, voxel(LIMB, 4)],
+                    [6, 6, 6, voxel(LIMB, 3)],
+                    [7, 3, 6, wet(voxel(ROOT, 3))],
+                    [5, 3, 6, wet(voxel(ROOT, 4))],
+                    [6, 3, 7, wet(voxel(ROOT, 2))],
+                    [8, 4, 8, wet(voxel(LIMB, 1))],
+                ],
+            ]
+            .concat(),
+        ),
+        (
+            "a full trunk in water keeps its voxel dry",
+            [
+                fill([5, 3, 5], [7, 3, 7], WATER),
+                vec![[6, 3, 6, voxel(LIMB, 8)], [6, 4, 6, voxel(LIMB, 7)]],
+            ]
+            .concat(),
         ),
     ]
 }

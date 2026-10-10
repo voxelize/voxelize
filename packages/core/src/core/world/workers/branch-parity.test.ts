@@ -54,8 +54,11 @@ const wasmPath = path.resolve(
   "../../../../../../crates/wasm-mesher/pkg/voxelize_wasm_mesher_bg.wasm",
 );
 
+// A geometry without a face name is `null` in the server's JSON and
+// `undefined` from wasm; both sort as `null`.
 const byKey = (a: Geometry, b: Geometry) =>
-  a.voxel - b.voxel || String(a.faceName).localeCompare(String(b.faceName));
+  a.voxel - b.voxel ||
+  String(a.faceName ?? null).localeCompare(String(b.faceName ?? null));
 
 function chunkOf(voxels: Fixture["scenes"][number]["voxels"]) {
   const { chunkSize, maxHeight, light } = fixture;
