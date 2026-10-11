@@ -101,6 +101,9 @@ pub fn announce(world: &mut World, change: &Change) {
         .get(&change.player)
         .map(|c| c.username.clone())
         .unwrap_or_else(|| change.player.clone());
+    if change.after > change.before {
+        bestow(world, &change.player, change.after);
+    }
     let line = if change.after > change.before {
         if change.after >= DIVINE {
             format!("✦ {name} has reached the Divine. ✦")
@@ -118,6 +121,57 @@ pub fn announce(world: &mut World, change: &Change) {
     );
 }
 
+/// A level reached: it counts as a milestone, and the gifts of levels
+/// reached for the first time go into the inventory (what does not fit
+/// falls at the player's feet); the player is told what they received.
+fn bestow(world: &mut World, id: &str, level: i8) {
+    let at = super::client_position(world, id);
+    let gifts = {
+        let mut g = world.ecs().write_resource::<Gameplay>();
+        let content = g.rules.content_arc();
+        let Some(player) = g.players.get_mut(id) else {
+            return;
+        };
+        player.note(
+            platform_content::TriggerKind::Reach,
+            &super::virtue::milestone_of(level),
+            1,
+        );
+        let mut given = Vec::new();
+        let mut overflow = Vec::new();
+        for due in player.virtue.take_blessings() {
+            for (key, count) in super::virtue::GIFTS[due as usize] {
+                let Some(item) = content.item(key) else {
+                    continue;
+                };
+                let left = player.inventory.add(&content, item.id, *count);
+                if left > 0 {
+                    overflow.push(super::inventory::Stack {
+                        item: item.id,
+                        count: left,
+                        durability: item.durability,
+                    });
+                }
+                given.push(json!({ "item": key, "name": item.name, "count": count }));
+            }
+        }
+        if let Some(at) = at {
+            super::items_api::spill_at(&mut g, overflow, at, Some(id));
+        }
+        given
+    };
+    if !gifts.is_empty() {
+        super::send(
+            world,
+            id,
+            VIRTUE_EVENT,
+            json!({ "blessing": { "level": level, "title": title_of(level), "gifts": gifts } }),
+        );
+        send_inventory(world, id);
+        persist(world, id);
+    }
+}
+
 /// A joining player learns their virtue and everyone's titles; everyone
 /// learns theirs.
 pub fn on_join(world: &mut World, id: &str) {
@@ -133,6 +187,18 @@ pub fn on_join(world: &mut World, id: &str) {
     };
     super::send(world, id, VIRTUE_EVENT, own);
     super::send(world, id, VIRTUE_EVENT, json!({ "players": all }));
+    // The level they stand at counts as reached (earlier players catch up).
+    if world.ecs().read_resource::<Gameplay>().dimensions.current == Dimension::Paradise {
+        let mut g = world.ecs().write_resource::<Gameplay>();
+        if let Some(p) = g.players.get_mut(id) {
+            let level = p.virtue.level();
+            p.note(
+                platform_content::TriggerKind::Reach,
+                &super::virtue::milestone_of(level),
+                1,
+            );
+        }
+    }
     if let Some(mine) = mine {
         world.events_mut().dispatch(
             Event::new(VIRTUE_EVENT)

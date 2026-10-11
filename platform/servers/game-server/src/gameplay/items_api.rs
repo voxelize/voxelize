@@ -203,7 +203,7 @@ fn viewers(g: &Gameplay, at: [i32; 3], except: &str) -> Vec<String> {
         .collect()
 }
 
-fn spill_at(g: &mut Gameplay, stacks: Vec<Stack>, at: [f32; 3], owner: Option<&str>) {
+pub(super) fn spill_at(g: &mut Gameplay, stacks: Vec<Stack>, at: [f32; 3], owner: Option<&str>) {
     for (i, stack) in stacks.into_iter().enumerate() {
         let angle = i as f32 * 2.399;
         g.drops.spawn(
@@ -521,7 +521,7 @@ pub(super) fn install(world: &mut World) {
         }
         close_window(world, id);
         let position = client_position(world, id);
-        let loot_opened = false;
+        let mut loot_opened = false;
         let opened = {
             let mut g = world.ecs().write_resource::<Gameplay>();
             let reach = g.rules.reach;
@@ -529,10 +529,11 @@ pub(super) fn install(world: &mut World) {
                 (_, false) => Err(None),
                 (None, true) => Ok(()),
                 (Some(voxel), true) => {
-                    let block = {
+                    let raw = {
                         let chunks = world.chunks();
-                        voxelize::VoxelAccess::get_voxel(&*chunks, voxel[0], voxel[1], voxel[2])
+                        voxelize::VoxelAccess::get_raw_voxel(&*chunks, voxel[0], voxel[1], voxel[2])
                     };
+                    let block = raw & 0xFFFF;
                     let key = g.rules.content().block_by_id(block).map(|b| b.key.clone());
                     let close = position.is_some_and(|pos| {
                         (0..3)
@@ -591,10 +592,30 @@ pub(super) fn install(world: &mut World) {
                                 && !g.containers.map.contains_key(&voxel)
                             {
                                 // A container block placed before containers existed.
-                                let fresh = Container::for_block(
+                                let mut fresh = Container::for_block(
                                     g.rules.content(),
                                     key.as_deref().unwrap_or_default(),
                                 );
+                                // A chest generated in a structure opens
+                                // full of its loot, once.
+                                let stage = (raw >> 24) & 0xF;
+                                if let (Some(Container::Chest { slots }), true) =
+                                    (fresh.as_mut(), stage > 0 && key.as_deref() == Some("chest"))
+                                {
+                                    let content = g.rules.content_arc();
+                                    *slots =
+                                        super::containers::structure_loot(&content, stage, voxel);
+                                    loot_opened = true;
+                                    if let Some(st) = content.structures().get(stage as usize - 1) {
+                                        if let Some(player) = g.players.get_mut(id) {
+                                            player.note(
+                                                platform_content::TriggerKind::Discover,
+                                                &st.key,
+                                                1,
+                                            );
+                                        }
+                                    }
+                                }
                                 if let Some(fresh) = fresh {
                                     g.containers.map.insert(voxel, fresh);
                                 }

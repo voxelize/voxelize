@@ -46,6 +46,7 @@ const join = async (name, realm) => {
     match: (m) => {
       if (m.type !== "EVENT" || m.name !== "platform.virtue") return false;
       if (m.payload.players) for (const t of m.payload.players) bot.tags.set(t.id, t);
+      else if (m.payload.blessing) bot.blessing = m.payload.blessing;
       else bot.virtue = m.payload;
       return false;
     },
@@ -216,6 +217,9 @@ assert.equal(ann.virtue.title, "Seeker");
 await until(() => bob.lines.some((l) => l.includes(`${ann.name} rises to Seeker`)), `everyone hears of it: ${JSON.stringify(bob.lines)}`);
 await until(() => bob.tags.get(annId)?.title === "Seeker", "bob sees ann's new title");
 step("two gifts of ten earned 60: ann rises to Seeker and everyone is told");
+await until(() => ann.blessing?.title === "Seeker", `a blessing for the new Seeker: ${JSON.stringify(ann.blessing)}`);
+await until(() => ann.count(item("golden_fruit")) >= 4 && ann.count(item("honey_bottle")) >= 2, "the gifts are in the inventory");
+step(`blessed as a Seeker: ${ann.blessing.gifts.map((g) => `${g.count} ${g.name}`).join(", ")}`);
 
 // 6. No hunger in Paradise, and angels that cannot be harmed.
 assert.equal(bob.vitals?.food ?? 20, 20, "never hungry here");

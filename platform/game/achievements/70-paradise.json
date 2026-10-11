@@ -1,0 +1,15 @@
+[
+  { "key": "gate_of_light", "name": "Gate of Light", "description": "Walk through a Gate of Light into Paradise.", "trigger": { "kind": "enter", "target": "paradise" }, "icon": "halo_stone", "xp": 10 },
+  { "key": "sweet_river", "name": "Land of Honey", "description": "Drink a Bottle of Honey.", "trigger": { "kind": "eat", "target": "honey_bottle" }, "parent": "gate_of_light", "icon": "honey_bottle", "xp": 3 },
+  { "key": "golden_harvest", "name": "Golden Harvest", "description": "Eat a golden fruit from a tree of light.", "trigger": { "kind": "eat", "target": "golden_fruit" }, "parent": "gate_of_light", "icon": "golden_fruit", "xp": 3 },
+  { "key": "light_gardener", "name": "Light Gardener", "description": "Plant five light saplings.", "trigger": { "kind": "place", "target": "light_sapling", "count": 5 }, "parent": "golden_harvest", "icon": "light_sapling", "xp": 8 },
+  { "key": "pilgrims_reward", "name": "Pilgrim's Reward", "description": "Open a chest in a Temple of Light.", "trigger": { "kind": "discover", "target": "temple_of_light" }, "parent": "gate_of_light", "icon": "chest", "xp": 10 },
+  { "key": "the_seeker", "name": "The Seeker", "description": "Rise to Seeker by building and helping.", "trigger": { "kind": "reach", "target": "seeker" }, "parent": "gate_of_light", "icon": "halo_bloom", "xp": 5 },
+  { "key": "the_gardener", "name": "The Gardener", "description": "Rise to Gardener.", "trigger": { "kind": "reach", "target": "gardener" }, "parent": "the_seeker", "icon": "light_sapling", "xp": 10 },
+  { "key": "builder_of_light", "name": "Builder of Light", "description": "Rise to Builder of Light.", "trigger": { "kind": "reach", "target": "builder_of_light" }, "parent": "the_gardener", "icon": "pearlstone", "xp": 20 },
+  { "key": "the_guardian", "name": "The Guardian", "description": "Rise to Guardian: Paradise keeps you whole.", "trigger": { "kind": "reach", "target": "guardian" }, "parent": "builder_of_light", "icon": "angel_feather", "xp": 30 },
+  { "key": "the_saint", "name": "Sainthood", "description": "Rise to Saint and wear the Halo Crown.", "trigger": { "kind": "reach", "target": "saint" }, "parent": "the_guardian", "icon": "halo_crown", "xp": 50 },
+  { "key": "the_seraph", "name": "On Seraph Wings", "description": "Rise to Seraph: falls can no longer hurt you.", "trigger": { "kind": "reach", "target": "seraph" }, "parent": "the_saint", "icon": "seraph_wings", "xp": 80 },
+  { "key": "the_divine", "name": "The Divine", "description": "Reach the Divine: fly over Paradise.", "trigger": { "kind": "reach", "target": "divine" }, "parent": "the_seraph", "icon": "divine_star", "xp": 200 },
+  { "key": "the_fall", "name": "The Fall", "description": "Fall from grace: harm Paradise until your virtue sinks below zero.", "trigger": { "kind": "reach", "target": "fallen" }, "parent": "gate_of_light", "icon": "rotten_flesh", "xp": 0 }
+]

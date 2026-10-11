@@ -12,5 +12,10 @@
   {"id": 147, "key": "diamond_pickaxe", "name": "Diamond Pickaxe", "type": "tool", "stackSize": 1, "durability": 1500, "rarity": "rare", "value": 500, "tool": {"kind": "pickaxe", "tier": 3, "speed": 9.0, "attackDamage": 5}},
   {"id": 148, "key": "diamond_axe", "name": "Diamond Axe", "type": "tool", "stackSize": 1, "durability": 1500, "rarity": "rare", "value": 500, "tool": {"kind": "axe", "tier": 3, "speed": 9.0, "attackDamage": 7}},
   {"id": 149, "key": "diamond_shovel", "name": "Diamond Shovel", "type": "tool", "stackSize": 1, "durability": 1500, "rarity": "rare", "value": 200, "tool": {"kind": "shovel", "tier": 3, "speed": 9.0, "attackDamage": 4}},
-  {"id": 150, "key": "diamond_sword", "name": "Diamond Sword", "type": "tool", "stackSize": 1, "durability": 1500, "rarity": "rare", "value": 350, "tool": {"kind": "sword", "tier": 3, "speed": 1.5, "attackDamage": 8}}
+  {"id": 150, "key": "diamond_sword", "name": "Diamond Sword", "type": "tool", "stackSize": 1, "durability": 1500, "rarity": "rare", "value": 350, "tool": {"kind": "sword", "tier": 3, "speed": 1.5, "attackDamage": 8}},
+  {"id": 168, "key": "light_sapling", "name": "Light Sapling", "type": "block", "placesBlock": "light_sapling", "value": 8},
+  {"id": 169, "key": "angel_feather", "name": "Angel Feather", "type": "material", "rarity": "rare", "value": 60},
+  {"id": 170, "key": "halo_crown", "name": "Halo Crown", "type": "armor", "stackSize": 1, "durability": 900, "rarity": "epic", "value": 1500, "armor": {"slot": "head", "points": 3}},
+  {"id": 171, "key": "seraph_wings", "name": "Seraph Wings", "type": "armor", "stackSize": 1, "durability": 1200, "rarity": "legendary", "value": 3000, "armor": {"slot": "chest", "points": 6, "featherfall": true}},
+  {"id": 172, "key": "divine_star", "name": "Divine Star", "type": "block", "placesBlock": "divine_star", "rarity": "legendary", "value": 500}
 ]

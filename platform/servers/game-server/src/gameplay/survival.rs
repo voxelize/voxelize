@@ -45,6 +45,8 @@ pub enum DamageKind {
     Arrow,
     /// Fell out of the world (below its lowest block).
     Void,
+    /// Crushed by the abyss without a helm.
+    Pressure,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -243,6 +245,10 @@ pub struct Surroundings {
     /// Air reaches the head underwater: a worn diving helm, or the bubbles
     /// rising from a vent below.
     pub air_supply: bool,
+    /// In the Ocean's abyss without a helm: the water crushes.
+    pub crushing: bool,
+    /// Falls never hurt (seraph wings).
+    pub featherfall: bool,
 }
 
 #[derive(Debug, Clone, PartialEq, Default)]
@@ -251,6 +257,30 @@ pub struct TickOutcome {
     pub died: bool,
     /// Whether any vital changed enough for the client to be told.
     pub changed: bool,
+}
+
+/// Damage per second the abyss does to a diver without a helm.
+pub const PRESSURE_DAMAGE: f32 = 1.0;
+
+/// The Ocean's depth zones, from the light down: `(key, name, lowest eye
+/// height)`; below the last is the abyss.
+pub const OCEAN_ZONES: [(&str, &str, f32); 3] = [
+    ("sunlit", "Sunlit Waters", 95.0),
+    ("reef", "The Reef", 65.0),
+    (
+        "twilight",
+        "The Twilight",
+        platform_worldgen::Ocean::DEEP as f32,
+    ),
+];
+
+/// The depth zone of an eye height in the Ocean: `(key, name)`.
+pub fn ocean_zone(eye_y: f32) -> (&'static str, &'static str) {
+    OCEAN_ZONES
+        .iter()
+        .find(|(_, _, from)| eye_y >= *from)
+        .map(|(k, n, _)| (*k, *n))
+        .unwrap_or(("abyss", "The Abyss"))
 }
 
 /// Longest wait for a client to reach the place the server put it.
@@ -400,6 +430,9 @@ pub fn tick(v: &mut Vitals, s: Surroundings, dt: f32) -> TickOutcome {
         if v.air <= 0.0 {
             out.damage.push((DamageKind::Drowning, 2.0));
         }
+        if s.crushing {
+            out.damage.push((DamageKind::Pressure, PRESSURE_DAMAGE));
+        }
         if v.food <= 0.0 && v.health > 1.0 {
             out.damage.push((DamageKind::Starvation, 1.0));
         }
@@ -451,6 +484,9 @@ pub fn tick(v: &mut Vitals, s: Surroundings, dt: f32) -> TickOutcome {
         out.damage
             .retain(|(k, _)| !matches!(k, DamageKind::Fire | DamageKind::Lava));
     }
+    if s.featherfall {
+        out.damage.retain(|(k, _)| *k != DamageKind::Fall);
+    }
     if s.plenty {
         out.damage.retain(|(k, _)| {
             !matches!(
@@ -496,6 +532,8 @@ mod tests {
             moved: 0.0,
             plenty: false,
             air_supply: false,
+            crushing: false,
+            featherfall: false,
         }
     }
 
@@ -796,5 +834,34 @@ mod tests {
         assert!(awaiting_placement(&mut placing, [0.0, 120.0, 0.0], 1.0));
         assert!(!awaiting_placement(&mut placing, [0.0, 120.0, 0.0], 1.5));
         assert!(placing.is_none());
+    }
+
+    #[test]
+    fn the_sea_deepens_through_four_zones() {
+        assert_eq!(ocean_zone(119.0).0, "sunlit");
+        assert_eq!(ocean_zone(80.0).0, "reef");
+        assert_eq!(ocean_zone(50.0).0, "twilight");
+        assert_eq!(ocean_zone(30.0), ("abyss", "The Abyss"));
+    }
+
+    #[test]
+    fn the_abyss_crushes_and_wings_spare_falls() {
+        let mut v = Vitals::default();
+        let mut deep = at(30.0, true);
+        deep.head_in_water = true;
+        deep.air_supply = true;
+        deep.crushing = true;
+        let out = tick(&mut v, deep, 1.0);
+        assert_eq!(out.damage, vec![(DamageKind::Pressure, PRESSURE_DAMAGE)]);
+        deep.crushing = false;
+        assert!(tick(&mut v, deep, 1.0).damage.is_empty(), "a helm holds");
+
+        let mut v = Vitals::default();
+        let mut s = at(40.0, false);
+        s.featherfall = true;
+        tick(&mut v, s, 0.1);
+        let mut landing = at(10.0, true);
+        landing.featherfall = true;
+        assert!(tick(&mut v, landing, 0.1).damage.is_empty(), "wings");
     }
 }

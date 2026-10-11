@@ -1,0 +1,16 @@
+[
+  { "key": "into_the_deep", "name": "Into the Deep", "description": "Walk through a Tide Gate into the Ocean.", "trigger": { "kind": "enter", "target": "ocean" }, "icon": "tidestone", "xp": 10 },
+  { "key": "kelp_harvester", "name": "Kelp Harvester", "description": "Harvest 16 kelp.", "trigger": { "kind": "mine", "target": "kelp", "count": 16 }, "parent": "into_the_deep", "icon": "kelp", "xp": 4 },
+  { "key": "sea_rations", "name": "Sea Rations", "description": "Eat dried kelp.", "trigger": { "kind": "eat", "target": "dried_kelp" }, "parent": "kelp_harvester", "icon": "dried_kelp", "xp": 3 },
+  { "key": "pearl_diver", "name": "Pearl Diver", "description": "Prise a pearl from a giant clam.", "trigger": { "kind": "mine", "target": "giant_clam" }, "parent": "into_the_deep", "icon": "pearl", "xp": 5 },
+  { "key": "deep_breath", "name": "Deep Breath", "description": "Craft a Diving Helm.", "trigger": { "kind": "craft", "target": "diving_helm" }, "parent": "pearl_diver", "icon": "diving_helm", "xp": 8 },
+  { "key": "bubble_maker", "name": "Bubble Maker", "description": "Set down a bubble vent of your own.", "trigger": { "kind": "place", "target": "bubble_vent" }, "parent": "pearl_diver", "icon": "bubble_vent", "xp": 6 },
+  { "key": "the_reef", "name": "The Reef", "description": "Swim down among the coral.", "trigger": { "kind": "reach", "target": "reef" }, "parent": "into_the_deep", "icon": "coral_red", "xp": 3 },
+  { "key": "twilight_zone", "name": "Twilight Zone", "description": "Dive below the reach of the sun.", "trigger": { "kind": "reach", "target": "twilight" }, "parent": "the_reef", "icon": "glow_anemone", "xp": 6 },
+  { "key": "abyss_walker", "name": "Abyss Walker", "description": "Reach the abyss, where the sea crushes divers without a helm.", "trigger": { "kind": "reach", "target": "abyss" }, "parent": "twilight_zone", "icon": "abyssal_rock", "xp": 15 },
+  { "key": "treasure_hunter", "name": "Treasure Hunter", "description": "Open a chest in a shipwreck.", "trigger": { "kind": "discover", "target": "shipwreck" }, "parent": "into_the_deep", "icon": "chest", "xp": 8 },
+  { "key": "temple_of_the_tides", "name": "Temple of the Tides", "description": "Open a chest in a sunken temple.", "trigger": { "kind": "discover", "target": "sunken_temple" }, "parent": "treasure_hunter", "icon": "conch_shard", "xp": 12 },
+  { "key": "call_of_the_deep", "name": "Call of the Deep", "description": "Craft an Abyssal Conch from four conch shards.", "trigger": { "kind": "craft", "target": "abyssal_conch" }, "parent": "temple_of_the_tides", "icon": "abyssal_conch", "xp": 15 },
+  { "key": "leviathan_slayer", "name": "Leviathan Slayer", "description": "Defeat the Leviathan.", "trigger": { "kind": "kill", "target": "leviathan" }, "parent": "call_of_the_deep", "icon": "heart_of_the_sea", "xp": 150 },
+  { "key": "ruler_of_the_waves", "name": "Ruler of the Waves", "description": "Wear the Crown of the Deep: craft it from the Leviathan's heart.", "trigger": { "kind": "craft", "target": "crown_of_the_deep" }, "parent": "leviathan_slayer", "icon": "crown_of_the_deep", "xp": 40 }
+]

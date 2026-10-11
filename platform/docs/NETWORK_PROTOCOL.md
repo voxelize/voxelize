@@ -80,7 +80,7 @@ the authoritative state changes (`UPDATE`, inventory events).
 | `platform.inventory.select` | `{"slot":0-8}` | hotbar slot | ✅ |
 | `platform.inventory.move` | `{"from":n,"to":n,"count"?:n}` | slots exist, stack limits, partial moves only onto empty or matching stacks | ✅ |
 | `platform.craft` | `{"grid":[[key\|null,…],…]}` (2×2, or 3×3 near a workbench) | recipe match, ingredients owned, result fits; all-or-nothing | ✅ |
-| `platform.window.open` | `{}` (inventory screen) or `{"voxel":[x,y,z]}` (workbench, furnace, chest) | reach, block kind, alive; closes any other window first | ✅ |
+| `platform.window.open` | `{}` (inventory screen) or `{"voxel":[x,y,z]}` (workbench, furnace, chest) | reach, block kind, alive; closes any other window first; a structure's chest opens full of its loot the first time (its loot marker is cleared) | ✅ |
 | `platform.window.click` | `{"slot":n,"click":{"type":"left"\|"right"\|"shift"\|"double"\|"hotbar","key"?:0-8\|"drop","all"?:bool}}` | slot rules (result/output take-only, fuel only fuels, armor only armor), stack limits; crafting result consumes one item per grid slot | ✅ |
 | `platform.window.drag` | `{"slots":[n,…],"oneEach":bool}` | spreads the cursor evenly (or one each) over compatible slots | ✅ |
 | `platform.window.fill` | `{"recipe":key,"max":bool}` | recipe book: moves ingredients from the inventory into the grid (once or as many sets as possible); refuses recipes that do not fit the grid | ✅ |
@@ -141,7 +141,7 @@ Answers (events, sent only to the requesting client):
 - `platform.drops` — `{"items":[{"id","item","count","p":[x,y,z]}]}`, dropped items within 64 blocks, up to 10 times a second.
 - `platform.pickup` — `{"items":[[item,count],…]}` after walking over drops.
 - `platform.mobs` — `{"mobs":[{"id","key","p","yaw","health","hurt","baby","moving","love"}]}`, creatures within 64 blocks, ten times a second.
-- `platform.vitals` — `{"health","food","air","maxAir","dead","cause":"fall"|"drowning"|"lava"|"starvation"|"mob"|"void"|"player"|"fire"|"explosion"|"arrow"|null,"realm","xp","level","progress","burning","effects":[{"kind","level","seconds"}]}` (experience points, level and the fraction towards the next level`,
+- `platform.vitals` — `{"health","food","air","maxAir","dead","cause":"fall"|"drowning"|"pressure"|"lava"|"starvation"|"mob"|"void"|"player"|"fire"|"explosion"|"arrow"|null,"realm","xp","level","progress","burning","effects":[{"kind","level","seconds"}]}` (experience points, level and the fraction towards the next level`,
   pushed on join and whenever a vital changes (from the server's per-tick
   survival system).
 
@@ -154,7 +154,7 @@ Answers (events, sent only to the requesting client):
 - `platform.progress` — `{"unlocked":[{"key","name","xp"}],"done":[key]}`: on joining (everything earned so far, nothing unlocked) and whenever achievements are earned.
 - `platform.mode` — `{"player","mode"}` (see `platform.mode.set`).
 - `platform.work` — the work state (as `platform.quests.get` answers) on joining and when quest progress or job earnings change, with `"finished":[{"key","name","crowns","xp"}]` for quests just completed; payouts arrive as `platform.market {"reward":{"source","reason","requested","paid"}}` once the backend paid them (`paid` below `requested` at the daily cap).
-- `platform.virtue` — to the player: `{"points","level","title","toNext","builtToday","helpedToday","buildCap","helpCap","divine"}` (on joining and after each deed in Paradise); to everyone: `{"players":[{"id","level","title","glow"}]}` (on joining and when someone's level changes; name tags show titles in Paradise). Levels: Fallen (below 0), Pilgrim 0, Seeker 50, Gardener 200, Builder of Light 600, Guardian 1500, Saint 3500, Seraph 6500, Divine 10000. A new level is announced as a `system` chat line.
+- `platform.virtue` — to the player: `{"points","level","title","toNext","builtToday","helpedToday","buildCap","helpCap","divine"}` (on joining and after each deed in Paradise); to everyone: `{"players":[{"id","level","title","glow"}]}` (on joining and when someone's level changes; name tags show titles in Paradise). Levels: Fallen (below 0), Pilgrim 0, Seeker 50, Gardener 200, Builder of Light 600, Guardian 1500, Saint 3500, Seraph 6500, Divine 10000. A new level is announced as a `system` chat line. A level reached for the first time blesses: `{"blessing":{"level","title","gifts":[{"item","name","count"}]}}` to the player, the gifts already in their inventory.
 - `platform.chat` — `{"channel":"whisper"|"local"|"guild"|"system","from":{"id","name"}|null,"to":name|null,"body"}`: a line on a channel other than public. Plain chat lines (engine `CHAT`) are public; the server stamps the speaker's real name, strips control characters, cuts them to 256 characters and refuses more than 6 lines per 8 s. Lines starting with `/` are commands: `/w <name> <text>` (`/msg`, `/tell`) whispers (to the target and the speaker), `/r <text>` answers the last whisper, `/l <text>` (`/local`) reaches players within 48 blocks, `/g <text>` (`/guild`) the guild's online members, `/report <name> [category] <what happened>` sends a report to the moderators (with both positions and the reported player's last five public or local lines; one every 30 s; the backend's answer comes back as a `system` line), `/gamemode <normal|adventure|spectator> [name]` (`/gm`; your own in a creative world, anyone's for moderators, as `platform.mode.set`), `/weather <clear|rain|thunder>` (creative players in the overworld, as `platform.weather.set`), `/help` lists them; anything else gets a `system` line naming the unknown command.
 - `platform.look` — `{"player","look":{"outfit"?:{"body","arms","legs"},"hat"?:{"art":"crown"}|{"color"}}|null}`: what a player wears (colours `#rrggbb`), to everyone when it changes (from the join ticket or `platform.look.set`) and to a joining player for everyone already dressed.
 - `platform.voice.peers` — `{"peers":[{"id","name"}]}`: whom a player with voice on is paired with, whenever it changes (checked twice a second). Players with voice on within 32 blocks pair up, stay paired until 40 apart, at most 8 each (the nearest, and only when both pick each other). The smaller id makes the WebRTC offer; audio goes browser to browser, never through the server.
@@ -170,6 +170,10 @@ Answers (events, sent only to the requesting client):
   `{"invite":{"from","name"}}`, `{"refused":code}` with the state.
 - `platform.land` — `{"land":{"id","name","owner":{"id","name"},"guild":{"id","name","tag"}|null,"settlement":{"name","level"}|null,"role","public","min","max"}|null}`
   when the player walks into different land (null: wilderness).
+- `platform.zone` — `{"zone":"sunlit"|"reef"|"twilight"|"abyss","name"}`:
+  the player entered another depth zone of the Ocean (eye height ≥ 95,
+  ≥ 65, ≥ 44, below). Without breathing armor the abyss does `pressure`
+  damage, 1 a second.
 - `platform.teleport` — `{"feet":[x,y,z]}`: the cell the player's feet are
   to stand in. Sent on join (back where they left) and when a traveller is
   placed in a portal; the client moves once that chunk exists. Until the

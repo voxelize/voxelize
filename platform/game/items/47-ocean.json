@@ -10,5 +10,10 @@
   {"id": 159, "key": "pearl_block", "name": "Block of Pearl", "type": "block", "placesBlock": "pearl_block", "rarity": "uncommon", "value": 80},
   {"id": 160, "key": "bubble_vent", "name": "Bubble Vent", "type": "block", "placesBlock": "bubble_vent", "rarity": "uncommon", "value": 25},
   {"id": 161, "key": "dried_kelp", "name": "Dried Kelp", "type": "food", "food": 2, "value": 1},
-  {"id": 162, "key": "diving_helm", "name": "Diving Helm", "type": "armor", "stackSize": 1, "durability": 300, "rarity": "rare", "value": 120, "armor": {"slot": "head", "points": 2, "breathing": true}}
+  {"id": 162, "key": "diving_helm", "name": "Diving Helm", "type": "armor", "stackSize": 1, "durability": 300, "rarity": "rare", "value": 120, "armor": {"slot": "head", "points": 2, "breathing": true}},
+  {"id": 163, "key": "conch_shard", "name": "Conch Shard", "type": "material", "rarity": "uncommon", "value": 40},
+  {"id": 164, "key": "abyssal_conch", "name": "Abyssal Conch", "type": "misc", "stackSize": 1, "rarity": "rare", "value": 300},
+  {"id": 165, "key": "heart_of_the_sea", "name": "Heart of the Sea", "type": "material", "rarity": "epic", "value": 800},
+  {"id": 166, "key": "crown_of_the_deep", "name": "Crown of the Deep", "type": "armor", "stackSize": 1, "durability": 800, "rarity": "epic", "value": 1200, "armor": {"slot": "head", "points": 4, "breathing": true}},
+  {"id": 167, "key": "tidecaller", "name": "Tidecaller", "type": "tool", "stackSize": 1, "durability": 2000, "rarity": "epic", "value": 1200, "tool": {"kind": "sword", "tier": 3, "speed": 1.6, "attackDamage": 11}}
 ]

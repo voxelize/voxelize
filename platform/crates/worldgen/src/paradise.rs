@@ -10,7 +10,7 @@
 use noise::{Fbm, NoiseFn, OpenSimplex};
 use platform_content::{Content, Dimension};
 
-use crate::{fbm, hash, place_ores, unit, GeneratedChunk, OreSpec, WorldgenError, AIR};
+use crate::{fbm, hash, place_ores, unit, GeneratedChunk, OreSpec, Stamp, WorldgenError, AIR};
 
 pub struct Paradise {
     seed: u32,
@@ -21,6 +21,8 @@ pub struct Paradise {
     flavour: Fbm<OpenSimplex>,
     blocks: Blocks,
     ores: Vec<OreSpec>,
+    /// Temples of Light (the content's Paradise structures).
+    stamps: Vec<Stamp>,
     biome: String,
 }
 
@@ -92,6 +94,7 @@ impl Paradise {
                 diamond_block: id("diamond_block")?,
             },
             ores: crate::ore_specs(content, pearl),
+            stamps: Stamp::of(content, Dimension::Paradise),
             biome,
         })
     }
@@ -138,6 +141,34 @@ impl Paradise {
             return (bank + (land - bank) * t * t * (3.0 - 2.0 * t)).round() as i32;
         }
         land.round() as i32
+    }
+
+    /// Every structure whose footprint touches the chunk: `(key, origin)`
+    /// (min corner, at its floor). Only on dry meadow, clear of rivers.
+    pub fn structures_touching(&self, cx: i32, cz: i32, size: usize) -> Vec<(String, [i32; 3])> {
+        let mut out = Vec::new();
+        for (i, st) in self.stamps.iter().enumerate() {
+            let salt = 0x7E_3B1E + i as u64;
+            for (x, z) in st.sites_touching(self.seed, salt, cx, cz, size as i32) {
+                let (w, _, d) = st.size;
+                let wet = [
+                    (0, 0),
+                    (w - 1, 0),
+                    (0, d - 1),
+                    (w - 1, d - 1),
+                    (w / 2, d / 2),
+                ]
+                .iter()
+                .any(|(dx, dz)| {
+                    self.river_distance(x + dx, z + dz) < Self::RIVER_WIDTH + Self::BANK
+                });
+                if wet {
+                    continue;
+                }
+                out.push((st.key.clone(), [x, self.ground(x + w / 2, z + d / 2), z]));
+            }
+        }
+        out
     }
 
     /// A shrine's centre in a grid cell, if the cell has one.
@@ -299,6 +330,27 @@ impl Paradise {
             }
         }
 
+        // Temples of Light on a pearl foundation, open to the meadow.
+        for (key, origin) in self.structures_touching(cx, cz, size) {
+            let Some(st) = self.stamps.iter().find(|st| st.key == key) else {
+                continue;
+            };
+            let (w, h, d) = st.size;
+            for dx in 0..w {
+                for dz in 0..d {
+                    let (x, z) = (origin[0] + dx, origin[2] + dz);
+                    for y in self.ground(x, z).min(origin[1])..origin[1] {
+                        put(&mut chunk, x, y, z, b.pearl);
+                    }
+                    // Hills inside its footprint are cut away.
+                    for y in origin[1] + h..self.ground(x, z) + 1 {
+                        put(&mut chunk, x, y, z, AIR);
+                    }
+                }
+            }
+            st.draw(origin, &mut chunk);
+        }
+
         place_ores(&self.ores, self.seed, limit, &mut chunk);
         chunk
     }
@@ -400,5 +452,36 @@ mod tests {
             }
         }
         assert!(flips <= 1, "flavour flips inside a river: {flips}");
+    }
+
+    #[test]
+    fn temples_of_light_stand_on_dry_meadow_with_loot() {
+        let (content, p) = paradise();
+        let chest = content.block("chest").unwrap().id;
+        let (mut temples, mut chests) = (0, 0);
+        for cx in (-60..60).step_by(3) {
+            for cz in (-60..60).step_by(3) {
+                let found = p.structures_touching(cx, cz, 16);
+                if found.is_empty() {
+                    continue;
+                }
+                temples += found.len();
+                for (_, o) in &found {
+                    assert!(o[1] > Paradise::RIVER_LEVEL, "above the rivers");
+                }
+                let c = p.generate_chunk(cx, cz, 16);
+                for x in 0..16 {
+                    for z in 0..16 {
+                        for y in 60..140 {
+                            if c.get(x, y, z) & 0xFFFF == chest {
+                                chests += 1;
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        assert!(temples > 4, "temples: {temples}");
+        assert!(chests > 3, "loot chests: {chests}");
     }
 }

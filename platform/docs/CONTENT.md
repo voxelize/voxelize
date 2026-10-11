@@ -141,6 +141,29 @@ breath while wearing it, while bubbles from a vent at most 12 blocks below
 rise through water to their head, or under water breathing. Creatures:
 moon jellies and sea turtles swim in the light, lurkers rise at night.
 
+Progress in the Ocean (`80-ocean.json` achievements): kelp, pearls, the
+Diving Helm, then deeper — the Reef, the Twilight and the Abyss, where the
+water crushes (1 damage a second, `pressure`) anyone without breathing
+armor. Shipwrecks (pearls, iron, gold, sometimes a conch shard) and sunken
+temples (conch shards, diamonds, pearl blocks; a bubble vent at their
+heart) hide on the floor. Four conch shards around a block of pearl make
+the Abyssal Conch; used on a bubble vent it calls up the Leviathan (a
+swimming boss, 320 health), whose Heart of the Sea makes the Crown of the
+Deep (breathing, 4 armor) or the Tidecaller (a sword, 11 damage).
+
+Progress in Paradise (`70-paradise.json` achievements): honey, golden
+fruit, light saplings (they fall from light leaves and grow into light
+trees), Temples of Light (open pavilions of pearl and halo stone with
+diamonds, fruit, honey and angel feathers in their chests), and every
+level of virtue. Each level, the first time it is reached, blesses with
+gifts (`GIFTS` in `gameplay/virtue.rs`): fruit and honey (Seeker), light
+saplings (Gardener), pearlstone and halo stone (Builder of Light), angel
+feathers and diamonds (Guardian), the Halo Crown (Saint), Seraph Wings
+(Seraph: armor with `"featherfall": true`, falls never hurt) and Divine
+Stars (Divine, light 15). Angels trade: golden fruit for feathers, feathers
+for saplings and halo stone, halo blooms for honey, and feathers with a
+block of diamond for a Divine Star.
+
 Lights: the Wisp Lantern (glass and Wisp Essence from wisps, light 13) and
 the Core Lamp (iron, glass and the Warden Core the Ember Warden drops,
 light 15, four per core) give the creature drops a use.
@@ -240,7 +263,13 @@ day on gravel, which in the wild means village paths. Structures declare placeme
 (`surface` with `yOffset`, or `underground` between `minY` and `maxY`),
 biomes, grid `spacing` and `chance`, a character `palette`, `layers` (bottom
 to top, rows along z, characters along x; space keeps terrain, `.` is air)
-and a `loot` table for their chests.
+and a `loot` table for their chests. A chest generated in a structure
+opens full of its loot (rolled once, from its position) and counts as a
+`discover` of that structure. Structures whose biomes all belong to another
+dimension are placed by that dimension's generator: shipwrecks and sunken
+temples on the Ocean's floor, Temples of Light on Paradise's meadows. New
+structure files sort after the existing ones (a chest's loot names its
+structure by index, at most 15).
 
 ## achievements/
 
@@ -248,8 +277,10 @@ An achievement has a `key`, `name`, `description`, an `icon` item, `xp`
 awarded, an optional `parent` (its place in the tree) and a `trigger`:
 `{ "kind", "target"?, "count"? }` where kind is `mine` / `place` (block
 keys), `craft` / `smelt` / `eat` (item keys), `kill` (mob keys) or `enter`
-(`overworld`, `underworld`, `sky`); without a target any counts; `count`
-defaults to 1. Targets and parents are checked at load. Players earn each
+(a dimension key), `reach` (a milestone: the Ocean's depth zones `sunlit`,
+`reef`, `twilight`, `abyss`, or a level of virtue from `fallen` and
+`pilgrim` to `divine`) or `discover` (a structure key: its chest opened);
+without a target any counts; `count` defaults to 1. Targets and parents are checked at load. Players earn each
 once; lifetime counters are kept per player (the same triggers drive quests
 and jobs).
 

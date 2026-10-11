@@ -1,0 +1,148 @@
+[
+ {
+  "key": "temple_of_light",
+  "name": "Temple of Light",
+  "placement": "surface",
+  "biomes": [
+   "paradise_meadows"
+  ],
+  "spacing": 7,
+  "chance": 0.5,
+  "palette": {
+   "P": "pearlstone",
+   "H": "halo_stone",
+   "D": "diamond_block",
+   "W": "wisp_lantern",
+   "C": "chest",
+   "G": "glass"
+  },
+  "layers": [
+   [
+    "PPPPPPPPP",
+    "PPPPPPPPP",
+    "PPPPPPPPP",
+    "PPPPPPPPP",
+    "PPPPPPPPP",
+    "PPPPPPPPP",
+    "PPPPPPPPP",
+    "PPPPPPPPP",
+    "PPPPPPPPP"
+   ],
+   [
+    "H...P...H",
+    ".........",
+    "..C...C..",
+    ".........",
+    "P...D...P",
+    ".........",
+    ".........",
+    ".........",
+    "H...P...H"
+   ],
+   [
+    "H.......H",
+    ".........",
+    ".........",
+    ".........",
+    ".........",
+    ".........",
+    ".........",
+    ".........",
+    "H.......H"
+   ],
+   [
+    "H.......H",
+    ".........",
+    ".........",
+    ".........",
+    ".........",
+    ".........",
+    ".........",
+    ".........",
+    "H.......H"
+   ],
+   [
+    "WPPPPPPPW",
+    "P.......P",
+    "P.......P",
+    "P.......P",
+    "P.......P",
+    "P.......P",
+    "P.......P",
+    "P.......P",
+    "WPPPPPPPW"
+   ],
+   [
+    "PPPPPPPPP",
+    "PPPPPPPPP",
+    "PPPPPPPPP",
+    "PPPPPPPPP",
+    "PPPPGPPPP",
+    "PPPPPPPPP",
+    "PPPPPPPPP",
+    "PPPPPPPPP",
+    "PPPPPPPPP"
+   ],
+   [
+    "         ",
+    "         ",
+    "  PPPPP  ",
+    "  PPPPP  ",
+    "  PPPPP  ",
+    "  PPPPP  ",
+    "  PPPPP  ",
+    "         ",
+    "         "
+   ],
+   [
+    "         ",
+    "         ",
+    "         ",
+    "         ",
+    "    W    ",
+    "         ",
+    "         ",
+    "         ",
+    "         "
+   ]
+  ],
+  "loot": [
+   {
+    "item": "diamond",
+    "min": 2,
+    "max": 5,
+    "chance": 0.8
+   },
+   {
+    "item": "golden_fruit",
+    "min": 3,
+    "max": 8,
+    "chance": 0.9
+   },
+   {
+    "item": "honey_bottle",
+    "min": 1,
+    "max": 3,
+    "chance": 0.7
+   },
+   {
+    "item": "angel_feather",
+    "min": 1,
+    "max": 2,
+    "chance": 0.6
+   },
+   {
+    "item": "light_sapling",
+    "min": 1,
+    "max": 3,
+    "chance": 0.7
+   },
+   {
+    "item": "diamond_block",
+    "min": 1,
+    "max": 1,
+    "chance": 0.15
+   }
+  ]
+ }
+]

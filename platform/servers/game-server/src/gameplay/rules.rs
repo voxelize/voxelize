@@ -158,6 +158,8 @@ pub struct PlayerState {
     /// it still waits for the client to get there: until then the body is
     /// wherever a loading client happens to be, and nothing hurts it.
     pub placing: Option<([i32; 3], f32)>,
+    /// The Ocean depth zone the player is in (zone changes are announced).
+    pub zone: Option<&'static str>,
     pub inventory: Inventory,
     pub mining: Option<MiningSession>,
     pub realm: Realm,
@@ -215,6 +217,7 @@ impl PlayerState {
             // the ground; give it longer.
             moved: JOIN_GRACE,
             placing: None,
+            zone: None,
             inventory,
             mining: None,
             realm,
@@ -262,6 +265,16 @@ pub fn breathes_underwater(content: &Content, player: &PlayerState) -> bool {
         .flatten()
         .filter_map(|s| content.item_by_id(s.item)?.armor)
         .any(|a| a.breathing)
+}
+
+/// Whether something worn spares its wearer falls (seraph wings).
+pub fn featherfall(content: &Content, player: &PlayerState) -> bool {
+    player
+        .armor
+        .iter()
+        .flatten()
+        .filter_map(|s| content.item_by_id(s.item)?.armor)
+        .any(|a| a.featherfall)
 }
 
 /// A hit through armor: the damage left after armor takes points/25 of it,

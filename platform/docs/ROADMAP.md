@@ -568,6 +568,20 @@ whales). Chunks keep the generator's full voxel words (so structure chests
 keep their loot), and a loading client is not hurt before it reaches the
 place the server put it. Tests: ocean worldgen, air supply, placement,
 helm and portal unit tests; client tests; `tests/bots/ocean.mjs` end to end.
+Then: progression in the two new worlds. The Ocean deepens through four
+zones (named on entry; the view darkens with depth) to the abyss, which
+crushes divers without a helm; shipwrecks and sunken temples hide loot and
+conch shards; an Abyssal Conch on a bubble vent calls up the Leviathan,
+whose heart makes the Crown of the Deep and the Tidecaller. Paradise
+blesses each level of virtue the first time it is reached (up to the Halo
+Crown, Seraph Wings that spare all falls and Divine Stars); light saplings,
+Temples of Light and angels that trade. Two achievement trees follow both
+journeys (new triggers: `reach` milestones and `discover` structures).
+Structure chests now open full of their loot. A returning player far from
+the origin is placed where they left (chunks stream around the
+destination until then). Tests: zone, pressure, featherfall, blessing,
+trigger, ocean and paradise structure unit tests; client tests; the ocean
+bot opens a sunken chest and the paradise bot checks the Seeker's gifts.
 
 ## Definition of done (whole project)
 

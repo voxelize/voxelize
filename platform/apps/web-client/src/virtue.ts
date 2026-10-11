@@ -30,6 +30,13 @@ export function virtueLine(v: VirtueState, nextTitle: string | null): string {
   return `${head} · ${v.toNext} to ${nextTitle ?? "next"}`;
 }
 
+export type Blessing = { level: number; title: string; gifts: { item: string; name: string; count: number }[] };
+
+/** The blessing of a level reached for the first time: "✦ Blessed as Gardener: 4 Light Sapling, 8 Halo Bloom". */
+export function blessingLine(b: Blessing): string {
+  return `✦ Blessed as ${b.title}: ${b.gifts.map((g) => `${g.count} ${g.name}`).join(", ")}`;
+}
+
 /** What today still allows: "today: built 120/300, helped 30/300". */
 export function todayLine(v: VirtueState): string {
   return `today: built ${v.builtToday}/${v.buildCap}, helped ${v.helpedToday}/${v.helpCap}`;

@@ -171,4 +171,34 @@ mod tests {
         assert_eq!(p.counters["mine:*"], 500);
         assert_eq!(p.counters["mine:oak_log"], 2);
     }
+
+    #[test]
+    fn depths_temples_and_virtue_count_towards_achievements() {
+        let c = content();
+        let mut p = Progress::default();
+        let keys = |earned: Vec<&AchievementDef>| -> Vec<String> {
+            earned.iter().map(|a| a.key.clone()).collect()
+        };
+        assert_eq!(
+            keys(p.count(&c, &note(TriggerKind::Reach, "abyss", 1))),
+            ["abyss_walker"]
+        );
+        assert_eq!(
+            keys(p.count(&c, &note(TriggerKind::Discover, "shipwreck", 1))),
+            ["treasure_hunter"]
+        );
+        assert_eq!(
+            keys(p.count(&c, &note(TriggerKind::Reach, "seraph", 1))),
+            ["the_seraph"]
+        );
+        assert_eq!(
+            keys(p.count(&c, &note(TriggerKind::Discover, "temple_of_light", 1))),
+            ["pilgrims_reward"]
+        );
+        assert!(
+            p.count(&c, &note(TriggerKind::Reach, "abyss", 1))
+                .is_empty(),
+            "once"
+        );
+    }
 }

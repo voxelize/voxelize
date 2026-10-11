@@ -249,6 +249,22 @@ const RECIPES: Record<string, Recipe> = {
     p.speckle(hex("#fff6d0", 200), 0.12);
     p.blobs(hex("#ffffff", 230), 6, 1);
   },
+  light_sapling: (p) => {
+    p.clear();
+    for (let y = 8; y < SIZE; y++) p.set(8, y, hex("#e8d6a0"));
+    for (const [x, y] of [[6, 6], [7, 5], [8, 4], [9, 5], [10, 6], [7, 7], [9, 7], [8, 6]]) p.set(x, y, hex("#d8ffb8"));
+    p.set(8, 5, hex("#fff3a0"));
+  },
+  divine_star: (p) => {
+    p.speckle(hex("#fff8dc"), 0.04);
+    for (let i = 0; i < SIZE; i++) {
+      p.set(i, 8, hex("#ffffff"));
+      p.set(8, i, hex("#ffffff"));
+      p.set(i, i, hex("#ffe27a"));
+      p.set(SIZE - 1 - i, i, hex("#ffe27a"));
+    }
+    p.border(hex("#f2c94c"));
+  },
   // The Ocean: deep blues and teals, coral colours and pearl.
   tidestone: (p) => {
     p.speckle(hex("#3d8f9a"), 0.07);

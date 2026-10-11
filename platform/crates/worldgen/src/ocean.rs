@@ -16,7 +16,7 @@
 use noise::{Fbm, NoiseFn, OpenSimplex};
 use platform_content::{Content, Dimension};
 
-use crate::{fbm, hash, place_ores, unit, GeneratedChunk, OreSpec, WorldgenError, AIR};
+use crate::{fbm, hash, place_ores, unit, GeneratedChunk, OreSpec, Stamp, WorldgenError, AIR};
 
 /// Bit 28 of a voxel: the cell holds water as well as its block (the
 /// engine's waterlogged bit).
@@ -33,6 +33,8 @@ pub struct Ocean {
     kelp: Fbm<OpenSimplex>,
     blocks: Blocks,
     ores: Vec<OreSpec>,
+    /// Shipwrecks and sunken temples (the content's ocean structures).
+    stamps: Vec<Stamp>,
     biome: String,
 }
 
@@ -122,6 +124,7 @@ impl Ocean {
                 pearl: id("pearl_block")?,
             },
             ores: crate::ore_specs(content, stone),
+            stamps: Stamp::of(content, Dimension::Ocean),
             biome,
         })
     }
@@ -238,6 +241,24 @@ impl Ocean {
         best
     }
 
+    /// Every structure whose footprint touches the chunk: `(key, origin)`
+    /// (min corner, at its floor). Never on a seamount near the surface.
+    pub fn structures_touching(&self, cx: i32, cz: i32, size: usize) -> Vec<(String, [i32; 3])> {
+        let mut out = Vec::new();
+        for (i, st) in self.stamps.iter().enumerate() {
+            let salt = 0x5_0CEA + i as u64;
+            for (x, z) in st.sites_touching(self.seed, salt, cx, cz, size as i32) {
+                let (w, h, d) = st.size;
+                let floor = self.floor(x + w / 2, z + d / 2);
+                if floor + h + 4 > Self::SURFACE {
+                    continue;
+                }
+                out.push((st.key.clone(), [x, floor, z]));
+            }
+        }
+        out
+    }
+
     /// The height of a dome's floor (its tidestone) at centre `(x, z)`.
     pub fn dome_floor(&self, x: i32, z: i32) -> i32 {
         (self.floor(x, z) + 1).clamp(Self::DOME_LOWEST, Self::DOME_HIGHEST)
@@ -317,6 +338,13 @@ impl Ocean {
         }
 
         place_ores(&self.ores, self.seed, limit, &mut chunk);
+
+        // Wrecks and temples resting on the seafloor, half sunk into it.
+        for (key, origin) in self.structures_touching(cx, cz, size) {
+            if let Some(st) = self.stamps.iter().find(|st| st.key == key) {
+                st.draw(origin, &mut chunk);
+            }
+        }
 
         // Air domes, including those centred in neighbouring chunks whose
         // glass reaches in.
@@ -535,6 +563,38 @@ mod tests {
             );
             assert_eq!(o.dome_in(gx, gz), (dx, dz), "the generator builds it there");
         }
+    }
+
+    #[test]
+    fn wrecks_and_temples_rest_on_the_seafloor_with_loot() {
+        let (content, o) = ocean();
+        let chest = content.block("chest").unwrap().id;
+        let (mut wrecks, mut temples, mut chests) = (0, 0, 0);
+        for cx in (-60..60).step_by(3) {
+            for cz in (-60..60).step_by(3) {
+                let found = o.structures_touching(cx, cz, 16);
+                if found.is_empty() {
+                    continue;
+                }
+                wrecks += found.iter().filter(|(k, _)| k == "shipwreck").count();
+                temples += found.iter().filter(|(k, _)| k == "sunken_temple").count();
+                let c = o.generate_chunk(cx, cz, 16);
+                for x in 0..16 {
+                    for z in 0..16 {
+                        for y in 1..Ocean::SURFACE as usize {
+                            let raw = c.get(x, y, z);
+                            if raw & 0xFFFF == chest {
+                                assert!(raw >> crate::LOOT_STAGE_SHIFT & 0xF > 0, "loot marked");
+                                chests += 1;
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        assert!(wrecks > 5, "shipwrecks: {wrecks}");
+        assert!(temples > 2, "sunken temples: {temples}");
+        assert!(chests > 5, "loot chests: {chests}");
     }
 
     #[test]

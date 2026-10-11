@@ -32,7 +32,8 @@ import { DropsView } from "./drops";
 import { Sfx } from "./audio";
 import { moodFor, Music } from "./music";
 import { OceanAmbience, ParadiseAmbience } from "./ambience";
-import { peerLabel, VirtueHud, type VirtueState, type VirtueTag } from "./virtue";
+import { blessingLine, peerLabel, VirtueHud, type Blessing, type VirtueState, type VirtueTag } from "./virtue";
+import { DepthVeil, zoneLine } from "./ocean";
 import { MobInfo, MobsView, nearestBoss } from "./mobs-view";
 import { ArrowInfo, CombatView, FuseInfo } from "./combat-view";
 import { EffectInfo, WeatherInfo, WeatherView, effectLine, flash, movement } from "./weather";
@@ -407,11 +408,20 @@ export async function startGame(content: Content, getTicket: () => Promise<strin
   // The server places the player: where they left, or at a portal on
   // arrival. Feet cell coordinates; waits for the chunk to exist.
   let pendingFeet: [number, number, number] | null = null;
+  // Until placed, chunks stream around the destination rather than around
+  // the default spawn: a far destination would otherwise never load.
+  let placingAt: THREE.Vector3 | null = null;
   const placeFeet = ([x, y, z]: [number, number, number]) => {
     const [cx, cz] = VOXELIZE.ChunkUtils.mapVoxelToChunk([x, 0, z], world.options.chunkSize);
-    const go = () => controls.teleport(x, y - 1, z);
+    const go = () => {
+      placingAt = null;
+      controls.teleport(x, y - 1, z);
+    };
     if (world.getChunkByCoords(cx, cz)?.isReady) go();
-    else world.addChunkInitListener([cx, cz], go);
+    else {
+      placingAt = new THREE.Vector3(x + 0.5, y + 1.5, z + 0.5);
+      world.addChunkInitListener([cx, cz], go);
+    }
   };
   events.on<{ feet: [number, number, number] }>("platform.teleport", ({ feet }) => {
     if (world.isInitialized) placeFeet(feet);
@@ -723,8 +733,13 @@ export async function startGame(content: Content, getTicket: () => Promise<strin
   const bossBar = document.getElementById("boss-bar") as HTMLElement;
   // Virtue: our own standing (the chip, in Paradise) and everyone's titles.
   const virtueHud = new VirtueHud();
-  events.on<Partial<VirtueState> & { players?: VirtueTag[] }>("platform.virtue", (payload) => {
+  events.on<Partial<VirtueState> & { players?: VirtueTag[]; blessing?: Blessing }>("platform.virtue", (payload) => {
     if (!payload) return;
+    if (payload.blessing) {
+      hud.toast(blessingLine(payload.blessing));
+      sfx.play("craft");
+      return;
+    }
     if (payload.players) {
       for (const tag of payload.players) players.titles.set(tag.id, tag);
       return;
@@ -736,6 +751,11 @@ export async function startGame(content: Content, getTicket: () => Promise<strin
       sfx.play("craft");
     }
   });
+  // The Ocean: depth zones are named on entry; the view darkens with depth.
+  events.on<{ zone: string; name: string }>("platform.zone", (payload) => {
+    if (payload) hud.toast(zoneLine(payload.zone, payload.name));
+  });
+  const depthVeil = OCEAN ? new DepthVeil() : null;
   events.on<{ player: string; mode: string }>("platform.mode", (payload) => {
     if (!payload) return;
     if (payload.mode === "spectator") players.spectators.add(payload.player);
@@ -1024,7 +1044,7 @@ export async function startGame(content: Content, getTicket: () => Promise<strin
     borders.update(controls.object.position.x, controls.object.position.y, controls.object.position.z, landPanel.isOpen);
     interact.update();
     camera.getWorldDirection(direction);
-    world.update(controls.object.position, direction);
+    world.update(placingAt ?? controls.object.position, direction);
     players.update();
     combat.update();
     weather.update(controls.object.position, 1 / 60);
@@ -1070,6 +1090,7 @@ export async function startGame(content: Content, getTicket: () => Promise<strin
       const [x, y, z] = controls.voxel;
       const time = world.time / world.options.timePerDay;
       music.setMood(moodFor(DIMENSION, time));
+      depthVeil?.update(controls.object.position.y);
       const clock = `${String(Math.floor(time * 24)).padStart(2, "0")}:${String(Math.floor((time * 1440) % 60)).padStart(2, "0")}`;
       hud.setStatus(`${x}, ${y}, ${z} · ${clock} · ${realm}`);
     }

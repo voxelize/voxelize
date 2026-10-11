@@ -10,6 +10,11 @@
 //! | healing a hurt player with honey | +10 |
 //! | killing a player | −1000 |
 //!
+//! The first time a player reaches a level they are blessed with its
+//! gifts ([`GIFTS`]): fruit and honey for Seekers, light saplings for
+//! Gardeners, up to a Halo Crown for Saints, Seraph Wings (falls never
+//! hurt) for Seraphs and Divine Stars for the Divine.
+//!
 //! Gifts and healing share a daily cap ([`HELP_CAP`]), so friends cannot
 //! farm virtue from each other. Only deeds done in Paradise count. Levels
 //! carry gifts: Guardians are kept in regeneration in Paradise, Saints and
@@ -67,9 +72,30 @@ pub struct Virtue {
     pub built_today: i64,
     #[serde(default)]
     pub helped_today: i64,
+    /// The highest level whose gifts the player has received.
+    #[serde(default)]
+    pub blessed: i8,
     /// Blocks this player placed recently, newest last.
     #[serde(skip)]
     pub placed: VecDeque<[i32; 3]>,
+}
+
+/// Gifts on first reaching each level (indexed by level): `(item, count)`.
+pub const GIFTS: [&[(&str, u32)]; 8] = [
+    &[],
+    &[("golden_fruit", 4), ("honey_bottle", 2)],
+    &[("light_sapling", 4), ("halo_bloom", 8)],
+    &[("pearlstone", 64), ("halo_stone", 4)],
+    &[("angel_feather", 3), ("diamond", 3)],
+    &[("halo_crown", 1)],
+    &[("seraph_wings", 1)],
+    &[("divine_star", 4), ("diamond_block", 1)],
+];
+
+/// The milestone a level counts as (`Reach` achievements): its title in
+/// lower case, words joined by `_` ("builder_of_light").
+pub fn milestone_of(level: i8) -> String {
+    title_of(level).to_lowercase().replace(' ', "_")
 }
 
 /// The level index for some virtue: -1 is Fallen.
@@ -135,6 +161,18 @@ impl Virtue {
         let gain = amount.min(HELP_CAP - self.helped_today).max(0);
         self.helped_today += gain;
         gain
+    }
+
+    /// Levels reached for the first time since the last blessing, whose
+    /// gifts are now due (each level blesses once, ever).
+    pub fn take_blessings(&mut self) -> Vec<i8> {
+        let level = self.level();
+        if level <= self.blessed {
+            return Vec::new();
+        }
+        let due = (self.blessed + 1..=level).collect();
+        self.blessed = level;
+        due
     }
 
     /// Virtue still needed for the next level (`None` at Divine).
@@ -225,5 +263,36 @@ mod tests {
         assert_eq!(title_of(v.level()), "Builder of Light");
         v.record(Deed::Slew, 1);
         assert_eq!(title_of(v.level()), "Fallen");
+    }
+
+    #[test]
+    fn each_level_blesses_once_with_its_gifts() {
+        let mut v = Virtue::default();
+        assert!(v.take_blessings().is_empty(), "Pilgrims start blessed");
+        v.points = 250;
+        assert_eq!(
+            v.take_blessings(),
+            vec![1, 2],
+            "Seeker and Gardener at once"
+        );
+        assert!(v.take_blessings().is_empty());
+        // Falling and rising again blesses nothing twice.
+        v.points = -10;
+        assert!(v.take_blessings().is_empty());
+        v.points = 700;
+        assert_eq!(v.take_blessings(), vec![3]);
+        assert_eq!(GIFTS[6], &[("seraph_wings", 1)]);
+        assert_eq!(milestone_of(3), "builder_of_light");
+        assert_eq!(milestone_of(-1), "fallen");
+        let content =
+            platform_content::Content::load(platform_content::default_pack_dir()).unwrap();
+        for gifts in GIFTS {
+            for (item, _) in gifts {
+                assert!(content.item(item).is_some(), "gift {item} exists");
+            }
+        }
+        for level in -1..=DIVINE {
+            assert!(platform_content::MILESTONES.contains(&milestone_of(level).as_str()));
+        }
     }
 }

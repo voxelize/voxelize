@@ -38,7 +38,14 @@ const ticket = (name, realm) => () => {
 const join = async (name, realm) => {
   const bot = new Bot({ api: "-", game: GAME, name, issueTicket: ticket(name, realm) });
   bot.vitals = null;
+  bot.zones = [];
+  bot.unlocked = [];
   bot.waiters.push({ match: (m) => m.type === "EVENT" && m.name === "platform.vitals" && ((bot.vitals = m.payload), false), resolve() {} });
+  bot.waiters.push({ match: (m) => m.type === "EVENT" && m.name === "platform.zone" && (bot.zones.push(m.payload.zone), false), resolve() {} });
+  bot.waiters.push({
+    match: (m) => m.type === "EVENT" && m.name === "platform.progress" && (bot.unlocked.push(...m.payload.unlocked.map((u) => u.key)), false),
+    resolve() {},
+  });
   await bot.connect();
   return bot;
 };
@@ -170,6 +177,36 @@ assert.ok(sea.count(item("kelp")) > 0, "picked up the kelp");
 await sleep(4000);
 assert.equal(sea.vitals.air, sea.vitals.maxAir, `breath held underwater: ${JSON.stringify(sea.vitals)}`);
 step("harvested kelp underwater and kept breathing");
+
+// 5. Depth zones are named, and the floor hides wrecks and temples whose
+// chests open full of loot (once) and count as discoveries.
+await until(() => sea.zones.length > 0, `a depth zone is named: ${sea.zones}`);
+await until(() => sea.unlocked.includes("into_the_deep"), `into the deep: ${sea.unlocked}`);
+step(`depth zones announced (${sea.zones.join(", ")}); achievements: ${sea.unlocked.join(", ")}`);
+sea.requestChunks(5);
+await sleep(8000);
+const chests = [];
+for (let dx = -80; dx <= 80; dx++)
+  for (let dz = -80; dz <= 80; dz++)
+    for (let y = 2; y < SURFACE; y++) {
+      const raw = sea.raw(fx + dx, y, fz + dz);
+      if (raw !== null && (raw & 0xffff) === id("chest") && (raw >>> 24) & 0xf) chests.push([fx + dx, y, fz + dz]);
+    }
+chests.sort((a, b) => Math.hypot(a[0] - fx, a[2] - fz) - Math.hypot(b[0] - fx, b[2] - fz));
+assert.ok(chests.length, "a sunken chest within reach of the dome");
+const [cx, cy, cz] = chests[0];
+for (const p of [[sea.position[0], fy + 14, sea.position[2]], [cx + 0.5, fy + 14, cz + 0.5], [cx + 0.5, cy + 1, cz + 0.5]])
+  await sea.moveTo([p[0], p[1] + EYE, p[2]], 12);
+await sleep(1500);
+const opened = sea.event("platform.window", (w) => w.kind === "chest", 10000);
+sea.call("platform.window.open", { voxel: [cx, cy, cz] });
+const win = await opened;
+const loot = win.slots.slice(0, win.inventoryStart).filter(Boolean);
+assert.ok(loot.length > 0, `the chest holds loot: ${JSON.stringify(win.slots.slice(0, win.inventoryStart))}`);
+await until(() => sea.unlocked.some((k) => k === "treasure_hunter" || k === "temple_of_the_tides"), `a discovery: ${sea.unlocked}`);
+await sleep(500);
+assert.equal(sea.raw(cx, cy, cz) >>> 24 & 0xf, 0, "the loot is rolled once: the marker is gone");
+step(`opened a sunken chest at ${[cx, cy, cz]}: ${loot.map((s) => `${s.count}× ${content.items.find((i) => i.id === s.item)?.key}`).join(", ")}`);
 
 sea.close();
 console.log("ocean: all checks passed");

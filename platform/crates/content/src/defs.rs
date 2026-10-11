@@ -408,6 +408,9 @@ pub struct ArmorStats {
     /// Worn, it gives air underwater (a diving helm).
     #[serde(default)]
     pub breathing: bool,
+    /// Worn, falls never hurt (seraph wings).
+    #[serde(default)]
+    pub featherfall: bool,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -928,7 +931,31 @@ pub enum TriggerKind {
     Eat,
     /// Arrive in a dimension (target: dimension key).
     Enter,
+    /// Reach a milestone (target: one of [`MILESTONES`]: a depth of the
+    /// Ocean, a level of virtue).
+    Reach,
+    /// Open a chest in a generated structure for the first time (target:
+    /// structure key).
+    Discover,
 }
+
+/// Milestones [`TriggerKind::Reach`] can name: the Ocean's depth zones and
+/// the levels of virtue (Paradise).
+pub const MILESTONES: [&str; 13] = [
+    "sunlit",
+    "reef",
+    "twilight",
+    "abyss",
+    "fallen",
+    "pilgrim",
+    "seeker",
+    "gardener",
+    "builder_of_light",
+    "guardian",
+    "saint",
+    "seraph",
+    "divine",
+];
 
 impl TriggerKind {
     pub fn key(self) -> &'static str {
@@ -940,6 +967,8 @@ impl TriggerKind {
             TriggerKind::Kill => "kill",
             TriggerKind::Eat => "eat",
             TriggerKind::Enter => "enter",
+            TriggerKind::Reach => "reach",
+            TriggerKind::Discover => "discover",
         }
     }
 }

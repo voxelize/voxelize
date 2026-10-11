@@ -1255,3 +1255,14 @@ button.danger {
   color: #e8dcef;
   box-shadow: none;
 }
+
+/* The Ocean: a blue veil that thickens with depth. */
+#depth-veil {
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  background: radial-gradient(ellipse at center, #06304a 0%, #010a14 100%);
+  opacity: 0;
+  transition: opacity 1.2s linear;
+  z-index: 1;
+}

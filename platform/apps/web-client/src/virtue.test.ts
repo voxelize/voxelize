@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { LEVELS, levelProgress, peerLabel, todayLine, virtueLine, type VirtueState } from "./virtue";
+import { blessingLine, LEVELS, levelProgress, peerLabel, todayLine, virtueLine, type VirtueState } from "./virtue";
 
 const state = (over: Partial<VirtueState> = {}): VirtueState => ({
   points: 345,
@@ -36,5 +36,13 @@ describe("virtue", () => {
     expect(levelProgress(state({ points: 400, toNext: 200 }), levels)).toBeCloseTo(0.5);
     expect(levelProgress(state({ level: -1, points: -20, toNext: 20 }), levels)).toBe(0);
     expect(levelProgress(state({ level: 7, toNext: null }), levels)).toBe(1);
+  });
+});
+
+describe("blessings", () => {
+  it("names the gifts of a level", () => {
+    expect(
+      blessingLine({ level: 2, title: "Gardener", gifts: [{ item: "light_sapling", name: "Light Sapling", count: 4 }, { item: "halo_bloom", name: "Halo Bloom", count: 8 }] }),
+    ).toBe("✦ Blessed as Gardener: 4 Light Sapling, 8 Halo Bloom");
   });
 });

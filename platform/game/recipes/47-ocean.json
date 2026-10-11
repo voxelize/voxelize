@@ -3,5 +3,8 @@
   {"type": "shaped", "key": "pearl_block", "pattern": ["pp", "pp"], "symbols": {"p": "pearl"}, "result": {"item": "pearl_block"}},
   {"type": "shapeless", "key": "pearls_from_block", "ingredients": ["pearl_block"], "result": {"item": "pearl", "count": 4}},
   {"type": "shaped", "key": "diving_helm", "pattern": ["iii", "gpg"], "symbols": {"i": "iron_ingot", "g": "glass", "p": "pearl"}, "result": {"item": "diving_helm"}},
-  {"type": "shaped", "key": "bubble_vent", "pattern": ["ppp", "aka", "aaa"], "symbols": {"p": "pearl", "a": "abyssal_rock", "k": "kelp"}, "result": {"item": "bubble_vent"}}
+  {"type": "shaped", "key": "bubble_vent", "pattern": ["ppp", "aka", "aaa"], "symbols": {"p": "pearl", "a": "abyssal_rock", "k": "kelp"}, "result": {"item": "bubble_vent"}},
+  {"type": "shaped", "key": "abyssal_conch", "pattern": [" s ", "sPs", " s "], "symbols": {"s": "conch_shard", "P": "pearl_block"}, "result": {"item": "abyssal_conch"}},
+  {"type": "shaped", "key": "crown_of_the_deep", "pattern": ["gpg", "ghg"], "symbols": {"g": "gold_ingot", "p": "pearl", "h": "heart_of_the_sea"}, "result": {"item": "crown_of_the_deep"}},
+  {"type": "shaped", "key": "tidecaller", "pattern": ["d", "h", "s"], "symbols": {"d": "diamond", "h": "heart_of_the_sea", "s": "stick"}, "result": {"item": "tidecaller"}}
 ]

@@ -160,6 +160,152 @@ struct StructureSpec {
     /// [y][z][x] -> block to write (None keeps the terrain).
     cells: Vec<Vec<Vec<Option<u32>>>>,
     foundation: Option<u32>,
+    /// Its biomes are another dimension's: that generator places it.
+    foreign: bool,
+}
+
+/// A structure's cells, `[y][z][x]` → block to write (`None` keeps the
+/// terrain); chests carry the structure's loot stage.
+fn structure_cells(
+    content: &Content,
+    index: usize,
+    chest: Option<u32>,
+    block: &dyn Fn(&str) -> u32,
+) -> Vec<Vec<Vec<Option<u32>>>> {
+    let st = &content.structures()[index];
+    let marker = ((index as u32 + 1).min(15)) << LOOT_STAGE_SHIFT;
+    st.layers
+        .iter()
+        .map(|layer| {
+            layer
+                .iter()
+                .map(|row| {
+                    row.chars()
+                        .map(|c| match c {
+                            ' ' => None,
+                            '.' => Some(AIR),
+                            c => st.palette.get(&c).map(|key| {
+                                let id = block(key);
+                                if Some(id) == chest {
+                                    id | marker
+                                } else {
+                                    id
+                                }
+                            }),
+                        })
+                        .collect()
+                })
+                .collect()
+        })
+        .collect()
+}
+
+/// A structure that a dimension's own generator places (the overworld
+/// places those of its biomes itself).
+#[derive(Debug, Clone)]
+pub(crate) struct Stamp {
+    pub key: String,
+    /// Width (x), height (y), depth (z).
+    pub size: (i32, i32, i32),
+    pub spacing: i32,
+    pub chance: f64,
+    cells: Vec<Vec<Vec<Option<u32>>>>,
+}
+
+impl Stamp {
+    /// The structures whose biomes belong to `dimension`.
+    pub(crate) fn of(content: &Content, dimension: Dimension) -> Vec<Stamp> {
+        let biomes: Vec<&str> = content
+            .biomes_of(dimension)
+            .iter()
+            .map(|b| b.key.as_str())
+            .collect();
+        let chest = content.block("chest").map(|b| b.id);
+        let block = |key: &str| content.block(key).map(|b| b.id).unwrap_or(AIR);
+        content
+            .structures()
+            .iter()
+            .enumerate()
+            .filter(|(_, st)| {
+                st.placement != StructurePlacement::Village
+                    && !st.biomes.is_empty()
+                    && st.biomes.iter().all(|b| biomes.contains(&b.as_str()))
+            })
+            .map(|(index, st)| {
+                let (w, h, d) = st.size();
+                Stamp {
+                    key: st.key.clone(),
+                    size: (w as i32, h as i32, d as i32),
+                    spacing: st.spacing as i32,
+                    chance: st.chance,
+                    cells: structure_cells(content, index, chest, &block),
+                }
+            })
+            .collect()
+    }
+
+    /// Where this structure stands in grid cell `(gx, gz)` (cells of
+    /// `spacing` chunks), if it has one there: its min corner `(x, z)`.
+    pub(crate) fn site(&self, seed: u32, salt: u64, gx: i32, gz: i32) -> Option<(i32, i32)> {
+        let h = hash(seed, gx as i64, gz as i64, salt);
+        if unit(h) >= self.chance {
+            return None;
+        }
+        let cell = self.spacing * 16;
+        let (w, _, d) = self.size;
+        Some((
+            gx * cell + ((h >> 8) % (cell - w).max(1) as u64) as i32,
+            gz * cell + ((h >> 24) % (cell - d).max(1) as u64) as i32,
+        ))
+    }
+
+    /// Every site whose footprint touches the chunk.
+    pub(crate) fn sites_touching(
+        &self,
+        seed: u32,
+        salt: u64,
+        cx: i32,
+        cz: i32,
+        size: i32,
+    ) -> Vec<(i32, i32)> {
+        let (x0, z0) = (cx * size, cz * size);
+        let cell = self.spacing * 16;
+        let (w, _, d) = self.size;
+        let mut out = Vec::new();
+        for gx in (x0 - w).div_euclid(cell)..=(x0 + size).div_euclid(cell) {
+            for gz in (z0 - d).div_euclid(cell)..=(z0 + size).div_euclid(cell) {
+                if let Some((x, z)) = self.site(seed, salt, gx, gz) {
+                    if x < x0 + size && x + w > x0 && z < z0 + size && z + d > z0 {
+                        out.push((x, z));
+                    }
+                }
+            }
+        }
+        out
+    }
+
+    /// Draw it with its min corner at `origin` (floor at `origin[1]`), as
+    /// much as falls inside the chunk.
+    pub(crate) fn draw(&self, origin: [i32; 3], chunk: &mut GeneratedChunk) {
+        let size = chunk.size as i32;
+        let (x0, z0) = (chunk.cx * size, chunk.cz * size);
+        for (dy, layer) in self.cells.iter().enumerate() {
+            let y = origin[1] + dy as i32;
+            if y <= 0 || y >= chunk.height as i32 - 1 {
+                continue;
+            }
+            for (dz, row) in layer.iter().enumerate() {
+                for (dx, cell) in row.iter().enumerate() {
+                    let (x, z) = (origin[0] + dx as i32 - x0, origin[2] + dz as i32 - z0);
+                    if let (Some(id), true, true) =
+                        (cell, (0..size).contains(&x), (0..size).contains(&z))
+                    {
+                        chunk.set(x as usize, y as usize, z as usize, *id);
+                    }
+                }
+            }
+        }
+    }
 }
 
 #[derive(Debug, Clone)]
@@ -421,32 +567,7 @@ impl Generator {
             .enumerate()
             .map(|(index, st)| {
                 let (w, h, d) = st.size();
-                let marker = ((index as u32 + 1).min(15)) << LOOT_STAGE_SHIFT;
-                let cells = st
-                    .layers
-                    .iter()
-                    .map(|layer| {
-                        layer
-                            .iter()
-                            .map(|row| {
-                                row.chars()
-                                    .map(|c| match c {
-                                        ' ' => None,
-                                        '.' => Some(AIR),
-                                        c => st.palette.get(&c).map(|key| {
-                                            let id = block(key);
-                                            if Some(id) == chest {
-                                                id | marker
-                                            } else {
-                                                id
-                                            }
-                                        }),
-                                    })
-                                    .collect()
-                            })
-                            .collect()
-                    })
-                    .collect();
+                let cells = structure_cells(content, index, chest, &block);
                 StructureSpec {
                     key: st.key.clone(),
                     placement: st.placement,
@@ -463,6 +584,11 @@ impl Generator {
                     size: (w as i32, h as i32, d as i32),
                     cells,
                     foundation: st.foundation.as_deref().map(block),
+                    foreign: !st.biomes.is_empty()
+                        && st
+                            .biomes
+                            .iter()
+                            .all(|b| !biome_index.contains_key(b.as_str())),
                 }
             })
             .collect();
@@ -911,7 +1037,7 @@ impl Generator {
         };
         let mut out = Vec::new();
         for (index, st) in self.structures.iter().enumerate() {
-            if st.placement == StructurePlacement::Village {
+            if st.placement == StructurePlacement::Village || st.foreign {
                 continue;
             }
             let cell = st.spacing * 16;

@@ -157,6 +157,7 @@ export type Vitals = {
 const CAUSES: Record<string, string> = {
   fall: "You fell from a high place.",
   drowning: "You ran out of air.",
+  pressure: "The deep crushed you.",
   lava: "You tried to swim in lava.",
   starvation: "You starved.",
   mob: "You were slain by a creature.",

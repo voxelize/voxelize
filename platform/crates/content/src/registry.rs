@@ -784,6 +784,7 @@ impl Content {
             }
         }
 
+        let has_structure = |k: &str| source.structures.iter().any(|s| s.key == k);
         index_unique(&source.achievements, "achievement", |a| &a.key, &mut errors);
         for a in &source.achievements {
             let who = format!("achievement {:?}", a.key);
@@ -795,9 +796,13 @@ impl Content {
                     errors.push(format!("{who} follows unknown achievement {parent:?}"));
                 }
             }
-            if let Some(problem) = trigger_problem(&a.trigger, &has_block, &has_item, &|k| {
-                source.mobs.iter().any(|m| m.key == k)
-            }) {
+            if let Some(problem) = trigger_problem(
+                &a.trigger,
+                &has_block,
+                &has_item,
+                &|k| source.mobs.iter().any(|m| m.key == k),
+                &has_structure,
+            ) {
                 errors.push(format!("{who} {problem}"));
             }
         }
@@ -816,9 +821,13 @@ impl Content {
                 if pay.cents == 0 || pay.cents > 10_000 {
                     errors.push(format!("{who} pays 1..=10000 cents per action"));
                 }
-                if let Some(problem) =
-                    trigger_problem(&pay.trigger, &has_block, &has_item, &has_mob)
-                {
+                if let Some(problem) = trigger_problem(
+                    &pay.trigger,
+                    &has_block,
+                    &has_item,
+                    &has_mob,
+                    &has_structure,
+                ) {
                     errors.push(format!("{who} {problem}"));
                 }
             }
@@ -832,7 +841,13 @@ impl Content {
             if q.crowns == 0 && q.xp == 0 {
                 errors.push(format!("{who} rewards nothing"));
             }
-            if let Some(problem) = trigger_problem(&q.objective, &has_block, &has_item, &has_mob) {
+            if let Some(problem) = trigger_problem(
+                &q.objective,
+                &has_block,
+                &has_item,
+                &has_mob,
+                &has_structure,
+            ) {
                 errors.push(format!("{who} {problem}"));
             }
         }
@@ -1041,6 +1056,7 @@ pub(crate) fn trigger_problem(
     has_block: &dyn Fn(&str) -> bool,
     has_item: &dyn Fn(&str) -> bool,
     has_mob: &dyn Fn(&str) -> bool,
+    has_structure: &dyn Fn(&str) -> bool,
 ) -> Option<String> {
     if t.count == 0 {
         return Some("trigger count must be positive".to_owned());
@@ -1050,7 +1066,9 @@ pub(crate) fn trigger_problem(
         TriggerKind::Mine | TriggerKind::Place => has_block(target),
         TriggerKind::Craft | TriggerKind::Smelt | TriggerKind::Eat => has_item(target),
         TriggerKind::Kill => has_mob(target),
-        TriggerKind::Enter => ["overworld", "underworld", "sky"].contains(&target),
+        TriggerKind::Enter => crate::Dimension::ALL.iter().any(|d| d.key() == target),
+        TriggerKind::Reach => crate::MILESTONES.contains(&target),
+        TriggerKind::Discover => has_structure(target),
     };
     (!known).then(|| format!("trigger names unknown {} target {target:?}", t.kind.key()))
 }

@@ -89,6 +89,8 @@ use self::survival::{Surroundings, Vitals, EYE_HEIGHT};
 pub const RESULT_EVENT: &str = "platform.result";
 pub const INVENTORY_EVENT: &str = "platform.inventory";
 pub const VITALS_EVENT: &str = "platform.vitals";
+/// `{ "zone", "name" }` to a player entering an Ocean depth zone.
+pub const ZONE_EVENT: &str = "platform.zone";
 pub const RESPAWN_EVENT: &str = "platform.respawn";
 
 /// World resource holding the rules and every online player's state.
@@ -1295,6 +1297,7 @@ impl<'a> specs::System<'a> for SurvivalSystem {
 
         let raining = gameplay.weather.raining();
         let plenty = gameplay.dimensions.current == platform_content::Dimension::Paradise;
+        let ocean = gameplay.dimensions.current == platform_content::Dimension::Ocean;
         let Gameplay {
             rules,
             players,
@@ -1339,6 +1342,21 @@ impl<'a> specs::System<'a> for SurvivalSystem {
                 continue;
             };
             let feet_y = p[1] - EYE_HEIGHT;
+            // The Ocean's depth zones: each one entered is announced and
+            // counts (Reach) once the player is where the server put them.
+            if ocean && player.placing.is_none() && player.travel.arrival.is_none() {
+                let (zone, name) = survival::ocean_zone(p[1]);
+                if player.zone != Some(zone) {
+                    player.zone = Some(zone);
+                    player.note(platform_content::TriggerKind::Reach, zone, 1);
+                    events.dispatch(
+                        Event::new(ZONE_EVENT)
+                            .payload(json!({ "zone": zone, "name": name }))
+                            .filter(ClientFilter::Direct(id.clone()))
+                            .build(),
+                    );
+                }
+            }
             if !player.vulnerable() {
                 let outcome = survival::creative_tick(&mut player.vitals, feet_y, dt);
                 if outcome.changed {
@@ -1399,6 +1417,10 @@ impl<'a> specs::System<'a> for SurvivalSystem {
                             survival::Cell::Other
                         }
                     }));
+            let crushing = ocean
+                && head_in_water
+                && survival::ocean_zone(p[1]).0 == "abyss"
+                && !rules::breathes_underwater(content, player);
             let surroundings = Surroundings {
                 feet_y,
                 on_ground: solid(below),
@@ -1418,6 +1440,8 @@ impl<'a> specs::System<'a> for SurvivalSystem {
                 moved,
                 plenty,
                 air_supply,
+                crushing,
+                featherfall: rules::featherfall(content, player),
             };
             let outcome = survival::tick(&mut player.vitals, surroundings, dt);
             if outcome.changed {

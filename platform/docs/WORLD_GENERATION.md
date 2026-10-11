@@ -117,6 +117,11 @@ gold and lumenite (ore specs whose host is pearlstone). Almost every block
 gives light, and the world's clock is stopped at noon, so nothing here is
 ever dark.
 
+Temples of Light (one in about half of the 112-block cells) stand only
+where no river or bank touches their corners or centre: a pearl foundation
+fills the ground below their floor and hills inside their footprint are
+cut away.
+
 Coordinates are not scaled. An unlinked arrival looks for the nearest dry
 meadow (above the rivers) within 32 columns and builds the gate there.
 
@@ -144,6 +149,10 @@ cell, a tidestone floor filled down to the seafloor, dry air within radius
 6.5 and glass out to radius 8 (thick enough that water cannot seep through
 a diagonal), pearl lamps in the corners and a clam by the wall. Dome floors
 stay between y 20 and y 104.
+
+Shipwrecks (one in about half of the 96-block cells) and sunken temples
+(160-block cells) rest on the seafloor, their bottom layer sunk into it;
+none on a seamount close to the surface. Their insides keep the water.
 
 Coordinates are not scaled. An unlinked arrival lands in the dome nearest
 to the departure point (found from the seed alone) and the Tide Gate is

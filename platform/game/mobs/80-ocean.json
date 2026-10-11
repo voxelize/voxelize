@@ -5,21 +5,65 @@
     "kind": "passive",
     "health": 4,
     "speed": 0.8,
-    "size": [0.7, 0.8],
+    "size": [
+      0.7,
+      0.8
+    ],
     "movement": "swim",
     "spawn": {
       "light": "bright",
       "on": [],
-      "biomes": ["ocean_depths"],
+      "biomes": [
+        "ocean_depths"
+      ],
       "weight": 8,
       "groupMin": 2,
       "groupMax": 4
     },
     "drops": [],
     "model": [
-      { "name": "bell", "size": [0.7, 0.4, 0.7], "offset": [0, 0.55, 0], "color": "#c9a8ff" },
-      { "name": "glow", "size": [0.4, 0.2, 0.4], "offset": [0, 0.5, 0], "color": "#f4e8ff" },
-      { "name": "tendrils", "size": [0.5, 0.45, 0.5], "offset": [0, 0.15, 0], "color": "#9f7fe0" }
+      {
+        "name": "bell",
+        "size": [
+          0.7,
+          0.4,
+          0.7
+        ],
+        "offset": [
+          0,
+          0.55,
+          0
+        ],
+        "color": "#c9a8ff"
+      },
+      {
+        "name": "glow",
+        "size": [
+          0.4,
+          0.2,
+          0.4
+        ],
+        "offset": [
+          0,
+          0.5,
+          0
+        ],
+        "color": "#f4e8ff"
+      },
+      {
+        "name": "tendrils",
+        "size": [
+          0.5,
+          0.45,
+          0.5
+        ],
+        "offset": [
+          0,
+          0.15,
+          0
+        ],
+        "color": "#9f7fe0"
+      }
     ]
   },
   {
@@ -28,23 +72,99 @@
     "kind": "passive",
     "health": 20,
     "speed": 1.2,
-    "size": [1.0, 0.5],
+    "size": [
+      1.0,
+      0.5
+    ],
     "movement": "swim",
     "spawn": {
       "light": "bright",
       "on": [],
-      "biomes": ["ocean_depths"],
+      "biomes": [
+        "ocean_depths"
+      ],
       "weight": 4,
       "groupMin": 1,
       "groupMax": 2
     },
-    "drops": [{ "item": "kelp", "min": 1, "max": 3 }],
+    "drops": [
+      {
+        "item": "kelp",
+        "min": 1,
+        "max": 3
+      }
+    ],
     "model": [
-      { "name": "shell", "size": [0.9, 0.3, 1.0], "offset": [0, 0.3, 0], "color": "#3f6b3a" },
-      { "name": "belly", "size": [0.8, 0.12, 0.9], "offset": [0, 0.12, 0], "color": "#d8cf9a" },
-      { "name": "head", "size": [0.3, 0.25, 0.3], "offset": [0, 0.3, 0.6], "color": "#6f9a5c" },
-      { "name": "left_flipper", "size": [0.45, 0.06, 0.25], "offset": [-0.6, 0.2, 0.25], "color": "#6f9a5c" },
-      { "name": "right_flipper", "size": [0.45, 0.06, 0.25], "offset": [0.6, 0.2, 0.25], "color": "#6f9a5c" }
+      {
+        "name": "shell",
+        "size": [
+          0.9,
+          0.3,
+          1.0
+        ],
+        "offset": [
+          0,
+          0.3,
+          0
+        ],
+        "color": "#3f6b3a"
+      },
+      {
+        "name": "belly",
+        "size": [
+          0.8,
+          0.12,
+          0.9
+        ],
+        "offset": [
+          0,
+          0.12,
+          0
+        ],
+        "color": "#d8cf9a"
+      },
+      {
+        "name": "head",
+        "size": [
+          0.3,
+          0.25,
+          0.3
+        ],
+        "offset": [
+          0,
+          0.3,
+          0.6
+        ],
+        "color": "#6f9a5c"
+      },
+      {
+        "name": "left_flipper",
+        "size": [
+          0.45,
+          0.06,
+          0.25
+        ],
+        "offset": [
+          -0.6,
+          0.2,
+          0.25
+        ],
+        "color": "#6f9a5c"
+      },
+      {
+        "name": "right_flipper",
+        "size": [
+          0.45,
+          0.06,
+          0.25
+        ],
+        "offset": [
+          0.6,
+          0.2,
+          0.25
+        ],
+        "color": "#6f9a5c"
+      }
     ]
   },
   {
@@ -54,23 +174,283 @@
     "health": 18,
     "speed": 2.4,
     "damage": 3,
-    "size": [0.9, 0.6],
+    "size": [
+      0.9,
+      0.6
+    ],
     "movement": "swim",
     "spawn": {
       "light": "dark",
       "on": [],
-      "biomes": ["ocean_depths"],
+      "biomes": [
+        "ocean_depths"
+      ],
       "weight": 3,
       "groupMin": 1,
       "groupMax": 2
     },
-    "drops": [{ "item": "raw_fish", "min": 1, "max": 2 }, { "item": "pearl", "chance": 0.15 }],
+    "drops": [
+      {
+        "item": "raw_fish",
+        "min": 1,
+        "max": 2
+      },
+      {
+        "item": "pearl",
+        "chance": 0.15
+      }
+    ],
     "model": [
-      { "name": "body", "size": [0.6, 0.5, 1.1], "offset": [0, 0.3, 0], "color": "#1d2a3a" },
-      { "name": "jaw", "size": [0.55, 0.15, 0.35], "offset": [0, 0.12, 0.55], "color": "#0f151e" },
-      { "name": "lure", "size": [0.1, 0.1, 0.1], "offset": [0, 0.85, 0.5], "color": "#9effe4" },
-      { "name": "stalk", "size": [0.04, 0.3, 0.04], "offset": [0, 0.65, 0.45], "color": "#1d2a3a" },
-      { "name": "tail", "size": [0.08, 0.4, 0.4], "offset": [0, 0.3, -0.7], "color": "#2b3d52" }
+      {
+        "name": "body",
+        "size": [
+          0.6,
+          0.5,
+          1.1
+        ],
+        "offset": [
+          0,
+          0.3,
+          0
+        ],
+        "color": "#1d2a3a"
+      },
+      {
+        "name": "jaw",
+        "size": [
+          0.55,
+          0.15,
+          0.35
+        ],
+        "offset": [
+          0,
+          0.12,
+          0.55
+        ],
+        "color": "#0f151e"
+      },
+      {
+        "name": "lure",
+        "size": [
+          0.1,
+          0.1,
+          0.1
+        ],
+        "offset": [
+          0,
+          0.85,
+          0.5
+        ],
+        "color": "#9effe4"
+      },
+      {
+        "name": "stalk",
+        "size": [
+          0.04,
+          0.3,
+          0.04
+        ],
+        "offset": [
+          0,
+          0.65,
+          0.45
+        ],
+        "color": "#1d2a3a"
+      },
+      {
+        "name": "tail",
+        "size": [
+          0.08,
+          0.4,
+          0.4
+        ],
+        "offset": [
+          0,
+          0.3,
+          -0.7
+        ],
+        "color": "#2b3d52"
+      }
+    ]
+  },
+  {
+    "key": "leviathan",
+    "name": "The Leviathan",
+    "kind": "hostile",
+    "health": 320,
+    "speed": 2.2,
+    "damage": 9,
+    "size": [
+      2.6,
+      1.8
+    ],
+    "movement": "swim",
+    "boss": true,
+    "sight": 48,
+    "xp": 400,
+    "onHit": {
+      "effect": "slowness",
+      "level": 1,
+      "seconds": 4
+    },
+    "summon": {
+      "item": "abyssal_conch",
+      "on": [
+        "bubble_vent"
+      ]
+    },
+    "spawn": {
+      "light": "dark",
+      "on": [],
+      "biomes": [],
+      "weight": 0,
+      "groupMin": 1,
+      "groupMax": 1
+    },
+    "drops": [
+      {
+        "item": "heart_of_the_sea",
+        "min": 1,
+        "max": 1
+      },
+      {
+        "item": "pearl",
+        "min": 6,
+        "max": 12
+      },
+      {
+        "item": "conch_shard",
+        "min": 1,
+        "max": 2
+      }
+    ],
+    "model": [
+      {
+        "name": "body",
+        "size": [
+          2.0,
+          1.4,
+          4.2
+        ],
+        "offset": [
+          0,
+          0.9,
+          0
+        ],
+        "color": "#173a4a"
+      },
+      {
+        "name": "belly",
+        "size": [
+          1.8,
+          0.3,
+          3.8
+        ],
+        "offset": [
+          0,
+          0.2,
+          0
+        ],
+        "color": "#7fb4b0"
+      },
+      {
+        "name": "head",
+        "size": [
+          1.6,
+          1.2,
+          1.4
+        ],
+        "offset": [
+          0,
+          1.0,
+          2.6
+        ],
+        "color": "#1d4a5c"
+      },
+      {
+        "name": "jaw",
+        "size": [
+          1.5,
+          0.3,
+          1.3
+        ],
+        "offset": [
+          0,
+          0.35,
+          2.65
+        ],
+        "color": "#0c1e26"
+      },
+      {
+        "name": "eyes",
+        "size": [
+          1.62,
+          0.18,
+          0.2
+        ],
+        "offset": [
+          0,
+          1.3,
+          3.2
+        ],
+        "color": "#9effe4"
+      },
+      {
+        "name": "fin",
+        "size": [
+          0.12,
+          1.0,
+          1.4
+        ],
+        "offset": [
+          0,
+          2.0,
+          -0.4
+        ],
+        "color": "#2b6070"
+      },
+      {
+        "name": "left_fin",
+        "size": [
+          1.2,
+          0.1,
+          0.8
+        ],
+        "offset": [
+          -1.5,
+          0.6,
+          0.8
+        ],
+        "color": "#2b6070"
+      },
+      {
+        "name": "right_fin",
+        "size": [
+          1.2,
+          0.1,
+          0.8
+        ],
+        "offset": [
+          1.5,
+          0.6,
+          0.8
+        ],
+        "color": "#2b6070"
+      },
+      {
+        "name": "tail",
+        "size": [
+          2.2,
+          0.2,
+          1.0
+        ],
+        "offset": [
+          0,
+          0.9,
+          -2.7
+        ],
+        "color": "#2b6070"
+      }
     ]
   }
 ]

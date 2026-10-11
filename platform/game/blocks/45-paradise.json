@@ -171,6 +171,10 @@
       {
         "item": "golden_fruit",
         "chance": 0.35
+      },
+      {
+        "item": "light_sapling",
+        "chance": 0.06
       }
     ]
   },
@@ -260,6 +264,62 @@
     "drops": [
       {
         "item": "diamond_block"
+      }
+    ]
+  },
+  {
+    "id": 107,
+    "key": "light_sapling",
+    "name": "Light Sapling",
+    "material": "plant",
+    "hardness": 0,
+    "resistance": 0,
+    "texture": {
+      "all": "light_sapling"
+    },
+    "transparent": true,
+    "collision": false,
+    "lightEmission": 7,
+    "behaviors": [
+      "grows"
+    ],
+    "stages": 2,
+    "support": [
+      "radiant_turf",
+      "golden_loam"
+    ],
+    "growsInto": {
+      "log": "light_log",
+      "leaves": "light_leaves",
+      "density": 1.0,
+      "minHeight": 5,
+      "maxHeight": 7
+    },
+    "drops": [
+      {
+        "item": "light_sapling"
+      }
+    ]
+  },
+  {
+    "id": 108,
+    "key": "divine_star",
+    "name": "Divine Star",
+    "material": "crystal",
+    "hardness": 2,
+    "resistance": 10,
+    "texture": {
+      "all": "divine_star"
+    },
+    "tool": {
+      "kind": "pickaxe",
+      "minTier": 0,
+      "required": false
+    },
+    "lightEmission": 15,
+    "drops": [
+      {
+        "item": "divine_star"
       }
     ]
   }
