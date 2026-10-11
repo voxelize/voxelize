@@ -50,7 +50,7 @@ fn world_name(config: &GameConfig, dimension: Dimension) -> String {
 fn build_world(
     config: &GameConfig,
     content: Arc<Content>,
-    dimensions: gameplay::Dimensions,
+    mut dimensions: gameplay::Dimensions,
 ) -> World {
     let dimension = dimensions.current;
     let name = world_name(config, dimension);
@@ -105,6 +105,9 @@ fn build_world(
             Ocean::new(&content, config.seed, max_height).unwrap_or_else(|e| fail(e)),
         )),
     };
+    if let stage::Terrain::Overworld(g) = &terrain {
+        dimensions.spawn = Some(g.spawn_point());
+    }
     let biomes = terrain.clone();
     let biome_at: Arc<dyn Fn(i32, i32) -> String + Send + Sync> =
         Arc::new(move |x, z| biomes.biome_at(x, z));
@@ -433,6 +436,7 @@ async fn main() -> std::io::Result<()> {
             player_db: player_db.clone(),
             siege_seconds: config.siege_seconds,
             seed: config.seed,
+            spawn: None,
         };
         server
             .add_world(build_world(&config, content.clone(), dimensions))

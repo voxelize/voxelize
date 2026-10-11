@@ -6,8 +6,18 @@ import { defineConfig } from "vite";
 const API = process.env.PLATFORM_API_URL ?? "http://127.0.0.1:8000";
 const GAME = process.env.PLATFORM_GAME_URL ?? "http://127.0.0.1:4000";
 
+// Cross-origin isolation: chunks are shared with the mesher worker
+// (SharedArrayBuffer) instead of copied for every rebuild, which made big
+// builds stutter. Everything the client loads is same-origin.
+const ISOLATED = {
+  "Cross-Origin-Opener-Policy": "same-origin",
+  "Cross-Origin-Embedder-Policy": "require-corp",
+};
+
 export default defineConfig({
+  preview: { headers: ISOLATED },
   server: {
+    headers: ISOLATED,
     proxy: {
       "/api": { target: API, changeOrigin: true },
       "/platform": { target: GAME, changeOrigin: true },

@@ -582,6 +582,18 @@ the origin is placed where they left (chunks stream around the
 destination until then). Tests: zone, pressure, featherfall, blessing,
 trigger, ocean and paradise structure unit tests; client tests; the ocean
 bot opens a sunken chest and the paradise bot checks the Seeker's gifts.
+Then: big builds stay smooth, in every world. Measured in the browser while
+a bot raised glass halls and lanterns: the page is now cross-origin
+isolated, so chunk data is shared with the mesher instead of copied on
+every rebuild; every shader is compiled while loading, so the first glass,
+lantern or other player no longer freezes the game; and a Graphics quality
+setting (Auto by default) sheds clustered light work and resolution when
+frames slow down (Low is 1.6x to 1.8x the frame rate of High in lit glass
+halls, Paradise and the Ocean). Also: new players and respawns start on dry
+land nearest the origin rather than in its lake, and the client no longer
+races the server's placement back to the origin. Tests: quality controller
+and settings unit tests, spawn and placement unit tests, smoke and ocean
+bots, browser measurements.
 
 ## Definition of done (whole project)
 

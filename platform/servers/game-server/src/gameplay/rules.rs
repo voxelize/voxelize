@@ -158,6 +158,8 @@ pub struct PlayerState {
     /// it still waits for the client to get there: until then the body is
     /// wherever a loading client happens to be, and nothing hurts it.
     pub placing: Option<([i32; 3], f32)>,
+    /// Where the player was first seen while being placed.
+    pub placing_from: Option<[f32; 3]>,
     /// The Ocean depth zone the player is in (zone changes are announced).
     pub zone: Option<&'static str>,
     pub inventory: Inventory,
@@ -217,6 +219,7 @@ impl PlayerState {
             // the ground; give it longer.
             moved: JOIN_GRACE,
             placing: None,
+            placing_from: None,
             zone: None,
             inventory,
             mining: None,

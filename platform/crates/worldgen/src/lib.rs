@@ -718,6 +718,39 @@ impl Generator {
     }
 
     /// Biome key at a world column.
+    /// Where new players first stand: the dry column nearest the origin
+    /// (ground above the sea, two free cells above it), searched in rings
+    /// outwards; `(0, sea level + 1, 0)` if there is none within 512 blocks.
+    /// Feet cell.
+    pub fn spawn_point(&self) -> [i32; 3] {
+        const SIZE: usize = 16;
+        let mut chunks: HashMap<(i32, i32), GeneratedChunk> = HashMap::new();
+        let mut dry = |x: i32, z: i32| -> Option<i32> {
+            let (cx, cz) = (x.div_euclid(SIZE as i32), z.div_euclid(SIZE as i32));
+            let c = chunks
+                .entry((cx, cz))
+                .or_insert_with(|| self.generate_chunk(cx, cz, SIZE));
+            let (lx, lz) = (
+                x.rem_euclid(SIZE as i32) as usize,
+                z.rem_euclid(SIZE as i32) as usize,
+            );
+            let top = c.heights[lx * SIZE + lz];
+            let free =
+                |y: i32| y > 0 && (y as usize) < c.height && c.get(lx, y as usize, lz) == AIR;
+            (top >= self.config.sea_level && free(top + 1) && free(top + 2)).then_some(top + 1)
+        };
+        for r in (0..=512).step_by(4) {
+            for d in (-r..=r).step_by(4) {
+                for (x, z) in [(d, -r), (d, r), (-r, d), (r, d)] {
+                    if let Some(y) = dry(x, z) {
+                        return [x, y, z];
+                    }
+                }
+            }
+        }
+        [0, self.config.sea_level + 1, 0]
+    }
+
     pub fn biome_at(&self, x: i32, z: i32) -> &str {
         &self.biomes[self.nearest_biome(&self.climate(x, z))].key
     }
@@ -1631,5 +1664,26 @@ mod tests {
             }
         }
         assert!(count > 0, "no trees in 144 chunks");
+    }
+
+    #[test]
+    fn players_first_stand_on_dry_land() {
+        let content = Content::load(default_pack_dir()).unwrap();
+        let g = Generator::new(
+            &content,
+            WorldgenConfig {
+                seed: 20260101,
+                ..Default::default()
+            },
+        )
+        .unwrap();
+        let [x, y, z] = g.spawn_point();
+        assert!(y > g.config.sea_level, "above the sea: {y}");
+        let c = g.generate_chunk(x.div_euclid(16), z.div_euclid(16), 16);
+        let (lx, lz) = (x.rem_euclid(16) as usize, z.rem_euclid(16) as usize);
+        assert_eq!(c.get(lx, y as usize, lz), AIR);
+        assert_eq!(c.get(lx, y as usize + 1, lz), AIR);
+        assert_ne!(c.get(lx, y as usize - 1, lz), AIR, "ground underfoot");
+        assert!(x.abs() <= 512 && z.abs() <= 512);
     }
 }

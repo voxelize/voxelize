@@ -3,6 +3,7 @@
 // is guarded and defaults always work.
 
 import { COLOUR_VISIONS, ColourVision } from "./colour-vision";
+import { QUALITY_CHOICES, type QualityChoice } from "./quality";
 import { ACTIONS, conflicts, DEFAULT_KEYS, keyLabel, KeyMap, RESERVED, sanitizeKeys } from "./keybindings";
 
 export type Settings = {
@@ -14,6 +15,7 @@ export type Settings = {
   music: number;
   invertY: boolean;
   colourVision: ColourVision;
+  graphics: QualityChoice;
   keys: KeyMap;
 };
 
@@ -26,12 +28,13 @@ export const DEFAULTS: Settings = {
   music: 0.4,
   invertY: false,
   colourVision: "normal",
+  graphics: "auto",
   keys: { ...DEFAULT_KEYS },
 };
 
 const KEY = "platform.settings";
 
-export const RANGES: Record<Exclude<keyof Settings, "invertY" | "colourVision" | "keys">, [number, number, number, string]> = {
+export const RANGES: Record<Exclude<keyof Settings, "invertY" | "colourVision" | "graphics" | "keys">, [number, number, number, string]> = {
   sensitivity: [20, 300, 5, "Mouse sensitivity"],
   fov: [50, 110, 1, "Field of view"],
   renderDistance: [2, 12, 1, "Render distance (chunks)"],
@@ -51,6 +54,7 @@ export function sanitize(raw: unknown): Settings {
   }
   if (typeof r.invertY === "boolean") out.invertY = r.invertY;
   if (COLOUR_VISIONS.some((c) => c.kind === r.colourVision)) out.colourVision = r.colourVision as ColourVision;
+  if (QUALITY_CHOICES.some((c) => c.kind === r.graphics)) out.graphics = r.graphics as QualityChoice;
   out.keys = sanitizeKeys(r.keys);
   return out;
 }
@@ -126,6 +130,18 @@ export function settingsPanel(initial: Settings, apply: (s: Settings) => void): 
   });
   vision.append(Object.assign(document.createElement("span"), { textContent: "Colour vision aid" }), select);
   panel.append(vision);
+
+  // Graphics quality.
+  const graphics = document.createElement("label");
+  graphics.className = "setting";
+  const quality = document.createElement("select");
+  for (const { kind, label } of QUALITY_CHOICES) quality.append(new Option(label, kind, false, kind === state.graphics));
+  quality.addEventListener("change", () => {
+    state.graphics = quality.value as QualityChoice;
+    changed();
+  });
+  graphics.append(Object.assign(document.createElement("span"), { textContent: "Graphics quality" }), quality);
+  panel.append(graphics);
 
   // Controls: click a key, then press the new one (Escape cancels).
   const heading = document.createElement("h3");

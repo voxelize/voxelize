@@ -638,13 +638,20 @@ fn on_join(world: &mut World, entity: Entity) {
             send(world, &id, work::WORK_EVENT, work);
         }
     }
-    // Back where they left (arrivals are placed once their area is ready).
-    if let (None, Some(eye)) = (&arrival, position) {
-        let feet = [
+    // Back where they left (arrivals are placed once their area is ready);
+    // a first visit to the overworld starts at its spawn, on dry land.
+    let first_spawn = dimensions
+        .spawn
+        .filter(|_| arrival.is_none() && position.is_none());
+    let back = match (&arrival, position) {
+        (None, Some(eye)) => Some([
             eye[0].floor() as i32,
             (eye[1] - EYE_HEIGHT + 0.1).floor() as i32,
             eye[2].floor() as i32,
-        ];
+        ]),
+        _ => first_spawn,
+    };
+    if let Some(feet) = back {
         if let Some(p) = world
             .ecs()
             .write_resource::<Gameplay>()
@@ -652,6 +659,7 @@ fn on_join(world: &mut World, entity: Entity) {
             .get_mut(&id)
         {
             p.placing = Some((feet, survival::PLACING_SECONDS));
+            p.placing_from = None;
         }
         send(world, &id, travel::TELEPORT_EVENT, json!({ "feet": feet }));
     }
@@ -1161,7 +1169,13 @@ pub fn install(
                 // surface of the spawn column.
                 let spawn = match guild_api::respawn_home(world, client_id) {
                     Some(home) => json!({ "x": home[0], "z": home[2], "feet": home }),
-                    None => json!({ "x": 0, "z": 0 }),
+                    None => {
+                        let spawn = world.ecs().read_resource::<Gameplay>().dimensions.spawn;
+                        match spawn {
+                            Some(s) => json!({ "x": s[0], "z": s[2], "feet": s }),
+                            None => json!({ "x": 0, "z": 0 }),
+                        }
+                    }
                 };
                 if let Some(p) = world
                     .ecs()
@@ -1379,7 +1393,7 @@ impl<'a> specs::System<'a> for SurvivalSystem {
                 continue;
             }
             // A loading client is not where the server put it yet.
-            if survival::awaiting_placement(&mut player.placing, p, dt) {
+            if survival::awaiting_placement(&mut player.placing, &mut player.placing_from, p, dt) {
                 player.last_position = None;
                 continue;
             }

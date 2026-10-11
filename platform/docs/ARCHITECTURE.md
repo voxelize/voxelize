@@ -164,6 +164,28 @@ connects to `/ws/?ticket=…`, renders with WebGL2 (WebGPU when the engine's
 renderer supports it), meshes chunks in Web Workers via the WASM mesher, and
 predicts local movement while the server stays authoritative.
 
+Rendering budget, measured in the browser with large glass and lantern
+builds (tests run software WebGL, so the GPU share is a proportion, not a
+frame rate):
+
+- The page is cross-origin isolated (`Cross-Origin-Opener-Policy:
+  same-origin`, `Cross-Origin-Embedder-Policy: require-corp`, from Vite and
+  nginx; everything it loads is same-origin), so chunk voxels and light are
+  shared with the mesher workers instead of copied (about 0.5 MB per chunk)
+  on every rebuild a placed block causes.
+- Every shader is compiled while loading (each block material as a plain
+  and a batched mesh, hidden effects shown for the compile, a name tag
+  drawn for a few frames): the first glass, lantern or other player in view
+  no longer freezes the game while the GPU compiles.
+- Graphics quality (settings): Auto, High, Medium or Low. The cost that grows
+  with lit builds is the clustered local lights each pixel shades; Medium
+  and Low shade fewer, and Low draws at 0.75 resolution (Low is about 1.6x
+  the frame rate of High in a lantern-lit glass hall, 1.8x in Paradise).
+  Auto steps down after 3 s of frames slower than 40 per second and back up
+  after 20 s faster than 57, ignoring single hitches.
+- `?perf` in the URL exposes renderer counters to tests
+  (`window.__perf`); players never see it.
+
 ## 4. Cross-cutting principles
 
 1. **Server authority.** Every client packet is untrusted. The client never

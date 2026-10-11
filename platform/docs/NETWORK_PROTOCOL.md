@@ -113,7 +113,7 @@ the authoritative state changes (`UPDATE`, inventory events).
 | `platform.interact` | `{"mob":id}` | within reach, holding the creature's breed item: feeds it (love mode, or a baby grows faster) | ✅ |
 | `platform.eat` (potions) | `{"slot"?:n}` | a potion is drunk whatever the hunger: its effect starts (instant healing heals 4 per level) and a glass bottle takes its place | ✅ |
 | `platform.eat` | `{"slot"?:n}` | alive, slot holds food, player hungry (survival); consumes one | ✅ |
-| `platform.respawn` | `{}` | player is dead; restores vitals, answers `platform.respawn {x,z}` (client moves to that column's surface), or `{x,z,"feet":[x,y,z]}` at the player's town hall while it stands; in another dimension the player is sent home with `platform.travel` instead | ✅ |
+| `platform.respawn` | `{}` | player is dead; restores vitals, answers `platform.respawn {x,z,"feet":[x,y,z]}`: at the player's town hall while it stands, else at the world's spawn on dry land (`{x,z}` alone, the client moving to that column's surface, only from a server without a spawn); in another dimension the player is sent home with `platform.travel` instead | ✅ |
 | `platform.trade.request` | `{"player":id}` | both survival, alive, within 8 blocks, neither in a trade (`busy`), a backend; the other player gets `platform.trade {"invite":{"from","name"}}` (valid 30 s) | ✅ |
 | `platform.trade.accept` | `{"player":inviter}` | a valid invitation, still within 8 blocks; both get the window state | ✅ |
 | `platform.trade.offer` | `{"items"?:[{"slot","count"}],"crowns"?:n,"reset"?:bool}` | adds the stacks to your offer (`reset` first takes the whole offer back) and sets your Crowns; at most 9 stacks; items move into your hold, saved with your inventory; clears both confirmations | ✅ |
@@ -175,10 +175,13 @@ Answers (events, sent only to the requesting client):
   ≥ 65, ≥ 44, below). Without breathing armor the abyss does `pressure`
   damage, 1 a second.
 - `platform.teleport` — `{"feet":[x,y,z]}`: the cell the player's feet are
-  to stand in. Sent on join (back where they left) and when a traveller is
-  placed in a portal; the client moves once that chunk exists. Until the
-  client reports a position in that cell (at most 90 s), survival leaves
-  the player alone: a loading client is not where its body will be.
+  to stand in. Sent on join (back where they left; a first visit to the
+  overworld starts on the dry land nearest the origin, never in its lake)
+  and when a traveller is placed in a portal; the client streams chunks
+  around that cell and moves once it exists. Until the client reports a
+  position in that cell, moves itself (more than 4 blocks sideways or 2
+  up) or 90 s pass, survival leaves the player alone: a loading client is
+  not where its body will be.
   Arriving in the Ocean also sends `platform.vitals` with 90 s of
   `water_breathing`.
 - `platform.travel` — `{"world":name}`: join that engine world. Sent when a

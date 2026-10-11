@@ -158,6 +158,14 @@ Coordinates are not scaled. An unlinked arrival lands in the dome nearest
 to the departure point (found from the seed alone) and the Tide Gate is
 built on its floor; arrivals get 90 s of water breathing.
 
+## Spawn
+
+The overworld's spawn (`Generator::spawn_point`) is the dry column nearest
+the origin: ground at or above sea level with two free cells above it,
+searched in square rings every 4 blocks out to 512 (the origin at sea level
+if none). New players start there and the dead respawn there (unless they
+have a town hall), so nobody begins in the lake that the origin may be.
+
 ## Changing a live world's generator
 
 Pristine chunks are not saved; they are regenerated. Any change to the

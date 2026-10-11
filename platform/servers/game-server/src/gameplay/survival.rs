@@ -286,20 +286,43 @@ pub fn ocean_zone(eye_y: f32) -> (&'static str, &'static str) {
 /// Longest wait for a client to reach the place the server put it.
 pub const PLACING_SECONDS: f32 = 90.0;
 
+/// How far (blocks, horizontally) a client may wander on its own before
+/// it counts as playing rather than loading: a loading client only falls,
+/// so wandering further or rising at all (more than [`PLACING_RISE`]) means
+/// it is moving itself.
+pub const PLACING_WANDER: f32 = 4.0;
+pub const PLACING_RISE: f32 = 2.0;
+
 /// Whether a player is still on their way to where the server placed them
-/// (`placing`: feet cell and seconds left): true until the reported eye
-/// position reaches that cell or the wait runs out, which clears it.
-pub fn awaiting_placement(placing: &mut Option<([i32; 3], f32)>, eye: [f32; 3], dt: f32) -> bool {
+/// (`placing`: feet cell and seconds left; `from`: where they were first
+/// seen since): true until the reported eye position reaches that cell,
+/// the client moves on its own, or the wait runs out, which clears it.
+pub fn awaiting_placement(
+    placing: &mut Option<([i32; 3], f32)>,
+    from: &mut Option<[f32; 3]>,
+    eye: [f32; 3],
+    dt: f32,
+) -> bool {
     let Some((feet, left)) = placing.as_mut() else {
+        *from = None;
         return false;
     };
     *left -= dt;
+    let start = *from.get_or_insert(eye);
+    if (eye[0] - start[0]).hypot(eye[2] - start[2]) > PLACING_WANDER
+        || eye[1] > start[1] + PLACING_RISE
+    {
+        *placing = None;
+        *from = None;
+        return false;
+    }
     let near = |a: f32, b: i32, reach: f32| (a - (b as f32 + 0.5)).abs() <= reach;
     let there = near(eye[0], feet[0], 1.5)
         && near(eye[2], feet[2], 1.5)
         && near(eye[1] - EYE_HEIGHT, feet[1], 2.0);
     if there || *left <= 0.0 {
         *placing = None;
+        *from = None;
         return false;
     }
     true
@@ -821,19 +844,72 @@ mod tests {
     #[test]
     fn nothing_hurts_a_player_on_the_way_to_their_place() {
         let mut placing = Some(([10, 72, -4], PLACING_SECONDS));
-        // A loading client still at its default spot, in the sea.
-        assert!(awaiting_placement(&mut placing, [0.0, 120.0, 0.0], 1.0));
+        let mut from = None;
+        // A loading client still at its default spot, sinking into the sea.
+        assert!(awaiting_placement(
+            &mut placing,
+            &mut from,
+            [0.0, 120.0, 0.0],
+            1.0
+        ));
+        assert!(awaiting_placement(
+            &mut placing,
+            &mut from,
+            [0.0, 63.0, 0.0],
+            1.0
+        ));
         assert!(placing.is_some());
         // There: from now on it counts.
         let eye = [10.5, 72.0 + EYE_HEIGHT, -3.5];
-        assert!(!awaiting_placement(&mut placing, eye, 1.0));
+        assert!(!awaiting_placement(&mut placing, &mut from, eye, 1.0));
         assert!(placing.is_none());
-        assert!(!awaiting_placement(&mut placing, [0.0, 120.0, 0.0], 1.0));
+        assert!(!awaiting_placement(
+            &mut placing,
+            &mut from,
+            [0.0, 120.0, 0.0],
+            1.0
+        ));
         // A client that never arrives is only waited for so long.
         let mut placing = Some(([10, 72, -4], 2.0));
-        assert!(awaiting_placement(&mut placing, [0.0, 120.0, 0.0], 1.0));
-        assert!(!awaiting_placement(&mut placing, [0.0, 120.0, 0.0], 1.5));
+        assert!(awaiting_placement(
+            &mut placing,
+            &mut from,
+            [0.0, 120.0, 0.0],
+            1.0
+        ));
+        assert!(!awaiting_placement(
+            &mut placing,
+            &mut from,
+            [0.0, 120.0, 0.0],
+            1.5
+        ));
         assert!(placing.is_none());
+        // Nor one that walks off on its own: it is playing, not loading.
+        let mut placing = Some(([10, 72, -4], PLACING_SECONDS));
+        assert!(awaiting_placement(
+            &mut placing,
+            &mut from,
+            [50.0, 70.0, 50.0],
+            0.1
+        ));
+        assert!(!awaiting_placement(
+            &mut placing,
+            &mut from,
+            [55.0, 70.0, 50.0],
+            0.1
+        ));
+        assert!(placing.is_none());
+        let mut placing = Some(([10, 72, -4], PLACING_SECONDS));
+        assert!(awaiting_placement(
+            &mut placing,
+            &mut from,
+            [1.0, 70.0, 1.0],
+            0.1
+        ));
+        assert!(
+            !awaiting_placement(&mut placing, &mut from, [1.0, 75.0, 1.0], 0.1),
+            "rising"
+        );
     }
 
     #[test]

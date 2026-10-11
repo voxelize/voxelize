@@ -183,6 +183,9 @@ pub struct Dimensions {
     pub player_db: Option<Arc<super::store_mysql::MysqlStore>>,
     /// The world seed (the Ocean's domes are found from it).
     pub seed: u32,
+    /// The overworld's spawn (feet cell): dry land nearest the origin. Set
+    /// for the overworld only.
+    pub spawn: Option<[i32; 3]>,
 }
 
 impl Dimensions {
@@ -398,6 +401,7 @@ impl<'a> specs::System<'a> for PortalSystem {
                 player.travel.blocked = true;
                 player.travel.settle = SETTLE_SECONDS;
                 player.placing = Some((feet, super::survival::PLACING_SECONDS));
+                player.placing_from = None;
                 player.travel.in_portal = 0.0;
                 player.vitals.start_grace(5.0);
                 if dims.current == Dimension::Ocean {
@@ -536,6 +540,7 @@ mod tests {
             player_db: None,
             siege_seconds: 600.0,
             seed: 1,
+            spawn: None,
         };
         assert_eq!(dims.world_of(Dimension::Overworld), None);
         let r = heights(Dimension::Underworld, 40);

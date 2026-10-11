@@ -1,7 +1,7 @@
 // App-shell service worker: the built client works offline as an installed
 // app shell. API, game server and content responses are never cached, so
 // the server's answers are always live.
-const CACHE = "platform-shell-v1";
+const CACHE = "platform-shell-v2";
 
 self.addEventListener("install", (event) => {
   event.waitUntil(caches.open(CACHE).then((c) => c.addAll(["/", "/manifest.webmanifest", "/icon.svg"])));

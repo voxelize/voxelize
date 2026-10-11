@@ -41,6 +41,7 @@ import { loadSettings, Settings, settingsPanel } from "./settings";
 import { isTouchDevice, mountTouchControls } from "./touch";
 import { Hud, InventorySnapshot, Vitals, VitalsHud } from "./hud";
 import { textureCanvas } from "./textures";
+import { AutoQuality, QUALITY, type Quality, type QualityChoice } from "./quality";
 import { WindowState, WindowUi } from "./window-ui";
 
 type ResultEvent = { intent: string; ok: boolean; code?: string; voxel?: [number, number, number] };
@@ -222,7 +223,20 @@ export async function startGame(content: Content, getTicket: () => Promise<strin
   const sfx = new Sfx();
   const music = new Music();
   const ambience = PARADISE ? new ParadiseAmbience() : OCEAN ? new OceanAmbience() : null;
+  // Graphics quality: fixed, or chosen as the frame rate allows (auto).
+  let graphics: QualityChoice = "auto";
+  const autoQuality = new AutoQuality();
+  let quality: Quality | null = null;
+  const applyQuality = (q: Quality) => {
+    if (q === quality) return;
+    quality = q;
+    world.localLights.setQualityTier(QUALITY[q].lights);
+    renderer.setPixelRatio(QUALITY[q].pixelRatio);
+    renderer.setSize(innerWidth, innerHeight);
+  };
   const applySettings = (s: Settings) => {
+    graphics = s.graphics;
+    applyQuality(graphics === "auto" ? autoQuality.level : graphics);
     controls.options.sensitivity = s.sensitivity;
     controls.options.invertY = s.invertY;
     camera.fov = s.fov;
@@ -411,7 +425,9 @@ export async function startGame(content: Content, getTicket: () => Promise<strin
   // Until placed, chunks stream around the destination rather than around
   // the default spawn: a far destination would otherwise never load.
   let placingAt: THREE.Vector3 | null = null;
+  let placed = false;
   const placeFeet = ([x, y, z]: [number, number, number]) => {
+    placed = true;
     const [cx, cz] = VOXELIZE.ChunkUtils.mapVoxelToChunk([x, 0, z], world.options.chunkSize);
     const go = () => {
       placingAt = null;
@@ -1022,9 +1038,67 @@ export async function startGame(content: Content, getTicket: () => Promise<strin
     }
   }
 
+  // Compile every block's shader now, while loading: otherwise the first
+  // glass, door or lantern to come into view stalls the game while the GPU
+  // compiles its program.
+  // Each material is warmed as a plain mesh and as a batched one (chunk
+  // sections are drawn both ways), and hidden effects (rain, particles)
+  // are shown for the compile: three only compiles what is visible.
+  {
+    const warm = new THREE.Group();
+    const geometry = new THREE.BufferGeometry();
+    geometry.setAttribute("position", new THREE.Float32BufferAttribute(new Float32Array(9), 3));
+    const batches: THREE.BatchedMesh[] = [];
+    for (const material of world.chunkRenderer.materials.values()) {
+      warm.add(new THREE.Mesh(geometry, material));
+      const batched = new THREE.BatchedMesh(1, 3, 0, material);
+      batched.setColorAt(batched.addInstance(batched.addGeometry(geometry)), new THREE.Color(1, 1, 1));
+      warm.add(batched);
+      batches.push(batched);
+    }
+    const hidden: THREE.Object3D[] = [];
+    world.traverse((o) => {
+      if (!o.visible) hidden.push(o);
+    });
+    hidden.forEach((o) => (o.visible = true));
+    world.add(warm);
+    await renderer.compileAsync(world, camera).catch(() => undefined);
+    world.remove(warm);
+    hidden.forEach((o) => (o.visible = false));
+    batches.forEach((b) => b.dispose());
+    geometry.dispose();
+  }
+
+  // Name tags draw in their own overlay pass, so a real one is shown in
+  // front of the camera for the first frames: its program is compiled
+  // during loading, not when the first other player comes into view. Its
+  // material is never disposed (three drops a program with its last user).
+  const warmTag = new VOXELIZE.NameTag("…");
+  world.add(warmTag);
+  let warmTagFrames = 10;
+  const warmTagAhead = new THREE.Vector3();
+
+  // `?perf`: counters for measuring the renderer from tests
+  // (tests/perf/), never shown to players.
+  if (new URLSearchParams(location.search).has("perf")) {
+    (window as unknown as { __perf: unknown }).__perf = {
+      sort: VOXELIZE.transparentSortStats,
+      info: renderer.info,
+      teleport: (x: number, y: number, z: number) => controls.teleport(x, y, z),
+      position: () => controls.object.position.toArray(),
+    };
+  }
+
   applySettings(settings);
+  // The server places every player (where they left, or a first spawn on
+  // dry land); the origin's surface is only a fallback for a server that
+  // never does. Moving there at once raced the server's placement and
+  // could drop a new player into the lake at the origin.
   if (pendingFeet) placeFeet(pendingFeet);
-  else if (DIMENSION === "overworld") controls.teleportToTop(0, 0, 2);
+  else if (DIMENSION === "overworld")
+    setTimeout(() => {
+      if (!placed) controls.teleportToTop(0, 0, 2);
+    }, 10000);
   method.call("platform.inventory.get", {});
   hud.show();
 
@@ -1035,9 +1109,13 @@ export async function startGame(content: Content, getTicket: () => Promise<strin
   let lastDigTick = 0;
   let lastStatus = 0;
 
+  let lastFrame = performance.now();
   const frame = () => {
     requestAnimationFrame(frame);
     if (!world.isInitialized) return;
+    const frameStart = performance.now();
+    if (graphics === "auto" && !document.hidden) applyQuality(autoQuality.frame(frameStart - lastFrame));
+    lastFrame = frameStart;
 
     controls.update();
     perspective.update();
@@ -1096,7 +1174,9 @@ export async function startGame(content: Content, getTicket: () => Promise<strin
     }
 
     voice.update();
+    if (warmTagFrames > 0) camera.getWorldPosition(warmTag.position).add(camera.getWorldDirection(warmTagAhead).multiplyScalar(3));
     renderer.render(world, camera);
+    if (warmTagFrames > 0 && --warmTagFrames === 0) world.remove(warmTag);
   };
   frame();
 }

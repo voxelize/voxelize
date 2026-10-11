@@ -23,5 +23,7 @@ describe("settings", () => {
     expect(s.keys.forward).toBe("ArrowUp");
     expect(s.keys.back).toBe("KeyS");
     expect(sanitize({ colourVision: "sepia" }).colourVision).toBe("normal");
+    expect(sanitize({ graphics: "low" }).graphics).toBe("low");
+    expect(sanitize({ graphics: "ultra" }).graphics).toBe("auto");
   });
 });
