@@ -4,6 +4,7 @@ import {
   Color,
   DoubleSide,
   FrontSide,
+  Matrix4,
   NearestFilter,
   ShaderLib,
   ShaderMaterial,
@@ -20,6 +21,7 @@ import { ThreeUtils } from "../../utils";
 import { Block } from "./block";
 import { BLOCK_LIGHT_TUNING } from "./block-light-transfer";
 import { ChunkRenderer } from "./chunk-renderer";
+import { forwardDraws } from "./forward-draws";
 import { LightCones } from "./light-cones";
 import { LocalLights } from "./local-lights";
 import { QUAD_LIGHT_TWIST_NEUTRAL } from "./quad-light";
@@ -110,9 +112,37 @@ export const SEE_THROUGH_ALPHA_TEST = 0.1;
 
 /** Detach a customized block without cloning the world's live uniforms/atlas. */
 export function forkChunkMaterial(material: CustomChunkShaderMaterial) {
-  const own = material.clone() as CustomChunkShaderMaterial;
+  // Cloned with no uniforms to copy: the fork shares the live ones, and
+  // copying them would clone every texture and warn at each render target
+  // (the shadow maps) only to throw the copies away.
+  const { uniforms } = material;
+  material.uniforms = {};
+  let own: CustomChunkShaderMaterial;
+  try {
+    own = material.clone() as CustomChunkShaderMaterial;
+  } finally {
+    material.uniforms = uniforms;
+  }
   own.map = material.map;
-  own.uniforms = { ...material.uniforms };
+  own.uniforms = { ...uniforms };
+  return own;
+}
+
+/**
+ * A voxel box's own copy of a chunk material: every live uniform and the
+ * atlas shared, so it draws with the program the chunks compiled, but its
+ * greedy faces read their texels through `frame` (`VoxelBoxTexelFrame`), so
+ * they ride the box. Its draws count as `material`'s, so a face texture
+ * animated from that material's draws still advances.
+ */
+export function forkVoxelBoxMaterial(
+  material: CustomChunkShaderMaterial,
+  frame: { readonly value: Matrix4 },
+) {
+  const own = forkChunkMaterial(material);
+  own.uniforms.uGreedyFrame = frame;
+  own.uniforms.uHasGreedyFrame = { value: 1 };
+  forwardDraws(own, material);
   return own;
 }
 
@@ -349,6 +379,10 @@ export function makeChunkShaderMaterial(
       uFarCover: chunksUniforms.farCover,
       uFarSeam: chunksUniforms.farSeam,
       uChunkReveal: { value: 1 },
+      // Per material: a chunk's greedy faces take their texels from where
+      // they are drawn; a voxel box's forks turn on a frame of their own.
+      uGreedyFrame: { value: new Matrix4() },
+      uHasGreedyFrame: { value: 0 },
       ...world.lightCones.uniformBindings,
       ...world.localLights.uniformBindings,
       ...shaderLightingUniforms,

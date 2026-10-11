@@ -114,6 +114,7 @@ import {
   SHARED_OPAQUE_MATERIAL_KEY,
   applyQuantizedPositionDefine,
   forkChunkMaterial,
+  forkVoxelBoxMaterial,
   isOwnTextureFace,
   loadChunkMaterials,
   makeChunkMaterialKey,
@@ -229,6 +230,7 @@ import {
   type VoxelBoxBand,
   type VoxelBoxInput,
   type VoxelBoxMesh,
+  VoxelBoxTexelFrame,
   VoxelBoxWork,
 } from "./voxel-box";
 import type { VoxelDelta } from "./voxel-delta";
@@ -2061,6 +2063,22 @@ export class World<T = any> extends Scene implements NetIntercept {
     // at a time.
     const group = new Group();
     group.name = "voxel-box";
+    // The box draws on forks of its own: they carry the frame its greedy
+    // faces read their texels through, so its textures ride it wherever the
+    // caller moves or turns it.
+    const texelFrame = new VoxelBoxTexelFrame(box.origin, group);
+    const forks = new Map<
+      CustomChunkShaderMaterial,
+      CustomChunkShaderMaterial
+    >();
+    const ownMaterial = (material: CustomChunkShaderMaterial) => {
+      let fork = forks.get(material);
+      if (!fork) {
+        fork = forkVoxelBoxMaterial(material, texelFrame);
+        forks.set(material, fork);
+      }
+      return fork;
+    };
     const geometriesToDispose: BufferGeometry[] = [];
     const isArenaBucketed = this.options.regionArenas !== null;
     const opaqueMaterial = this.chunkRenderer.materials.get(
@@ -2094,7 +2112,10 @@ export class World<T = any> extends Scene implements NetIntercept {
         const material = this.getBlockFaceMaterial(geo.voxel, geo.faceName, at);
         if (!material) continue;
         const key = this.getChunkMaterialBucket(geo.voxel, geo.faceName, at);
-        const bucket = buckets.get(key) ?? { material, pieces: [] };
+        const bucket = buckets.get(key) ?? {
+          material: ownMaterial(material),
+          pieces: [],
+        };
         for (const protocol of splitVoxelBoxGeometry({
           geometry: geo,
           maxTriangles: VOXEL_BOX_UNIT_TRIANGLES,
@@ -2110,8 +2131,9 @@ export class World<T = any> extends Scene implements NetIntercept {
       }
 
       for (const [key, bucket] of buckets) {
-        // The opaque wood rides one batch on the region arenas' own
-        // material, so it draws with the shader program the arenas compiled.
+        // The opaque wood rides one batch on the box's fork of the region
+        // arenas' own material, so it draws with the shader program the
+        // arenas compiled.
         if (
           isArenaBucketed &&
           key === SHARED_OPAQUE_MATERIAL_KEY &&
@@ -2163,7 +2185,7 @@ export class World<T = any> extends Scene implements NetIntercept {
           opaquePieces.length,
           opaqueVertices,
           opaqueIndices,
-          opaqueMaterial,
+          ownMaterial(opaqueMaterial),
         );
         mesh.frustumCulled = false;
         mesh.perObjectFrustumCulled = true;
@@ -2200,6 +2222,7 @@ export class World<T = any> extends Scene implements NetIntercept {
       }
       batch.mesh?.dispose();
       group.clear();
+      for (const fork of forks.values()) fork.dispose();
     };
 
     let build: { mainThreadMs: number; maxSliceMs: number };
