@@ -12,6 +12,7 @@ import {
   type Block,
   ChunkRenderer,
   type CustomChunkShaderMaterial,
+  everyFaceOf,
   forkChunkMaterial,
   isOwnTextureFace,
   LightCones,
@@ -280,7 +281,7 @@ export class ViewerMaterials {
   }
 
   private facesOf(block: Block): Block["faces"] {
-    const faces = [...block.faces];
+    const faces = [...everyFaceOf(block)];
     const names = new Set(faces.map((f) => f.name));
     for (const pattern of block.dynamicPatterns ?? []) {
       for (const part of pattern.parts) {
@@ -354,8 +355,10 @@ export class ViewerMaterials {
 
   private async paintGroup(groupName: string, source: TextureSource) {
     const members: { block: Block; face: Block["faces"][number] }[] = [];
+    // Every face the game's World paints: a block's own and its stage
+    // faces (a flowering stage, say), which the server meshes into the atlas.
     for (const block of this.registry.blocksById.values()) {
-      for (const face of block.faces) {
+      for (const face of everyFaceOf(block)) {
         if (face.textureGroup === groupName) members.push({ block, face });
       }
     }
@@ -530,7 +533,7 @@ export class ViewerMaterials {
     const faceKeys: Record<string, string> = {};
     for (const block of this.registry.blocksById.values()) {
       blockKeys[block.id] = makeChunkMaterialKey(this, block.id);
-      for (const face of block.faces) {
+      for (const face of everyFaceOf(block)) {
         if (isOwnTextureFace(face)) {
           faceKeys[`${block.id}:${face.name}`] = makeChunkMaterialKey(
             this,
@@ -560,7 +563,7 @@ export class ViewerMaterials {
     for (const block of this.registry.blocksById.values()) {
       if (block.isEmpty) continue;
       // The same faces the game's World census walks, so the counts compare.
-      for (const face of block.faces) {
+      for (const face of everyFaceOf(block)) {
         if (isOwnTextureFace(face)) {
           ownFaces += 1;
           const map = this.getBlockFaceMaterial(block.id, face.name)?.map;
