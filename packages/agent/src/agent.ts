@@ -41,6 +41,8 @@ import type {
   VideoRecordingStarted,
   VideoRecordingStatus,
   ViewOptions,
+  VoxelCensus,
+  VoxelCensusBox,
   WalkDirection,
   WalkOptions,
   WalkToOptions,
@@ -1508,6 +1510,36 @@ export class Agent {
   async blockAt(pos: Vec3): Promise<BlockInfo | null> {
     return this.withPageTimeout("blockAt", this.defaultPageTimeoutMs, () =>
       this.page.evaluate((p) => window.__agentRequired__().blockAt(p), pos),
+    );
+  }
+
+  async loseCalls(method: string, count: number): Promise<number> {
+    return this.withPageTimeout("loseCalls", this.defaultPageTimeoutMs, () =>
+      this.page.evaluate(
+        (m, c) => {
+          const bridge = window.__agentRequired__();
+          if (!bridge.loseCalls) {
+            throw new Error("this page's agent bridge has no loseCalls");
+          }
+          return bridge.loseCalls(m, c);
+        },
+        method,
+        count,
+      ),
+    );
+  }
+
+  async voxelCensus(boxes: VoxelCensusBox[]): Promise<VoxelCensus[]> {
+    return this.withPageTimeout("voxelCensus", this.defaultPageTimeoutMs, () =>
+      this.page.evaluate((b) => {
+        const bridge = window.__agentRequired__();
+        if (!bridge.voxelCensus) {
+          throw new Error(
+            "this page's agent bridge has no voxelCensus, so a fill cannot be read back; send it unverified",
+          );
+        }
+        return bridge.voxelCensus(b);
+      }, boxes),
     );
   }
 

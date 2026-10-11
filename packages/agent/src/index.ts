@@ -113,6 +113,23 @@ export {
   MethodOutcomeError,
   outcomeOf,
 } from "./method-outcome";
+export {
+  boxVolume,
+  censusVoxel,
+  DEFAULT_FILL_LANDING,
+  FillLandingError,
+  fillLandingTimeoutMs,
+  landFill,
+  MAX_FILL_LANDING_VOLUME,
+} from "./fill-landing";
+export type {
+  BoxLanding,
+  FillBox,
+  FillLandingReport,
+  FillLandingStatus,
+  FillSend,
+  FillSendReason,
+} from "./fill-landing";
 export * from "./bridge";
 export { formatProfileSummary, summarizeProfile } from "./profile-summary";
 export type {
