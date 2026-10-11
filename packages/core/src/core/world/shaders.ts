@@ -9,6 +9,11 @@ import {
   FAR_SEAM_UNIFORM_DECLARATIONS,
 } from "./far-terrain-seam";
 import {
+  fluidWaveOctavesGlsl,
+  fluidWaveSumGlsl,
+  fluidWaveTimeGlsl,
+} from "./fluid-waves";
+import {
   LIGHT_CONES_FUNCTIONS,
   LIGHT_CONES_SCATTER_FRAGMENT,
   LIGHT_CONES_UNIFORM_DECLARATIONS,
@@ -504,13 +509,11 @@ if (shouldWave == 1) {
   float waveVoxelY = ceil(worldPosForWave.y - 1e-3) - 1.0;
   float waveRestHeight = worldPosForWave.y - waveVoxelY;
   if (waveRestHeight < ${FLUID_SPILL_CORNER_MIN_HEIGHT.toFixed(4)}) {
-    float waveTime = uTime * 0.0006;
+    float waveTime = ${fluidWaveTimeGlsl("uTime")};
 
-    float wave1 = snoise(vec3(worldPosForWave.x * 0.15 + waveTime * 0.3, worldPosForWave.z * 0.15 - waveTime * 0.2, 0.0)) * 0.08;
-    float wave2 = snoise(vec3(worldPosForWave.x * 0.4 - waveTime * 0.5, worldPosForWave.z * 0.4 + waveTime * 0.4, 10.0)) * 0.04;
-    float wave3 = snoise(vec3(worldPosForWave.x * 0.8 + waveTime * 0.7, worldPosForWave.z * 0.8 - waveTime * 0.5, 20.0)) * 0.02;
+    ${fluidWaveOctavesGlsl("worldPosForWave.x", "worldPosForWave.z", "waveTime")}
 
-    transformed.y += (wave1 + wave2 + wave3) * POSITION_UNITS_PER_BLOCK;
+    transformed.y += (${fluidWaveSumGlsl()}) * POSITION_UNITS_PER_BLOCK;
   }
 }
 `,

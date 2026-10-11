@@ -294,6 +294,7 @@ export * from "./vertex-quantization";
 export * from "./voxel-box";
 export * from "./voxel-native-shading";
 export * from "./water-optics";
+export * from "./fluid-waves";
 export * from "./block-light-transfer";
 export * from "./world-clock";
 export * from "./world-options";
