@@ -38,6 +38,39 @@ export type BlockInfo = {
   entityData?: Record<string, string | number | boolean | object | null> | null;
 };
 
+/** A box a census reads, and the block it should hold. */
+export type VoxelCensusBox = {
+  min: [number, number, number];
+  max: [number, number, number];
+  /** A block name, any casing, or "air". */
+  block: string;
+};
+
+/**
+ * One box of voxels read against the block a fill wrote there.
+ */
+export type VoxelCensus = {
+  /** Voxels in the box. */
+  volume: number;
+  /** Voxels holding the block now; for air, a fluid counts (`refilled`). */
+  matching: number;
+  /** Of `matching`, air asked and a fluid there: water flows back into a
+   * wipe, and a waterlogged block it clears leaves its water. */
+  refilled: number;
+  /** Voxels in chunks the page has not loaded: unknown here. */
+  unloaded: number;
+  /**
+   * One bit per voxel, set where it matches, base64. Bit `i` is byte
+   * `i >> 3`, bit `i & 7`, for the voxel at index `i` of the box walked x
+   * outermost, then y, then z (z fastest), from its low corner. A caller
+   * can keep a voxel that matched once as landed after the world changes
+   * it again.
+   */
+  matched: string;
+  /** A few loaded voxels that do not match, with the block they hold. */
+  mismatches: { pos: Vec3; name: string }[];
+};
+
 export type EntitySnapshot = {
   id: string;
   kind: string;
@@ -951,6 +984,21 @@ export interface AgentBridge {
   facing(): YawPitch;
   raycast(): RaycastHit | null;
   blockAt(pos: Vec3): BlockInfo | null;
+  /**
+   * Reads whole boxes against the blocks they should hold, in one call: a
+   * `blockAt` per voxel is a page round trip each, about a second apiece
+   * on a loaded software-GL page. What confirms a fill landed. Optional: a
+   * bridge without it cannot read a fill back. Throws on a block name the
+   * registry does not know.
+   */
+  voxelCensus?(boxes: VoxelCensusBox[]): VoxelCensus[];
+  /**
+   * Fault injection for gates: the next `count` calls of `method` are
+   * swallowed whole, the way a socket the core drops swallows them — each
+   * reports sent, goes unanswered, and never reaches the server. 0 clears
+   * it. Returns how many are left to swallow. Optional.
+   */
+  loseCalls?(method: string, count: number): number;
   entitiesNear(radius: number, traceId?: string): EntitySnapshot[];
   peers(): PeerSnapshot[];
   chunks: ChunkBridge;

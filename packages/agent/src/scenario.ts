@@ -6,11 +6,20 @@ import type {
   FrameRateMeasurementOptions,
 } from "./bridge";
 import { ensureCaptureDir } from "./capture-dir";
+import type { FillBox, FillLandingReport } from "./fill-landing";
 import type { ProfileSummary } from "./profile-summary";
 
 export type { ProfileSummary } from "./profile-summary";
 
 export type Vec3Tuple = [number, number, number];
+
+export type ArenaFillOptions = {
+  rotation?: "py" | "ny" | "px" | "nx" | "pz" | "nz";
+  yRotation?: number;
+  stage?: number;
+  /** false sends the fill without reading it back. */
+  isVerifying?: boolean;
+};
 
 export type EntitySnapshot = {
   id: string;
@@ -167,41 +176,72 @@ export class Arena {
     return [cx, cy + this.size[1] + 6, cz];
   }
 
+  /**
+   * Writes a box and reads it back until every voxel holds the block (see
+   * the daemon's `fill` act): a call the connection lost is sent again,
+   * and a fill that never lands throws, naming what is missing. Returns the
+   * landing report, or null when `isVerifying` is false.
+   */
   async fill(
     min: Vec3Tuple,
     max: Vec3Tuple,
     block: string,
-    options: {
-      rotation?: "py" | "ny" | "px" | "nx" | "pz" | "nz";
-      yRotation?: number;
-      stage?: number;
-    } = {},
-  ): Promise<void> {
-    await this.call(this.methods.fill, {
-      min: this.worldPos(min),
-      max: this.worldPos(max),
-      block,
-      ...(options.rotation !== undefined && { rotation: options.rotation }),
-      ...(options.yRotation !== undefined && {
-        yRotation: options.yRotation,
-      }),
-      ...(options.stage !== undefined && { stage: options.stage }),
-    });
+    options: ArenaFillOptions = {},
+  ): Promise<FillLandingReport | null> {
+    return this.fillBoxes(
+      [
+        {
+          min: this.worldPos(min),
+          max: this.worldPos(max),
+          block,
+          ...(options.rotation !== undefined && { rotation: options.rotation }),
+          ...(options.yRotation !== undefined && {
+            yRotation: options.yRotation,
+          }),
+          ...(options.stage !== undefined && { stage: options.stage }),
+        },
+      ],
+      options.isVerifying,
+    );
   }
 
-  async cage(block: string): Promise<void> {
+  async cage(block: string): Promise<FillLandingReport | null> {
     const [sx, sy, sz] = this.size;
     const mx = sx - 1;
     const my = sy - 1;
     const mz = sz - 1;
-    await this.fill([0, 1, 0], [0, my, mz], block);
-    await this.fill([mx, 1, 0], [mx, my, mz], block);
-    await this.fill([1, 1, 0], [mx - 1, my, 0], block);
-    await this.fill([1, 1, mz], [mx - 1, my, mz], block);
-    await this.fill([1, my, 1], [mx - 1, my, mz - 1], block);
+    const walls: [Vec3Tuple, Vec3Tuple][] = [
+      [
+        [0, 1, 0],
+        [0, my, mz],
+      ],
+      [
+        [mx, 1, 0],
+        [mx, my, mz],
+      ],
+      [
+        [1, 1, 0],
+        [mx - 1, my, 0],
+      ],
+      [
+        [1, 1, mz],
+        [mx - 1, my, mz],
+      ],
+      [
+        [1, my, 1],
+        [mx - 1, my, mz - 1],
+      ],
+    ];
+    return this.fillBoxes(
+      walls.map(([min, max]) => ({
+        min: this.worldPos(min),
+        max: this.worldPos(max),
+        block,
+      })),
+    );
   }
 
-  async wipe(): Promise<void> {
+  async wipe(): Promise<FillLandingReport | null> {
     const [ox, oy, oz] = this.origin;
     const max = MAX_ARENA_FOOTPRINT;
     // The ceiling must clear the tallest thing a scenario can build: a
@@ -210,11 +250,42 @@ export class Arena {
     // is see-through) floating over the slot for every later scenario
     // (found the hard way).
     const wipeTop = Math.max(WIPE_Y_ABOVE, this.size[1] + 1);
-    await this.call(this.methods.fill, {
-      min: [ox - WIPE_PAD, oy - WIPE_Y_BELOW, oz - WIPE_PAD],
-      max: [ox + max + WIPE_PAD, oy + wipeTop, oz + max + WIPE_PAD],
-      block: "air",
+    return this.fillBoxes([
+      {
+        min: [ox - WIPE_PAD, oy - WIPE_Y_BELOW, oz - WIPE_PAD],
+        max: [ox + max + WIPE_PAD, oy + wipeTop, oz + max + WIPE_PAD],
+        block: "air",
+      },
+    ]);
+  }
+
+  private async fillBoxes(
+    fills: FillBox[],
+    isVerifying = true,
+  ): Promise<FillLandingReport | null> {
+    const res = await fetch(`${this.agentUrl}/act`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        type: "fill",
+        method: this.methods.fill,
+        fills,
+        isVerifying,
+      }),
     });
+    const text = await res.text();
+    let body: { ok?: boolean; error?: string; result?: unknown } | null = null;
+    try {
+      body = JSON.parse(text);
+    } catch {
+      body = null;
+    }
+    if (!res.ok || !body?.ok) {
+      throw new Error(
+        `agent fill (${this.methods.fill}) failed: ${res.status} ${body?.error ?? text}`,
+      );
+    }
+    return isVerifying ? (body.result as FillLandingReport) : null;
   }
 
   async spawn(
