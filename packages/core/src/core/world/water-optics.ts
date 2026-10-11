@@ -120,6 +120,30 @@ export const WATER_OPTICS = Object.freeze({
   specularMediumStrength: 0.12,
 
   /**
+   * How much of the sky a water surface sees, read off the voxel sunlight
+   * on it (the light grid's level over 15). Water passes sunlight through
+   * unchanged, so a surface under open sky carries the full level and a
+   * pool sealed in rock carries none. The sky reflection, the sun's lobes
+   * and glint, and the sunlit in-scatter of deep water ramp in across this
+   * band (a smoothstep): none at or below `skyExposureNone`, all of it at or
+   * above `skyExposureFull`. Open water is exactly as it was, and shore
+   * water under a canopy or a short overhang (level 10 and up) keeps
+   * nearly all of it; a cave pool stops mirroring a sky it cannot see. The
+   * band spans the levels sunlight loses spreading in from a shaft or a
+   * cave mouth, so the reflection fades over several blocks of water there
+   * instead of along a line.
+   */
+  skyExposureNone: 2 / 15,
+  skyExposureFull: 11 / 15,
+
+  /**
+   * What a surface that sees no sky mirrors instead: the rock around it,
+   * lit by whatever lights the surface itself (lamps, the ambient floor),
+   * at this reflectance. Dark in an unlit cave, warm beside a lamp.
+   */
+  enclosedReflectance: 0.25,
+
+  /**
    * View-incidence cosine (geometric surface normal vs. view direction)
    * below which the surface's screen-space refraction distortion is fully
    * suppressed. At grazing angles the displaced sample no longer lands on
