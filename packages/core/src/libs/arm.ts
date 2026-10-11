@@ -80,6 +80,14 @@ export type ArmOptions = {
    * two blocks down the screen is shaded where a hand would hold it.
    */
   shadowReach?: number;
+  /**
+   * How far whatever the arm holds sinks below its rest, in the arm's
+   * units, while {@link Arm.recovery} is 0: a game whose swings land harder
+   * for waiting shows the hand coming back. It rises with the recovery,
+   * late (by the cube of it), so it is up only once the next swing is
+   * full. 0, the default, never sinks.
+   */
+  recoveryDip?: number;
 };
 
 /**
@@ -216,6 +224,18 @@ export class Arm extends THREE.Group {
   private readonly swayTurn = new THREE.Quaternion();
   private readonly swayShift = new THREE.Vector3();
   private readonly swayPivot = new THREE.Vector3();
+
+  /**
+   * How far the holder has come back since their last swing, 0 to 1. The
+   * game sets it every frame; while it is under 1 the held object sinks by
+   * {@link ArmOptions.recoveryDip}.
+   */
+  public recovery = 1;
+
+  // The recovery dip laid on the held object this frame, taken off before
+  // the next one is laid.
+  private dippedObject: THREE.Object3D | null = null;
+  private dipShift = 0;
 
   /** One block every held object's shadowed material reads. */
   private heldObjectShadowUniforms: EntityShadowUniforms =
@@ -406,6 +426,7 @@ export class Arm extends THREE.Group {
     // The outgoing object leaves from its plain rest pose, and whatever
     // comes in starts its own sway once it is up.
     this.holdSwingAt(null);
+    this.liftRecoveryDip();
     this.liftIdleSway();
     this.swayWeight = 0;
     this.swayClock = 0;
@@ -703,6 +724,7 @@ gl_FragColor.rgb *= shadow * uLightColor;
     this.timer.update();
     const delta = Math.min(0.1, this.timer.getDelta());
 
+    this.liftRecoveryDip();
     this.liftIdleSway();
     this.mixer.update(delta);
     this.easeSwingRestart(delta);
@@ -791,6 +813,7 @@ gl_FragColor.rgb *= shadow * uLightColor;
     }
 
     this.layIdleSway(delta);
+    this.layRecoveryDip();
     this.holdFixedFov();
   }
 
@@ -847,6 +870,7 @@ gl_FragColor.rgb *= shadow * uLightColor;
     if (!action) return;
     if (seconds === null && !this.isSwingHeld) return;
 
+    this.liftRecoveryDip();
     this.liftIdleSway();
     this.swayWeight = 0;
     this.restartBlendLeft = 0;
@@ -987,6 +1011,31 @@ gl_FragColor.rgb *= shadow * uLightColor;
       .add(this.swayShift);
     object.quaternion.premultiply(this.swayTurn);
     this.swayedObject = object;
+  }
+
+  /**
+   * Lay this frame's recovery dip on the held object, over its sway: none
+   * while a swing is pinned for a still, so the still shows the pose.
+   */
+  private layRecoveryDip() {
+    const depth = this.options.recoveryDip ?? 0;
+    const object = this.currentArmObject;
+    if (depth <= 0 || !object || this.isSwingHeld) return;
+    const recovered = THREE.MathUtils.clamp(this.recovery, 0, 1);
+    const shift = depth * (1 - recovered * recovered * recovered);
+    if (shift <= 0) return;
+    object.position.y -= shift;
+    this.dippedObject = object;
+    this.dipShift = shift;
+  }
+
+  /** Take last frame's recovery dip back off the object it was laid on. */
+  private liftRecoveryDip() {
+    const object = this.dippedObject;
+    if (!object) return;
+    this.dippedObject = null;
+    object.position.y += this.dipShift;
+    this.dipShift = 0;
   }
 
   /** Take last frame's idle sway back off the object it was laid on. */

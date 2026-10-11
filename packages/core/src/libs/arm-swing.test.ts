@@ -204,6 +204,70 @@ describe("arm swing hold", () => {
   });
 });
 
+describe("arm recovery dip", () => {
+  const DIP = 0.6;
+  const dipped = (options: ArmObjectOptions) => {
+    const arm = new Arm({
+      customObjectOptions: { held: options },
+      recoveryDip: DIP,
+    });
+    const object = new Group();
+    arm.setArmObject(object, false, "held");
+    arm.update();
+    return { arm, object };
+  };
+
+  it("sinks the held object while the holder recovers and raises it late", () => {
+    const { arm, object } = dipped(swingOptions());
+    arm.recovery = 0;
+    play(arm, 1 / 60);
+    expect(REST_POSITION.y - object.position.y).toBeCloseTo(DIP, 6);
+    arm.recovery = 0.5;
+    play(arm, 1 / 60);
+    // Up by the cube of the recovery: most of the way down at half.
+    expect(REST_POSITION.y - object.position.y).toBeCloseTo(DIP * 0.875, 6);
+    arm.recovery = 1;
+    play(arm, 1 / 60);
+    expect(object.position.distanceTo(REST_POSITION)).toBeLessThan(1e-9);
+  });
+
+  it("never drifts, however many frames it is held down", () => {
+    const { arm, object } = dipped({ ...swingOptions(), idleSway: IDLE_SWAY });
+    arm.recovery = 0.25;
+    play(arm, 3);
+    const reference = equip({ ...swingOptions(), idleSway: IDLE_SWAY });
+    play(reference.arm, 3);
+    const shift = DIP * (1 - 0.25 ** 3);
+    expect(
+      object.position.distanceTo(
+        reference.object.position
+          .clone()
+          .setY(reference.object.position.y - shift),
+      ),
+    ).toBeLessThan(1e-6);
+  });
+
+  it("is none by default, none in a pinned still, and leaves a switched object at rest", () => {
+    const plain = equip(swingOptions());
+    plain.arm.recovery = 0;
+    play(plain.arm, 0.5);
+    expect(plain.object.position.distanceTo(REST_POSITION)).toBeLessThan(1e-9);
+
+    const { arm, object } = dipped(swingOptions());
+    arm.recovery = 0;
+    play(arm, 1 / 60);
+    arm.holdSwingAt(0.2);
+    play(arm, 1 / 60);
+    expect(object.position.distanceTo(PEAK_POSITION)).toBeLessThan(1e-6);
+    arm.holdSwingAt(null);
+    play(arm, 1 / 60);
+
+    const next = new Group();
+    arm.setArmObject(next, false, "held");
+    expect(object.position.distanceTo(REST_POSITION)).toBeLessThan(1e-6);
+  });
+});
+
 describe("arm fixed field of view", () => {
   // Where the object's rest point lands on screen through the camera.
   const projected = (arm: Arm, camera: PerspectiveCamera) => {
