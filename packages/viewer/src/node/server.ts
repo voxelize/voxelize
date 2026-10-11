@@ -77,6 +77,11 @@ export type ViewerServerConfig = {
     svg?: "url" | "react";
     /** How image imports bundle (see `PageBundleOptions.images`). */
     images?: "static" | "url";
+    /**
+     * Minified, with no source map: a page served over a network, not
+     * rebuilt after edits (without the map nothing marks the bundle stale).
+     */
+    compact?: boolean;
     title?: string;
     head?: string;
   };
@@ -439,6 +444,8 @@ export class ViewerServer {
         assetRoots: page.assetRoots,
         svg: page.svg,
         images: page.images,
+        minify: page.compact,
+        sourcemap: !page.compact,
       });
       this.bundle = result;
       this.bundleInputs = await this.collectInputs();

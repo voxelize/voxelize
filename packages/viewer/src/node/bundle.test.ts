@@ -4,7 +4,7 @@ import path from "node:path";
 
 import { afterAll, describe, expect, it } from "vitest";
 
-import { assetUrl, rebaseStylesheetUrls } from "./bundle";
+import { assetUrl, bundlePage, rebaseStylesheetUrls } from "./bundle";
 
 const root = fs.mkdtempSync(path.join(os.tmpdir(), "viewer-stylesheet-"));
 const src = path.join(root, "src");
@@ -52,6 +52,29 @@ describe("a stylesheet served away from its source file", () => {
       css,
       outside: [],
     });
+  });
+
+  it("bundles compact for a page served over a network: minified, no source map", async () => {
+    const entry = path.join(root, "entry.ts");
+    fs.writeFileSync(
+      entry,
+      "export const longDescriptiveName = (value: number) => value * 2;\nconsole.log(longDescriptiveName(21));\n",
+    );
+    const sizes: Record<string, number> = {};
+    for (const compact of [false, true]) {
+      const outDir = path.join(root, compact ? "compact" : "full");
+      const { app } = await bundlePage({
+        entry,
+        outDir,
+        assetRoots: [src],
+        minify: compact,
+        sourcemap: !compact,
+      });
+      const text = fs.readFileSync(app, "utf8");
+      expect(text.includes("sourceMappingURL"), String(compact)).toBe(!compact);
+      sizes[compact ? "compact" : "full"] = text.length;
+    }
+    expect(sizes.compact).toBeLessThan(sizes.full / 2);
   });
 
   it("names the relative urls nothing serves instead of guessing", () => {

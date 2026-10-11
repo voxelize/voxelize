@@ -46,6 +46,8 @@ export type PageBundleOptions = {
   /** `static` (default): an image import is `{ src, width, height }`, as Next.js hands it out; `url`: the URL alone, as Vite does. */
   images?: "static" | "url";
   minify?: boolean;
+  /** An inline source map (default): what the server reads to rebuild after an edit, and tens of megabytes. */
+  sourcemap?: boolean;
 };
 
 const camel = (name: string) =>
@@ -214,7 +216,7 @@ export async function bundlePage(
     format: "esm" as const,
     platform: "browser" as const,
     target: "es2022",
-    sourcemap: "inline" as const,
+    sourcemap: options.sourcemap === false ? false : ("inline" as const),
     minify: options.minify ?? false,
     alias: options.alias,
     define: {
