@@ -3006,3 +3006,340 @@ fn every_quad_keeps_the_index_shape_the_client_light_blend_reads() {
         );
     }
 }
+
+/// Six faces of the box `offset..offset + scale`, laid out the way the
+/// server's `six_faces().auto_uv_offset(true)` builds them.
+fn box_faces(offset: [f32; 3], scale: [f32; 3]) -> Vec<BlockFace> {
+    let [x0, y0, z0] = offset;
+    let [x1, y1, z1] = [0, 1, 2].map(|a| offset[a] + scale[a]);
+    let face = |name: &str, dir: [i32; 3], corners: [([f32; 3], [f32; 2]); 4]| BlockFace {
+        name: name.to_string(),
+        name_lower: name.to_string(),
+        dir,
+        corners: corners.map(|(pos, uv)| CornerData { pos, uv }),
+        range: UV {
+            start_u: 0.0,
+            end_u: 1.0,
+            start_v: 0.0,
+            end_v: 1.0,
+        },
+        ..Default::default()
+    };
+    vec![
+        face(
+            "px",
+            [1, 0, 0],
+            [
+                ([x1, y1, z1], [z0, y1]),
+                ([x1, y0, z1], [z0, y0]),
+                ([x1, y1, z0], [z1, y1]),
+                ([x1, y0, z0], [z1, y0]),
+            ],
+        ),
+        face(
+            "py",
+            [0, 1, 0],
+            [
+                ([x0, y1, z1], [x1, z1]),
+                ([x1, y1, z1], [x0, z1]),
+                ([x0, y1, z0], [x1, z0]),
+                ([x1, y1, z0], [x0, z0]),
+            ],
+        ),
+        face(
+            "pz",
+            [0, 0, 1],
+            [
+                ([x0, y0, z1], [x0, y0]),
+                ([x1, y0, z1], [x1, y0]),
+                ([x0, y1, z1], [x0, y1]),
+                ([x1, y1, z1], [x1, y1]),
+            ],
+        ),
+        face(
+            "nx",
+            [-1, 0, 0],
+            [
+                ([x0, y1, z0], [z0, y1]),
+                ([x0, y0, z0], [z0, y0]),
+                ([x0, y1, z1], [z1, y1]),
+                ([x0, y0, z1], [z1, y0]),
+            ],
+        ),
+        face(
+            "ny",
+            [0, -1, 0],
+            [
+                ([x1, y0, z1], [x1, z0]),
+                ([x0, y0, z1], [x0, z0]),
+                ([x1, y0, z0], [x1, z1]),
+                ([x0, y0, z0], [x0, z1]),
+            ],
+        ),
+        face(
+            "nz",
+            [0, 0, -1],
+            [
+                ([x1, y0, z0], [x0, y0]),
+                ([x0, y0, z0], [x1, y0]),
+                ([x1, y1, z0], [x0, y1]),
+                ([x0, y1, z0], [x1, y1]),
+            ],
+        ),
+    ]
+}
+
+const SHEET: u32 = 1;
+const WOOD: u32 = 2;
+const HALF: u32 = 3;
+const PANE: u32 = 4;
+const OTHER_PANE: u32 = 5;
+const MASS: u32 = 6;
+const SWINGING: u32 = 7;
+const LOOSE_PANE: u32 = 8;
+const SWINGING_PANE: u32 = 9;
+
+/// Blocks that press faces together across a cell boundary: a see-through
+/// sheet one sixteenth thick against its cell's -x side, wood and a half
+/// block that are not opaque, see-through cubes drawn from both sides, a
+/// cutout mass drawn from one, and animated blocks of both kinds.
+fn pressed_registry() -> Registry {
+    let air = Block {
+        is_empty: true,
+        aabbs: vec![],
+        ..plain_block(0, "Air")
+    };
+    let see_through = |id: u32, name: &str, faces: Vec<BlockFace>| Block {
+        is_see_through: true,
+        is_transparent: [true; 6],
+        faces,
+        ..plain_block(id, name)
+    };
+    let solid = |id: u32, name: &str, faces: Vec<BlockFace>| Block {
+        is_transparent: [true; 6],
+        faces,
+        ..plain_block(id, name)
+    };
+    let full = || box_faces([0.0; 3], [1.0; 3]);
+    let mut registry = Registry::new(vec![
+        (0, air),
+        (
+            SHEET,
+            Block {
+                transparent_standalone: true,
+                y_rotatable: true,
+                aabbs: vec![AABB {
+                    max_x: 1.0 / 16.0,
+                    ..full_cube_aabb()[0].clone()
+                }],
+                ..see_through(SHEET, "Sheet", box_faces([0.0; 3], [1.0 / 16.0, 1.0, 1.0]))
+            },
+        ),
+        (WOOD, solid(WOOD, "Wood", full())),
+        (
+            HALF,
+            Block {
+                aabbs: vec![AABB {
+                    max_y: 0.5,
+                    ..full_cube_aabb()[0].clone()
+                }],
+                ..solid(HALF, "Half", box_faces([0.0; 3], [1.0, 0.5, 1.0]))
+            },
+        ),
+        (PANE, see_through(PANE, "Pane", full())),
+        (OTHER_PANE, see_through(OTHER_PANE, "Other pane", full())),
+        (
+            MASS,
+            Block {
+                transparent_standalone: true,
+                standalone_face_depth: 1,
+                ..see_through(MASS, "Mass", full())
+            },
+        ),
+        (
+            SWINGING,
+            Block {
+                is_animated: true,
+                ..solid(SWINGING, "Swinging", full())
+            },
+        ),
+        (
+            LOOSE_PANE,
+            Block {
+                transparent_standalone: true,
+                ..see_through(LOOSE_PANE, "Loose pane", full())
+            },
+        ),
+        (
+            SWINGING_PANE,
+            Block {
+                is_animated: true,
+                ..see_through(SWINGING_PANE, "Swinging pane", full())
+            },
+        ),
+    ]);
+    registry.build_cache();
+    registry
+}
+
+/// One quad as drawn: the world-space box its corners span, and the span
+/// of its texture coordinates.
+struct DrawnQuad {
+    lo: [f32; 3],
+    hi: [f32; 3],
+    uv_lo: [f32; 2],
+    uv_hi: [f32; 2],
+}
+
+/// The quads `id` draws flat on the world plane `axis = plane`.
+fn drawn_on_plane(
+    space: &SparseSpace,
+    registry: &Registry,
+    id: u32,
+    axis: usize,
+    plane: f32,
+) -> Vec<DrawnQuad> {
+    let min = [-2, -1, -2];
+    let meshes = mesh_space_greedy(&min, &[3, 3, 3], space, registry);
+    let mut quads = Vec::new();
+    for geometry in meshes.iter().filter(|geometry| geometry.voxel == id) {
+        for quad in geometry.indices.chunks_exact(6) {
+            let mut drawn = DrawnQuad {
+                lo: [f32::MAX; 3],
+                hi: [f32::MIN; 3],
+                uv_lo: [f32::MAX; 2],
+                uv_hi: [f32::MIN; 2],
+            };
+            for &index in quad {
+                let index = index as usize;
+                for a in 0..3 {
+                    let at = geometry.positions[index * 3 + a] + min[a] as f32;
+                    drawn.lo[a] = drawn.lo[a].min(at);
+                    drawn.hi[a] = drawn.hi[a].max(at);
+                }
+                for a in 0..2 {
+                    drawn.uv_lo[a] = drawn.uv_lo[a].min(geometry.uvs[index * 2 + a]);
+                    drawn.uv_hi[a] = drawn.uv_hi[a].max(geometry.uvs[index * 2 + a]);
+                }
+            }
+            if (drawn.lo[axis] - plane).abs() < 0.01 && (drawn.hi[axis] - plane).abs() < 0.01 {
+                quads.push(drawn);
+            }
+        }
+    }
+    quads
+}
+
+/// How many quads `id` draws flat on the world plane `axis = plane`.
+fn quads_on_plane(
+    space: &SparseSpace,
+    registry: &Registry,
+    id: u32,
+    axis: usize,
+    plane: f32,
+) -> usize {
+    drawn_on_plane(space, registry, id, axis, plane).len()
+}
+
+#[test]
+fn a_see_through_face_pressed_to_a_neighbours_whole_face_gives_way() {
+    let registry = pressed_registry();
+    let alone = SparseSpace::new(&[((0, 0, 0), (SHEET, 0))]);
+    assert_eq!(
+        quads_on_plane(&alone, &registry, SHEET, 0, 0.0),
+        1,
+        "a lone sheet shows its back"
+    );
+
+    // Wood that fills its cell but is not opaque draws its face against the
+    // sheet; drawn too, the sheet's back would fight it over one depth.
+    let on_wood = SparseSpace::new(&[((0, 0, 0), (SHEET, 0)), ((-1, 0, 0), (WOOD, 0))]);
+    assert_eq!(quads_on_plane(&on_wood, &registry, SHEET, 0, 0.0), 0);
+    assert_eq!(quads_on_plane(&on_wood, &registry, WOOD, 0, 0.0), 1);
+
+    // A half block covers only the lower half of the back: the upper half
+    // is drawn on its own, showing the upper half of the texture as before.
+    let on_half = SparseSpace::new(&[((0, 0, 0), (SHEET, 0)), ((-1, 0, 0), (HALF, 0))]);
+    let pieces = drawn_on_plane(&on_half, &registry, SHEET, 0, 0.0);
+    assert_eq!(pieces.len(), 1);
+    assert!((pieces[0].lo[1] - 0.5).abs() < 1e-4 && (pieces[0].hi[1] - 1.0).abs() < 1e-4);
+    assert!((pieces[0].lo[2]).abs() < 1e-4 && (pieces[0].hi[2] - 1.0).abs() < 1e-4);
+    assert!((pieces[0].uv_lo[1] - 0.5).abs() < 1e-4 && (pieces[0].uv_hi[1] - 1.0).abs() < 1e-4);
+
+    // A cube meshed greedily is cut the same way.
+    let pane_on_half = SparseSpace::new(&[((0, 0, 0), (PANE, 0)), ((-1, 0, 0), (HALF, 0))]);
+    let pieces = drawn_on_plane(&pane_on_half, &registry, PANE, 0, 0.0);
+    assert_eq!(pieces.len(), 1);
+    assert!((pieces[0].lo[1] - 0.5).abs() < 1e-4 && (pieces[0].hi[1] - 1.0).abs() < 1e-4);
+    assert!((pieces[0].uv_lo[1] - 0.5).abs() < 1e-4 && (pieces[0].uv_hi[1] - 1.0).abs() < 1e-4);
+
+    // A static sheet gives way to an animated neighbour as to any other: the
+    // neighbour's faces swing with it, and the sheet's come back at the remesh.
+    let on_swing = SparseSpace::new(&[((0, 0, 0), (SHEET, 0)), ((-1, 0, 0), (SWINGING, 0))]);
+    assert_eq!(quads_on_plane(&on_swing, &registry, SHEET, 0, 0.0), 0);
+    assert_eq!(quads_on_plane(&on_swing, &registry, SWINGING, 0, 0.0), 1);
+}
+
+#[test]
+fn a_turned_sheet_gives_way_where_its_back_lies() {
+    let registry = pressed_registry();
+    for quarter in 0..4 {
+        let rotation = BlockRotation::PY(quarter as f32 * std::f32::consts::FRAC_PI_2);
+        let mut back = [-1.0, 0.0, 0.0];
+        rotation.rotate_direction(&mut back, true);
+        let back = back.map(|v: f32| v.round() as i32);
+        let axis = if back[0] != 0 { 0 } else { 2 };
+        let (plane, front) = if back[axis] > 0 {
+            (1.0, 1.0 - 1.0 / 16.0)
+        } else {
+            (0.0, 1.0 / 16.0)
+        };
+        let mut alone = SparseSpace::new(&[((0, 0, 0), (SHEET, 0))]);
+        alone.rotation = rotation.clone();
+        let mut on_wood = SparseSpace::new(&[
+            ((0, 0, 0), (SHEET, 0)),
+            ((back[0], back[1], back[2]), (WOOD, 0)),
+        ]);
+        on_wood.rotation = rotation.clone();
+        let context = format!("quarter turn {quarter}, back toward {back:?}");
+        assert_eq!(
+            quads_on_plane(&alone, &registry, SHEET, axis, plane),
+            1,
+            "{context}"
+        );
+        assert_eq!(
+            quads_on_plane(&on_wood, &registry, SHEET, axis, plane),
+            0,
+            "{context}"
+        );
+        assert_eq!(
+            quads_on_plane(&on_wood, &registry, SHEET, axis, front),
+            1,
+            "{context}"
+        );
+    }
+}
+
+#[test]
+fn of_two_see_through_faces_on_one_plane_exactly_one_stays() {
+    let registry = pressed_registry();
+    let on_plane = |left: u32, right: u32| {
+        let space = SparseSpace::new(&[((0, 0, 0), (left, 0)), ((1, 0, 0), (right, 0))]);
+        (
+            quads_on_plane(&space, &registry, left, 0, 1.0),
+            quads_on_plane(&space, &registry, right, 0, 1.0),
+        )
+    };
+    // Different blocks: the lower id keeps its face, whichever side it is on.
+    assert_eq!(on_plane(PANE, OTHER_PANE), (1, 0));
+    assert_eq!(on_plane(OTHER_PANE, PANE), (0, 1));
+    // One block drawing the faces between its own voxels keeps the one
+    // toward positive; a single-sided cutout mass always keeps its own.
+    let space = SparseSpace::new(&[((0, 0, 0), (LOOSE_PANE, 0)), ((1, 0, 0), (LOOSE_PANE, 0))]);
+    assert_eq!(quads_on_plane(&space, &registry, LOOSE_PANE, 0, 1.0), 1);
+    assert_eq!(on_plane(PANE, MASS), (0, 1));
+    assert_eq!(on_plane(MASS, OTHER_PANE), (1, 0));
+    // An animated block keeps its face over a static one, whatever the ids.
+    assert_eq!(on_plane(PANE, SWINGING_PANE), (0, 1));
+    assert_eq!(on_plane(SWINGING_PANE, PANE), (1, 0));
+}

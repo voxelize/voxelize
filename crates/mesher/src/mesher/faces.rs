@@ -184,6 +184,244 @@ pub(super) fn should_render_face<S: VoxelAccess>(
             && (!n_block_type.is_full_cube() || dir == [0, 1, 0]))
 }
 
+/// Whether the client draws a block's chunk faces from both sides: every
+/// see-through material except a fluid and a cutout mass, which it draws
+/// single-sided (`chunk-materials.ts`).
+pub(super) fn is_drawn_double_sided(block: &Block) -> bool {
+    block.is_see_through && !block.is_fluid && !is_cutout_mass(block)
+}
+
+/// The rectangle a face covers on its cell's boundary toward `dir`, as
+/// `[u0, v0, u1, v1]` in the two axes across that plane (ascending), after
+/// the voxel's rotation; `None` for a face that is not an axis-aligned
+/// rectangle lying on that boundary.
+pub(super) fn boundary_rect(
+    face: &BlockFace,
+    dir: [i32; 3],
+    rotation: &BlockRotation,
+    rotates: bool,
+    y_rotatable: bool,
+) -> Option<[f32; 4]> {
+    let axis = (0..3).find(|&axis| dir[axis] != 0)?;
+    let boundary = if dir[axis] > 0 { 1.0 } else { 0.0 };
+    let [u, v] = match axis {
+        0 => [1, 2],
+        1 => [0, 2],
+        _ => [0, 1],
+    };
+    let mut points = Vec::with_capacity(face.corners.len());
+    for corner in &face.corners {
+        let mut pos = corner.pos;
+        if rotates {
+            rotation.rotate_node(&mut pos, y_rotatable, true);
+        }
+        if (pos[axis] - boundary).abs() >= 0.001 {
+            return None;
+        }
+        points.push([pos[u], pos[v]]);
+    }
+    let rect = points.iter().fold(
+        [f32::MAX, f32::MAX, f32::MIN, f32::MIN],
+        |[u0, v0, u1, v1], [pu, pv]| [u0.min(*pu), v0.min(*pv), u1.max(*pu), v1.max(*pv)],
+    );
+    let on_rim =
+        |value: f32, lo: f32, hi: f32| (value - lo).abs() < 0.001 || (value - hi).abs() < 0.001;
+    let is_rectangle = points.len() == 4
+        && rect[2] - rect[0] > 0.001
+        && rect[3] - rect[1] > 0.001
+        && points
+            .iter()
+            .all(|[pu, pv]| on_rim(*pu, rect[0], rect[2]) && on_rim(*pv, rect[1], rect[3]));
+    is_rectangle.then_some(rect)
+}
+
+/// What is left of `rect` once `cover` is cut out of it.
+fn rect_minus(rect: [f32; 4], cover: [f32; 4]) -> Vec<[f32; 4]> {
+    const EPS: f32 = 0.001;
+    let [u0, v0, u1, v1] = rect;
+    let [c0, d0, c1, d1] = cover;
+    if c0 >= u1 - EPS || c1 <= u0 + EPS || d0 >= v1 - EPS || d1 <= v0 + EPS {
+        return vec![rect];
+    }
+    let mut left = Vec::new();
+    if c0 > u0 + EPS {
+        left.push([u0, v0, c0, v1]);
+    }
+    if c1 < u1 - EPS {
+        left.push([c1, v0, u1, v1]);
+    }
+    let (inner0, inner1) = (u0.max(c0), u1.min(c1));
+    if d0 > v0 + EPS {
+        left.push([inner0, v0, inner1, d0]);
+    }
+    if d1 < v1 - EPS {
+        left.push([inner0, d1, inner1, v1]);
+    }
+    left
+}
+
+/// What is left of a see-through face drawn from both sides, lying on its
+/// cell's boundary toward `dir` over `rect`, once the faces its neighbour
+/// draws back across that boundary are cut out of it; `None` where they
+/// cover none of it, or where it does not give way to them.
+///
+/// Drawn as well, the covered part fights the neighbour's face over one
+/// depth: chunk positions are quantized far coarser than the see-through
+/// inset, so the pair lands on one plane, and both show from this side
+/// because this face's back is drawn. The neighbour's face is the surface
+/// either side sees there, so this one gives way: a sheet laid on a trunk,
+/// a mat on a slab, a door swung flat against a hedge. An opaque neighbour
+/// already hides a flush face; this is the same rule for a neighbour that
+/// covers it only with its faces, and only as far as they reach.
+///
+/// Where the neighbour's face is see-through too, exactly one of the two
+/// gives way, so the plane is never left bare: a single-sided cutout mass
+/// keeps its face, then an animated block (its faces swing with it, and one
+/// missing would show the whole way), then the lower block id, then, between
+/// two voxels of one block, the face toward the positive axis.
+pub(super) fn uncovered_by_neighbor_faces<S: VoxelAccess>(
+    voxel: [i32; 3],
+    voxel_id: u32,
+    block: &Block,
+    dir: [i32; 3],
+    rect: [f32; 4],
+    space: &S,
+    registry: &Registry,
+) -> Option<Vec<[f32; 4]>> {
+    if !is_drawn_double_sided(block) {
+        return None;
+    }
+    let at = [voxel[0] + dir[0], voxel[1] + dir[1], voxel[2] + dir[2]];
+    if !space.contains(at[0], at[1], at[2]) {
+        return None;
+    }
+    let neighbor_id = space.get_voxel(at[0], at[1], at[2]);
+    let neighbor = registry.get_block_by_id(neighbor_id)?;
+    if neighbor.is_empty || neighbor.is_fluid || neighbor.is_opaque {
+        return None;
+    }
+    if is_drawn_double_sided(neighbor) {
+        let gives_way = match (block.is_animated, neighbor.is_animated) {
+            (true, false) => false,
+            (false, true) => true,
+            _ if neighbor_id == voxel_id => dir[0] + dir[1] + dir[2] < 0,
+            _ => voxel_id > neighbor_id,
+        };
+        if !gives_way {
+            return None;
+        }
+    }
+
+    let back = [-dir[0], -dir[1], -dir[2]];
+    let rotation = space.get_voxel_rotation(at[0], at[1], at[2]);
+    let owned: Vec<(BlockFace, bool)>;
+    let faces: Vec<(&BlockFace, bool)> = if neighbor.branch.is_some() || neighbor.branch_shell {
+        owned = branch_faces(at, space, registry);
+        owned.iter().map(|(face, world)| (face, *world)).collect()
+    } else if neighbor.dynamic_patterns.is_some() {
+        owned = get_dynamic_faces(neighbor, at, space, &rotation);
+        owned.iter().map(|(face, world)| (face, *world)).collect()
+    } else {
+        neighbor.faces.iter().map(|face| (face, false)).collect()
+    };
+    let mut open = vec![rect];
+    let mut is_covered = false;
+    for (face, world_space) in faces {
+        let rotates = (neighbor.rotatable || neighbor.y_rotatable) && !world_space;
+        let mut face_dir = face.dir.map(|v| v as f32);
+        if rotates {
+            rotation.rotate_direction(&mut face_dir, neighbor.y_rotatable);
+        }
+        if face_dir.map(|v| v.round() as i32) != back {
+            continue;
+        }
+        let Some(cover) = boundary_rect(face, back, &rotation, rotates, neighbor.y_rotatable)
+        else {
+            continue;
+        };
+        let mut left = Vec::with_capacity(open.len());
+        for part in open {
+            let rest = rect_minus(part, cover);
+            is_covered |= rest.as_slice() != [part];
+            left.extend(rest);
+        }
+        open = left;
+        if open.is_empty() {
+            break;
+        }
+    }
+    is_covered.then_some(open)
+}
+
+/// The part of `face` over `part` of the rectangle `rect` it covers on its
+/// cell's boundary toward `dir`, laid in the cell's own frame (already
+/// rotated, so drawn as world-space) with its texture coordinates carried
+/// across, so it draws exactly what that part of the whole face drew.
+pub(super) fn face_piece(
+    face: &BlockFace,
+    dir: [i32; 3],
+    rotation: &BlockRotation,
+    rotates: bool,
+    y_rotatable: bool,
+    rect: [f32; 4],
+    part: [f32; 4],
+) -> BlockFace {
+    let axis = (0..3).find(|&axis| dir[axis] != 0).unwrap_or(0);
+    let [u, v] = match axis {
+        0 => [1, 2],
+        1 => [0, 2],
+        _ => [0, 1],
+    };
+    let points: Vec<[f32; 3]> = face
+        .corners
+        .iter()
+        .map(|corner| {
+            let mut pos = corner.pos;
+            if rotates {
+                rotation.rotate_node(&mut pos, y_rotatable, true);
+            }
+            pos
+        })
+        .collect();
+    let is_low = |value: f32, lo: f32| (value - lo).abs() < 0.001;
+    // The texture coordinate at each corner of `rect`, low or high on u
+    // then on v; a rectangle's coordinates are affine across it.
+    let mut rim = [[[0.0f32; 2]; 2]; 2];
+    for (corner, pos) in face.corners.iter().zip(&points) {
+        let i = usize::from(!is_low(pos[u], rect[0]));
+        let j = usize::from(!is_low(pos[v], rect[1]));
+        rim[i][j] = corner.uv;
+    }
+    let lerp =
+        |a: [f32; 2], b: [f32; 2], t: f32| [a[0] + (b[0] - a[0]) * t, a[1] + (b[1] - a[1]) * t];
+    let mut piece = face.clone();
+    piece.dir = dir;
+    for (corner, pos) in piece.corners.iter_mut().zip(points) {
+        let at_u = if is_low(pos[u], rect[0]) {
+            part[0]
+        } else {
+            part[2]
+        };
+        let at_v = if is_low(pos[v], rect[1]) {
+            part[1]
+        } else {
+            part[3]
+        };
+        let fu = (at_u - rect[0]) / (rect[2] - rect[0]);
+        let fv = (at_v - rect[1]) / (rect[3] - rect[1]);
+        let mut placed = pos;
+        placed[u] = at_u;
+        placed[v] = at_v;
+        corner.pos = placed;
+        corner.uv = lerp(
+            lerp(rim[0][0], rim[1][0], fu),
+            lerp(rim[0][1], rim[1][1], fu),
+            fv,
+        );
+    }
+    piece
+}
+
 /// Whether a face lies on its cell's boundary in the direction it points,
 /// after the voxel's rotation — the only position where an opaque neighbour
 /// on that side genuinely covers it. Corners are compared with the same
@@ -491,6 +729,49 @@ pub(super) fn process_face<S: VoxelAccess>(
 
     if !should_mesh {
         return;
+    }
+
+    if is_see_through && !n_is_empty {
+        let rotates = (rotatable || y_rotatable) && !world_space;
+        if let Some(rect) = boundary_rect(face, dir, rotation, rotates, y_rotatable) {
+            if let Some(open) = uncovered_by_neighbor_faces(
+                [vx, vy, vz],
+                voxel_id,
+                block,
+                dir,
+                rect,
+                space,
+                registry,
+            ) {
+                // Each uncovered piece is drawn as a face of its own, laid
+                // in the cell's frame already; none of it is covered again.
+                for part in open {
+                    let piece = face_piece(face, dir, rotation, rotates, y_rotatable, rect, part);
+                    process_face(
+                        vx,
+                        vy,
+                        vz,
+                        voxel_id,
+                        rotation,
+                        &piece,
+                        block,
+                        uv_map,
+                        registry,
+                        space,
+                        neighbors,
+                        see_through,
+                        is_fluid,
+                        positions,
+                        indices,
+                        uvs,
+                        lights,
+                        min,
+                        true,
+                    );
+                }
+                return;
+            }
+        }
     }
 
     // A face is water-exposed when water sits on either side of it: the

@@ -523,6 +523,41 @@ pub fn mesh_space_greedy<S: VoxelAccess>(
                             continue;
                         }
 
+                        // Pressed to a face its neighbour draws back across
+                        // the boundary: wholly covered it goes, partly
+                        // covered it is drawn on its own, less the cover.
+                        let pressed = if is_see_through {
+                            uncovered_by_neighbor_faces(
+                                [vx, vy, vz],
+                                voxel_id,
+                                block,
+                                dir,
+                                [0.0, 0.0, 1.0, 1.0],
+                                space,
+                                registry,
+                            )
+                        } else {
+                            None
+                        };
+                        if let Some(open) = pressed {
+                            if !open.is_empty() {
+                                non_greedy_faces.push((
+                                    vx,
+                                    vy,
+                                    vz,
+                                    voxel_id,
+                                    rotation.clone(),
+                                    block,
+                                    face.clone(),
+                                    face.range.clone(),
+                                    is_see_through,
+                                    is_fluid,
+                                    false,
+                                ));
+                            }
+                            continue;
+                        }
+
                         greedy_mask.insert(
                             (u, v),
                             greedy_face_data(
