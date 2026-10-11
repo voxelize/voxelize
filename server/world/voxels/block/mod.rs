@@ -115,6 +115,20 @@ pub struct Block {
     /// Bounding boxes of this block.
     pub aabbs: Vec<AABB>,
 
+    /// How high, in blocks above its voxel's floor, the bodies the server
+    /// simulates find this block standing: every box [`Block::get_aabbs`]
+    /// returns keeps its footprint and floor and has its top raised to this.
+    /// The declared boxes stay what a client's own body collides with, what
+    /// picking and the highlight follow, and what particles land on, so a
+    /// fence can be one block tall to the eye and to a player's jump while
+    /// nothing the server walks can hop it. A client reads it only to keep
+    /// automatic moves (auto-jump, auto-step) from carrying its body over.
+    /// Heights are in the block's own frame, before its rotation: meant for
+    /// blocks that stand upright. Declared with
+    /// [`BlockBuilder::barrier_height`].
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub barrier_height: Option<f32>,
+
     /// Is the block overall see-through? Opacity equals 0.1 or something?
     pub is_see_through: bool,
 
@@ -304,7 +318,29 @@ impl Block {
         voxelize_mesher::branch_layout_at([vx, vy, vz], &raw_at, registry).map(|(layout, _)| layout)
     }
 
+    /// The boxes the bodies the server simulates collide with in the voxel at
+    /// `pos`, in the block's own frame: its declared boxes, each raised to
+    /// [`Block::barrier_height`] when the block has one.
     pub fn get_aabbs(
+        &self,
+        pos: &Vec3<i32>,
+        space: &dyn VoxelAccess,
+        registry: &Registry,
+    ) -> Vec<AABB> {
+        let mut aabbs = self.get_declared_aabbs(pos, space, registry);
+        if let Some(height) = self.barrier_height {
+            for aabb in &mut aabbs {
+                aabb.max_y = aabb.max_y.max(height);
+            }
+        }
+        aabbs
+    }
+
+    /// The boxes the block declares for the voxel at `pos` (its branch
+    /// layout, its matched dynamic parts or its static boxes), before
+    /// [`Block::barrier_height`] raises them: what a client's own body
+    /// collides with and picks against.
+    pub fn get_declared_aabbs(
         &self,
         pos: &Vec3<i32>,
         space: &dyn VoxelAccess,
@@ -562,5 +598,103 @@ impl BranchBlocks for Registry {
 
     fn is_branch_shell(&self, id: u32) -> bool {
         self.get_block_by_id(id).branch_shell
+    }
+}
+
+#[cfg(test)]
+mod barrier_tests {
+    use super::*;
+    use crate::{Chunk, ChunkOptions};
+
+    fn hurdles() -> [Block; 2] {
+        let slab = AABB::create(0.0, 0.0, 0.375, 1.0, 1.0, 0.625);
+        let patterned = Block::new("Hurdle")
+            .id(9002)
+            .dynamic_patterns(&[BlockDynamicPattern {
+                parts: vec![BlockConditionalPart {
+                    aabbs: vec![slab],
+                    ..Default::default()
+                }],
+            }])
+            .barrier_height(1.5)
+            .build();
+        let plain = Block::new("Low Hurdle")
+            .id(9003)
+            .aabbs(&[
+                AABB::create(0.0, 0.0, 0.0, 1.0, 0.5, 1.0),
+                AABB::create(0.25, 0.0, 0.25, 0.75, 2.0, 0.75),
+            ])
+            .barrier_height(1.5)
+            .build();
+        [patterned, plain]
+    }
+
+    #[test]
+    fn a_barrier_raises_what_server_bodies_collide_with_and_keeps_the_declared_boxes() {
+        let registry = Registry::new();
+        let space = Chunk::new(
+            "barrier",
+            0,
+            0,
+            &ChunkOptions {
+                size: 16,
+                max_height: 16,
+                sub_chunks: 1,
+            },
+        );
+        let at = Vec3(1, 1, 1);
+        for block in hurdles() {
+            let declared = block.get_declared_aabbs(&at, &space, &registry);
+            let collided = block.get_aabbs(&at, &space, &registry);
+            assert!(!declared.is_empty(), "{}", block.name);
+            assert_eq!(declared.len(), collided.len(), "{}", block.name);
+            for (declared, collided) in declared.iter().zip(&collided) {
+                assert_eq!(
+                    collided.max_y,
+                    declared.max_y.max(1.5),
+                    "{}: a box rises to the barrier and a taller one keeps its top",
+                    block.name
+                );
+                assert_eq!(
+                    [
+                        collided.min_x,
+                        collided.min_y,
+                        collided.min_z,
+                        collided.max_x,
+                        collided.max_z
+                    ],
+                    [
+                        declared.min_x,
+                        declared.min_y,
+                        declared.min_z,
+                        declared.max_x,
+                        declared.max_z
+                    ],
+                    "{}: only the top moves",
+                    block.name
+                );
+            }
+        }
+    }
+
+    #[test]
+    fn only_a_block_with_a_barrier_sends_one_to_clients() {
+        let [hurdle, _] = hurdles();
+        let open = Block::new("Crate").id(9004).build();
+        assert_eq!(serde_json::to_value(&hurdle).unwrap()["barrierHeight"], 1.5);
+        assert!(serde_json::to_value(&open)
+            .unwrap()
+            .get("barrierHeight")
+            .is_none());
+    }
+
+    #[test]
+    #[should_panic(expected = "turned onto its side")]
+    fn a_block_that_can_lie_on_its_side_cannot_carry_a_barrier() {
+        Block::new("Hurdle")
+            .id(9002)
+            .rotatable(true)
+            .barrier_height(1.5)
+            .build();
     }
 }

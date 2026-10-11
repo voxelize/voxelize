@@ -4320,6 +4320,22 @@ export class World<T = any> extends Scene implements NetIntercept {
   };
 
   /**
+   * World-space height the server's bodies find the voxel at `vx, vy, vz`
+   * standing to (its block's `barrierHeight` above the voxel's floor), or
+   * `-Infinity` where its block has no barrier or no chunk is loaded. The
+   * client's own body collides with {@link getCollisionAABBsAt} alone; the
+   * physics engine reads this so automatic moves never carry it over.
+   */
+  getBarrierTopAt = (vx: number, vy: number, vz: number): number => {
+    const chunk = this.getChunkByPosition(vx, vy, vz);
+    if (!chunk) return -Infinity;
+
+    const block = this.getBlockByIdSafe(chunk.getVoxel(vx, vy, vz));
+    const height = block?.barrierHeight;
+    return typeof height === "number" ? Math.floor(vy) + height : -Infinity;
+  };
+
+  /**
    * The boxes the branch voxel of `block` at `vx, vy, vz` is drawn and
    * collides as, in blocks of the voxel: a one-voxel branch or fin's core
    * and arms, or a wide section cell's slice of its core's tube (see
@@ -7919,6 +7935,7 @@ export class World<T = any> extends Scene implements NetIntercept {
         return block?.fluidFlowForce ?? 0;
       },
       this.options,
+      this.getBarrierTopAt,
     );
   }
 

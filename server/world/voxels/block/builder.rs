@@ -33,6 +33,7 @@ pub struct BlockBuilder {
     standalone_face_depth: u32,
     faces: Vec<BlockFace>,
     aabbs: Vec<AABB>,
+    barrier_height: Option<f32>,
     is_see_through: bool,
     occludes_fluid: bool,
     is_plant: bool,
@@ -349,6 +350,15 @@ impl BlockBuilder {
     /// Configure the bounding boxes that the block has. Default is `vec![]`.
     pub fn aabbs(mut self, aabbs: &[AABB]) -> Self {
         self.aabbs = aabbs.to_vec();
+        self
+    }
+
+    /// Have the bodies the server simulates find this block `height` blocks
+    /// tall: the top of every box it collides as is raised to `height`, while
+    /// its declared boxes stay what clients collide with, pick and outline
+    /// (see [`Block::barrier_height`]). Default is none.
+    pub fn barrier_height(mut self, height: f32) -> Self {
+        self.barrier_height = Some(height);
         self
     }
 
@@ -709,6 +719,18 @@ impl BlockBuilder {
                 self.name
             );
         }
+        if let Some(height) = self.barrier_height {
+            assert!(
+                height.is_finite() && height > 0.0,
+                "{}: a barrier stands a positive height above its floor, not {height}",
+                self.name
+            );
+            assert!(
+                !self.rotatable,
+                "{}: a barrier raises its boxes along the block's own up, which a block turned onto its side would point sideways",
+                self.name
+            );
+        }
         if self.rotation_bits_are_state {
             assert!(
                 !self.rotatable && !self.y_rotatable,
@@ -775,6 +797,7 @@ impl BlockBuilder {
             standalone_face_depth: self.standalone_face_depth,
             faces,
             aabbs: self.aabbs,
+            barrier_height: self.barrier_height,
             is_see_through: self.is_see_through,
             occludes_fluid: self.occludes_fluid,
             is_plant: self.is_plant,

@@ -179,6 +179,28 @@ let table = Block::new("Table")
     .build();
 ```
 
+### Barriers: taller to the server's bodies than to the player
+
+A pen has to stop whatever the server walks from hopping it, but a box taller than the wood leaves the player bumping an invisible wall and outlines a block that is not there. `barrier_height` gives the server's bodies a taller block without touching what the client sees:
+
+```rust title="A fence that pens what the server walks"
+let fence = Block::new("Fence Post")
+    .id(42)
+    .aabbs(&[
+        AABB::new()
+            .scale_x(0.25).scale_z(0.25)
+            .offset_x(0.375).offset_z(0.375)
+            .build()
+    ])
+    .barrier_height(1.5)
+    .is_transparent(true)
+    .build();
+```
+
+- **Server**: `Block::get_aabbs` raises the top of every box to the barrier, so physics, pathing probes and spawn checks all see a block 1.5 tall. `Block::get_declared_aabbs` still returns the boxes as declared.
+- **Client**: the player's own body collides with the declared boxes, and picking, the highlight and particles follow them too. The physics engine reads the barrier (`World.getBarrierTopAt`) only so that auto-jump, auto-step and swim exits never carry the body over it. Crossing takes a jump the player chooses to make.
+- Heights are in the block's own frame, so a barrier suits blocks that stand upright (`y_rotatable` at most). The builder refuses one on a `rotatable` block.
+
 ## Face Texture Types
 
 Voxelize supports three texture allocation strategies per face:

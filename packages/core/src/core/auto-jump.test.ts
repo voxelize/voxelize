@@ -22,9 +22,13 @@ type Box = { min: [number, number, number]; max: [number, number, number] };
 /**
  * A flat floor with whatever world-space boxes the scene adds, served the
  * way the world serves the physics engine: every box already translated
- * into world space, looked up by the voxel it lives in.
+ * into world space, looked up by the voxel it lives in. `barrierTop` is the
+ * world-space barrier over each voxel, as `World.getBarrierTopAt` serves it.
  */
-function createProbe(extras: Box[] = []) {
+function createProbe(
+  extras: Box[] = [],
+  barrierTop: (vx: number, vy: number, vz: number) => number = () => -Infinity,
+) {
   return new Engine(
     (vx, vy, vz) => {
       const boxes: AABB[] = [];
@@ -61,6 +65,7 @@ function createProbe(extras: Box[] = []) {
       fluidDrag: 0,
       fluidDensity: 1,
     },
+    barrierTop,
   );
 }
 
@@ -123,6 +128,22 @@ describe("planAutoJump", () => {
     const probe = createProbe([ledge(2)]);
 
     expect(planAutoJump(probe, bodyAt(4), PLUS_X, PARAMS)).toBeNull();
+  });
+
+  it("leaves a one-block hurdle with a taller barrier to a deliberate jump", () => {
+    const hurdle: Box = {
+      min: [LEDGE_X, FLOOR_TOP, -20],
+      max: [LEDGE_X + 1, FLOOR_TOP + 1, 20],
+    };
+    const barrier = (vx: number, vy: number) =>
+      vx === LEDGE_X && vy === FLOOR_TOP ? vy + 1.5 : -Infinity;
+
+    expect(
+      planAutoJump(createProbe([hurdle]), bodyAt(4), PLUS_X, PARAMS),
+    ).not.toBeNull();
+    expect(
+      planAutoJump(createProbe([hurdle], barrier), bodyAt(4), PLUS_X, PARAMS),
+    ).toBeNull();
   });
 
   it("does not attempt a two-high wall whose lower block looks like a ledge", () => {

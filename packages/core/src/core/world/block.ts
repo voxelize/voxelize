@@ -261,6 +261,17 @@ export type Block = {
   aabbs: AABB[];
 
   /**
+   * How high, in blocks above its voxel's floor, the bodies the server
+   * simulates find this block standing (each of its boxes raised to it).
+   * Absent for a block with no barrier. The client's own body still collides
+   * with the declared boxes; the physics engine reads it through
+   * `World.getBarrierTopAt` only to keep automatic moves (auto-jump,
+   * auto-step) from carrying the body over. Mirrors the server
+   * `barrier_height` field.
+   */
+  barrierHeight?: number;
+
+  /**
    * Optical density for Beer-Lambert light transmission through this block.
    * `0` keeps normal air rules. `1` is leaves-scale. `2` is water-scale.
    */

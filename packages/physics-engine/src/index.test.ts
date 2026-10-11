@@ -408,6 +408,81 @@ describe("Engine", () => {
     });
   });
 
+  describe("barriers", () => {
+    const BARRIER_HEIGHT = 1.5;
+
+    /**
+     * Flat floor with a one-block hurdle across `x = WALL_X` whose barrier
+     * stands `BARRIER_HEIGHT` above its floor: the bodies here collide with
+     * the block itself, and the barrier is what other bodies would meet.
+     */
+    function createHurdleEngine() {
+      const isHurdle = (vx: number, vy: number) =>
+        vx === WALL_X && vy === BODY_MIN_Y;
+      return new Engine(
+        (vx, vy, vz) => {
+          const boxes: AABB[] = [];
+          if (!inWorld(vx, vz)) return boxes;
+          if (vy === FLOOR_Y || isHurdle(vx, vy)) {
+            boxes.push(fullBlock(vx, vy, vz));
+          }
+          return boxes;
+        },
+        () => false,
+        () => [],
+        () => 0,
+        () => 0,
+        {
+          gravity: [0, -28, 0],
+          minBounceImpulse: 0,
+          airDrag: 0,
+          fluidDrag: 0,
+          fluidDensity: 1,
+        },
+        (vx, vy) => (isHurdle(vx, vy) ? vy + BARRIER_HEIGHT : -Infinity),
+      );
+    }
+
+    it("reports a barrier as the obstruction's top without colliding with it", () => {
+      const engine = createHurdleEngine();
+      const box = new AABB(
+        STEP_START_X - BODY_WIDTH / 2,
+        BODY_MIN_Y + 1e-4,
+        -BODY_DEPTH / 2,
+        STEP_START_X + BODY_WIDTH / 2,
+        BODY_MIN_Y + BODY_HEIGHT,
+        BODY_DEPTH / 2,
+      );
+
+      const hit = engine.sweepObstruction(box, [2, 0, 0]);
+      expect(hit?.voxel.slice(0, 2)).toEqual([WALL_X, BODY_MIN_Y]);
+      expect(hit?.top).toBeCloseTo(BODY_MIN_Y + BARRIER_HEIGHT, 9);
+
+      // Lifted past the block but not the barrier, the body passes over.
+      const lifted = box.clone().translate([0, FULL_STEP_HEIGHT + 0.01, 0]);
+      expect(engine.isSweepClear(lifted, [3, 0, 0])).toBe(true);
+    });
+
+    it("never auto-steps over a barrier its step would clear the block of", () => {
+      const engine = createHurdleEngine();
+      const body = createBody(engine, FULL_STEP_HEIGHT, STEP_START_X);
+      const rises: number[] = [];
+      body.onStep = (newAABB) => {
+        rises.push(newAABB.minY - body.aabb.minY);
+        body.aabb = newAABB.clone();
+      };
+
+      for (let frame = 0; frame < STEP_FRAMES; frame++) {
+        applyMovement(body, HEADING_PLUS_X);
+        engine.update(DELTA_TIME);
+      }
+
+      expect(rises).toHaveLength(0);
+      expect(body.aabb.minY).toBeCloseTo(BODY_MIN_Y, 6);
+      expect(body.aabb.maxX).toBeLessThanOrEqual(WALL_X + POSITION_EPSILON);
+    });
+  });
+
   it("holds a zero-gravity body in place underwater", () => {
     const startY = SUBMERGED_MIN_Y + BODY_HEIGHT / 2;
 

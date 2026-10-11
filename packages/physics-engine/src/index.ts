@@ -54,7 +54,10 @@ export type SweepHit = {
   dir: number;
   /** Voxel coordinates of the block hit. */
   voxel: number[];
-  /** World-space top of the tallest collision box in that voxel. */
+  /**
+   * World-space top of the tallest collision box in that voxel, or of the
+   * voxel's barrier when that stands higher (see {@link Engine.voxelTop}).
+   */
   top: number;
 };
 
@@ -70,6 +73,17 @@ export class Engine {
     private getVoxelStage: (vx: number, vy: number, vz: number) => number,
     private getFluidFlowForce: (vx: number, vy: number, vz: number) => number,
     public options: EngineOptions,
+    /**
+     * World-space top of a voxel's barrier: how high other bodies (a
+     * server's simulated ones) find it standing, above the boxes `getVoxel`
+     * gives these. `-Infinity` where the voxel has none. These bodies never
+     * collide with it; only {@link Engine.voxelTop} reads it.
+     */
+    private getBarrierTop: (
+      vx: number,
+      vy: number,
+      vz: number,
+    ) => number = () => -Infinity,
   ) {}
 
   addBody = (options: Partial<BodyOptions>) => {
@@ -654,15 +668,19 @@ export class Engine {
   };
 
   /**
-   * World-space top of the tallest collision box in a voxel, or `-Infinity`
-   * when the voxel has none.
+   * World-space top of the tallest collision box in a voxel, raised to its
+   * barrier when that stands higher, or `-Infinity` when the voxel has no
+   * box. Automatic moves plan with this (auto-step, auto-jump, a swim exit),
+   * so they never carry a body over a barrier it could only clear with a
+   * jump it chose to make.
    */
   voxelTop = (voxel: number[]): number => {
     let top = -Infinity;
     for (const a of this.getVoxel(voxel[0], voxel[1], voxel[2])) {
       if (a.maxY > top) top = a.maxY;
     }
-    return top;
+    if (top === -Infinity) return top;
+    return Math.max(top, this.getBarrierTop(voxel[0], voxel[1], voxel[2]));
   };
 
   /**
