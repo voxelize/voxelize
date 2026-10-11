@@ -10,6 +10,8 @@ import fs from "node:fs";
 import { createRequire } from "node:module";
 import path from "node:path";
 
+import { lowPriorityExecutable } from "./priority";
+
 type Puppeteer = typeof import("puppeteer");
 type Browser = import("puppeteer").Browser;
 type Page = import("puppeteer").Page;
@@ -50,7 +52,14 @@ export class HeadlessBrowser {
 
   private launching: Promise<Browser> | null = null;
 
-  constructor(private readonly logFile: string) {}
+  /**
+   * @param priorityDir Where the low-priority launch script is kept
+   *   (`./priority`); null launches the browser at the default priority.
+   */
+  constructor(
+    private readonly logFile: string,
+    private readonly priorityDir: string | null = null,
+  ) {}
 
   get isOpen() {
     return this.browser?.connected ?? false;
@@ -61,8 +70,10 @@ export class HeadlessBrowser {
     this.launching ??= (async () => {
       const puppeteer = await loadPuppeteer();
       fs.mkdirSync(path.dirname(this.logFile), { recursive: true });
+      const lowered = this.lowPriorityExecutable(puppeteer.executablePath());
       const browser = await puppeteer.launch({
         headless: true,
+        ...(lowered ? { executablePath: lowered } : {}),
         args: [
           "--no-sandbox",
           "--enable-webgl",
@@ -78,13 +89,26 @@ export class HeadlessBrowser {
       if (pid) startWatchdog(process.pid, pid, this.logFile);
       fs.appendFileSync(
         this.logFile,
-        `[${new Date().toISOString()}] browser ${pid} launched\n`,
+        `[${new Date().toISOString()}] browser ${pid} launched (${lowered ? "low" : "default"} priority)\n`,
       );
       this.browser = browser;
       this.launching = null;
       return browser;
     })();
     return this.launching;
+  }
+
+  private lowPriorityExecutable(browserPath: string): string | null {
+    if (!this.priorityDir) return null;
+    try {
+      return lowPriorityExecutable(browserPath, this.priorityDir);
+    } catch (error) {
+      fs.appendFileSync(
+        this.logFile,
+        `[${new Date().toISOString()}] could not write the low-priority launch script in ${this.priorityDir} (${(error as Error).message}); launching at the default priority\n`,
+      );
+      return null;
+    }
   }
 
   async newPage(): Promise<Page> {

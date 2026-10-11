@@ -16,6 +16,7 @@ import { BackendProcess, type SpawnSpec } from "./backend";
 import { captionHtml, HeadlessBrowser, renderHtml, sheetHtml } from "./browser";
 import { bundlePage, type PageBundle, rebaseStylesheetUrls } from "./bundle";
 import { pruneDirectory } from "./cache";
+import { lowerSpawn } from "./priority";
 
 export type ResolvedSource = {
   /** Stable for the same world, tree, build and profile. */
@@ -96,6 +97,8 @@ export type ViewerServerConfig = {
   /** How long the headless browser may sit unused before it is closed (default 5 min; 0 keeps it). The next capture relaunches it, with a fresh session page. */
   browserIdleMs?: number;
   meshCacheBytes?: number;
+  /** Run the backends and the capture browser below everything else on the machine (`./priority`); on unless false, which is for timing A/B runs. */
+  lowPriority?: boolean;
 };
 
 export type CaptureRequest = {
@@ -183,6 +186,9 @@ export class ViewerServer {
     this.url = `http://${host}:${config.port}`;
     this.browser = new HeadlessBrowser(
       path.join(config.cacheDir, "logs", "browser.log"),
+      config.lowPriority === false
+        ? null
+        : path.join(config.cacheDir, "browser-priority"),
     );
     this.server = http.createServer((req, res) => {
       this.route(req, res).catch((error: Error) => {
@@ -388,9 +394,10 @@ export class ViewerServer {
     );
     const startedAt = Date.now();
     this.log(`starting source ${resolved.id} (${resolved.label})`);
+    const spec = resolved.spawn(launchFile);
     const backend = new BackendProcess(
       resolved.id,
-      resolved.spawn(launchFile),
+      this.config.lowPriority === false ? spec : lowerSpawn(spec),
       path.join(this.config.cacheDir, "logs", `${resolved.id}.log`),
     );
     const { metaPath, ms } = await backend.ready;
@@ -434,6 +441,7 @@ export class ViewerServer {
         }
       });
     if (!stale && this.bundle) return this.bundle;
+    // A failed build is not kept, so the next request builds again.
     this.bundling ??= (async () => {
       const page = this.config.page;
       const result = await bundlePage({
@@ -449,10 +457,11 @@ export class ViewerServer {
       });
       this.bundle = result;
       this.bundleInputs = await this.collectInputs();
-      this.bundling = null;
       this.log(`page bundled in ${result.ms} ms (${result.assets} assets)`);
       return result;
-    })();
+    })().finally(() => {
+      this.bundling = null;
+    });
     return this.bundling;
   }
 

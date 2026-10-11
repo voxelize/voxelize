@@ -241,6 +241,11 @@ export class CameraRig {
     return this.flight !== null;
   }
 
+  /** Whether anything moves the camera now: a held key or drag, a flight or an easing. */
+  isActive(): boolean {
+    return this.keys.size > 0 || this.drag !== null || this.isSettling();
+  }
+
   /** Whether the camera is still moving on its own: a flight or an easing. */
   isSettling(): boolean {
     return (

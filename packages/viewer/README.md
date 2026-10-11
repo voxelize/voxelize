@@ -15,8 +15,8 @@ on every capture).
 | Piece | Where | What it does |
 | --- | --- | --- |
 | Backend | `voxelize::viewer` (Rust, `server/viewer/`) | A long-running process over stdin/stdout: chunks from a `ViewerSource`, cross-chunk writes landed, light flooded and meshed with the server's own `Lights` and greedy mesher, mesh files keyed by their 3x3 neighbourhood's voxels (so a world re-viewed after a generation change re-meshes only what changed), coarse far tiles, column queries, annotations. |
-| Browser library | `src/` | `WorldViewer`: camera rigs, chunk streaming with a size-capped resident set, the engine's `FarTerrain` as the far layer, overlays, the A/B split, the control surface (`window.__voxelizeViewer`). Meshes are decoded and built in workers; the main thread only uploads, under a byte budget per frame. |
-| Server and CLI | `src/node/`, `bin/voxelize-viewer.ts` | Starts one backend per source, bundles the host page with esbuild, serves tiles, keeps a headless page for captures, answers the control API. Local only; exits after an idle spell. |
+| Browser library | `src/` | `WorldViewer`: camera rigs, chunk streaming with a size-capped resident set, the engine's `FarTerrain` as the far layer, overlays, the A/B split, the control surface (`window.__voxelizeViewer`). Meshes are decoded and built in workers; the main thread only uploads, under a byte budget per frame. A settled view is drawn once a second, not every frame (`ViewerHost.idleDraw`, `DEFAULT_IDLE_DRAW`): redrawn at the display rate it costs a GPU it shares with the game beside it as much as a moving one. |
+| Server and CLI | `src/node/`, `bin/voxelize-viewer.ts` | Starts one backend per source, bundles the host page with esbuild, serves tiles, keeps a headless page for captures, answers the control API. Local only; exits after an idle spell. Backends and the capture browser run below everything else on the machine (`lowPriority`, `src/node/priority.ts`: macOS QoS `utility`, nice 10 on Linux). |
 
 ## Sources
 

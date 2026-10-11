@@ -71,6 +71,24 @@ export type SourceRef = {
   label: string;
 };
 
+/**
+ * How often a settled view is drawn. A view redrawn at the display rate
+ * costs the GPU as much settled as moving, and that GPU is shared with
+ * whatever else runs on the machine (the game the viewer looks at, in its
+ * own window). The page draws every animation frame while the camera
+ * moves, a source loads, a call waits on frames, and for `afterMs` after
+ * the last input or change; then one frame every `frameMs`.
+ */
+export type IdleDrawOptions = {
+  afterMs: number;
+  frameMs: number;
+};
+
+export const DEFAULT_IDLE_DRAW: Readonly<IdleDrawOptions> = Object.freeze({
+  afterMs: 1500,
+  frameMs: 1000,
+});
+
 export type ViewerHost = {
   /** Origin of the viewer server; "" for the page's own. */
   server?: string;
@@ -94,6 +112,8 @@ export type ViewerHost = {
   chunkLayer?: Partial<ChunkLayerOptions>;
   /** Tunes how the camera follows the ground and flies (`DEFAULT_CAMERA_FEEL`). */
   camera?: Partial<CameraFeel>;
+  /** How often a settled view is drawn (`DEFAULT_IDLE_DRAW`). */
+  idleDraw?: Partial<IdleDrawOptions>;
   /** Colours, font and icons of the pins, the wheel and the labels. */
   theme?: Partial<ViewerTheme>;
   pins?: {
@@ -143,7 +163,10 @@ export type ViewerState = {
   options: ViewerOptions;
   hover: Vec3 | null;
   shareLink: string | null;
+  /** Frames per second while drawing live; held while `drawing` is idle. */
   fps: number;
+  /** Live: every animation frame. Idle: settled, one frame per `IdleDrawOptions.frameMs`. */
+  drawing: "live" | "idle";
   /** A flight under way, or the camera still easing after a move. */
   camera: { flying: boolean; settling: boolean };
   pin: Pin | null;
@@ -339,6 +362,18 @@ export class WorldViewer {
 
   private fps = 0;
 
+  private readonly idleDraw: IdleDrawOptions;
+
+  /** Last time anything wanted live frames: input, a change, motion, loading, a waiter. */
+  private lastBusyAt = performance.now();
+
+  private lastDrawAt = -Infinity;
+
+  private isDrawingIdle = false;
+
+  /** Calls awaiting frames (`waitIdle`); the page draws live while any runs. */
+  private waiters = 0;
+
   private listeners = new Set<(state: ViewerState) => void>();
 
   private running = true;
@@ -361,10 +396,27 @@ export class WorldViewer {
     private readonly host: ViewerHost = {},
   ) {
     this.overlays = [...BUILTIN_OVERLAYS, ...(host.overlays ?? [])];
+    this.idleDraw = { ...DEFAULT_IDLE_DRAW, ...host.idleDraw };
     this.canvas = document.createElement("canvas");
     this.canvas.tabIndex = 0;
     this.canvas.style.cssText =
       "position:absolute;inset:0;width:100%;height:100%;outline:none;touch-action:none";
+    const wake = () => {
+      this.lastBusyAt = performance.now();
+    };
+    for (const type of [
+      "pointerdown",
+      "pointermove",
+      "pointerup",
+      "wheel",
+      "keydown",
+      "keyup",
+    ] as const) {
+      this.canvas.addEventListener(type, wake, {
+        capture: true,
+        passive: true,
+      });
+    }
     this.hud = document.createElement("canvas");
     this.hud.style.cssText =
       "position:absolute;inset:0;width:100%;height:100%;pointer-events:none";
@@ -507,14 +559,37 @@ export class WorldViewer {
       void this.flyTo(point, { keepZoom: e.altKey });
     });
 
-    new ResizeObserver(() => this.resize()).observe(container);
+    new ResizeObserver(() => {
+      this.lastBusyAt = performance.now();
+      this.resize();
+    }).observe(container);
     this.resize();
     const loop = () => {
       if (!this.running) return;
-      this.tick();
+      const now = performance.now();
+      this.isDrawingIdle = this.isQuiet(now);
+      if (
+        !this.isDrawingIdle ||
+        now - this.lastDrawAt >= this.idleDraw.frameMs
+      ) {
+        this.lastDrawAt = now;
+        this.tick();
+      }
       requestAnimationFrame(loop);
     };
     requestAnimationFrame(loop);
+  }
+
+  /** Nothing has wanted live frames for `afterMs`: no input, change, camera motion, loading or waiter. */
+  private isQuiet(now: number): boolean {
+    const isBusy =
+      this.waiters > 0 ||
+      this.rig.isActive() ||
+      [this.views.a, this.views.b].some(
+        (view) => view !== null && !isViewIdle(view),
+      );
+    if (isBusy) this.lastBusyAt = now;
+    return now - this.lastBusyAt >= this.idleDraw.afterMs;
   }
 
   private get server() {
@@ -872,6 +947,7 @@ export class WorldViewer {
 
   private notify(force = false) {
     const now = performance.now();
+    if (force) this.lastBusyAt = now;
     if (!force && now - this.lastNotify < 100) return;
     this.lastNotify = now;
     const state = this.state();
@@ -887,7 +963,7 @@ export class WorldViewer {
         label: v.ref.label,
         chunks: { ...v.chunks.stats },
         far: v.far.stats,
-        idle: v.chunks.isIdle() && v.far.isIdle() && v.overlays.isIdle(),
+        idle: isViewIdle(v),
         textures: v.textures,
       }));
     return {
@@ -898,6 +974,7 @@ export class WorldViewer {
       hover: this.hover,
       shareLink: this.shareLink(),
       fps: this.fps,
+      drawing: this.isDrawingIdle ? "idle" : "live",
       camera: { flying: this.rig.flying, settling: this.rig.isSettling() },
       pin: this.pins.current(),
       bookmarks: [...this.bookmarks],
@@ -913,29 +990,35 @@ export class WorldViewer {
     const started = performance.now();
     const firstFrame = this.frame;
     let steady = 0;
-    while (performance.now() - started < timeoutMs) {
-      await new Promise((resolve) => requestAnimationFrame(resolve));
-      const views = this.state().views;
-      const idle =
-        views.length > 0 &&
-        views.every((v) => v.idle) &&
-        !this.rig.isSettling();
-      steady = idle ? steady + 1 : 0;
-      if (steady >= settleFrames) {
-        return {
-          idle: true,
-          waitedMs: performance.now() - started,
-          frames: this.frame - firstFrame,
-          views,
-        };
+    this.waiters += 1;
+    try {
+      while (performance.now() - started < timeoutMs) {
+        await new Promise((resolve) => requestAnimationFrame(resolve));
+        const views = this.state().views;
+        const idle =
+          views.length > 0 &&
+          views.every((v) => v.idle) &&
+          !this.rig.isSettling();
+        steady = idle ? steady + 1 : 0;
+        if (steady >= settleFrames) {
+          return {
+            idle: true,
+            waitedMs: performance.now() - started,
+            frames: this.frame - firstFrame,
+            views,
+          };
+        }
       }
+      return {
+        idle: false,
+        waitedMs: performance.now() - started,
+        frames: this.frame - firstFrame,
+        views: this.state().views,
+      };
+    } finally {
+      this.waiters -= 1;
+      this.lastBusyAt = performance.now();
     }
-    return {
-      idle: false,
-      waitedMs: performance.now() - started,
-      frames: this.frame - firstFrame,
-      views: this.state().views,
-    };
   }
 
   /** The current frame as a PNG data URL (the WebGL canvas only). */
@@ -1018,7 +1101,9 @@ export class WorldViewer {
     const now = performance.now();
     const dt = Math.min(0.1, (now - this.lastFrame) / 1000);
     this.lastFrame = now;
-    this.fps = this.fps * 0.92 + (dt > 0 ? 1 / dt : 0) * 0.08;
+    if (!this.isDrawingIdle) {
+      this.fps = this.fps * 0.92 + (dt > 0 ? 1 / dt : 0) * 0.08;
+    }
     this.frame += 1;
     this.rig.update(dt);
 
@@ -1266,6 +1351,11 @@ export type { AtlasFilteringMode };
 
 /** Half-widths of the flight mark's brackets, CSS pixels, one per step. */
 const FLIGHT_MARK_STEPS = [22, 16, 11, 7];
+
+/** A view with nothing left to load: chunks, far tiles and overlays. */
+function isViewIdle(view: View): boolean {
+  return view.chunks.isIdle() && view.far.isIdle() && view.overlays.isIdle();
+}
 
 /** The chunk lighting a pin shares, so it is lit like the terrain of its view. */
 function pinLighting(materials: ViewerMaterials): PinLighting {
