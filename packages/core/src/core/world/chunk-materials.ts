@@ -108,11 +108,23 @@ export function isSharedOpaqueMaterialBlock(block: Block) {
 /** Below this texel alpha a see-through chunk material discards the texel. */
 export const SEE_THROUGH_ALPHA_TEST = 0.1;
 
-/** Detach a customized block without cloning the world's live uniforms/atlas. */
+/**
+ * Detach a customized block without cloning the world's live uniforms/atlas.
+ * `clone()` never sees the uniforms: three deep-copies them, and a render
+ * target's texture (the scene colour the water refracts under
+ * order-independent transparency) cannot be copied, so every fork would warn.
+ */
 export function forkChunkMaterial(material: CustomChunkShaderMaterial) {
-  const own = material.clone() as CustomChunkShaderMaterial;
+  const { uniforms } = material;
+  material.uniforms = {};
+  let own: CustomChunkShaderMaterial;
+  try {
+    own = material.clone() as CustomChunkShaderMaterial;
+  } finally {
+    material.uniforms = uniforms;
+  }
   own.map = material.map;
-  own.uniforms = { ...material.uniforms };
+  own.uniforms = { ...uniforms };
   return own;
 }
 
@@ -258,7 +270,6 @@ export function makeChunkShaderMaterial(
     uWaterTint: world.chunkRenderer.shaderLightingUniforms.waterTint,
     uWaterAbsorption:
       world.chunkRenderer.shaderLightingUniforms.waterAbsorption,
-    uWaterLevel: world.chunkRenderer.shaderLightingUniforms.waterLevel,
     uWaterStreakStrength:
       world.chunkRenderer.shaderLightingUniforms.waterStreakStrength,
     uWaterFresnelStrength:

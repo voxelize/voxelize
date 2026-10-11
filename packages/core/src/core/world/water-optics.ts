@@ -299,8 +299,8 @@ export const WATER_OPTICS = Object.freeze({
    * - Beer-Lambert absorption over the down-and-back light path, as
    *   `floorAbsorptionPathScale` blocks of extinction per block of water,
    *   using the same per-channel table as everything else. Depth is capped
-   *   at `floorAbsorptionMaxDepth`: past that the water-exposed floor's own
-   *   fog already carries the deep look, and stacking both went black.
+   *   at `floorAbsorptionMaxDepth`: past that the deep-surface haze below
+   *   carries the deep look, and stacking both went black.
    * - A flat wet-surface darkening (`wetFloorDarken`) so the shoreline
    *   reads even under a film too thin to absorb anything — wet stone is
    *   darker than dry stone, and that boundary is the strongest cue that
@@ -791,36 +791,6 @@ export function undersideSceneShare(cosIncidence: number): number {
   const window = undersideTransmission(cosI);
   return window + (1 - window) * leak;
 }
-
-/**
- * The above-surface counterpart of {@link UNDERWATER_FOG_FRAGMENT}: the same
- * Beer-Lambert in-scattering fog, but for water-exposed terrain seen from
- * outside the surface. It fades a submerged fragment toward the water's own
- * depth-filtered in-scattered color along the sub-surface segment of the view
- * ray. The scatter target darkens spectrally with the fragment's depth instead
- * of sending every long ray toward the bright surface teal, so deep water
- * reads as ocean rather than milky water.
- *
- * Expects `outgoingLight`, `uCameraSubmersion`, `uUnderwaterAmbient`,
- * `vWaterExposed`, and vertex-interpolated `vAboveSurfaceWaterTransmit` in
- * scope. The vertex stage computes the expensive ray length and exponential;
- * transmission varies smoothly enough across a voxel face to interpolate.
- * Runs before sky/height fog so nearer air fog layers on top.
- */
-export const ABOVE_SURFACE_WATER_FOG_FRAGMENT = `
-if (vWaterExposed > 0.5 && uCameraSubmersion < 1.0 && cameraPosition.y > uWaterLevel) {
-  float aswDepth = max(uWaterLevel - vWorldPosition.y, 0.0);
-  vec3 aswAmbient = uUnderwaterAmbient
-    * exp(
-      -${WATER_DOWNWELLING_EXTINCTION_GLSL}
-      * aswDepth
-      * ${WATER_OPTICS.aboveSurfaceScatterDepthScale.toFixed(4)}
-    );
-  vec3 aswColor = outgoingLight.rgb * vAboveSurfaceWaterTransmit
-    + aswAmbient * (1.0 - vAboveSurfaceWaterTransmit);
-  outgoingLight.rgb = mix(outgoingLight.rgb, aswColor, 1.0 - uCameraSubmersion);
-}
-`;
 
 export interface UnderwaterFogUniforms {
   uCameraSubmersion: IUniform<number>;

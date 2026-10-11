@@ -23,7 +23,6 @@ import { defaultLocalLightsOptions } from "./local-lights/types";
 import { QUAD_LIGHT_VERTEX_GLSL } from "./quad-light";
 import { createSkyFogFragment, SKY_FOG_UNIFORM_DECLARATIONS } from "./sky-fog";
 import {
-  ABOVE_SURFACE_WATER_FOG_FRAGMENT,
   FLOW_CREST_PHASE_PER_HEIGHT,
   FLUID_SPILL_CORNER_MIN_HEIGHT,
   UNDERSIDE_CRITICAL_COS,
@@ -32,7 +31,6 @@ import {
   WATER_OPTICS,
   WATER_SURFACE_NORMAL_LAYERS_GLSL,
   WATER_SURFACE_SCATTER_GLSL,
-  WATER_VIEW_EXTINCTION_GLSL,
 } from "./water-optics";
 
 export const CHUNK_RENDER_QUALITY = {
@@ -349,11 +347,9 @@ varying vec3 vWorldNormal;
 varying float vViewDepth;
 varying float vWaterExposed;
 varying float vWaterSurfaceY;
-varying vec3 vAboveSurfaceWaterTransmit;
 uniform vec4 uAOTable;
 uniform vec3 uStageTints[16];
 uniform vec3 uPigmentTints[16];
-uniform float uWaterLevel;
 uniform float uCameraSubmersion;
 uniform float uTime;
 uniform vec2 uWindDirection;
@@ -538,12 +534,13 @@ vec3 objectNormal = normal;
 #endif
 vWorldNormal = normalize(mat3(modelMatrix) * objectNormal);
 
-// The surface that governs this fragment's water shading. A fluid reads its
-// own column, so a pond on a hilltop and a pond in a cellar both look like
-// water; everything else keeps the world's nominal waterline, which is still
-// the right answer for terrain sitting under a sea. Accurate to within a
-// block, which is far finer than an exponential falloff can show.
-vWaterSurfaceY = isFluid == 1 ? worldPosition.y + fluidAbove : uWaterLevel;
+// The surface over a fluid fragment, read from its own column, so a pond on
+// a hilltop and a pond in a cellar both look like water. Accurate to within
+// a block, which is far finer than an exponential falloff can show. Only
+// fluid fragments read it: nothing in this shader measures water from the
+// world's nominal waterline, which a world without a sea leaves at its
+// default however high or low its water actually stands.
+vWaterSurfaceY = worldPosition.y + fluidAbove;
 
 // Water standing under a surface vertex, down to the column's floor: the
 // surface height inside its own voxel plus the blocks the mesher counted
@@ -570,25 +567,6 @@ float fluidBelowBlocks = isSurfaceVertex == 1
   : stackIndexF;
 vFluidDepthBelow = float(isFluid) * (restWorldPosition.y - fluidVoxelY + fluidBelowBlocks);
 vFluidRestY = restWorldPosition.y;
-vAboveSurfaceWaterTransmit = vec3(1.0);
-if (
-  isWaterExposed == 1
-  && uCameraSubmersion < 1.0
-  && cameraPosition.y > uWaterLevel
-) {
-  vec3 aswRay = worldPosition.xyz - cameraPosition;
-  float aswDist = max(length(aswRay), 1e-4);
-  float aswSubmergedFraction = clamp(
-    (uWaterLevel - worldPosition.y)
-      / max(cameraPosition.y - worldPosition.y, 1e-4),
-    0.0,
-    1.0
-  );
-  float aswPath = aswDist * aswSubmergedFraction;
-  vAboveSurfaceWaterTransmit = exp(
-    -${WATER_VIEW_EXTINCTION_GLSL} * aswPath
-  );
-}
 
 vec4 viewPos = viewMatrix * worldPosition;
 vViewDepth = -viewPos.z;
@@ -658,7 +636,6 @@ uniform float uShadowStrength;
 
 uniform vec3 uWaterTint;
 uniform float uWaterAbsorption;
-uniform float uWaterLevel;
 uniform float uWaterStreakStrength;
 uniform float uBedCausticScale;
 // uDirectSunlight (the sun's beam) is declared with the sky fog's uniforms.
@@ -705,7 +682,6 @@ varying vec3 vWorldNormal;
 varying float vViewDepth;
 varying float vWaterExposed;
 varying float vWaterSurfaceY;
-varying vec3 vAboveSurfaceWaterTransmit;
 varying float vEmissive;
 varying vec4 vShadowCoord0;
 varying vec4 vShadowCoord1;
@@ -1138,8 +1114,6 @@ if (underwaterCaustic > 0.0) {
   outgoingLight.rgb *= 1.0
     + ${WATER_OPTICS.bedCausticStrength.toFixed(4)} * uBedCausticScale * underwaterCaustic * causticSun;
 }
-
-${ABOVE_SURFACE_WATER_FOG_FRAGMENT}
 
 if (vIsFluid > 0.5) {
   float waveTime = uTime * 0.0005;

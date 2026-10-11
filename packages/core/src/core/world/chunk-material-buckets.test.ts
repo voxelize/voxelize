@@ -1,6 +1,6 @@
 import { AABB } from "@voxelize/aabb";
-import { ShaderMaterial, Texture, Uniform } from "three";
-import { describe, expect, it } from "vitest";
+import { ShaderMaterial, Texture, Uniform, WebGLRenderTarget } from "three";
+import { describe, expect, it, vi } from "vitest";
 
 import type { Block } from "./block";
 import {
@@ -86,6 +86,25 @@ describe("solid-shaped block material batching", () => {
     expect(own.uniforms.sunlight.value).toBe(0.2);
     expect(own.map).toBe(source.map);
     expect(own.uniforms.map.value).toBe(source.map);
+  });
+
+  it("forks a material reading a render target without trying to copy it", () => {
+    const sceneColor = new Uniform(new WebGLRenderTarget(4, 4).texture);
+    const source = new ShaderMaterial({
+      uniforms: { uSceneColor: sceneColor },
+    }) as CustomChunkShaderMaterial;
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+    try {
+      source.clone();
+      expect(warn).toHaveBeenCalledOnce();
+      warn.mockClear();
+      const own = forkChunkMaterial(source);
+      expect(warn).not.toHaveBeenCalled();
+      expect(own.uniforms.uSceneColor).toBe(sceneColor);
+      expect(source.uniforms.uSceneColor).toBe(sceneColor);
+    } finally {
+      warn.mockRestore();
+    }
   });
 });
 

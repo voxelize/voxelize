@@ -3,10 +3,11 @@ import { describe, expect, it } from "vitest";
 
 import {
   SHADER_LIGHTING_CHUNK_SHADERS,
+  SHADER_LIGHTING_CROSS_CHUNK_SHADERS,
   SHADER_LIGHTING_FLUID_CHUNK_SHADERS,
+  SHADER_LIGHTING_SEE_THROUGH_CHUNK_SHADERS,
 } from "./shaders";
 import {
-  ABOVE_SURFACE_WATER_FOG_FRAGMENT,
   FLOW_CREST_PHASE_PER_HEIGHT,
   FLUID_SPILL_CORNER_MIN_HEIGHT,
   getDownwellingTransmittance,
@@ -551,36 +552,37 @@ describe("spill corners", () => {
   });
 });
 
-describe("ABOVE_SURFACE_WATER_FOG_FRAGMENT", () => {
-  it("reuses the same view extinction as the underwater fog", () => {
-    expect(UNDERWATER_FOG_FRAGMENT).toContain(WATER_VIEW_EXTINCTION_GLSL);
-    expect(SHADER_LIGHTING_FLUID_CHUNK_SHADERS.vertex).toContain(
-      WATER_VIEW_EXTINCTION_GLSL,
-    );
+describe("terrain seen from above water", () => {
+  const variants = {
+    opaque: SHADER_LIGHTING_CHUNK_SHADERS,
+    fluid: SHADER_LIGHTING_FLUID_CHUNK_SHADERS,
+    seeThrough: SHADER_LIGHTING_SEE_THROUGH_CHUNK_SHADERS,
+    cross: SHADER_LIGHTING_CROSS_CHUNK_SHADERS,
+  };
+
+  it("is never fogged from the world's nominal waterline", () => {
+    // uWaterLevel is a sea level, and a world without a sea keeps its
+    // default (86): a pool bed at y=2 was fogged as if under 84 blocks of
+    // water whenever the camera rose above y=86, and not at all below it,
+    // so the same pool turned opaque or clear with camera height alone.
+    // The water surface fades what it refracts by its own column instead.
+    for (const [name, { vertex, fragment }] of Object.entries(variants)) {
+      for (const [stage, source] of Object.entries({ vertex, fragment })) {
+        const where = `${name} ${stage}`;
+        expect(source, where).not.toContain("uniform float uWaterLevel;");
+        expect(source, where).not.toContain("vAboveSurfaceWaterTransmit");
+      }
+    }
   });
 
-  it("darkens the in-scattered water color with fragment depth", () => {
-    expect(ABOVE_SURFACE_WATER_FOG_FRAGMENT).toContain("uUnderwaterAmbient");
-    expect(ABOVE_SURFACE_WATER_FOG_FRAGMENT).toContain(
-      WATER_DOWNWELLING_EXTINCTION_GLSL,
+  it("leaves the depth haze to the surface's measured column", () => {
+    const { fragment } = SHADER_LIGHTING_FLUID_CHUNK_SHADERS;
+    expect(fragment).toContain(
+      `float deepPath = max(vFluidDepthBelow - ${WATER_OPTICS.deepSurfaceClearDepth.toFixed(4)}, 0.0);`,
     );
-    expect(ABOVE_SURFACE_WATER_FOG_FRAGMENT).toContain(
-      WATER_OPTICS.aboveSurfaceScatterDepthScale.toFixed(4),
+    expect(fragment).toContain(
+      "diffuseColor.a = 1.0 - (1.0 - diffuseColor.a) * deepTransmit;",
     );
-    expect(ABOVE_SURFACE_WATER_FOG_FRAGMENT).toContain(
-      "uWaterLevel - vWorldPosition.y",
-    );
-    expect(ABOVE_SURFACE_WATER_FOG_FRAGMENT).toContain(
-      "vAboveSurfaceWaterTransmit",
-    );
-  });
-
-  it("only affects water-exposed faces viewed from above the surface", () => {
-    expect(ABOVE_SURFACE_WATER_FOG_FRAGMENT).toContain("vWaterExposed > 0.5");
-    expect(SHADER_LIGHTING_FLUID_CHUNK_SHADERS.vertex).toContain(
-      "cameraPosition.y > uWaterLevel",
-    );
-    expect(ABOVE_SURFACE_WATER_FOG_FRAGMENT).toContain("uCameraSubmersion");
   });
 });
 
@@ -723,5 +725,9 @@ describe("underwater in-scatter", () => {
 
   it("tilts the fog toward the ray's direction", () => {
     expect(UNDERWATER_FOG_FRAGMENT).toContain("uwRay.y / uwDist");
+  });
+
+  it("extinguishes along the view ray at the shared view extinction", () => {
+    expect(UNDERWATER_FOG_FRAGMENT).toContain(WATER_VIEW_EXTINCTION_GLSL);
   });
 });
