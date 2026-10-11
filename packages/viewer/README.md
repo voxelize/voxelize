@@ -74,7 +74,10 @@ alike.
 Drag to orbit, right-drag (or Shift-drag) to pan, wheel to zoom, WASD to
 move, Space and Shift to rise and sink, Q and E to turn a quarter. In the
 free preset WASD keeps the camera's height (`levelFlight`; off flies along
-the view).
+the view). A key pressed with Cmd or Ctrl is a shortcut, never a move, and
+it lets go of whatever was held; a Shift whose keyup never arrives (macOS
+keeps it for its screenshot chord) is let go by the next input event that
+says Shift is up.
 
 The camera's height only changes because of something the user did. Once
 he pans, the look point follows the ground under it, read as the median of
@@ -129,7 +132,9 @@ Look from here (eye height at the pin), Measure from the pin (run, rise
 and slope to the next spot clicked, or to the spot the wheel was opened
 over), Bookmark (saved with the viewer server next to the config's), Copy
 share link, Copy coordinates, Remove, and Pin here over bare ground. A
-host adds its own with `pins.actions`.
+host adds its own with `pins.actions`. Spawn here and Fly here are also
+buttons on the pin's card, so nobody has to find the wheel to use them; an
+action with `card: true` joins them there.
 
 `ViewerHost.theme` dresses all of it (panel colours, bevels, accent, a
 pixel font, banner colours and an icon per action id); without one it
@@ -167,6 +172,15 @@ voxelize-viewer --config my.config.ts query 12,40
 
 `shot` prints the image path and one JSON line: source provenance, pose,
 options, settle state and timings.
+
+**Serving it to others.** The server binds the loopback interface; put a
+reverse proxy in front for anyone else. `readOnly: true` serves the page and
+the read-only source routes only (captures, sheets, the scripted session,
+bookmark saves and shutdown are refused, so no request writes a file or
+drives a browser), and `authorize(req)` decides every request before it is
+served: a denial carries its status and message, and a `redirect` sends a
+browser asking for the page off to sign in. Restrict `resolveSource` to the
+sources you mean to serve, too: a spec arrives straight from the page's URL.
 
 **Textures.** The host's `setupTextures(world)` runs the game's own registry
 setup against a stand-in `World`: texture groups, block textures, frames

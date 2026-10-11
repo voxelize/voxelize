@@ -204,6 +204,46 @@ describe("controls", () => {
     }
   });
 
+  describe("a Shift whose keyup never comes", () => {
+    const orbiting = () => {
+      const { el, camera } = rig(() => 80, 0);
+      camera.setPose(orbitPose([0, 80, 0], 200), "orbit");
+      return { el, camera };
+    };
+    const distanceAfter = (camera: CameraRig, frames: number) => {
+      for (let i = 0; i < frames; i++) camera.update(1 / 60);
+      return camera.orbit.distance;
+    };
+
+    it("stops sinking when Cmd joins it, as Cmd+Shift+3 does", () => {
+      const { el, camera } = orbiting();
+      fire(el, "keydown", { code: "ShiftLeft", shiftKey: true });
+      const sinking = distanceAfter(camera, 30);
+      expect(sinking).toBeGreaterThan(200);
+      fire(el, "keydown", { code: "MetaLeft", shiftKey: true, metaKey: true });
+      expect(distanceAfter(camera, 60)).toBe(sinking);
+    });
+
+    it("never starts when Shift is pressed under Cmd", () => {
+      const { el, camera } = orbiting();
+      fire(el, "keydown", { code: "MetaLeft", metaKey: true });
+      fire(el, "keydown", { code: "ShiftLeft", shiftKey: true, metaKey: true });
+      expect(distanceAfter(camera, 60)).toBe(200);
+    });
+
+    it("is let go by the next event that says Shift is up", () => {
+      for (const type of ["pointermove", "keydown", "wheel"]) {
+        const { el, camera } = orbiting();
+        fire(el, "keydown", { code: "ShiftLeft", shiftKey: true });
+        fire(el, "pointermove", { shiftKey: true });
+        const sinking = distanceAfter(camera, 30);
+        expect(sinking, type).toBeGreaterThan(200);
+        fire(el, type, { code: "KeyX", deltaY: 0 });
+        expect(distanceAfter(camera, 60), type).toBe(sinking);
+      }
+    });
+  });
+
   it("eases a wheel zoom to the same distance at any frame rate", () => {
     const distances = [30, 144].map((fps) => {
       const { el, camera } = rig(() => 80);

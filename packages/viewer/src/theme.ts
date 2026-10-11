@@ -74,6 +74,14 @@ ${p}-card { position: absolute; left: 0; top: 0; padding: 6px 8px; min-width: 15
 ${p}-card-title { color: ${theme.accent}; margin-bottom: 3px; }
 ${p}-row { display: flex; justify-content: space-between; gap: 12px; }
 ${p}-row span:first-child { color: ${theme.textMuted}; }
+${p}-card-actions { display: flex; gap: 4px; margin-top: 6px; pointer-events: auto; }
+${p}-card-button { display: flex; align-items: center; gap: 4px; padding: 2px 6px 2px 3px;
+  font: inherit; color: ${theme.text}; background: ${theme.panelRaised}; ${bevel} cursor: pointer; }
+${p}-card-button img { width: 16px; height: 16px; }
+${p}-card-button:hover:not(:disabled) { border-color: ${theme.accent}; }
+${p}-card-button:active:not(:disabled) { border-color: ${theme.edgeDark} ${theme.edgeLight} ${theme.edgeLight} ${theme.edgeDark}; }
+${p}-card-button:disabled { opacity: 0.4; cursor: default; }
+${p}-card-more { margin-top: 4px; color: ${theme.textMuted}; font-size: ${Math.max(8, theme.fontSize - 3)}px; }
 ${p}-wheel { position: absolute; left: 0; top: 0; width: 0; height: 0; pointer-events: auto; }
 ${p}-slot { position: absolute; width: 44px; height: 44px; margin: -22px 0 0 -22px;
   display: flex; align-items: center; justify-content: center;

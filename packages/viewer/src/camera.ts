@@ -771,8 +771,18 @@ export class CameraRig {
         target.removeEventListener(type, handler as EventListener),
       );
     };
+    // A held key's keyup can go missing: macOS takes Cmd+Shift+3 for a
+    // screenshot and the page never hears Shift come up, and it drops every
+    // keyup while Cmd is down. Every input event carries the real modifier
+    // state, so a Shift the event says is up is let go.
+    const syncShift = (e: MouseEvent | KeyboardEvent) => {
+      if (e.shiftKey) return;
+      this.keys.delete("ShiftLeft");
+      this.keys.delete("ShiftRight");
+    };
     on(el, "contextmenu", (e) => e.preventDefault());
     on(el, "pointerdown", (e) => {
+      syncShift(e);
       this.cancelFlight();
       if (this.claimPointer(e)) return;
       el.setPointerCapture(e.pointerId);
@@ -789,6 +799,7 @@ export class CameraRig {
       this.drag = null;
     });
     on(el, "pointermove", (e) => {
+      syncShift(e);
       if (!this.drag) return;
       const dx = e.clientX - this.drag.x;
       const dy = e.clientY - this.drag.y;
@@ -834,6 +845,7 @@ export class CameraRig {
       "wheel",
       (e) => {
         e.preventDefault();
+        syncShift(e);
         this.cancelFlight();
         if (this.preset === "free") {
           this.flySpeed = Math.max(
@@ -862,6 +874,14 @@ export class CameraRig {
       { passive: false },
     );
     on(el, "keydown", (e) => {
+      syncShift(e);
+      // A chord with Cmd or Ctrl is the browser's or the system's shortcut,
+      // never a move, and whatever was held when it began may never send
+      // its keyup.
+      if (e.metaKey || e.ctrlKey) {
+        this.keys.clear();
+        return;
+      }
       if (this.claimKey(e)) return;
       this.cancelFlight();
       if (e.code === "KeyQ" || e.code === "KeyE") {
@@ -875,7 +895,10 @@ export class CameraRig {
       }
       this.keys.add(e.code);
     });
-    on(el, "keyup", (e) => this.keys.delete(e.code));
+    on(el, "keyup", (e) => {
+      this.keys.delete(e.code);
+      syncShift(e);
+    });
     on(el, "blur", () => this.keys.clear());
   }
 }

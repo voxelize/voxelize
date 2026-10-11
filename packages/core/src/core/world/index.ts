@@ -4242,6 +4242,60 @@ export class World<T = any> extends Scene implements NetIntercept {
   };
 
   /**
+   * The boxes a rigid body collides with in the voxel at `vx, vy, vz`, in
+   * world space: exactly what the physics engine stands bodies on. Empty
+   * where no chunk is loaded, and for passable blocks and fluids.
+   */
+  getCollisionAABBsAt = (vx: number, vy: number, vz: number): AABB[] => {
+    const chunk = this.getChunkByPosition(vx, vy, vz);
+    if (!chunk) return [];
+
+    const id = chunk.getVoxel(vx, vy, vz);
+    const block = this.getBlockByIdSafe(id);
+    if (!block) return [];
+
+    const { aabbs, isPassable, isFluid, dynamicPatterns } = block;
+
+    if (block.branch || block.branchShell) {
+      if (isPassable || isFluid) return [];
+      return this.getBranchAABBsAt(block, vx, vy, vz).map((aabb) =>
+        aabb.translate([vx, vy, vz]),
+      );
+    }
+
+    if (dynamicPatterns && dynamicPatterns.length > 0) {
+      const passable = this.getBlockPassableForDynamicPatterns(
+        vx,
+        vy,
+        vz,
+        dynamicPatterns,
+        isPassable,
+      );
+      if (passable || isFluid) return [];
+
+      const rotation = this.voxelRotationOf(block, chunk, vx, vy, vz);
+      const aabbsWithFlags = this.getBlockAABBsForDynamicPatterns(
+        vx,
+        vy,
+        vz,
+        dynamicPatterns,
+      );
+      return aabbsWithFlags.map(({ aabb, worldSpace }) =>
+        worldSpace
+          ? aabb.translate([vx, vy, vz])
+          : rotation.rotateAABB(aabb).translate([vx, vy, vz]),
+      );
+    }
+
+    if (isPassable || isFluid) return [];
+
+    const rotation = this.voxelRotationOf(block, chunk, vx, vy, vz);
+    return aabbs.map((aabb) =>
+      rotation.rotateAABB(aabb).translate([vx, vy, vz]),
+    );
+  };
+
+  /**
    * The boxes the branch voxel of `block` at `vx, vy, vz` is drawn and
    * collides as, in blocks of the voxel: a one-voxel branch or fin's core
    * and arms, or a wide section cell's slice of its core's tube (see
@@ -7800,54 +7854,7 @@ export class World<T = any> extends Scene implements NetIntercept {
     this.csmRenderer?.addNeverCaster(this.farTerrain);
 
     this.physics = new PhysicsEngine(
-      (vx: number, vy: number, vz: number) => {
-        const chunk = this.getChunkByPosition(vx, vy, vz);
-        if (!chunk) return [];
-
-        const id = chunk.getVoxel(vx, vy, vz);
-        const block = this.getBlockByIdSafe(id);
-        if (!block) return [];
-
-        const { aabbs, isPassable, isFluid, dynamicPatterns } = block;
-
-        if (block.branch || block.branchShell) {
-          if (isPassable || isFluid) return [];
-          return this.getBranchAABBsAt(block, vx, vy, vz).map((aabb) =>
-            aabb.translate([vx, vy, vz]),
-          );
-        }
-
-        if (dynamicPatterns && dynamicPatterns.length > 0) {
-          const passable = this.getBlockPassableForDynamicPatterns(
-            vx,
-            vy,
-            vz,
-            dynamicPatterns,
-            isPassable,
-          );
-          if (passable || isFluid) return [];
-
-          const rotation = this.voxelRotationOf(block, chunk, vx, vy, vz);
-          const aabbsWithFlags = this.getBlockAABBsForDynamicPatterns(
-            vx,
-            vy,
-            vz,
-            dynamicPatterns,
-          );
-          return aabbsWithFlags.map(({ aabb, worldSpace }) =>
-            worldSpace
-              ? aabb.translate([vx, vy, vz])
-              : rotation.rotateAABB(aabb).translate([vx, vy, vz]),
-          );
-        }
-
-        if (isPassable || isFluid) return [];
-
-        const rotation = this.voxelRotationOf(block, chunk, vx, vy, vz);
-        return aabbs.map((aabb) =>
-          rotation.rotateAABB(aabb).translate([vx, vy, vz]),
-        );
-      },
+      this.getCollisionAABBsAt,
       (vx: number, vy: number, vz: number) => {
         const chunk = this.getChunkByPosition(vx, vy, vz);
         if (!chunk) return false;

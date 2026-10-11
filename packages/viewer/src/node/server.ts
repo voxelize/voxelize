@@ -31,10 +31,30 @@ export type ResolvedSource = {
   meshSalt?: string;
 };
 
+/** Whether a request may be served; a denial is answered with its status and message. */
+export type ViewerAccess =
+  | { allowed: true }
+  | {
+      allowed: false;
+      status: 401 | 403 | 503;
+      message: string;
+      /** Where a browser asking for the page is sent instead, to sign in. */
+      redirect?: string;
+    };
+
 export type ViewerServerConfig = {
   port: number;
   host?: string;
   cacheDir: string;
+  /**
+   * Serves the page and the read-only source routes only: captures, sheets,
+   * the scripted session, bookmark saves and shutdown are refused. For a
+   * server others reach, where a request must never write a file or drive a
+   * browser.
+   */
+  readOnly?: boolean;
+  /** Decides every request before it is served; absent, everything is. */
+  authorize?: (req: http.IncomingMessage) => Promise<ViewerAccess>;
   page: {
     entry: string;
     alias?: Record<string, string>;
@@ -481,6 +501,30 @@ export class ViewerServer {
 <body><div id="viewer"></div><script type="module" src="/app.js?v=${Date.now()}"></script></body></html>`;
   }
 
+  /** A refused request: the page is sent to sign in when it can be, everything else gets the reason. */
+  private deny(
+    url: URL,
+    access: Extract<ViewerAccess, { allowed: false }>,
+    res: http.ServerResponse,
+  ) {
+    if (url.pathname === "/" && access.redirect) {
+      const target = new URL(access.redirect);
+      res.writeHead(302, {
+        location: target.href,
+        "cache-control": "no-store",
+      });
+      res.end();
+      return;
+    }
+    if (url.pathname.startsWith("/api/"))
+      return this.json(res, { error: access.message }, access.status);
+    res.writeHead(access.status, {
+      "content-type": "text/plain; charset=utf-8",
+      "cache-control": "no-store",
+    });
+    res.end(access.message);
+  }
+
   private json(res: http.ServerResponse, value: unknown, status = 200) {
     res.writeHead(status, {
       "content-type": "application/json",
@@ -491,6 +535,10 @@ export class ViewerServer {
 
   private async route(req: http.IncomingMessage, res: http.ServerResponse) {
     const url = new URL(req.url ?? "/", this.url);
+    if (this.config.authorize) {
+      const access = await this.config.authorize(req);
+      if (!access.allowed) return this.deny(url, access, res);
+    }
     const isSession =
       url.searchParams.get("session") === "1" ||
       req.headers["x-viewer-session"] === "1";
@@ -587,6 +635,18 @@ export class ViewerServer {
       res.writeHead(url.pathname === "/favicon.ico" ? 204 : 404);
       res.end();
       return;
+    }
+    const isWrite =
+      ["capture", "sheet", "page-shot", "session", "shutdown"].includes(
+        parts[1],
+      ) ||
+      (parts[1] === "bookmarks" && req.method === "POST");
+    if (this.config.readOnly && isWrite) {
+      return this.json(
+        res,
+        { error: `${url.pathname} is not served by a read-only viewer` },
+        403,
+      );
     }
     const body = req.method === "POST" ? await readBody(req) : "";
     const input = body ? (JSON.parse(body) as Record<string, unknown>) : {};

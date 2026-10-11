@@ -73,6 +73,8 @@ export type PinAction = {
   key: string;
   /** Icon URL; the theme's icon for this id, else a built-in one, when absent. */
   icon?: string;
+  /** Also a button on the pin's card, where a first-time user sees it without opening the wheel. */
+  card?: boolean;
   /** Why it cannot run on this target; null when it can. */
   unavailable?(ctx: PinActionContext): string | null;
   run(ctx: PinActionContext): Promise<PinActionResult> | PinActionResult;
@@ -772,7 +774,18 @@ export class PinLayer {
       this.card.style.display = "none";
       return;
     }
-    const signature = JSON.stringify(pin.facts);
+    const target: PinTarget = { pin, point: pin.point };
+    const ctx = this.context(target, {});
+    const buttons = this.actions
+      .filter((a) => a.card)
+      .map((action) => ({
+        action,
+        disabled: action.unavailable?.(ctx) ?? null,
+      }));
+    const signature = JSON.stringify([
+      pin.facts,
+      buttons.map((b) => [b.action.id, b.disabled]),
+    ]);
     if (this.card.dataset.signature !== signature) {
       this.card.dataset.signature = signature;
       this.card.replaceChildren();
@@ -793,9 +806,50 @@ export class PinLayer {
         row.append(k, v);
         this.card.append(row);
       }
+      if (buttons.length) this.card.append(...this.cardActions(buttons));
     }
     this.card.style.display = "";
     this.card.style.transform = `translate(${Math.round(s.base[0] + 26)}px, ${Math.round(s.top[1])}px)`;
+  }
+
+  /** The card's action buttons, and a line saying the wheel holds the rest. */
+  private cardActions(
+    buttons: { action: PinAction; disabled: string | null }[],
+  ): HTMLElement[] {
+    const prefix = this.options.prefix;
+    const row = document.createElement("div");
+    row.className = `${prefix}-card-actions`;
+    for (const { action, disabled } of buttons) {
+      const button = document.createElement("button");
+      button.type = "button";
+      button.className = `${prefix}-card-button`;
+      button.dataset.action = action.id;
+      button.disabled = disabled !== null;
+      button.title = disabled ?? action.label;
+      const icon = document.createElement("img");
+      icon.src = this.iconFor(action);
+      icon.alt = "";
+      icon.draggable = false;
+      const label = document.createElement("span");
+      label.textContent = action.label;
+      button.append(icon, label);
+      // The keyboard stays with the canvas: a focused button would take
+      // Space, the camera's rise key, as another press.
+      button.addEventListener("mousedown", (e) => e.preventDefault());
+      button.addEventListener("click", (e) => {
+        e.stopPropagation();
+        const pin = this.pin;
+        if (!pin) return;
+        void this.run({ pin, point: pin.point }, action.id).catch(
+          (error: Error) => this.say(error.message),
+        );
+      });
+      row.append(button);
+    }
+    const more = document.createElement("div");
+    more.className = `${prefix}-card-more`;
+    more.textContent = "Click the pin for more";
+    return [row, more];
   }
 
   private placeMeasure() {
@@ -900,6 +954,7 @@ function builtinActions(): PinAction[] {
       id: "spawn",
       label: "Spawn here",
       key: "s",
+      card: true,
       unavailable: needsLink,
       run(ctx) {
         const pose = spawnPose(ctx);
@@ -925,6 +980,7 @@ function builtinActions(): PinAction[] {
       id: "fly",
       label: "Fly here",
       key: "f",
+      card: true,
       async run(ctx) {
         const flight = await ctx.host.flyTo(ctx.target.point);
         return { action: "fly", ok: true, flight, message: "" };
