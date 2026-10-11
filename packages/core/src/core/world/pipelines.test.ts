@@ -476,6 +476,43 @@ describe("MeshPipeline voxel-change remesh", () => {
     expect(pipeline.onJobComplete("7,7:1", freshGeneration)).toBe(true);
   });
 
+  it("an expired job that lands before its key is dispatched again leaves the key clean", () => {
+    // A job held past the watchdog's ceiling (a border swap waiting on a
+    // neighbour) is expired and its key re-queued; when the job then lands,
+    // its generation is the newest and goes on screen. The key must leave
+    // the dirty set: no dispatch would start for it, so it would hold the
+    // dirty count up and keep the page from ever reading as drained.
+    const pipeline = new MeshPipeline();
+    pipeline.onVoxelChange(5, 6, 3);
+    const generation = pipeline.startJob("5,6:3", 0);
+    expect(pipeline.expireStuckJobs(31_000, 30_000)).toEqual(["5,6:3"]);
+    expect(pipeline.dirtyCount).toBe(1);
+
+    expect(pipeline.onJobComplete("5,6:3", generation)).toBe(true);
+
+    expect(pipeline.dirtyCount).toBe(0);
+    expect(pipeline.isDirty("5,6:3")).toBe(false);
+    expect(pipeline.isUrgent("5,6:3")).toBe(false);
+    expect(pipeline.getDirtyKeys()).toEqual([]);
+    expect(pipeline.hasDirtyChunks()).toBe(false);
+    expect(pipeline.needsRemesh("5,6:3")).toBe(false);
+  });
+
+  it("an expired job whose key moved on while it was out keeps the key dirty", () => {
+    const pipeline = new MeshPipeline();
+    pipeline.onVoxelChange(5, 6, 3);
+    const generation = pipeline.startJob("5,6:3", 0);
+    expect(pipeline.expireStuckJobs(31_000, 30_000)).toEqual(["5,6:3"]);
+    pipeline.onVoxelChange(5, 6, 3);
+
+    expect(pipeline.onJobComplete("5,6:3", generation)).toBe(false);
+
+    expect(pipeline.dirtyCount).toBe(1);
+    expect(pipeline.getDirtyKeys()).toEqual(["5,6:3"]);
+    expect(pipeline.needsRemesh("5,6:3")).toBe(true);
+    expect(pipeline.shouldStartJob("5,6:3")).toBe(true);
+  });
+
   it("a healthy in-flight job is never expired", () => {
     const pipeline = new MeshPipeline();
     pipeline.onVoxelChange(4, 4, 0);
