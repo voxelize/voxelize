@@ -13,6 +13,7 @@ import {
   type AgentEventMap,
   CAPTURE_CAVEATS_HEADER,
   type CaptureCaveat,
+  type CommandDispatch,
   type ConnectionSnapshot,
 } from "./bridge";
 import { DEFAULT_IDLE_TTL_MS } from "./browser-lifecycle";
@@ -22,6 +23,16 @@ import {
   parseCaptureViewportQuery,
 } from "./capture-viewport";
 import type { ClientUpdateMode } from "./client-updates";
+import {
+  DEFAULT_FILL_LANDING,
+  FillLandingError,
+  FillPageUnavailableError,
+  MAX_FILL_LANDING_VOLUME,
+  boxVolume,
+  fillLandingTimeoutMs,
+  landFill,
+  type FillBox,
+} from "./fill-landing";
 import { computeFramePose } from "./frame-pose";
 import { CappedFrameRateError } from "./frame-rate-guard";
 import {
@@ -49,6 +60,7 @@ import {
   type RememberedPose,
 } from "./pose-memory";
 import { replayPose } from "./pose-restore";
+import { DEFAULT_ARENA_METHODS } from "./scenario";
 import {
   SessionMetaError,
   applySessionMetaPatch,
@@ -298,6 +310,18 @@ function sanitizeFileLabel(label: string): string {
   return label.replace(/[^a-z0-9_-]/gi, "_");
 }
 
+const describeError = (error: unknown): string =>
+  error instanceof Error ? error.message : String(error);
+
+/** A page call that failed because the page could not answer now (stalled,
+ * reloading, its bridge not yet back), not because the call was wrong. */
+function isPageUnavailable(error: unknown): boolean {
+  if (error instanceof PageStallError) return true;
+  return /Agent bridge is not installed|Execution context was destroyed|Target closed|Session closed|detached Frame/i.test(
+    describeError(error),
+  );
+}
+
 const vec3Schema = z.object({
   x: z.number(),
   y: z.number(),
@@ -311,6 +335,14 @@ const faceInputSchema = z.union([
 ]);
 
 const walkDirectionSchema = z.enum(["forward", "back", "left", "right"]);
+
+const voxelTupleSchema = z.tuple([z.number(), z.number(), z.number()]);
+
+// The host's fill payload, one box: min, max and block are read back; the
+// rest (rotation, stage) goes to the host method untouched.
+const fillBoxSchema = z
+  .object({ min: voxelTupleSchema, max: voxelTupleSchema, block: z.string() })
+  .passthrough();
 
 const actSchema = z.discriminatedUnion("type", [
   z.object({ type: z.literal("chat"), text: z.string() }),
@@ -363,6 +395,21 @@ const actSchema = z.discriminatedUnion("type", [
     type: z.literal("call"),
     method: z.string(),
     payload: z.unknown(),
+  }),
+  z.object({
+    type: z.literal("fill"),
+    /** The host's fill method; the scenario SDK's default when absent. */
+    method: z.string().optional(),
+    fills: z.array(fillBoxSchema).min(1),
+    /** false: send and report the dispatches, read nothing back. */
+    isVerifying: z.boolean().optional(),
+    timeoutMs: z.number().positive().optional(),
+    maxSends: z.number().int().min(1).max(10).optional(),
+  }),
+  z.object({
+    type: z.literal("lose-calls"),
+    method: z.string(),
+    count: z.number().int().min(0).max(100),
   }),
   z.object({
     type: z.literal("break-voxel"),
@@ -1648,6 +1695,10 @@ export class AgentDaemon {
             outcome: e.outcome,
           };
         }
+        if (e instanceof FillLandingError) {
+          reply.code(422);
+          return { ok: false, error: e.message, report: e.report };
+        }
         const message = e instanceof Error ? e.message : String(e);
         reply.code(500);
         return { ok: false, error: message };
@@ -2617,6 +2668,80 @@ export class AgentDaemon {
     return result;
   }
 
+  /**
+   * The host's fill method, read back until every voxel holds its block.
+   * A sent call is not a landed one: the core drops a page that stops
+   * draining its socket, and calls it had not read yet go with it, while
+   * the page reports them sent. Lost sends go out again; what never lands
+   * fails the act and is named in the report and the log.
+   */
+  private async fill(
+    action: Extract<z.infer<typeof actSchema>, { type: "fill" }>,
+  ): Promise<unknown> {
+    const method = action.method ?? DEFAULT_ARENA_METHODS.fill;
+    const boxes = action.fills as FillBox[];
+    const send = async (box: FillBox): Promise<CommandDispatch> => {
+      try {
+        return (await this.callMethod(method, box)) as CommandDispatch;
+      } catch (error) {
+        if (isPageUnavailable(error)) {
+          throw new FillPageUnavailableError(describeError(error));
+        }
+        throw error;
+      }
+    };
+    if (action.isVerifying === false) {
+      const sends: CommandDispatch[] = [];
+      for (const box of boxes) sends.push(await send(box));
+      return { isVerified: false, sends };
+    }
+    const volume = boxes.reduce((sum, box) => sum + boxVolume(box), 0);
+    if (volume > MAX_FILL_LANDING_VOLUME) {
+      throw new Error(
+        `a fill of ${volume} voxels is past the ${MAX_FILL_LANDING_VOLUME} this daemon reads back; ` +
+          `split it, or send it unverified`,
+      );
+    }
+    const report = await landFill(
+      boxes,
+      {
+        send,
+        census: async (censusBoxes) => {
+          try {
+            return await this.agent.voxelCensus(censusBoxes);
+          } catch (error) {
+            if (isPageUnavailable(error)) {
+              throw new FillPageUnavailableError(describeError(error));
+            }
+            throw error;
+          }
+        },
+        connection: () => this.freshness.lastConnection,
+        now: () => Date.now(),
+        sleep: (ms) => new Promise((resolve) => setTimeout(resolve, ms)),
+      },
+      {
+        ...DEFAULT_FILL_LANDING,
+        timeoutMs: action.timeoutMs ?? fillLandingTimeoutMs(volume),
+        maxSends: action.maxSends ?? DEFAULT_FILL_LANDING.maxSends,
+      },
+    );
+    const resent = report.boxes.some((box) => box.sends.length > 1);
+    if (report.status !== "landed" || resent) {
+      console.log(
+        `[agent-daemon] ${new Date().toISOString()} ${method} ${report.status}: ${report.message}${
+          report.status === "landed"
+            ? ` (sends: ${report.boxes
+                .flatMap((box) => box.sends.map((s) => s.reason))
+                .join(", ")})`
+            : ""
+        }`,
+      );
+    }
+    if (report.status === "missing") throw new FillLandingError(report);
+    return report;
+  }
+
   private async executeAction(
     action: z.infer<typeof actSchema>,
   ): Promise<unknown> {
@@ -2712,6 +2837,22 @@ export class AgentDaemon {
         };
       case "call":
         return this.callMethod(action.method, action.payload);
+      case "fill":
+        return this.fill(action);
+      case "lose-calls": {
+        const remaining = await this.agent.loseCalls(
+          action.method,
+          action.count,
+        );
+        console.log(
+          `[agent-daemon] ${new Date().toISOString()} ${
+            remaining > 0
+              ? `the page will swallow the next ${remaining} ${action.method} call(s) on purpose, as a dropped socket does`
+              : `the page swallows no ${action.method} calls any more`
+          }`,
+        );
+        return { method: action.method, remaining };
+      }
       case "break-voxel":
         return this.agent.breakVoxel(action.pos);
       case "place-voxel":
