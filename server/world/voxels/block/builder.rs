@@ -7,7 +7,7 @@ use super::coupled::coupled_guard_fns;
 use super::rules::{attached_support_fns, solid_below_support_fns};
 use super::{
     Block, BlockDynamicPattern, BranchKind, BranchSeat, BranchShape, BranchSocket, ConnectedFrame,
-    CoupledPart, SupportRequirement, YRotatableSegments,
+    CoupledPart, StageFaces, SupportRequirement, YRotatableSegments,
 };
 
 #[derive(Default)]
@@ -64,6 +64,7 @@ pub struct BlockBuilder {
     branch_sockets: Vec<BranchSocket>,
     branch_shell: bool,
     rotation_bits_are_state: bool,
+    stage_faces: Option<(u32, Vec<BlockFace>)>,
     dynamic_fn: Option<
         Arc<
             dyn Fn(Vec3<i32>, &dyn VoxelAccess, &Registry) -> (Vec<BlockFace>, Vec<AABB>, [bool; 6])
@@ -543,6 +544,16 @@ impl BlockBuilder {
         self
     }
 
+    /// Wear `faces` instead of the block's own on a voxel whose stage holds
+    /// any of `mask`'s bits ([`Block::stage_faces`]): the same cube in
+    /// another look, as a canopy in flower wears its blossoms over its
+    /// leaves. Each face stands in for the block's face toward the same
+    /// side, and takes the tint and glow the block gives its own.
+    pub fn stage_faces(mut self, mask: u32, faces: &[BlockFace]) -> Self {
+        self.stage_faces = Some((mask, faces.to_vec()));
+        self
+    }
+
     /// Configure the function that is used to create dynamic AABBs and faces for this block.
     pub fn dynamic_fn<
         F: Fn(Vec3<i32>, &dyn VoxelAccess, &Registry) -> (Vec<BlockFace>, Vec<AABB>, [bool; 6])
@@ -635,6 +646,61 @@ impl BlockBuilder {
                 face.emissive = *strength;
             }
         }
+        let stage_faces = self.stage_faces.map(|(mask, mut alternates)| {
+            assert!(
+                mask != 0 && mask <= 0xF,
+                "{}: stage faces answer to stage bits, not {mask:#x}",
+                self.name
+            );
+            assert!(
+                !self.is_fluid
+                    && self.branch.is_none()
+                    && !self.branch_shell
+                    && self.connected.is_none()
+                    && self.dynamic_fn.is_none()
+                    && self.dynamic_patterns.is_none(),
+                "{}: stage faces dress a plain block, not a fluid, branch, shell, frame or dynamic one",
+                self.name
+            );
+            let tint_bits = faces
+                .iter()
+                .fold(0, |bits, face| bits | face.stage_tint_mask | face.pigment_mask);
+            assert!(
+                tint_bits & mask == 0,
+                "{}: stage bits {mask:#06b} pick its faces and cannot also pick a tint ({tint_bits:#06b})",
+                self.name
+            );
+            assert_eq!(
+                alternates.len(),
+                faces.len(),
+                "{}: every face needs one stage face to stand in for it",
+                self.name
+            );
+            for alternate in &mut alternates {
+                assert!(
+                    !alternate.independent && !alternate.isolated,
+                    "{}: stage face {} must share the atlas",
+                    self.name,
+                    alternate.name
+                );
+                let own: Vec<&BlockFace> =
+                    faces.iter().filter(|face| face.dir == alternate.dir).collect();
+                let [own] = own.as_slice() else {
+                    panic!(
+                        "{}: stage face {} stands in for no single face toward {:?}",
+                        self.name, alternate.name, alternate.dir
+                    );
+                };
+                alternate.stage_tint_mask = own.stage_tint_mask;
+                alternate.pigment_mask = own.pigment_mask;
+                alternate.regional_tint = own.regional_tint;
+                alternate.emissive = own.emissive;
+            }
+            StageFaces {
+                mask,
+                faces: alternates,
+            }
+        });
         if let Some(frame) = &self.connected {
             assert!(
                 !self.rotatable && !self.y_rotatable,
@@ -826,6 +892,7 @@ impl BlockBuilder {
             branch_sockets: self.branch_sockets,
             branch_shell: self.branch_shell,
             rotation_bits_are_state: self.rotation_bits_are_state,
+            stage_faces,
             dynamic_fn: self.dynamic_fn,
             is_active: active_updater.is_some() && active_ticker.is_some(),
             active_ticker,

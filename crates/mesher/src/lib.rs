@@ -6,7 +6,8 @@ pub use mesher::{
     BranchBeyond, BranchBlocks, BranchCell, BranchKind, BranchLayout, BranchPart, BranchPartKind,
     BranchQuad, BranchSeat, BranchShape, BranchSide, BranchSocket, BranchTexture, ChunkData,
     ConnectedFrame, GeometryProtocol, MeshConfig, MeshInput, MeshInputNoRegistry, MeshOutput,
-    Registry, WideBranchBits, WideBranchSection, WideCell, CONNECTIVITY_FACES, CONNECTIVITY_FULL,
+    Registry, StageFaces, WideBranchBits, WideBranchSection, WideCell, CONNECTIVITY_FACES,
+    CONNECTIVITY_FULL,
     CONNECTIVITY_SEALED, VOXEL_NEIGHBORS,
 };
 

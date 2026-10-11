@@ -37,6 +37,7 @@ import {
   FAR_LAYER_SIZE,
   FAR_MATERIAL_TEXELS,
   FAR_TINTED_LAYER,
+  farFaceKey,
   farMaterialFaces,
   FarMaterialTable,
   farPaletteTable,
@@ -171,7 +172,9 @@ export type FarTerrainOptions = {
    * reads them off the atlas), or null while its texture is not painted
    * yet. Used to paint the descriptor's `materials`.
    */
-  faceLook: ((block: number, side: FarFaceSide) => FarFaceLook | null) | null;
+  faceLook:
+    | ((block: number, side: FarFaceSide, stage: number) => FarFaceLook | null)
+    | null;
   /**
    * How long a face may stay unreadable before the layer paints it grey and
    * says so, rather than never drawing.
@@ -1375,8 +1378,8 @@ export class FarTerrain extends Group {
     let pending = 0;
     let read = 0;
     const trees = this.descriptor?.trees ?? [];
-    for (const [block, side] of farMaterialFaces(materials, trees)) {
-      const key = `${block}:${side}`;
+    for (const [block, side, stage] of farMaterialFaces(materials, trees)) {
+      const key = farFaceKey(block, side, stage);
       if (this.faceLooks.has(key)) continue;
       if (
         read > 0 &&
@@ -1386,7 +1389,7 @@ export class FarTerrain extends Group {
         continue;
       }
       const readAt = performance.now();
-      const look = faceLook(block, side);
+      const look = faceLook(block, side, stage);
       read += 1;
       this.stats.faceLookMs += performance.now() - readAt;
       if (look) {
@@ -1411,7 +1414,8 @@ export class FarTerrain extends Group {
     if (pending > 0) return false;
     const table = buildFarMaterialTable(
       materials,
-      (block, side) => this.faceLooks.get(`${block}:${side}`) ?? GREY_LOOK,
+      (block, side, stage) =>
+        this.faceLooks.get(farFaceKey(block, side, stage)) ?? GREY_LOOK,
       trees,
     );
     const seabed = this.descriptor?.seabedMaterial;

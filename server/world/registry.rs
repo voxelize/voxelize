@@ -146,7 +146,11 @@ impl Registry {
         let mut ungrouped_faces = 0;
 
         for block in all_blocks.iter() {
-            for face in block.faces.iter() {
+            let stage_faces = block
+                .stage_faces
+                .iter()
+                .flat_map(|stage| stage.faces.iter());
+            for face in block.faces.iter().chain(stage_faces) {
                 if face.independent || face.isolated {
                     continue;
                 }
@@ -209,7 +213,11 @@ impl Registry {
         }
 
         for block in all_blocks {
-            for face in block.faces.iter_mut() {
+            let stage_faces = block
+                .stage_faces
+                .iter_mut()
+                .flat_map(|stage| stage.faces.iter_mut());
+            for face in block.faces.iter_mut().chain(stage_faces) {
                 if face.independent || face.isolated {
                     continue;
                 }
@@ -244,6 +252,7 @@ impl Registry {
                 .get_mut(&block.name.to_lowercase())
                 .unwrap();
             block_by_name.faces = block.faces.clone();
+            block_by_name.stage_faces = block.stage_faces.clone();
             block_by_name.dynamic_patterns = block.dynamic_patterns.clone();
         });
     }

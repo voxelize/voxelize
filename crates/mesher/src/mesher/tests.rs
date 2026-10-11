@@ -302,6 +302,7 @@ fn full_block_diagonal_block() -> Block {
         branch: None,
         branch_shell: false,
         branch_sockets: vec![],
+        stage_faces: None,
     }
 }
 
@@ -702,6 +703,7 @@ fn upward_stair_face_samples_light_from_opaque_block_above() {
         branch: None,
         branch_shell: false,
         branch_sockets: vec![],
+        stage_faces: None,
     };
 
     let stone_block = Block {
@@ -737,6 +739,7 @@ fn upward_stair_face_samples_light_from_opaque_block_above() {
         branch: None,
         branch_shell: false,
         branch_sockets: vec![],
+        stage_faces: None,
     };
 
     let mut registry = Registry::new(vec![(1, stair_block), (2, stone_block)]);
@@ -840,6 +843,7 @@ fn plain_block(id: u32, name: &str) -> Block {
         branch: None,
         branch_shell: false,
         branch_sockets: vec![],
+        stage_faces: None,
     }
 }
 
@@ -2577,6 +2581,162 @@ fn a_full_corner_meets_the_wall_pouring_onto_it_unless_a_ceiling_takes_the_plane
             (corner.pos[1] - 1.0).abs() < 1e-6,
             "a wall under stacked fluid reaches the voxel boundary, got {}",
             corner.pos[1]
+        );
+    }
+}
+
+/// A voxel whose stage holds its block's stage-face bits wears the stage
+/// faces, on the greedy path and off it: three cubes in a row with the
+/// middle one flowering mesh as three columns of quads, the middle one in
+/// the other slot of the atlas; with no bit (or a bit the mask does not
+/// name) they merge in their own look.
+#[test]
+fn a_voxel_wears_its_stage_faces_where_its_stage_says() {
+    struct StagedSpace([u32; 3]);
+    impl VoxelAccess for StagedSpace {
+        fn get_voxel(&self, x: i32, y: i32, z: i32) -> u32 {
+            u32::from((0..=2).contains(&x) && y == 0 && z == 0)
+        }
+        fn get_raw_voxel(&self, x: i32, y: i32, z: i32) -> u32 {
+            self.get_voxel(x, y, z)
+        }
+        fn get_voxel_rotation(&self, _: i32, _: i32, _: i32) -> BlockRotation {
+            BlockRotation::PY(0.0)
+        }
+        fn get_voxel_stage(&self, x: i32, _: i32, _: i32) -> u32 {
+            self.0[x.clamp(0, 2) as usize]
+        }
+        fn get_voxel_waterlogged(&self, _: i32, _: i32, _: i32) -> bool {
+            false
+        }
+        fn get_voxel_fluid_level(&self, _: i32, _: i32, _: i32) -> u32 {
+            0
+        }
+        fn get_sunlight(&self, _: i32, _: i32, _: i32) -> u32 {
+            15
+        }
+        fn get_torch_light(&self, _: i32, _: i32, _: i32, _: LightColor) -> u32 {
+            0
+        }
+        fn get_all_lights(&self, _: i32, _: i32, _: i32) -> (u32, u32, u32, u32) {
+            (15, 0, 0, 0)
+        }
+        fn get_max_height(&self, _: i32, _: i32) -> u32 {
+            1
+        }
+        fn contains(&self, x: i32, y: i32, z: i32) -> bool {
+            (-1..=3).contains(&x) && (-1..=1).contains(&y) && (-1..=1).contains(&z)
+        }
+    }
+    let slot = |start_u: f32| UV {
+        start_u,
+        end_u: start_u + 0.5,
+        start_v: 0.0,
+        end_v: 0.5,
+    };
+    // The per-voxel path draws a face from its corners, so the top one gets
+    // them; the greedy path draws every face from its direction alone.
+    let top = [
+        ([0.0, 1.0, 1.0], [0.0, 1.0]),
+        ([1.0, 1.0, 1.0], [1.0, 1.0]),
+        ([0.0, 1.0, 0.0], [0.0, 0.0]),
+        ([1.0, 1.0, 0.0], [1.0, 0.0]),
+    ]
+    .map(|(pos, uv)| CornerData { pos, uv });
+    let with_range = |range: UV| {
+        six_faces()
+            .into_iter()
+            .map(|face| BlockFace {
+                range: range.clone(),
+                corners: if face.dir == [0, 1, 0] {
+                    top.clone()
+                } else {
+                    face.corners
+                },
+                ..face
+            })
+            .collect::<Vec<_>>()
+    };
+    let mut cube = plain_block(1, "Flowering cube");
+    cube.is_opaque = true;
+    cube.faces = with_range(slot(0.0));
+    cube.stage_faces = Some(StageFaces {
+        mask: 0b0001,
+        faces: with_range(slot(0.5)),
+    });
+    let air = Block {
+        is_empty: true,
+        aabbs: vec![],
+        ..plain_block(0, "Air")
+    };
+    // Each quad's lowest u, keyed by the voxel it lies over; a face across
+    // x lies between two voxels, so it is keyed -1.
+    let mesh = |registry: &Registry, stages: [u32; 3]| -> Vec<(i32, f32)> {
+        mesh_space_greedy(&[0, 0, 0], &[3, 1, 1], &StagedSpace(stages), registry)
+            .iter()
+            .flat_map(|g| {
+                g.positions
+                    .chunks_exact(12)
+                    .zip(g.uvs.chunks_exact(8))
+                    .map(|(quad, uvs)| {
+                        let xs = (0..4).map(|v| quad[v * 3]);
+                        let (lo, hi) =
+                            xs.fold((f32::MAX, f32::MIN), |(lo, hi), x| (lo.min(x), hi.max(x)));
+                        let u = (0..4).map(|v| uvs[v * 2]).fold(f32::MAX, f32::min);
+                        let over = if hi - lo < 0.5 {
+                            -1
+                        } else {
+                            ((lo + hi) / 2.0).floor() as i32
+                        };
+                        (over, u)
+                    })
+                    .collect::<Vec<_>>()
+            })
+            .collect()
+    };
+    for non_greedy in [false, true] {
+        let mut cube = cube.clone();
+        if non_greedy {
+            // A dynamic block meshes face by face, off the greedy path.
+            cube.is_animated = true;
+        }
+        let mut registry = Registry::new(vec![(0, air.clone()), (1, cube)]);
+        registry.build_cache();
+        let path = if non_greedy { "per voxel" } else { "greedy" };
+
+        let plain = mesh(&registry, [0, 0, 0]);
+        assert!(
+            plain.iter().all(|&(_, u)| u < 0.5),
+            "{path}: unflowered cubes wear their own faces"
+        );
+        assert_eq!(
+            mesh(&registry, [8, 8, 8]).len(),
+            plain.len(),
+            "{path}: a bit the mask does not name changes nothing"
+        );
+        if !non_greedy {
+            assert_eq!(plain.len(), 6, "a plain row merges into one box");
+        }
+
+        let flowering = mesh(&registry, [0, 1, 0]);
+        if !non_greedy {
+            assert_eq!(
+                flowering.len(),
+                14,
+                "the flowering cube splits the row's four long sides in three"
+            );
+        }
+        for &(x, u) in flowering.iter().filter(|(x, _)| *x >= 0) {
+            let wears_stage = u >= 0.5;
+            assert_eq!(
+                wears_stage,
+                x == 1,
+                "{path}: a quad over voxel {x} samples u {u}"
+            );
+        }
+        assert!(
+            flowering.iter().any(|&(x, u)| x == 1 && u >= 0.5),
+            "{path}: the flowering cube shows its stage faces: {flowering:?}"
         );
     }
 }

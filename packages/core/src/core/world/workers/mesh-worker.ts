@@ -106,6 +106,9 @@ type WasmBlock = {
   branch: BranchShape | null;
   branchSockets: BranchSocket[];
   branchShell: boolean;
+  // Mirrors `stage_faces`: without it a voxel whose stage picks the block's
+  // other look re-meshes locally in its plain one.
+  stageFaces: { mask: number; faces: WasmBlock["faces"] } | null;
 };
 
 // Mirrors `ConnectedFrame` in crates/mesher/src/mesher/types.rs. Dropping it
@@ -188,6 +191,7 @@ type RawWasmBlock = {
   branch?: BranchShape | null;
   branchSockets?: BranchSocket[];
   branchShell?: boolean;
+  stageFaces?: { mask: number; faces: RawWasmFace[] } | null;
 };
 
 type GeometryProtocol = {
@@ -483,6 +487,12 @@ export function convertRegistryToWasm(rawRegistry: {
         branch: block.branch ?? null,
         branchSockets: block.branchSockets ?? [],
         branchShell: block.branchShell ?? false,
+        stageFaces: block.stageFaces
+          ? {
+              mask: block.stageFaces.mask,
+              faces: convertFaces(block.stageFaces.faces),
+            }
+          : null,
       };
       return [id, wasmBlock];
     },

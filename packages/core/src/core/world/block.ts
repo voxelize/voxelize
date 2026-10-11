@@ -304,6 +304,14 @@ export type Block = {
   branchShell: boolean;
 
   /**
+   * The faces a voxel wears instead of {@link faces} while its stage holds
+   * any of `mask`'s bits: the same cube in another look, each face standing
+   * in for the face toward the same side. `null` (or absent) for a block
+   * with one look. Mirrors the server `stage_faces`.
+   */
+  stageFaces?: { mask: number; faces: Block["faces"] } | null;
+
+  /**
    * Raw bits 16-23 of this block's voxels hold the block's own state, not a
    * rotation: {@link World.getVoxelRotationAt} reads the identity rotation
    * for it, and its rotation cannot be set. Mirrors the server
@@ -337,6 +345,30 @@ export type Block = {
   /** Server-authored initial data for this block's entity. */
   defaultEntityJson?: string | null;
 };
+
+/**
+ * Every face a block can draw: its own, then its stage faces
+ * ({@link Block.stageFaces}), which share its atlas.
+ */
+export function everyFaceOf(block: Pick<Block, "faces" | "stageFaces">) {
+  return block.stageFaces
+    ? [...block.faces, ...block.stageFaces.faces]
+    : block.faces;
+}
+
+/**
+ * The faces a voxel of `block` at `stage` wears: its stage faces while the
+ * stage holds any of their bits, its own otherwise (the mesher's
+ * `Block::faces_at`).
+ */
+export function facesAt(
+  block: Pick<Block, "faces" | "stageFaces">,
+  stage: number,
+): Block["faces"] {
+  return block.stageFaces && (stage & block.stageFaces.mask) !== 0
+    ? block.stageFaces.faces
+    : block.faces;
+}
 
 /**
  * A block update to make on the server.
