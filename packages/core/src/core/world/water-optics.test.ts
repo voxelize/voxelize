@@ -157,6 +157,42 @@ describe("cheap analytic water gloss", () => {
     );
   });
 
+  it("keeps the sky and the sun off water that sees no sky", () => {
+    // The ramp sits inside the light grid's range and leaves full sunlight
+    // (open water) wholly on it, so open water is untouched.
+    expect(WATER_OPTICS.skyExposureNone).toBeGreaterThanOrEqual(0);
+    expect(WATER_OPTICS.skyExposureNone).toBeLessThan(
+      WATER_OPTICS.skyExposureFull,
+    );
+    expect(WATER_OPTICS.skyExposureFull).toBeLessThan(1);
+    expect(WATER_OPTICS.enclosedReflectance).toBeGreaterThan(0);
+    expect(WATER_OPTICS.enclosedReflectance).toBeLessThan(1);
+
+    const fragment = SHADER_LIGHTING_FLUID_CHUNK_SHADERS.fragment;
+    const skyOpenAt = fragment.indexOf("float skyOpen = smoothstep(");
+    expect(skyOpenAt).toBeGreaterThan(-1);
+    expect(fragment.slice(skyOpenAt, skyOpenAt + 120)).toContain("sunExposure");
+    // The reflection falls back to the lit surroundings before the
+    // underside and every highlight read it.
+    const enclosedAt = fragment.indexOf(
+      "skyReflection = mix(\n    totalLight *",
+    );
+    expect(enclosedAt).toBeGreaterThan(skyOpenAt);
+    expect(enclosedAt).toBeLessThan(
+      fragment.indexOf("vec3 belowSurfaceSky = mix("),
+    );
+    // Lobes, glint, surface caustics and the glitter from below all ride
+    // the beam, so gating it gates them all.
+    const beam = "float sunBeam = uSunlightIntensity * uDirectSunlight;";
+    expect(fragment).toContain(`${beam}\n  // Nor does a surface`);
+    expect(fragment).toContain("sunBeam *= skyOpen;");
+    expect(fragment).toContain(
+      "deepScatter = mix(baseWater, deepScatter, skyOpen);",
+    );
+    // Terrain shaders compile the branch out but still parse it.
+    expect(SHADER_LIGHTING_CHUNK_SHADERS.fragment).toContain("if (false) {");
+  });
+
   it("reflects the sky dome's own gradient along the reflected ray", () => {
     const fragment = SHADER_LIGHTING_FLUID_CHUNK_SHADERS.fragment;
     // Same offset and exponent as the sky shader and the sky fog, so the

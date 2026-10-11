@@ -1185,6 +1185,15 @@ if (vIsFluid > 0.5) {
     distToCamera
   );
 
+  // How much of the sky this surface sees: the voxel sunlight on it, which
+  // water passes through unchanged, so open water reads 1 and a pool sealed
+  // in rock 0. Gates everything the sky and the sun put on the water.
+  float skyOpen = smoothstep(
+    ${WATER_OPTICS.skyExposureNone.toFixed(4)},
+    ${WATER_OPTICS.skyExposureFull.toFixed(4)},
+    sunExposure
+  );
+
   // Side and bottom faces keep their geometric normal. Top faces read theirs
   // from the tileable ripple slope map, sampled at three world scales and
   // summed (WATER_OPTICS.surfaceNormalLayers): a swell, ripples on it, and
@@ -1313,6 +1322,13 @@ ${WATER_SURFACE_NORMAL_LAYERS_GLSL}
     uSkyTopColor,
     pow(max(skyH, 0.0), uSkyFogExponent)
   );
+  // A surface that sees no sky mirrors the rock around it instead, lit the
+  // way the surface itself is: a cave pool reads dark, a lamp's pool warm.
+  skyReflection = mix(
+    totalLight * ${WATER_OPTICS.enclosedReflectance.toFixed(4)},
+    skyReflection,
+    skyOpen
+  );
 
   // Seen from below, the surface only transmits sky within the Snell window
   // overhead; grazing angles reflect the dark water body instead.
@@ -1333,6 +1349,8 @@ ${WATER_SURFACE_NORMAL_LAYERS_GLSL}
   // The lobes, the glint, the surface caustics and the glitter from below
   // are all the sun's beam: a sky that scatters it leaves none to mirror.
   float sunBeam = uSunlightIntensity * uDirectSunlight;
+  // Nor does a surface that sees no sky have a sun to mirror.
+  sunBeam *= skyOpen;
   vec3 halfVec = normalize(uCelestialDirection + viewDir);
   float specAngle = max(dot(waterNormal, halfVec), 0.0);
   float spec32 = specAngle * specAngle;
@@ -1550,6 +1568,10 @@ ${LOCAL_LIGHTS_SPECULAR_FRAGMENT}
       * min(vFluidDepthBelow, 16.0)
       * ${WATER_OPTICS.aboveSurfaceScatterDepthScale.toFixed(4)}
     );
+    // That in-scatter is daylight let down through the surface. Where the
+    // surface sees no sky the deep body holds only the light that is there:
+    // the water lit as it stands (lamps, the ambient floor).
+    deepScatter = mix(baseWater, deepScatter, skyOpen);
     waterColor = mix(deepScatter, waterColor, deepTransmit);
     diffuseColor.a = 1.0 - (1.0 - diffuseColor.a) * deepTransmit;
   }
