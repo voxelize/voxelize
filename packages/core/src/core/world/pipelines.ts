@@ -627,6 +627,16 @@ export class MeshPipeline {
     }
 
     state.displayedGeneration = jobGeneration;
+    // The newest generation is on screen, so the key has nothing left to
+    // mesh. It can still be dirty: the watchdog re-queues a job it expired
+    // (one held past its ceiling waiting on a neighbour) and that job may
+    // land before the key is dispatched again. Only a dispatch takes a key
+    // out of the dirty set, and none would start for a key that is current,
+    // so it would hold the dirty count up for the rest of the session.
+    if (jobGeneration === state.generation) {
+      this.dirty.delete(key);
+      this.urgentDirty.delete(key);
+    }
     return true;
   }
 
