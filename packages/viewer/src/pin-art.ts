@@ -166,11 +166,32 @@ export function paintCap(
   px(ctx, shade(metal, 0.66), x + w - 1, y + 1, 1, Math.max(1, h - 1));
 }
 
+/** An X: Remove pin's icon in red, the card's close button in the light tone. */
+const CROSS = [
+  "................",
+  "................",
+  "..ooo......ooo..",
+  "..orro....orro..",
+  "..orrro..orrro..",
+  "...orrrooorrro..",
+  "....orrrrrrro...",
+  ".....orrrrro....",
+  ".....orrrrro....",
+  "....orrrrrrro...",
+  "...orrrooorrro..",
+  "..orrro..orrro..",
+  "..orro....orro..",
+  "..ooo......ooo..",
+  "................",
+  "................",
+];
+
 /**
  * The built-in 16x16 icons, as pixel maps: `o` outline, `l` `m` `d` a light,
  * mid and dark ramp, `a` the theme's accent, `r` a red, `.` clear.
  */
 const ICONS: Record<string, string[]> = {
+  close: CROSS.map((row) => row.replace(/r/g, "l")),
   spawn: [
     "................",
     "....oooooooo....",
@@ -297,24 +318,7 @@ const ICONS: Record<string, string[]> = {
     "................",
     "................",
   ],
-  remove: [
-    "................",
-    "................",
-    "..ooo......ooo..",
-    "..orro....orro..",
-    "..orrro..orrro..",
-    "...orrrooorrro..",
-    "....orrrrrrro...",
-    ".....orrrrro....",
-    ".....orrrrro....",
-    "....orrrrrrro...",
-    "...orrrooorrro..",
-    "..orrro..orrro..",
-    "..orro....orro..",
-    "..ooo......ooo..",
-    "................",
-    "................",
-  ],
+  remove: CROSS,
   pin: [
     "................",
     ".....oooooo.....",

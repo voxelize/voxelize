@@ -71,7 +71,12 @@ ${p}-tag { position: absolute; left: 0; top: 0; padding: 1px 5px; white-space: n
   background: ${theme.panel}; ${bevel} box-shadow: 2px 2px 0 ${theme.shadow}; }
 ${p}-tag.is-selected { border-color: ${theme.accent}; }
 ${p}-card { position: absolute; left: 0; top: 0; padding: 6px 8px; min-width: 150px; }
-${p}-card-title { color: ${theme.accent}; margin-bottom: 3px; }
+${p}-card-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-bottom: 3px; }
+${p}-card-title { color: ${theme.accent}; }
+${p}-card-close { display: flex; padding: 0; margin: -3px -5px 0 0; background: none;
+  border: 2px solid transparent; cursor: pointer; pointer-events: auto; }
+${p}-card-close img { width: 16px; height: 16px; }
+${p}-card-close:hover { border-color: ${theme.accent}; }
 ${p}-row { display: flex; justify-content: space-between; gap: 12px; }
 ${p}-row span:first-child { color: ${theme.textMuted}; }
 ${p}-card-actions { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 6px; pointer-events: auto; }

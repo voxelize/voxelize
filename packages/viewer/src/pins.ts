@@ -42,40 +42,6 @@ export function measure(from: Vec3, to: Vec3): Measurement {
   };
 }
 
-/** How far a view may go from the pin before leaving it behind: `spans` widths of what the frame shows there, never under `minBlocks`. */
-export type LeaveBehind = { spans: number; minBlocks: number };
-
-/** Two frames' widths, and never closer than sixteen chunks. */
-export const DEFAULT_LEAVE_BEHIND: LeaveBehind = { spans: 2, minBlocks: 256 };
-
-/**
- * Follows the pin against the view, frame by frame. The view leaves the pin
- * behind once, having been within reach of it since it went up, it is
- * farther over the ground than `rule` allows. Reach is counted in frames, so
- * zooming out never leaves a pin; until the view has reached it (a link's
- * pin, before the link's camera arrives) it is never left.
- */
-export class PinTether {
-  private reached = false;
-
-  constructor(private readonly rule: LeaveBehind) {}
-
-  /** The pin went up or moved: the view has to reach it again. */
-  reset() {
-    this.reached = false;
-  }
-
-  /** How far over the ground the pin is from a view at `at` framing `span` blocks, once that view has left it behind; else null. */
-  check(pin: Vec3, at: Vec3, span: number): number | null {
-    const away = Math.hypot(pin[0] - at[0], pin[2] - at[2]);
-    if (away <= Math.max(this.rule.minBlocks, this.rule.spans * span)) {
-      this.reached = true;
-      return null;
-    }
-    return this.reached ? away : null;
-  }
-}
-
 /**
  * Where a player would stand at `point`, eyes `eyeHeight` over the top face
  * of the column (the block's centre), looking level along `yaw` (the

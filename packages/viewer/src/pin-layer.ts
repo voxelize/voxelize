@@ -8,8 +8,7 @@
  *
  * The pin is a voxel banner in every view's scene, with a card of what
  * the source knows about its column. It lives in the URL (`pin=x,y,z`),
- * so a link to the viewer carries it. It goes away by itself once the view
- * has gone far from it (`leaveBehind`).
+ * so a link to the viewer carries it. The × on its card takes it down.
  */
 import type { Camera, PerspectiveCamera, Scene } from "three";
 import { Vector3 } from "three";
@@ -18,13 +17,11 @@ import { builtinIcon } from "./pin-art";
 import { PIN_HEIGHT, PinModel, type PinLighting } from "./pin-model";
 import {
   formatCoordinates,
-  type LeaveBehind,
   measure,
   type Measurement,
   type Pin,
   type PinFact,
   pinFromUrl,
-  PinTether,
   serializePin,
   standingPose,
 } from "./pins";
@@ -59,8 +56,6 @@ export type PinHost = {
   releaseCamera(): void;
   pose(): Pose;
   preset(): string;
-  /** Where the view stands (a flying camera's eye, else the point it orbits) and how many blocks across its frame shows there. */
-  standpoint(): { point: Vec3; span: number };
   addBookmark(bookmark: Bookmark): Promise<Bookmark>;
 };
 
@@ -104,8 +99,6 @@ export type PinLayerOptions = {
   actions?: PinAction[];
   /** Keep the pin in the page URL (`pin=`). */
   persistInUrl: boolean;
-  /** The pin goes away once the view is this far from it; null keeps it wherever the view goes. */
-  leaveBehind: LeaveBehind | null;
 };
 
 type PinScene = {
@@ -198,8 +191,6 @@ export class PinLayer {
 
   private iconCache = new Map<string, string>();
 
-  private tether: PinTether | null;
-
   constructor(
     private readonly container: HTMLElement,
     private readonly host: PinHost,
@@ -221,9 +212,6 @@ export class PinLayer {
     this.measureLabel = this.panel(`${options.prefix}-measure`);
     this.wheel = new RadialWheel(this.ui, options.prefix);
     this.actions = [...builtinActions(), ...(options.actions ?? [])];
-    this.tether = options.leaveBehind
-      ? new PinTether(options.leaveBehind)
-      : null;
   }
 
   /** The pin, or null when there is none. */
@@ -526,13 +514,8 @@ export class PinLayer {
     return result;
   }
 
-  /** Per frame: the banner scaled, turned and dropped (or taken down, once left behind); its card and the measuring line placed. */
+  /** Per frame: the banner scaled, turned and dropped; its card and the measuring line placed. */
   update(camera: Camera, viewWidth: number, height: number) {
-    const away = this.leftBehind();
-    if (away !== null) {
-      this.remove();
-      this.say(`Left the pin ${Math.round(away)} blocks behind`);
-    }
     const pin = this.pin;
     if (!pin) {
       this.screen = null;
@@ -637,22 +620,7 @@ export class PinLayer {
     this.measuring = false;
     this.measurement = null;
     this.droppedAt = animate ? performance.now() : null;
-    this.tether?.reset();
     this.addModels();
-  }
-
-  /** How far the view has gone from the pin once it has left it behind; never mid-measure or with the wheel open. */
-  private leftBehind(): number | null {
-    if (
-      !this.tether ||
-      !this.pin ||
-      this.measuring ||
-      this.measurement ||
-      this.wheel.isOpen
-    )
-      return null;
-    const view = this.host.standpoint();
-    return this.tether.check(this.pin.point, view.point, view.span);
   }
 
   private clickPin(x: number, y: number) {
@@ -821,10 +789,13 @@ export class PinLayer {
     if (this.card.dataset.signature !== signature) {
       this.card.dataset.signature = signature;
       this.card.replaceChildren();
+      const head = document.createElement("div");
+      head.className = `${this.options.prefix}-card-head`;
       const title = document.createElement("div");
       title.className = `${this.options.prefix}-card-title`;
       title.textContent = "Pin";
-      this.card.append(title);
+      head.append(title, this.closeButton());
+      this.card.append(head);
       const facts = pin.facts.length
         ? pin.facts
         : [{ label: "Position", value: formatCoordinates(pin.point) }];
@@ -842,6 +813,29 @@ export class PinLayer {
     }
     this.card.style.display = "";
     this.card.style.transform = `translate(${Math.round(s.base[0] + 26)}px, ${Math.round(s.top[1])}px)`;
+  }
+
+  /** The × in the card's corner: takes the pin down. */
+  private closeButton(): HTMLButtonElement {
+    const button = document.createElement("button");
+    button.type = "button";
+    button.className = `${this.options.prefix}-card-close`;
+    button.title = "Remove pin";
+    button.setAttribute("aria-label", "Remove pin");
+    const icon = document.createElement("img");
+    icon.src =
+      this.options.theme.icons.close ??
+      builtinIcon("close", this.options.theme) ??
+      "";
+    icon.alt = "";
+    icon.draggable = false;
+    button.append(icon);
+    button.addEventListener("mousedown", (e) => e.preventDefault());
+    button.addEventListener("click", (e) => {
+      e.stopPropagation();
+      this.remove();
+    });
+    return button;
   }
 
   /** The card's action buttons, and a line saying the wheel holds the rest. */
@@ -1134,7 +1128,6 @@ function builtinActions(): PinAction[] {
       id: "remove",
       label: "Remove pin",
       key: "x",
-      card: true,
       run(ctx) {
         const removed = ctx.pins.remove();
         return {

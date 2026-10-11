@@ -132,18 +132,10 @@ Look from here (eye height at the pin), Measure from the pin (run, rise
 and slope to the next spot clicked, or to the spot the wheel was opened
 over), Bookmark (saved with the viewer server next to the config's), Copy
 share link, Copy coordinates, Remove, and Pin here over bare ground. A
-host adds its own with `pins.actions`. Spawn here, Fly here and Remove are
-also buttons on the pin's card, so nobody has to find the wheel to use them
-(Delete takes down a selected pin too); an action with `card: true` joins
-them there.
-
-The pin also goes away by itself once the view has left it behind: farther
-over the ground than two widths of what the frame shows, and never closer
-than 256 blocks (`pins.leaveBehind`, `DEFAULT_LEAVE_BEHIND`; null keeps it).
-Distance counts from a flying camera's eye or the point an orbit turns
-round, so turning around never drops it and zooming out never does; a
-measurement in progress keeps it, and a pin a link carries waits until the
-view has reached it.
+host adds its own with `pins.actions`. Spawn here and Fly here are also
+buttons on the pin's card, so nobody has to find the wheel to use them; an
+action with `card: true` joins them there. The × in the card's corner takes
+the pin down (so does Delete while the card is open).
 
 `ViewerHost.theme` dresses all of it (panel colours, bevels, accent, a
 pixel font, banner colours and an icon per action id); without one it

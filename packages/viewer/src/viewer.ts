@@ -52,12 +52,7 @@ import {
 } from "./overlays";
 import { type PinAction, PinLayer } from "./pin-layer";
 import type { PinLighting } from "./pin-model";
-import {
-  DEFAULT_LEAVE_BEHIND,
-  type LeaveBehind,
-  type Pin,
-  type PinFact,
-} from "./pins";
+import type { Pin, PinFact } from "./pins";
 import {
   type Bookmark,
   formatVec,
@@ -108,8 +103,6 @@ export type ViewerHost = {
     screenHeight?: number;
     /** Keep the pin in the page URL (`pin=x,y,z`); on by default. */
     persistInUrl?: boolean;
-    /** The pin goes away once the view is this far from it (`DEFAULT_LEAVE_BEHIND`); null keeps it wherever the view goes. */
-    leaveBehind?: LeaveBehind | null;
     /** Lines for the pin card from the column the backend reports (its `source` field). */
     describe?: (column: unknown) => PinFact[];
     /** Actions added to the wheel after the built-in ones. */
@@ -412,13 +405,6 @@ export class WorldViewer {
         releaseCamera: () => this.rig.cancelDrag(),
         pose: () => this.rig.pose(),
         preset: () => this.rig.preset,
-        standpoint: () => ({
-          point:
-            this.rig.preset === "free"
-              ? ([...this.rig.fly.eye] as Vec3)
-              : this.rig.focus(),
-          span: this.rig.span(),
-        }),
         addBookmark: (bookmark) => this.addBookmark(bookmark),
       },
       {
@@ -432,10 +418,6 @@ export class WorldViewer {
         describe: host.pins?.describe,
         actions: host.pins?.actions,
         persistInUrl: host.pins?.persistInUrl ?? true,
-        leaveBehind:
-          host.pins?.leaveBehind === undefined
-            ? DEFAULT_LEAVE_BEHIND
-            : host.pins.leaveBehind,
       },
       () => this.notify(true),
     );
