@@ -614,6 +614,11 @@ varying float vChunkReveal;
 uniform float uTime;
 uniform float uAtlasSize;
 uniform float uShowGreedyDebug;
+// Where a greedy face's texels come from. A chunk's are where it is drawn;
+// a voxel box that moves or turns (a felled tree) turns on a frame that
+// takes its points back to where they were meshed, so its texels ride it.
+uniform mat4 uGreedyFrame;
+uniform float uHasGreedyFrame;
 
 uniform vec3 uAmbientColor;
 uniform float uMinLightLevel;
@@ -915,13 +920,19 @@ if (uFarSeam > 0.0 && vIsFluid < 0.5) {
   if (vIsGreedy > 0.5) {
     float cellSize = 1.0 / uAtlasSize;
     float padding = cellSize / 4.0;
-    vec2 localUv = greedyFaceUv(vWorldNormal, fract(vWorldPosition.xyz));
+    vec3 greedyPosition = vWorldPosition.xyz;
+    vec3 greedyNormal = vWorldNormal;
+    if (uHasGreedyFrame > 0.5) {
+      greedyPosition = (uGreedyFrame * vec4(greedyPosition, 1.0)).xyz;
+      greedyNormal = normalize(mat3(uGreedyFrame) * greedyNormal);
+    }
+    vec2 localUv = greedyFaceUv(greedyNormal, fract(greedyPosition));
     
     vec2 cellMin = floor(vMapUv / cellSize) * cellSize;
     vec2 innerMin = cellMin + padding;
     float innerSize = cellSize - padding * 2.0;
     finalUv = innerMin + localUv * innerSize;
-    seamlessUv = innerMin + greedyFaceUv(vWorldNormal, vWorldPosition.xyz) * innerSize;
+    seamlessUv = innerMin + greedyFaceUv(greedyNormal, greedyPosition) * innerSize;
   } else {
     finalUv = vMapUv;
   }

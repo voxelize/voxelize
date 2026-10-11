@@ -1,5 +1,5 @@
 import type { GeometryProtocol } from "@voxelize/protocol";
-import type { Group } from "three";
+import { type Group, Matrix4, type Object3D } from "three";
 
 import type { BudgetedWorkOutcome } from "../../libs/instancing/frame-budget";
 import type { Coords3 } from "../../types";
@@ -21,8 +21,9 @@ export type VoxelBoxInput = {
 };
 
 export type VoxelBoxMesh = {
-  /** The box on the chunk materials, its lowest corner at the group's
-   * origin. Not added to anything: the caller places and moves it. */
+  /** The box on its own forks of the chunk materials, its lowest corner at
+   * the group's origin. Not added to anything: the caller places and moves
+   * it, and its textures ride it wherever it goes (`VoxelBoxTexelFrame`). */
   group: Group;
   triangles: number;
   /** Jobs the box was meshed in, one per band of rows. */
@@ -276,6 +277,47 @@ export function voxelBoxBandRows({
     bands.push({ firstRow, rows: Math.min(step, rows - firstRow) });
   }
   return bands;
+}
+
+const ORIGIN_TRANSLATION = new Matrix4();
+
+/**
+ * Where a voxel box's greedy faces take their texels from: the matrix that
+ * takes a world position of the box, drawn under `groupWorld`, back to where
+ * its voxel was meshed (its origin plus the box-local point). The chunk
+ * shader rebuilds a greedy quad's texels from the position and normal it
+ * shades (`greedyFaceUv`), so a box that moves or turns, a felled tree coming
+ * down, would otherwise slide its textures across itself and flip them as a
+ * face turns past 45 degrees. Read through this frame they ride the box at
+ * the density they had standing. Identity while the box stands where it was
+ * meshed.
+ */
+export function voxelBoxTexelFrame(
+  origin: Coords3,
+  groupWorld: Matrix4,
+  out: Matrix4,
+): Matrix4 {
+  ORIGIN_TRANSLATION.makeTranslation(origin[0], origin[1], origin[2]);
+  return out.copy(groupWorld).invert().premultiply(ORIGIN_TRANSLATION);
+}
+
+/**
+ * One box's `uGreedyFrame`, shared by its forks of the chunk materials. Its
+ * value is worked out from the group's world matrix whenever it is read,
+ * which the renderer does as it uploads the draw, so it always matches the
+ * matrices that draw the box that frame.
+ */
+export class VoxelBoxTexelFrame {
+  private readonly frame = new Matrix4();
+
+  constructor(
+    private readonly origin: Coords3,
+    private readonly group: Object3D,
+  ) {}
+
+  get value(): Matrix4 {
+    return voxelBoxTexelFrame(this.origin, this.group.matrixWorld, this.frame);
+  }
 }
 
 /** The widest box the world's vertex quantization can hold, in blocks. */
