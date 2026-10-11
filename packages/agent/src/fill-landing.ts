@@ -383,21 +383,30 @@ function describeBox(state: BoxState): string {
   return `${state.box.block} ${lo.join(",")}..${hi.join(",")}`;
 }
 
+/** Each send's fate, a run of sends the page would not take said once. */
 function describeSends(sends: FillSend[]): string {
-  return sends
-    .map((send) => {
-      const dispatch = send.dispatch;
-      const fate =
-        dispatch === null
-          ? `not taken (${send.error ?? "page unavailable"})`
-          : dispatch.isQueued
-            ? `queued (${dispatch.queuedReason ?? "waiting"})`
-            : dispatch.outcome?.kind === "unanswered"
-              ? `unanswered after ${dispatch.outcome.waitedMs}ms`
-              : dispatch.outcome?.kind ?? "sent";
-      return `${send.reason} ${fate}`;
-    })
-    .join(", ");
+  const lines: string[] = [];
+  for (let i = 0; i < sends.length; i++) {
+    const send = sends[i];
+    const dispatch = send.dispatch;
+    if (dispatch === null) {
+      let end = i;
+      while (sends[end + 1]?.dispatch === null) end++;
+      const count = end - i + 1;
+      lines.push(
+        `${send.reason} not taken${count > 1 ? ` (and ${count - 1} retries)` : ""}: ${send.error ?? "page unavailable"}`,
+      );
+      i = end;
+      continue;
+    }
+    const fate = dispatch.isQueued
+      ? `queued (${dispatch.queuedReason ?? "waiting"})`
+      : dispatch.outcome?.kind === "unanswered"
+        ? `unanswered after ${dispatch.outcome.waitedMs}ms`
+        : dispatch.outcome?.kind ?? "sent";
+    lines.push(`${send.reason} ${fate}`);
+  }
+  return lines.join(", ");
 }
 
 function summarize(

@@ -258,6 +258,15 @@ describe("landFill", () => {
     expect(report.boxes[0].sends.map((s) => s.reason)).toEqual(["first"]);
   });
 
+  it("says a run of sends the page would not take once", async () => {
+    const world = harness(Array(40).fill("stalls"));
+    const report = await landFill([BOX], world.deps, OPTIONS);
+    expect(report.status).toBe("missing");
+    expect(report.message).toMatch(
+      /sends: first not taken \(and \d+ retries\): page call "call" timed out$/,
+    );
+  });
+
   it("retries a send the page could not take, without spending a send on it", async () => {
     const world = harness(["stalls", "stalls", "lost", "lost", "lost"]);
     const report = await landFill([BOX], world.deps, OPTIONS);
