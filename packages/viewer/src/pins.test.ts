@@ -11,6 +11,7 @@ import {
   formatCoordinates,
   measure,
   pinFromUrl,
+  PinTether,
   serializePin,
   standingPose,
 } from "./pins";
@@ -31,6 +32,46 @@ describe("measure", () => {
     const m = measure([1, 60, 1], [1, 70, 1]);
     expect(m.slopePercent).toBeNull();
     expect(m.slopeDegrees).toBeCloseTo(90, 9);
+  });
+});
+
+describe("leaving the pin behind", () => {
+  const rule = { spans: 2, minBlocks: 256 };
+  const pin: [number, number, number] = [0, 64, 0];
+  /** A tether whose view has stood over the pin once. */
+  const reached = () => {
+    const tether = new PinTether(rule);
+    expect(tether.check(pin, [0, 64, 0], 50)).toBeNull();
+    return tether;
+  };
+
+  it("lets go of a pin the view went far from, saying how far", () => {
+    expect(reached().check(pin, [300, 64, 0], 50)).toBeCloseTo(300, 9);
+  });
+
+  it("counts reach in frames, so zooming out never leaves the pin", () => {
+    expect(reached().check(pin, [500, 64, 0], 400)).toBeNull();
+  });
+
+  it("keeps a floor, so zooming in on a spot beside the pin keeps it", () => {
+    expect(reached().check(pin, [200, 64, 0], 10)).toBeNull();
+  });
+
+  it("goes by ground distance, not height", () => {
+    expect(reached().check(pin, [0, 1200, 0], 10)).toBeNull();
+  });
+
+  it("waits for the view to reach the pin first, as a link's camera arrives", () => {
+    const tether = new PinTether(rule);
+    expect(tether.check(pin, [5000, 64, 0], 50)).toBeNull();
+    expect(tether.check(pin, [40, 64, 0], 50)).toBeNull();
+    expect(tether.check(pin, [5000, 64, 0], 50)).toBeCloseTo(5000, 9);
+  });
+
+  it("makes a moved pin wait to be reached again", () => {
+    const tether = reached();
+    tether.reset();
+    expect(tether.check(pin, [300, 64, 0], 50)).toBeNull();
   });
 });
 

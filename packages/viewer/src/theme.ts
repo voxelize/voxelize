@@ -74,7 +74,7 @@ ${p}-card { position: absolute; left: 0; top: 0; padding: 6px 8px; min-width: 15
 ${p}-card-title { color: ${theme.accent}; margin-bottom: 3px; }
 ${p}-row { display: flex; justify-content: space-between; gap: 12px; }
 ${p}-row span:first-child { color: ${theme.textMuted}; }
-${p}-card-actions { display: flex; gap: 4px; margin-top: 6px; pointer-events: auto; }
+${p}-card-actions { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 6px; pointer-events: auto; }
 ${p}-card-button { display: flex; align-items: center; gap: 4px; padding: 2px 6px 2px 3px;
   font: inherit; color: ${theme.text}; background: ${theme.panelRaised}; ${bevel} cursor: pointer; }
 ${p}-card-button img { width: 16px; height: 16px; }
