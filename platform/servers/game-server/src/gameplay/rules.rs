@@ -154,6 +154,10 @@ pub struct PlayerState {
     /// Seconds during which movement checks leave the player alone: the
     /// server just moved them (joining, respawning, a teleport).
     pub moved: f32,
+    /// Where the server just placed the player (feet) and how many seconds
+    /// it still waits for the client to get there: until then the body is
+    /// wherever a loading client happens to be, and nothing hurts it.
+    pub placing: Option<([i32; 3], f32)>,
     pub inventory: Inventory,
     pub mining: Option<MiningSession>,
     pub realm: Realm,
@@ -210,6 +214,7 @@ impl PlayerState {
             // Joining: the client loads its surroundings and is placed on
             // the ground; give it longer.
             moved: JOIN_GRACE,
+            placing: None,
             inventory,
             mining: None,
             realm,
@@ -247,6 +252,16 @@ pub fn armor_points(content: &Content, player: &PlayerState) -> u32 {
         .map(|a| a.points)
         .sum::<u32>()
         .min(20)
+}
+
+/// Whether something worn gives air underwater (a diving helm).
+pub fn breathes_underwater(content: &Content, player: &PlayerState) -> bool {
+    player
+        .armor
+        .iter()
+        .flatten()
+        .filter_map(|s| content.item_by_id(s.item)?.armor)
+        .any(|a| a.breathing)
 }
 
 /// A hit through armor: the damage left after armor takes points/25 of it,
@@ -1705,5 +1720,9 @@ mod armor_tests {
             piece("ember_boots", 9),
         ];
         assert_eq!(armor_points(&c, &p), 20);
+        assert!(!breathes_underwater(&c, &p));
+        // A diving helm is armor that also breathes.
+        p.armor[0] = piece("diving_helm", 300);
+        assert!(breathes_underwater(&c, &p));
     }
 }

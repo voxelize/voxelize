@@ -1,0 +1,14 @@
+[
+  {"id": 151, "key": "tidestone", "name": "Tidestone", "type": "block", "placesBlock": "tidestone", "rarity": "uncommon", "value": 30},
+  {"id": 152, "key": "abyssal_rock", "name": "Abyssal Rock", "type": "block", "placesBlock": "abyssal_rock", "value": 1},
+  {"id": 153, "key": "coral_red", "name": "Fire Coral", "type": "block", "placesBlock": "coral_red", "value": 3},
+  {"id": 154, "key": "coral_blue", "name": "Tide Coral", "type": "block", "placesBlock": "coral_blue", "value": 3},
+  {"id": 155, "key": "coral_gold", "name": "Sun Coral", "type": "block", "placesBlock": "coral_gold", "value": 3},
+  {"id": 156, "key": "kelp", "name": "Kelp", "type": "block", "placesBlock": "kelp", "value": 1},
+  {"id": 157, "key": "glow_anemone", "name": "Glow Anemone", "type": "block", "placesBlock": "glow_anemone", "value": 4},
+  {"id": 158, "key": "pearl", "name": "Pearl", "type": "material", "rarity": "uncommon", "value": 20},
+  {"id": 159, "key": "pearl_block", "name": "Block of Pearl", "type": "block", "placesBlock": "pearl_block", "rarity": "uncommon", "value": 80},
+  {"id": 160, "key": "bubble_vent", "name": "Bubble Vent", "type": "block", "placesBlock": "bubble_vent", "rarity": "uncommon", "value": 25},
+  {"id": 161, "key": "dried_kelp", "name": "Dried Kelp", "type": "food", "food": 2, "value": 1},
+  {"id": 162, "key": "diving_helm", "name": "Diving Helm", "type": "armor", "stackSize": 1, "durability": 300, "rarity": "rare", "value": 120, "armor": {"slot": "head", "points": 2, "breathing": true}}
+]

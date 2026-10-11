@@ -1,0 +1,7 @@
+[
+  {"type": "shaped", "key": "tidestone", "pattern": ["sgs", "gwg", "sgs"], "symbols": {"s": "sand", "g": "glass", "w": "water_bottle"}, "result": {"item": "tidestone", "count": 2}},
+  {"type": "shaped", "key": "pearl_block", "pattern": ["pp", "pp"], "symbols": {"p": "pearl"}, "result": {"item": "pearl_block"}},
+  {"type": "shapeless", "key": "pearls_from_block", "ingredients": ["pearl_block"], "result": {"item": "pearl", "count": 4}},
+  {"type": "shaped", "key": "diving_helm", "pattern": ["iii", "gpg"], "symbols": {"i": "iron_ingot", "g": "glass", "p": "pearl"}, "result": {"item": "diving_helm"}},
+  {"type": "shaped", "key": "bubble_vent", "pattern": ["ppp", "aka", "aaa"], "symbols": {"p": "pearl", "a": "abyssal_rock", "k": "kelp"}, "result": {"item": "bubble_vent"}}
+]

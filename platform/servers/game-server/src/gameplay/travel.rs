@@ -15,7 +15,7 @@ use std::sync::Arc;
 
 use platform_content::Dimension;
 use platform_ticket::Realm;
-use platform_worldgen::{Paradise, Sky, Underworld};
+use platform_worldgen::{Ocean, Paradise, Sky, Underworld};
 use serde::{Deserialize, Serialize};
 use serde_json::json;
 use voxelize::{
@@ -36,6 +36,8 @@ pub const SETTLE_SECONDS: f32 = 3.0;
 /// Seconds standing in a rift before travelling.
 pub const SURVIVAL_DELAY: f32 = 4.0;
 pub const CREATIVE_DELAY: f32 = 1.0;
+/// Seconds of water breathing given on arriving in the Ocean.
+pub const ARRIVAL_BREATH_SECONDS: f32 = 90.0;
 
 /// Where a travelling player is to arrive, in the destination's blocks.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -179,6 +181,8 @@ pub struct Dimensions {
     pub anticheat: bool,
     /// Player records in MySQL (`GAME_DATABASE_URL`); files when absent.
     pub player_db: Option<Arc<super::store_mysql::MysqlStore>>,
+    /// The world seed (the Ocean's domes are found from it).
+    pub seed: u32,
 }
 
 impl Dimensions {
@@ -225,6 +229,7 @@ fn heights(dimension: Dimension, center_y: i32) -> std::ops::Range<i32> {
         Dimension::Underworld => (Underworld::LAVA_LEVEL + 1, Underworld::ROOF - 6),
         Dimension::Sky => (Sky::ISLAND_LEVEL - 40, Sky::CLOUD_LEVEL - 6),
         Dimension::Paradise => (Paradise::RIVER_LEVEL, 200),
+        Dimension::Ocean => (2, Ocean::SURFACE - 4),
     };
     (center_y - 24).max(lo)..(center_y + 24).min(hi)
 }
@@ -296,6 +301,12 @@ impl<'a> specs::System<'a> for PortalSystem {
             // Arriving: generate the area, then find or build a portal.
             if let Some(arrival) = player.travel.arrival.clone() {
                 let (x, z) = (arrival.at[0].floor() as i32, arrival.at[2].floor() as i32);
+                // The sea is crossed to the nearest air dome.
+                let (x, z) = if dims.current == Dimension::Ocean && !arrival.exact {
+                    Ocean::nearest_dome(dims.seed, x, z)
+                } else {
+                    (x, z)
+                };
                 let (cx, cz) = (x.div_euclid(size), z.div_euclid(size));
                 // The sky looks further for an island to land on.
                 let r = if dims.current == Dimension::Sky && !arrival.exact {
@@ -334,6 +345,17 @@ impl<'a> specs::System<'a> for PortalSystem {
                         top(x, z, 200).filter(|&y| y > Paradise::RIVER_LEVEL)
                     })
                     .unwrap_or((x, z, Paradise::GROUND + 12)),
+                    // On the dome's floor: the lowest dry floor of its column.
+                    Dimension::Ocean => (
+                        x,
+                        z,
+                        (2..Ocean::SURFACE)
+                            .find(|&y| {
+                                solid(&chunks, [x, y, z]) && chunks.get_raw_voxel(x, y + 1, z) == 0
+                            })
+                            .map(|y| y + 1)
+                            .unwrap_or(Ocean::SURFACE - 20),
+                    ),
                 };
                 let center = [x, center_y, z];
                 let range = heights(dims.current, center_y);
@@ -375,8 +397,24 @@ impl<'a> specs::System<'a> for PortalSystem {
                 player.travel.arrival = None;
                 player.travel.blocked = true;
                 player.travel.settle = SETTLE_SECONDS;
+                player.placing = Some((feet, super::survival::PLACING_SECONDS));
                 player.travel.in_portal = 0.0;
                 player.vitals.start_grace(5.0);
+                if dims.current == Dimension::Ocean {
+                    // A first breath for the deep: time to find vents,
+                    // domes or a diving helm.
+                    player.vitals.apply_effect(
+                        platform_content::EffectKind::WaterBreathing,
+                        0,
+                        ARRIVAL_BREATH_SECONDS,
+                    );
+                    send(
+                        &mut events,
+                        id,
+                        super::VITALS_EVENT,
+                        super::vitals_payload(player, None),
+                    );
+                }
                 player.moved = super::rules::MOVED_GRACE;
                 send(&mut events, id, TELEPORT_EVENT, json!({ "feet": feet }));
                 continue;
@@ -497,6 +535,7 @@ mod tests {
             anticheat: true,
             player_db: None,
             siege_seconds: 600.0,
+            seed: 1,
         };
         assert_eq!(dims.world_of(Dimension::Overworld), None);
         let r = heights(Dimension::Underworld, 40);

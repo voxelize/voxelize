@@ -120,6 +120,35 @@ ever dark.
 Coordinates are not scaled. An unlinked arrival looks for the nearest dry
 meadow (above the rivers) within 32 columns and builds the gate there.
 
+## Ocean
+
+`crates/worldgen/src/ocean.rs`, run for the `main_ocean` engine world: an
+endless sea with no shore. Water stands up to y 120 everywhere (the
+world's `water_level` too), far above a seafloor around y 60 (±14, with
+smaller detail) of sand or gravel over stone. Trenches follow the zero line
+of a slow field and sink to about y 24, where the floor is abyssal rock;
+seamounts rise as high as y 116 and never break the surface. Nothing is
+generated above the surface and there are no caves.
+
+What grows on a column is a pure function of the seed: reefs (where a reef
+field is high and the floor above y 62) of fire, tide and sun coral in
+stacks of 1–3 with glow anemones between; kelp forests (a second field)
+whose stalks reach most of the way up; sea grass on open sand; now and then
+a giant clam (pearls) or a bubble vent; and in the abyss glow anemones and
+vents light the dark. Kelp, sea grass and anemones are written waterlogged
+(bit 28 of the voxel word, the engine's waterlogged bit), so the water
+stays around them and breaking one leaves water.
+
+In every 64 × 64 cell stands one air dome: centre placed by a hash of the
+cell, a tidestone floor filled down to the seafloor, dry air within radius
+6.5 and glass out to radius 8 (thick enough that water cannot seep through
+a diagonal), pearl lamps in the corners and a clam by the wall. Dome floors
+stay between y 20 and y 104.
+
+Coordinates are not scaled. An unlinked arrival lands in the dome nearest
+to the departure point (found from the seed alone) and the Tide Gate is
+built on its floor; arrivals get 90 s of water breathing.
+
 ## Changing a live world's generator
 
 Pristine chunks are not saved; they are regenerated. Any change to the

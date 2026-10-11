@@ -269,7 +269,7 @@ fn send_inventory(world: &mut World, client_id: &str) {
     }
 }
 
-fn vitals_payload(player: &PlayerState, cause: Option<survival::DamageKind>) -> Value {
+pub(crate) fn vitals_payload(player: &PlayerState, cause: Option<survival::DamageKind>) -> Value {
     let v = &player.vitals;
     json!({
         "health": v.health,
@@ -643,6 +643,14 @@ fn on_join(world: &mut World, entity: Entity) {
             (eye[1] - EYE_HEIGHT + 0.1).floor() as i32,
             eye[2].floor() as i32,
         ];
+        if let Some(p) = world
+            .ecs()
+            .write_resource::<Gameplay>()
+            .players
+            .get_mut(&id)
+        {
+            p.placing = Some((feet, survival::PLACING_SECONDS));
+        }
         send(world, &id, travel::TELEPORT_EVENT, json!({ "feet": feet }));
     }
 }
@@ -1307,6 +1315,15 @@ impl<'a> specs::System<'a> for SurvivalSystem {
                 .is_chunk_ready(&coords)
                 .then(|| chunks.get_voxel(x, y, z))
         };
+        let raw_at = |x: f32, y: f32, z: f32| -> u32 {
+            let (x, y, z) = (x.floor() as i32, y.floor() as i32, z.floor() as i32);
+            if y < 0 || y >= max_height {
+                return rules::AIR;
+            }
+            voxelize::VoxelAccess::get_raw_voxel(&*chunks, x, y, z)
+        };
+        let waterlogged = voxelize::BlockUtils::extract_waterlogged;
+        let vent = content.block("bubble_vent").map(|b| b.id);
         let fluid = |id: u32| content.block_by_id(id).and_then(|b| b.fluid);
         let solid = |id: u32| {
             content
@@ -1343,6 +1360,11 @@ impl<'a> specs::System<'a> for SurvivalSystem {
                 }
                 continue;
             }
+            // A loading client is not where the server put it yet.
+            if survival::awaiting_placement(&mut player.placing, p, dt) {
+                player.last_position = None;
+                continue;
+            }
             // Below the world there are no blocks, only the void.
             let in_void = feet_y < -2.0;
             let (Some(head), Some(feet), Some(below)) = (
@@ -1361,11 +1383,27 @@ impl<'a> specs::System<'a> for SurvivalSystem {
             let lava = |id: u32| fluid(id) == Some(platform_content::FluidKind::Lava);
             let fire = |id: u32| content.block_by_id(id).is_some_and(|b| b.key == "fire");
             let water = |id: u32| fluid(id) == Some(platform_content::FluidKind::Water);
+            // A waterlogged cell (kelp, sea grass) is water too.
+            let head_in_water = water(head) || waterlogged(raw_at(p[0], p[1], p[2]));
+            let feet_in_water = water(feet) || waterlogged(raw_at(p[0], feet_y + 0.1, p[2]));
+            let air_supply = head_in_water
+                && (rules::breathes_underwater(content, player)
+                    || survival::vent_below(|dy| {
+                        let raw = raw_at(p[0], p[1] - dy as f32, p[2]);
+                        let id = raw & 0xFFFF;
+                        if Some(id) == vent {
+                            survival::Cell::Vent
+                        } else if water(id) || waterlogged(raw) {
+                            survival::Cell::Water
+                        } else {
+                            survival::Cell::Other
+                        }
+                    }));
             let surroundings = Surroundings {
                 feet_y,
                 on_ground: solid(below),
-                head_in_water: water(head),
-                feet_in_water: water(feet),
+                head_in_water,
+                feet_in_water,
                 in_lava: lava(feet) || lava(head),
                 in_void,
                 in_fire: fire(feet) || fire(head),
@@ -1379,6 +1417,7 @@ impl<'a> specs::System<'a> for SurvivalSystem {
                 },
                 moved,
                 plenty,
+                air_supply,
             };
             let outcome = survival::tick(&mut player.vitals, surroundings, dt);
             if outcome.changed {

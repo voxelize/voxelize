@@ -249,6 +249,79 @@ const RECIPES: Record<string, Recipe> = {
     p.speckle(hex("#fff6d0", 200), 0.12);
     p.blobs(hex("#ffffff", 230), 6, 1);
   },
+  // The Ocean: deep blues and teals, coral colours and pearl.
+  tidestone: (p) => {
+    p.speckle(hex("#3d8f9a"), 0.07);
+    for (let y = 3; y < SIZE; y += 5) for (let x = 0; x < SIZE; x++) if ((x + y) % 8 < 4) p.set(x, y, hex("#8fe3e0"));
+    p.border(hex("#245a66"));
+  },
+  tide_rift: (p) => {
+    p.speckle(hex("#3fd0e0", 200), 0.12);
+    p.blobs(hex("#d8fbff", 230), 6, 1);
+  },
+  abyssal_rock: (p) => {
+    p.speckle(hex("#1c2430"), 0.08);
+    p.blobs(hex("#2c3a4c"), 5, 1);
+    p.blobs(hex("#101620"), 4, 0);
+  },
+  coral_red: (p) => {
+    p.speckle(hex("#e0533f"), 0.12);
+    p.blobs(hex("#ff9a7a"), 8, 0);
+    p.blobs(hex("#a8281c"), 5, 0);
+  },
+  coral_blue: (p) => {
+    p.speckle(hex("#3f6fe0"), 0.12);
+    p.blobs(hex("#8ab6ff"), 8, 0);
+    p.blobs(hex("#2840a8"), 5, 0);
+  },
+  coral_gold: (p) => {
+    p.speckle(hex("#e8b53a"), 0.12);
+    p.blobs(hex("#fff0a0"), 8, 0);
+    p.blobs(hex("#b07a1c"), 5, 0);
+  },
+  kelp: (p) => {
+    p.clear();
+    for (let y = 0; y < SIZE; y++) {
+      const x = 7 + Math.round(Math.sin(y / 2.5) * 1.5);
+      p.set(x, y, hex("#3f7a2a"));
+      p.set(x + 1, y, hex("#5a9a3a"));
+      if (y % 4 === 1) for (let d = 2; d < 5; d++) p.set(x + d, y - 1, hex("#6fb048"));
+    }
+  },
+  sea_grass: (p) => {
+    p.clear();
+    for (const [x, h] of [[3, 9], [6, 13], [9, 11], [12, 8]] as const)
+      for (let y = SIZE - h; y < SIZE; y++) p.set(x + Math.round(Math.sin(y / 3)), y, hex(y % 3 ? "#4f9a46" : "#6cbf5a"));
+  },
+  glow_anemone: (p) => {
+    p.clear();
+    for (let y = 11; y < SIZE; y++) for (let x = 5; x < 11; x++) p.set(x, y, hex("#b04fd0"));
+    for (let a = 0; a < 9; a++) {
+      const x = 4 + a;
+      for (let y = 6 + (a % 3); y < 11; y++) p.set(x, y, hex(y === 6 + (a % 3) ? "#f6d8ff" : "#e08aff"));
+    }
+  },
+  giant_clam_side: (p) => {
+    p.speckle(hex("#6f8fa8"), 0.08);
+    for (let y = 2; y < SIZE; y += 3) for (let x = 0; x < SIZE; x++) p.set(x, y, hex("#4c6a82"));
+    for (let x = 0; x < SIZE; x++) p.set(x, 8, hex("#f2e6ff"));
+  },
+  giant_clam_top: (p) => {
+    p.speckle(hex("#6f8fa8"), 0.08);
+    for (let x = 1; x < SIZE; x += 3) for (let y = 0; y < SIZE; y++) p.set(x, y, hex("#4c6a82"));
+    p.blobs(hex("#fff8f0"), 1, 1);
+  },
+  bubble_vent_top: (p) => {
+    p.speckle(hex("#1c2430"), 0.08);
+    p.blobs(hex("#ff8a3a"), 2, 1);
+    for (const [x, y] of [[4, 4], [11, 5], [7, 11], [12, 12], [3, 10]]) p.set(x, y, hex("#d8f6ff"));
+  },
+  pearl_block: (p) => {
+    p.speckle(hex("#f4eefa"), 0.05);
+    p.blobs(hex("#ffffff"), 6, 1);
+    p.blobs(hex("#e6d6f6"), 5, 0);
+    p.border(hex("#cbb8e0"));
+  },
   water: (p) => {
     p.speckle(hex("#2f64c8", 190), 0.08);
     for (let y = 2; y < SIZE; y += 5) for (let x = 0; x < SIZE; x++) if ((x + y) % 7 < 3) p.set(x, y, hex("#5d8ee0", 200));

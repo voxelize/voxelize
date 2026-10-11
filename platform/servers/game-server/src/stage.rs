@@ -2,7 +2,7 @@
 
 use std::sync::Arc;
 
-use platform_worldgen::{GeneratedChunk, Generator, Paradise, Sky, Underworld, AIR};
+use platform_worldgen::{GeneratedChunk, Generator, Ocean, Paradise, Sky, Underworld, AIR};
 use voxelize::{Chunk, ChunkStage, Resources, Space, VoxelAccess};
 
 /// The generator of one dimension.
@@ -12,6 +12,7 @@ pub enum Terrain {
     Underworld(Arc<Underworld>),
     Sky(Arc<Sky>),
     Paradise(Arc<Paradise>),
+    Ocean(Arc<Ocean>),
 }
 
 impl Terrain {
@@ -21,6 +22,7 @@ impl Terrain {
             Terrain::Underworld(u) => u.generate_chunk(cx, cz, size),
             Terrain::Sky(s) => s.generate_chunk(cx, cz, size),
             Terrain::Paradise(p) => p.generate_chunk(cx, cz, size),
+            Terrain::Ocean(o) => o.generate_chunk(cx, cz, size),
         }
     }
 
@@ -30,6 +32,7 @@ impl Terrain {
             Terrain::Underworld(u) => u.biome_at(x, z).to_owned(),
             Terrain::Sky(s) => s.biome_at(x, z).to_owned(),
             Terrain::Paradise(p) => p.biome_at(x, z).to_owned(),
+            Terrain::Ocean(o) => o.biome_at(x, z).to_owned(),
         }
     }
 }
@@ -59,14 +62,32 @@ impl ChunkStage for WorldgenStage {
         for x in 0..size {
             for z in 0..size {
                 for y in 0..height {
-                    let id = generated.get(x, y, z);
-                    if id != AIR {
-                        chunk.set_voxel(min_x + x as i32, y as i32, min_z + z as i32, id);
+                    // Raw: the generator's words may carry more than an id
+                    // (a structure chest's loot stage, a waterlogged plant).
+                    let raw = generated.get(x, y, z);
+                    if raw != AIR {
+                        chunk.set_raw_voxel(min_x + x as i32, y as i32, min_z + z as i32, raw);
                     }
                 }
             }
         }
         chunk.biome_tints = generated.tints;
         chunk
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    #[test]
+    fn generated_waterlogged_plants_are_waterlogged_for_the_engine() {
+        let kelp = 101;
+        let raw = kelp | platform_worldgen::WATERLOGGED;
+        assert!(voxelize::BlockUtils::extract_waterlogged(raw));
+        assert_eq!(voxelize::BlockUtils::extract_id(raw), kelp);
+        assert_eq!(
+            voxelize::BlockUtils::extract_waterlog_level(raw),
+            0,
+            "a full cell"
+        );
     }
 }

@@ -172,7 +172,11 @@ Answers (events, sent only to the requesting client):
   when the player walks into different land (null: wilderness).
 - `platform.teleport` — `{"feet":[x,y,z]}`: the cell the player's feet are
   to stand in. Sent on join (back where they left) and when a traveller is
-  placed in a portal; the client moves once that chunk exists.
+  placed in a portal; the client moves once that chunk exists. Until the
+  client reports a position in that cell (at most 90 s), survival leaves
+  the player alone: a loading client is not where its body will be.
+  Arriving in the Ocean also sends `platform.vitals` with 90 s of
+  `water_breathing`.
 - `platform.travel` — `{"world":name}`: join that engine world. Sent when a
   player stands in a rift long enough (4 s, 1 s in creative), on respawn
   away from the overworld, and on join when the player's record says they

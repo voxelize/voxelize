@@ -22,6 +22,7 @@ describe("worlds", () => {
   it("finds the world a dimension belongs to", () => {
     expect(baseWorld("main")).toBe("main");
     expect(baseWorld("main_underworld")).toBe("main");
+    expect(baseWorld("main_ocean")).toBe("main");
     expect(baseWorld("w_abc123defg_sky")).toBe("w_abc123defg");
   });
 

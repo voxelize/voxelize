@@ -31,7 +31,7 @@ import { nearest, TradePanel, type TradeView } from "./trade";
 import { DropsView } from "./drops";
 import { Sfx } from "./audio";
 import { moodFor, Music } from "./music";
-import { ParadiseAmbience } from "./ambience";
+import { OceanAmbience, ParadiseAmbience } from "./ambience";
 import { peerLabel, VirtueHud, type VirtueState, type VirtueTag } from "./virtue";
 import { MobInfo, MobsView, nearestBoss } from "./mobs-view";
 import { ArrowInfo, CombatView, FuseInfo } from "./combat-view";
@@ -54,15 +54,10 @@ const storedWorld = (() => {
   }
 })();
 const WORLD = storedWorld && /^[a-z0-9_]{1,64}$/.test(storedWorld) ? storedWorld : "main";
-/** The dimension this world is (`main_underworld`, `main_sky`, `main_paradise`). */
-const DIMENSION = WORLD.endsWith("_underworld")
-  ? "underworld"
-  : WORLD.endsWith("_sky")
-    ? "sky"
-    : WORLD.endsWith("_paradise")
-      ? "paradise"
-      : "overworld";
+/** The dimension this world is (`main_underworld`, `main_sky`, `main_paradise`, `main_ocean`). */
+const DIMENSION = (["underworld", "sky", "paradise", "ocean"] as const).find((d) => WORLD.endsWith(`_${d}`)) ?? "overworld";
 const PARADISE = DIMENSION === "paradise";
+const OCEAN = DIMENSION === "ocean";
 const UNDERWORLD = DIMENSION === "underworld";
 const FACE_ROLES: Record<string, "top" | "bottom" | "side"> = {
   py: "top",
@@ -165,6 +160,13 @@ export async function startGame(content: Content, getTicket: () => Promise<strin
       { name: "glory", color: glory, skyOffset: 0, voidOffset: 0.4, start: 0 },
       { name: "glory-late", color: glory, skyOffset: 0, voidOffset: 0.4, start: 0.5 },
     ]);
+  } else if (OCEAN) {
+    // The Ocean: light from far above, fading to deep blue and black below.
+    world.sky.setShadingPhases([
+      { name: "sea-day", color: { top: "#2f9fd0", middle: "#1b5f8a", bottom: "#06192c" }, skyOffset: 0, voidOffset: 0.5, start: 0.2 },
+      { name: "sea-dusk", color: { top: "#3a5f9a", middle: "#183c62", bottom: "#040e1c" }, skyOffset: 0.05, voidOffset: 0.5, start: 0.7 },
+      { name: "sea-night", color: { top: "#06162c", middle: "#04101e", bottom: "#01050c" }, skyOffset: 0.1, voidOffset: 0.5, start: 0.76 },
+    ]);
   } else if (DIMENSION === "sky") {
     world.sky.setShadingPhases([
       { name: "sky-day", color: { top: "#6fa8ff", middle: "#cfe4ff", bottom: "#f4f8ff" }, skyOffset: 0, voidOffset: 0.4, start: 0.2 },
@@ -218,7 +220,7 @@ export async function startGame(content: Content, getTicket: () => Promise<strin
 
   const sfx = new Sfx();
   const music = new Music();
-  const ambience = PARADISE ? new ParadiseAmbience() : null;
+  const ambience = PARADISE ? new ParadiseAmbience() : OCEAN ? new OceanAmbience() : null;
   const applySettings = (s: Settings) => {
     controls.options.sensitivity = s.sensitivity;
     controls.options.invertY = s.invertY;

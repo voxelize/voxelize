@@ -55,7 +55,9 @@ pub fn engine_block(def: &BlockDef, content: &Content, ctx: &Arc<BehaviorContext
             block = block.is_transparent(true).is_see_through(true);
         }
         Some(FluidKind::Water) => {
+            // Plain water is what waterlogged blocks hold.
             block = block
+                .is_waterlogging_fluid(def.key == "water")
                 .is_fluid(true)
                 .is_transparent(true)
                 .is_see_through(true)
@@ -68,6 +70,9 @@ pub fn engine_block(def: &BlockDef, content: &Content, ctx: &Arc<BehaviorContext
                 ..FluidConfig::default()
             });
         }
+    }
+    if def.waterloggable {
+        block = block.is_waterloggable(true);
     }
     if let Some(half) = &def.coupled {
         if let Some(other) = content.block(&half.block) {

@@ -555,6 +555,19 @@ player's last lines) or the account panel; a report queue in the admin
 panel to resolve or dismiss with a note; reporters see the outcome; rate
 limited; `platform_reports` gauge. Tests: ReportTest, chat unit tests,
 `tests/bots/report.mjs`, `tests/e2e/reports.mjs`.
+Then: the Ocean — a fifth dimension where everything lies under the sea,
+reached through a Tide Gate (a tidestone frame lit with a fire striker):
+water up to y 120 over sand and stone, abyssal trenches, seamounts, coral
+reefs, kelp forests, sea grass, glow anemones, giant clams with pearls and
+bubble vents; glass air domes on tidestone floors in every 64-block cell,
+where travellers arrive with 90 s of water breathing. Plants that grow in
+water are waterlogged; breath lasts under a Diving Helm or above a vent.
+Moon jellies, sea turtles and lurkers; a deep-blue sky, a low dorian mood
+and an underwater soundscape (a drone, the swell, bubbles, distant
+whales). Chunks keep the generator's full voxel words (so structure chests
+keep their loot), and a loading client is not hurt before it reaches the
+place the server put it. Tests: ocean worldgen, air supply, placement,
+helm and portal unit tests; client tests; `tests/bots/ocean.mjs` end to end.
 
 ## Definition of done (whole project)
 

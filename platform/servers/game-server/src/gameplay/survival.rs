@@ -240,6 +240,9 @@ pub struct Surroundings {
     pub moved: f32,
     /// Paradise: no hunger, no falls, no drowning.
     pub plenty: bool,
+    /// Air reaches the head underwater: a worn diving helm, or the bubbles
+    /// rising from a vent below.
+    pub air_supply: bool,
 }
 
 #[derive(Debug, Clone, PartialEq, Default)]
@@ -248,6 +251,54 @@ pub struct TickOutcome {
     pub died: bool,
     /// Whether any vital changed enough for the client to be told.
     pub changed: bool,
+}
+
+/// Longest wait for a client to reach the place the server put it.
+pub const PLACING_SECONDS: f32 = 90.0;
+
+/// Whether a player is still on their way to where the server placed them
+/// (`placing`: feet cell and seconds left): true until the reported eye
+/// position reaches that cell or the wait runs out, which clears it.
+pub fn awaiting_placement(placing: &mut Option<([i32; 3], f32)>, eye: [f32; 3], dt: f32) -> bool {
+    let Some((feet, left)) = placing.as_mut() else {
+        return false;
+    };
+    *left -= dt;
+    let near = |a: f32, b: i32, reach: f32| (a - (b as f32 + 0.5)).abs() <= reach;
+    let there = near(eye[0], feet[0], 1.5)
+        && near(eye[2], feet[2], 1.5)
+        && near(eye[1] - EYE_HEIGHT, feet[1], 2.0);
+    if there || *left <= 0.0 {
+        *placing = None;
+        return false;
+    }
+    true
+}
+
+/// How far bubbles rise from a vent: a head this many blocks above one,
+/// through water all the way, breathes.
+pub const VENT_REACH: i32 = 12;
+
+/// Whether bubbles from a vent reach a head: walking down from the head,
+/// `cell(dy)` (the cell `dy` below it) is water until a vent is found
+/// within [`VENT_REACH`].
+pub fn vent_below(cell: impl Fn(i32) -> Cell) -> bool {
+    for dy in 1..=VENT_REACH {
+        match cell(dy) {
+            Cell::Water => continue,
+            Cell::Vent => return true,
+            Cell::Other => return false,
+        }
+    }
+    false
+}
+
+/// What a cell under a swimmer is, for [`vent_below`].
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Cell {
+    Water,
+    Vent,
+    Other,
 }
 
 /// Advance a creative player's vitals: nothing hurts them but the deep
@@ -325,7 +376,7 @@ pub fn tick(v: &mut Vitals, s: Surroundings, dt: f32) -> TickOutcome {
     }
 
     // Breath.
-    if s.head_in_water && v.effect(EffectKind::WaterBreathing).is_none() {
+    if s.head_in_water && !s.air_supply && v.effect(EffectKind::WaterBreathing).is_none() {
         v.air = (v.air - dt).max(0.0);
     } else {
         v.air = (v.air + dt * 5.0).min(MAX_AIR);
@@ -444,6 +495,7 @@ mod tests {
             rained_on: false,
             moved: 0.0,
             plenty: false,
+            air_supply: false,
         }
     }
 
@@ -689,5 +741,60 @@ mod tests {
         assert_eq!(v.health, MAX_HEALTH);
         assert_eq!(v.food, MAX_FOOD);
         assert_eq!(v.air, MAX_AIR);
+    }
+
+    #[test]
+    fn a_helm_or_a_vent_gives_air_underwater() {
+        let mut v = Vitals::default();
+        let mut under = at(50.0, true);
+        under.head_in_water = true;
+        under.feet_in_water = true;
+        under.air_supply = true;
+        for _ in 0..60 {
+            assert!(tick(&mut v, under, 1.0).damage.is_empty());
+        }
+        assert_eq!(v.air, MAX_AIR, "breathing all the while");
+        // Swimming off the bubbles: breath starts running out.
+        under.air_supply = false;
+        tick(&mut v, under, 1.0);
+        assert!(v.air < MAX_AIR);
+    }
+
+    #[test]
+    fn bubbles_rise_through_water_only() {
+        use Cell::*;
+        let column = |cells: &'static [Cell]| {
+            move |dy: i32| cells.get(dy as usize - 1).copied().unwrap_or(Other)
+        };
+        assert!(vent_below(column(&[Water, Water, Vent])));
+        assert!(
+            !vent_below(column(&[Water, Other, Vent])),
+            "a block stops them"
+        );
+        assert!(!vent_below(column(&[Water; 12])), "no vent in reach");
+        let mut deep = [Water; 12];
+        deep[11] = Vent;
+        assert!(
+            vent_below(column(Box::leak(Box::new(deep)))),
+            "twelve below"
+        );
+    }
+
+    #[test]
+    fn nothing_hurts_a_player_on_the_way_to_their_place() {
+        let mut placing = Some(([10, 72, -4], PLACING_SECONDS));
+        // A loading client still at its default spot, in the sea.
+        assert!(awaiting_placement(&mut placing, [0.0, 120.0, 0.0], 1.0));
+        assert!(placing.is_some());
+        // There: from now on it counts.
+        let eye = [10.5, 72.0 + EYE_HEIGHT, -3.5];
+        assert!(!awaiting_placement(&mut placing, eye, 1.0));
+        assert!(placing.is_none());
+        assert!(!awaiting_placement(&mut placing, [0.0, 120.0, 0.0], 1.0));
+        // A client that never arrives is only waited for so long.
+        let mut placing = Some(([10, 72, -4], 2.0));
+        assert!(awaiting_placement(&mut placing, [0.0, 120.0, 0.0], 1.0));
+        assert!(!awaiting_placement(&mut placing, [0.0, 120.0, 0.0], 1.5));
+        assert!(placing.is_none());
     }
 }

@@ -295,6 +295,11 @@ impl Content {
             if block.still && block.fluid.is_none() {
                 errors.push(format!("{who} is still but no liquid"));
             }
+            if block.waterloggable && (block.fluid.is_some() || block.collision) {
+                errors.push(format!(
+                    "{who} is waterloggable but not a passable, non-fluid block"
+                ));
+            }
             if let Some(bottle) = &block.bottle {
                 if block.fluid.is_none() {
                     errors.push(format!("{who} fills bottles but is no fluid"));

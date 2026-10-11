@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { birdPhrase, CHIME_NOTES, nextChime } from "./ambience";
+import { birdPhrase, bubbleBurst, CHIME_NOTES, nextChime, whaleCall } from "./ambience";
 
 const seq = (values: number[]) => {
   let i = 0;
@@ -29,5 +29,28 @@ describe("paradise soundscape", () => {
     }
     // In order, never overlapping.
     for (let i = 1; i < p.chirps.length; i++) expect(p.chirps[i].at).toBeGreaterThan(p.chirps[i - 1].at + p.chirps[i - 1].length);
+  });
+});
+
+describe("ocean soundscape", () => {
+  it("lets bubbles rise in short bursts", () => {
+    const b = bubbleBurst(seq([0.3, 0.8, 0.1, 0.6, 0.9, 0.2]));
+    expect(b.after).toBeGreaterThanOrEqual(1.5);
+    expect(b.bubbles.length).toBeGreaterThanOrEqual(2);
+    expect(b.bubbles.length).toBeLessThanOrEqual(7);
+    for (const x of b.bubbles) {
+      expect(x.length).toBeLessThan(0.11);
+      expect(x.from).toBeGreaterThanOrEqual(300);
+    }
+  });
+
+  it("hears whales only now and then, low and slow", () => {
+    for (let s = 0; s < 20; s++) {
+      const w = whaleCall(seq([s / 20, ((s * 7) % 20) / 20, ((s * 3) % 20) / 20]));
+      expect(w.after).toBeGreaterThanOrEqual(25);
+      expect(w.low).toBeLessThan(150);
+      expect(w.high).toBeGreaterThan(w.low);
+      expect(w.seconds).toBeGreaterThanOrEqual(3);
+    }
   });
 });

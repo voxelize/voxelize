@@ -161,6 +161,18 @@
       },
       "ticks": 200,
       "experience": 0.35
+    },
+    {
+      "key": "dry_kelp",
+      "station": "furnace",
+      "input": {
+        "item": "kelp"
+      },
+      "output": {
+        "item": "dried_kelp"
+      },
+      "ticks": 100,
+      "experience": 0.1
     }
   ]
 }

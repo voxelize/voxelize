@@ -100,14 +100,17 @@ pub enum Dimension {
     Sky,
     /// A world of plenty and light, where building is rewarded.
     Paradise,
+    /// An endless sea: everything lies underwater.
+    Ocean,
 }
 
 impl Dimension {
-    pub const ALL: [Dimension; 4] = [
+    pub const ALL: [Dimension; 5] = [
         Dimension::Overworld,
         Dimension::Underworld,
         Dimension::Sky,
         Dimension::Paradise,
+        Dimension::Ocean,
     ];
 
     pub fn key(self) -> &'static str {
@@ -116,6 +119,7 @@ impl Dimension {
             Dimension::Underworld => "underworld",
             Dimension::Sky => "sky",
             Dimension::Paradise => "paradise",
+            Dimension::Ocean => "ocean",
         }
     }
 
@@ -126,6 +130,7 @@ impl Dimension {
             Dimension::Underworld => 0.125,
             Dimension::Sky => 1.0,
             Dimension::Paradise => 1.0,
+            Dimension::Ocean => 1.0,
         }
     }
 }
@@ -252,6 +257,10 @@ pub struct BlockDef {
     /// through rather than swum, and never flowing.
     #[serde(default)]
     pub still: bool,
+    /// The block can stand in water and hold it (kelp, sea grass): placed
+    /// or generated underwater, its cell stays wet.
+    #[serde(default)]
+    pub waterloggable: bool,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -396,6 +405,9 @@ pub struct ArmorStats {
     /// Armor points (all worn pieces together, at most 20, take
     /// points/25 off incoming hits).
     pub points: u32,
+    /// Worn, it gives air underwater (a diving helm).
+    #[serde(default)]
+    pub breathing: bool,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]

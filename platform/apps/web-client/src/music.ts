@@ -3,7 +3,7 @@
 // played with soft Web Audio voices and a gentle echo, then minutes of
 // silence before the next. No recordings, so every note is ours.
 
-export type Mood = "day" | "night" | "underworld" | "sky" | "paradise";
+export type Mood = "day" | "night" | "underworld" | "sky" | "paradise" | "ocean";
 
 export type Note = { at: number; midi: number; length: number; velocity: number; voice: "lead" | "pad" };
 export type Piece = { mood: Mood; seconds: number; notes: Note[] };
@@ -16,6 +16,8 @@ const MOODS: Record<Mood, { root: number; scale: number[]; beat: number }> = {
   sky: { root: 64, scale: [0, 2, 4, 6, 9], beat: 0.85 },
   // Paradise: a bright, open lydian air, unhurried.
   paradise: { root: 65, scale: [0, 2, 4, 6, 7, 9, 11], beat: 0.95 },
+  // The Ocean: a low, slow dorian, like light far above.
+  ocean: { root: 55, scale: [0, 2, 3, 5, 7, 9, 10], beat: 1.3 },
 };
 
 /** mulberry32: small, seeded, deterministic. */
@@ -35,6 +37,7 @@ export function moodFor(dimension: string, dayFraction: number): Mood {
   if (dimension === "underworld") return "underworld";
   if (dimension === "sky") return "sky";
   if (dimension === "paradise") return "paradise";
+  if (dimension === "ocean") return "ocean";
   const t = ((dayFraction % 1) + 1) % 1;
   return t > 0.22 && t < 0.78 ? "day" : "night";
 }

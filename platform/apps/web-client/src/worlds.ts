@@ -12,7 +12,7 @@ export const SERVER_KEY = "platform.server";
 
 /** "main_underworld", "main_paradise" → "main": the world a dimension belongs to. */
 export function baseWorld(engineWorld: string): string {
-  return engineWorld.replace(/_(underworld|sky|paradise)$/, "");
+  return engineWorld.replace(/_(underworld|sky|paradise|ocean)$/, "");
 }
 
 /** The http(s) origin of a game server from its WebSocket address. */

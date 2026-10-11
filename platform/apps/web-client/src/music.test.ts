@@ -10,6 +10,7 @@ describe("music", () => {
     expect(moodFor("underworld", 0.5)).toBe("underworld");
     expect(moodFor("sky", 0.9)).toBe("sky");
     expect(moodFor("paradise", 0.9)).toBe("paradise");
+    expect(moodFor("ocean", 0.5)).toBe("ocean");
   });
 
   it("composes the same piece from the same seed, and another from another", () => {
@@ -18,7 +19,7 @@ describe("music", () => {
   });
 
   it("writes calm, playable pieces", () => {
-    for (const mood of ["day", "night", "underworld", "sky", "paradise"] as const) {
+    for (const mood of ["day", "night", "underworld", "sky", "paradise", "ocean"] as const) {
       for (let seed = 1; seed < 40; seed++) {
         const piece = compose(seed, mood);
         expect(piece.seconds).toBeGreaterThan(20);
@@ -34,7 +35,7 @@ describe("music", () => {
         // Melodies move mostly by small steps and end on the root.
         const leaps = lead.slice(1).filter((n, i) => Math.abs(n.midi - lead[i].midi) > 7).length;
         expect(leaps / lead.length).toBeLessThan(0.25);
-        const roots = { day: 0, night: 9, underworld: 2, sky: 4, paradise: 5 };
+        const roots = { day: 0, night: 9, underworld: 2, sky: 4, paradise: 5, ocean: 7 };
         expect(lead.at(-1)!.midi % 12).toBe(roots[mood]);
       }
     }

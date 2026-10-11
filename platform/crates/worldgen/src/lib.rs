@@ -20,9 +20,11 @@ use std::collections::HashMap;
 
 use platform_content::{parse_color, BiomeDef, Content, Dimension, StructurePlacement};
 
+mod ocean;
 mod paradise;
 mod sky;
 mod underworld;
+pub use ocean::{Growth, Ocean, WATERLOGGED};
 pub use paradise::{Paradise, River};
 pub use sky::{Sky, Span};
 pub use underworld::Underworld;

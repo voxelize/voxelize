@@ -130,6 +130,17 @@ in the overworld. Creatures may be `invulnerable` and carry an `aura`
 the radius): angels fly over the meadows, cannot be harmed and keep those
 near them in regeneration.
 
+The Ocean (`*-ocean.json`): tidestone (sand, glass and a water bottle;
+it frames the Tide Gate), abyssal rock, coral in three colours, kelp (dried
+in a furnace into food), sea grass, glow anemones, giant clams (pearls),
+bubble vents and blocks of pearl. `"waterloggable": true` marks a
+passable, non-fluid block that holds water in its cell (plain `water` is
+the engine's waterlogging fluid). Armor may give `"breathing": true`: the
+Diving Helm (iron, glass and a pearl). Underwater a player keeps their
+breath while wearing it, while bubbles from a vent at most 12 blocks below
+rise through water to their head, or under water breathing. Creatures:
+moon jellies and sea turtles swim in the light, lurkers rise at night.
+
 Lights: the Wisp Lantern (glass and Wisp Essence from wisps, light 13) and
 the Core Lamp (iron, glass and the Warden Core the Ember Warden drops,
 light 15, four per core) give the creature drops a use.

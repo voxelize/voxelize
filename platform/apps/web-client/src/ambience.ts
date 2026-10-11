@@ -1,6 +1,7 @@
-// Paradise's soundscape, composed in the browser like the music: a soft
-// sustained chord that breathes, a murmuring stream, wind chimes that ring
-// now and then, and birdsong. Quiet, with no recordings.
+// Soundscapes, composed in the browser like the music, quiet and with no
+// recordings. Paradise: a soft sustained chord that breathes, a murmuring
+// stream, wind chimes that ring now and then, and birdsong. The Ocean: a
+// low drone, the slow swell of the deep, rising bubbles and distant whales.
 
 /** mulberry32: small, seeded, deterministic. */
 function rng(seed: number): () => number {
@@ -43,12 +44,31 @@ export function birdPhrase(random: () => number): { after: number; chirps: { at:
 
 const frequency = (midi: number) => 440 * 2 ** ((midi - 69) / 12);
 
-export class ParadiseAmbience {
-  private ctx: AudioContext | null = null;
-  private out: GainNode | null = null;
+/** A burst of bubbles: when, and each bubble's start, pitch and length. */
+export function bubbleBurst(random: () => number): { after: number; bubbles: { at: number; from: number; length: number }[] } {
+  const count = 2 + Math.floor(random() * 6);
+  const bubbles = [];
+  let at = 0;
+  for (let i = 0; i < count; i++) {
+    bubbles.push({ at, from: 300 + random() * 500, length: 0.04 + random() * 0.06 });
+    at += 0.05 + random() * 0.2;
+  }
+  return { after: 1.5 + random() * 5, bubbles };
+}
+
+/** A whale far away: a long, low glide up and back down. */
+export function whaleCall(random: () => number): { after: number; low: number; high: number; seconds: number } {
+  const low = 90 + random() * 60;
+  return { after: 25 + random() * 45, low, high: low * (1.4 + random() * 0.5), seconds: 3 + random() * 3 };
+}
+
+/** Shared plumbing: an audio graph started on a gesture, timers, volume. */
+abstract class Soundscape {
+  protected ctx: AudioContext | null = null;
+  protected out: GainNode | null = null;
   private volume = 0.4;
   private timers: number[] = [];
-  private random = rng(Date.now());
+  protected random = rng(Date.now());
 
   setVolume(v: number) {
     this.volume = v;
@@ -67,10 +87,7 @@ export class ParadiseAmbience {
     this.out = ctx.createGain();
     this.out.gain.value = this.volume * 0.35;
     this.out.connect(ctx.destination);
-    this.pad();
-    this.stream();
-    this.chimes();
-    this.birds();
+    this.begin();
   }
 
   stop() {
@@ -79,8 +96,35 @@ export class ParadiseAmbience {
     void this.ctx?.suspend();
   }
 
-  private later(seconds: number, run: () => void) {
+  protected abstract begin(): void;
+
+  protected later(seconds: number, run: () => void) {
     this.timers.push(window.setTimeout(run, seconds * 1000));
+  }
+
+  /** Two seconds of looping white noise. */
+  protected noise(): AudioBufferSourceNode {
+    const ctx = this.ctx!;
+    const buffer = ctx.createBuffer(1, ctx.sampleRate * 2, ctx.sampleRate);
+    const data = buffer.getChannelData(0);
+    let seed = 7;
+    for (let i = 0; i < data.length; i++) {
+      seed = (seed * 1103515245 + 12345) >>> 0;
+      data[i] = (seed / 0xffffffff) * 2 - 1;
+    }
+    const src = ctx.createBufferSource();
+    src.buffer = buffer;
+    src.loop = true;
+    return src;
+  }
+}
+
+export class ParadiseAmbience extends Soundscape {
+  protected begin() {
+    this.pad();
+    this.stream();
+    this.chimes();
+    this.birds();
   }
 
   /** A soft F-major-seventh chord whose loudness breathes slowly. */
@@ -113,16 +157,7 @@ export class ParadiseAmbience {
   /** Filtered noise, gently swelling: the rivers of honey and wine. */
   private stream() {
     const ctx = this.ctx!;
-    const buffer = ctx.createBuffer(1, ctx.sampleRate * 2, ctx.sampleRate);
-    const data = buffer.getChannelData(0);
-    let seed = 7;
-    for (let i = 0; i < data.length; i++) {
-      seed = (seed * 1103515245 + 12345) >>> 0;
-      data[i] = (seed / 0xffffffff) * 2 - 1;
-    }
-    const src = ctx.createBufferSource();
-    src.buffer = buffer;
-    src.loop = true;
+    const src = this.noise();
     const band = ctx.createBiquadFilter();
     band.type = "bandpass";
     band.frequency.value = 700;
@@ -183,6 +218,119 @@ export class ParadiseAmbience {
         }
       }
       this.birds();
+    });
+  }
+}
+
+export class OceanAmbience extends Soundscape {
+  protected begin() {
+    this.drone();
+    this.swell();
+    this.bubbles();
+    this.whales();
+  }
+
+  /** A low, dark open fifth, slowly breathing. */
+  private drone() {
+    const ctx = this.ctx!;
+    const gain = ctx.createGain();
+    gain.gain.value = 0.06;
+    const lfo = ctx.createOscillator();
+    lfo.frequency.value = 0.05;
+    const depth = ctx.createGain();
+    depth.gain.value = 0.03;
+    lfo.connect(depth).connect(gain.gain);
+    lfo.start();
+    const filter = ctx.createBiquadFilter();
+    filter.type = "lowpass";
+    filter.frequency.value = 500;
+    for (const midi of [38, 45, 50]) {
+      for (const detune of [-5, 5]) {
+        const osc = ctx.createOscillator();
+        osc.type = "sine";
+        osc.frequency.value = frequency(midi);
+        osc.detune.value = detune;
+        osc.connect(filter);
+        osc.start();
+      }
+    }
+    filter.connect(gain).connect(this.out!);
+  }
+
+  /** Deep, muffled noise rising and falling: the weight of the sea. */
+  private swell() {
+    const ctx = this.ctx!;
+    const src = this.noise();
+    const low = ctx.createBiquadFilter();
+    low.type = "lowpass";
+    low.frequency.value = 320;
+    const gain = ctx.createGain();
+    gain.gain.value = 0.07;
+    const tide = ctx.createOscillator();
+    tide.frequency.value = 0.08;
+    const tideDepth = ctx.createGain();
+    tideDepth.gain.value = 0.05;
+    tide.connect(tideDepth).connect(gain.gain);
+    tide.start();
+    src.connect(low).connect(gain).connect(this.out!);
+    src.start();
+  }
+
+  private bubbles() {
+    const { after, bubbles } = bubbleBurst(this.random);
+    this.later(after, () => {
+      const ctx = this.ctx;
+      if (ctx && !document.hidden) {
+        const t0 = ctx.currentTime;
+        for (const b of bubbles) {
+          // A bubble: a quick upward blip.
+          const osc = ctx.createOscillator();
+          osc.type = "sine";
+          osc.frequency.setValueAtTime(b.from, t0 + b.at);
+          osc.frequency.exponentialRampToValueAtTime(b.from * 2.2, t0 + b.at + b.length);
+          const env = ctx.createGain();
+          env.gain.setValueAtTime(0.0001, t0 + b.at);
+          env.gain.exponentialRampToValueAtTime(0.06, t0 + b.at + 0.008);
+          env.gain.exponentialRampToValueAtTime(0.0001, t0 + b.at + b.length);
+          osc.connect(env).connect(this.out!);
+          osc.start(t0 + b.at);
+          osc.stop(t0 + b.at + b.length + 0.05);
+        }
+      }
+      this.bubbles();
+    });
+  }
+
+  private whales() {
+    const { after, low, high, seconds } = whaleCall(this.random);
+    this.later(after, () => {
+      const ctx = this.ctx;
+      if (ctx && !document.hidden) {
+        const t = ctx.currentTime;
+        const osc = ctx.createOscillator();
+        osc.type = "triangle";
+        osc.frequency.setValueAtTime(low, t);
+        osc.frequency.exponentialRampToValueAtTime(high, t + seconds * 0.45);
+        osc.frequency.exponentialRampToValueAtTime(low * 0.9, t + seconds);
+        const vibrato = ctx.createOscillator();
+        vibrato.frequency.value = 5;
+        const vibratoDepth = ctx.createGain();
+        vibratoDepth.gain.value = 4;
+        vibrato.connect(vibratoDepth).connect(osc.frequency);
+        const filter = ctx.createBiquadFilter();
+        filter.type = "lowpass";
+        filter.frequency.value = 700;
+        const env = ctx.createGain();
+        env.gain.setValueAtTime(0.0001, t);
+        env.gain.exponentialRampToValueAtTime(0.07, t + seconds * 0.3);
+        env.gain.exponentialRampToValueAtTime(0.0001, t + seconds);
+        osc.connect(filter).connect(env).connect(this.out!);
+        vibrato.start(t);
+        osc.start(t);
+        vibrato.stop(t + seconds + 0.1);
+        osc.stop(t + seconds + 0.1);
+      }
+      this.whales();
     });
   }
 }

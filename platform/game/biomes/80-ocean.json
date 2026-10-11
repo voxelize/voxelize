@@ -1,0 +1,18 @@
+[
+  {
+    "key": "ocean_depths",
+    "name": "Endless Sea",
+    "dimension": "ocean",
+    "temperature": 0.5,
+    "humidity": 1.0,
+    "continentalness": -1.0,
+    "erosion": 0.0,
+    "terrain": {
+      "heightOffset": 0,
+      "roughness": 0
+    },
+    "surface": "sand",
+    "subsurface": "sand",
+    "weather": []
+  }
+]

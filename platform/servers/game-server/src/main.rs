@@ -22,7 +22,7 @@ use actix_web::{web, App, HttpResponse};
 use log::{info, warn};
 use platform_content::{Content, Dimension};
 use platform_ticket::{Verifier, VerifierConfig};
-use platform_worldgen::{Generator, Paradise, Sky, Underworld, WorldgenConfig};
+use platform_worldgen::{Generator, Ocean, Paradise, Sky, Underworld, WorldgenConfig};
 use serde_json::json;
 use voxelize::{Server, Voxelize, World, WorldConfig};
 
@@ -59,9 +59,14 @@ fn build_world(
     let players_dir = config.save_dir.join(&config.world);
     // Paradise is always at noon: its clock is stopped.
     let paradise = dimension == Dimension::Paradise;
+    // The Ocean's water stands far above the overworld's sea.
+    let water_level = match dimension {
+        Dimension::Ocean => Ocean::SURFACE as usize,
+        _ => config.sea_level as usize,
+    };
     let world_config = WorldConfig::new()
         .seed(config.seed)
-        .water_level(config.sea_level as usize)
+        .water_level(water_level)
         .preload(config.preload_radius > 0)
         .preload_radius(config.preload_radius)
         .saving(true)
@@ -95,6 +100,9 @@ fn build_world(
         )),
         Dimension::Paradise => stage::Terrain::Paradise(Arc::new(
             Paradise::new(&content, config.seed, max_height).unwrap_or_else(|e| fail(e)),
+        )),
+        Dimension::Ocean => stage::Terrain::Ocean(Arc::new(
+            Ocean::new(&content, config.seed, max_height).unwrap_or_else(|e| fail(e)),
         )),
     };
     let biomes = terrain.clone();
@@ -424,6 +432,7 @@ async fn main() -> std::io::Result<()> {
             anticheat: config.anticheat,
             player_db: player_db.clone(),
             siege_seconds: config.siege_seconds,
+            seed: config.seed,
         };
         server
             .add_world(build_world(&config, content.clone(), dimensions))
