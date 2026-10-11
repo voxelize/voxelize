@@ -98,16 +98,24 @@ pub enum Dimension {
     Overworld,
     Underworld,
     Sky,
+    /// A world of plenty and light, where building is rewarded.
+    Paradise,
 }
 
 impl Dimension {
-    pub const ALL: [Dimension; 3] = [Dimension::Overworld, Dimension::Underworld, Dimension::Sky];
+    pub const ALL: [Dimension; 4] = [
+        Dimension::Overworld,
+        Dimension::Underworld,
+        Dimension::Sky,
+        Dimension::Paradise,
+    ];
 
     pub fn key(self) -> &'static str {
         match self {
             Dimension::Overworld => "overworld",
             Dimension::Underworld => "underworld",
             Dimension::Sky => "sky",
+            Dimension::Paradise => "paradise",
         }
     }
 
@@ -117,6 +125,7 @@ impl Dimension {
             Dimension::Overworld => 1.0,
             Dimension::Underworld => 0.125,
             Dimension::Sky => 1.0,
+            Dimension::Paradise => 1.0,
         }
     }
 }
@@ -235,6 +244,14 @@ pub struct BlockDef {
     /// to the overworld).
     #[serde(default)]
     pub portal: Option<PortalDef>,
+    /// Fluids: the item a glass bottle fills with here (water gives
+    /// `water_bottle` when unset).
+    #[serde(default)]
+    pub bottle: Option<String>,
+    /// A still liquid (honey, wine): drawn in its own colour, waded
+    /// through rather than swum, and never flowing.
+    #[serde(default)]
+    pub still: bool,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -672,6 +689,16 @@ pub struct OnHitEffect {
     pub seconds: f32,
 }
 
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct MobAura {
+    pub effect: EffectKind,
+    #[serde(default)]
+    pub level: u8,
+    pub seconds: f32,
+    pub radius: f32,
+}
+
 /// How players call up a creature that never spawns by itself.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
@@ -743,6 +770,13 @@ pub struct MobDef {
     /// Villagers: what they sell to players who use them.
     #[serde(default)]
     pub trades: Vec<TradeOfferDef>,
+    /// Nothing can hurt it (angels).
+    #[serde(default)]
+    pub invulnerable: bool,
+    /// An effect it gives every player within `radius`, renewed while they
+    /// stay near.
+    #[serde(default)]
+    pub aura: Option<MobAura>,
     pub model: Vec<ModelPart>,
 }
 

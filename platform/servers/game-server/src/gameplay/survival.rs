@@ -238,6 +238,8 @@ pub struct Surroundings {
     pub rained_on: bool,
     /// Horizontal distance moved since the last tick.
     pub moved: f32,
+    /// Paradise: no hunger, no falls, no drowning.
+    pub plenty: bool,
 }
 
 #[derive(Debug, Clone, PartialEq, Default)]
@@ -398,6 +400,16 @@ pub fn tick(v: &mut Vitals, s: Surroundings, dt: f32) -> TickOutcome {
         out.damage
             .retain(|(k, _)| !matches!(k, DamageKind::Fire | DamageKind::Lava));
     }
+    if s.plenty {
+        out.damage.retain(|(k, _)| {
+            !matches!(
+                k,
+                DamageKind::Fall | DamageKind::Drowning | DamageKind::Starvation
+            )
+        });
+        v.food = MAX_FOOD;
+        v.air = MAX_AIR;
+    }
     for &(kind, amount) in &out.damage {
         // Poison stops at one heart; resistance softens everything but the void.
         let amount = if kind == DamageKind::Void {
@@ -431,6 +443,7 @@ mod tests {
             in_fire: false,
             rained_on: false,
             moved: 0.0,
+            plenty: false,
         }
     }
 
@@ -654,5 +667,27 @@ mod tests {
         v.normalize();
         assert_eq!(v.health, MAX_HEALTH);
         assert_eq!(v.food, MAX_FOOD);
+    }
+
+    #[test]
+    fn paradise_spares_hunger_falls_and_breath() {
+        let mut v = Vitals::default();
+        v.food = 3.0;
+        v.air = 1.0;
+        let mut s = at(40.0, false);
+        s.plenty = true;
+        tick(&mut v, s.clone(), 0.1);
+        let mut landing = at(10.0, true);
+        landing.plenty = true;
+        landing.head_in_water = true;
+        let out = tick(&mut v, landing, 0.1);
+        assert!(
+            out.damage.is_empty(),
+            "no fall damage, no drowning: {:?}",
+            out.damage
+        );
+        assert_eq!(v.health, MAX_HEALTH);
+        assert_eq!(v.food, MAX_FOOD);
+        assert_eq!(v.air, MAX_AIR);
     }
 }

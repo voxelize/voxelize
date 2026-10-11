@@ -2,7 +2,7 @@
 
 use std::sync::Arc;
 
-use platform_worldgen::{GeneratedChunk, Generator, Sky, Underworld, AIR};
+use platform_worldgen::{GeneratedChunk, Generator, Paradise, Sky, Underworld, AIR};
 use voxelize::{Chunk, ChunkStage, Resources, Space, VoxelAccess};
 
 /// The generator of one dimension.
@@ -11,6 +11,7 @@ pub enum Terrain {
     Overworld(Arc<Generator>),
     Underworld(Arc<Underworld>),
     Sky(Arc<Sky>),
+    Paradise(Arc<Paradise>),
 }
 
 impl Terrain {
@@ -19,6 +20,7 @@ impl Terrain {
             Terrain::Overworld(g) => g.generate_chunk(cx, cz, size),
             Terrain::Underworld(u) => u.generate_chunk(cx, cz, size),
             Terrain::Sky(s) => s.generate_chunk(cx, cz, size),
+            Terrain::Paradise(p) => p.generate_chunk(cx, cz, size),
         }
     }
 
@@ -27,6 +29,7 @@ impl Terrain {
             Terrain::Overworld(g) => g.biome_at(x, z).to_owned(),
             Terrain::Underworld(u) => u.biome_at(x, z).to_owned(),
             Terrain::Sky(s) => s.biome_at(x, z).to_owned(),
+            Terrain::Paradise(p) => p.biome_at(x, z).to_owned(),
         }
     }
 }

@@ -573,6 +573,10 @@ pub fn install(world: &mut World) {
                             json!({ "trade": null, "ended": "done" }),
                         );
                     }
+                    // A gift: one side gave items and took nothing back.
+                    if let Some((giver, items)) = gift(&trade) {
+                        super::virtue_api::deed(world, &giver, super::virtue::Deed::Gift(items));
+                    }
                 }
             }
             Err(e) => reply(world, id, INTENT, Err(e)),
@@ -607,6 +611,23 @@ pub fn install(world: &mut World) {
             Err(e) => reply(world, id, INTENT, Err(e)),
         }
     });
+}
+
+/// The giver and the number of items, when a completed trade was a gift:
+/// one side offered items and no Crowns, the other nothing at all.
+pub fn gift(trade: &Trade) -> Option<(String, u32)> {
+    let empty = |s: &Side| s.items.is_empty() && s.crowns == 0;
+    let [a, b] = [&trade.sides[0], &trade.sides[1]];
+    let giver = match (empty(a), empty(b)) {
+        (false, true) => a,
+        (true, false) => b,
+        _ => return None,
+    };
+    if giver.crowns > 0 {
+        return None;
+    }
+    let items: u32 = giver.items.iter().map(|s| s.count).sum();
+    (items > 0).then(|| (giver.player.clone(), items))
 }
 
 /// Ends trades whose players left or drifted apart, expires invitations,
@@ -797,6 +818,19 @@ mod tests {
             paying: false,
         };
         (content, a, b, trade)
+    }
+
+    #[test]
+    fn one_sided_trades_are_gifts() {
+        let (c, mut a, mut b, mut t) = setup();
+        assert_eq!(gift(&t), None, "nothing on either side");
+        offer(&c, &mut t, &mut a, 0, &[(0, 6)], 0, false).unwrap();
+        assert_eq!(gift(&t), Some(("a".into(), 6)));
+        offer(&c, &mut t, &mut b, 1, &[(0, 1)], 0, false).unwrap();
+        assert_eq!(gift(&t), None, "an exchange is no gift");
+        t.sides[1].items.clear();
+        t.sides[1].crowns = 5;
+        assert_eq!(gift(&t), None, "a sale is no gift");
     }
 
     #[test]

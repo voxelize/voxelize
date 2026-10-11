@@ -101,6 +101,25 @@ island top (clouds excluded) within 32 columns of the departure point —
 the arrival area is 5 × 5 chunks there — and builds the portal on it; over
 open void it builds a portal with its ledges as a platform at island height.
 
+## Paradise
+
+`crates/worldgen/src/paradise.rs`, run for the `main_paradise` engine
+world: a world of plenty and light. Gentle hills (y 73–95) of radiant turf
+over golden loam over pearlstone, with no caves. Slow rivers wind through
+them, their surface at y 70 and their beds 2–4 deeper, banks easing up to
+the meadow; each river carries honey or wine along its whole length (a
+second noise field, far slower than the rivers bend, picks which). Light
+trees (light wood, glowing leaves that drop golden fruit) grow on about one
+column in 55, halo blooms on one in 11, and on one hill cell in three of 48
+a pearl shrine stands: a level platform, four pillars with wisp lanterns,
+a block of diamond at its heart. The pearlstone is thick with diamonds,
+gold and lumenite (ore specs whose host is pearlstone). Almost every block
+gives light, and the world's clock is stopped at noon, so nothing here is
+ever dark.
+
+Coordinates are not scaled. An unlinked arrival looks for the nearest dry
+meadow (above the rivers) within 32 columns and builds the gate there.
+
 ## Changing a live world's generator
 
 Pristine chunks are not saved; they are regenerated. Any change to the

@@ -57,6 +57,9 @@ pub use work::PayoutSystem;
 pub mod rules;
 pub mod store;
 pub mod survival;
+pub mod virtue;
+pub mod virtue_api;
+pub use virtue_api::VirtueSystem;
 pub mod weather;
 pub mod window;
 pub mod xp;
@@ -535,6 +538,7 @@ fn on_join(world: &mut World, entity: Entity) {
         mode,
         progress,
         work,
+        virtue,
     ) = match record {
         Some(r) => (
             r.inventory,
@@ -551,6 +555,7 @@ fn on_join(world: &mut World, entity: Entity) {
             r.mode,
             r.progress,
             r.work,
+            r.virtue,
         ),
         None => (
             Inventory::default(),
@@ -565,6 +570,7 @@ fn on_join(world: &mut World, entity: Entity) {
             None,
             0,
             rules::GameMode::Normal,
+            Default::default(),
             Default::default(),
             Default::default(),
         ),
@@ -591,6 +597,7 @@ fn on_join(world: &mut World, entity: Entity) {
         state.mode = mode;
         state.progress = progress;
         state.work = work;
+        state.virtue = virtue;
         // Arriving in a dimension counts (achievements for each one).
         let here = gameplay.dimensions.current;
         state.note(platform_content::TriggerKind::Enter, here.key(), 1);
@@ -602,6 +609,7 @@ fn on_join(world: &mut World, entity: Entity) {
     send_inventory(world, &id);
     send_vitals(world, &id, None);
     modes::on_join(world, &id);
+    virtue_api::on_join(world, &id);
     cosmetics::on_join(world, &id);
     plugin_presence(world, &id, true);
     {
@@ -712,6 +720,7 @@ pub fn install(
     guild_api::install(world);
     combat::install(world);
     modes::install(world);
+    virtue_api::install(world);
     work::install(world);
     chat::install(world);
     cosmetics::install(world);
@@ -789,6 +798,7 @@ pub fn install(
                 let [x, y, z] = p.voxel;
                 world.chunks_mut().update_voxel(&Vec3(x, y, z), rules::AIR);
                 items_api::block_removed(world, p.voxel, &outcome.drops);
+                virtue_api::deed(world, client_id, virtue::Deed::Broke(p.voxel));
                 persist(world, client_id);
                 reply(
                     world,
@@ -898,6 +908,7 @@ pub fn install(
                 };
                 world.chunks_mut().update_voxel(&Vec3(x, y, z), raw);
                 items_api::block_placed(world, p.voxel, block, client_id);
+                virtue_api::deed(world, client_id, virtue::Deed::Built(p.voxel));
                 if let Some(siege) = siege {
                     let mut g = world.ecs().write_resource::<Gameplay>();
                     log::info!("{client_id} besieges land {} at {:?}", siege.land, siege.at);
@@ -1275,6 +1286,7 @@ impl<'a> specs::System<'a> for SurvivalSystem {
         }
 
         let raining = gameplay.weather.raining();
+        let plenty = gameplay.dimensions.current == platform_content::Dimension::Paradise;
         let Gameplay {
             rules,
             players,
@@ -1366,6 +1378,7 @@ impl<'a> specs::System<'a> for SurvivalSystem {
                     y >= max_height || voxelize::VoxelAccess::get_sunlight(&*chunks, x, y, z) >= 15
                 },
                 moved,
+                plenty,
             };
             let outcome = survival::tick(&mut player.vitals, surroundings, dt);
             if outcome.changed {

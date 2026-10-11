@@ -536,6 +536,7 @@ pub(super) fn install(world: &mut World) {
                     world.events_mut().dispatch(e);
                 }
                 if killed {
+                    super::virtue_api::deed(world, id, super::virtue::Deed::Slew);
                     let bridge = world
                         .ecs()
                         .read_resource::<Gameplay>()

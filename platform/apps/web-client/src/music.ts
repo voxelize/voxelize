@@ -3,7 +3,7 @@
 // played with soft Web Audio voices and a gentle echo, then minutes of
 // silence before the next. No recordings, so every note is ours.
 
-export type Mood = "day" | "night" | "underworld" | "sky";
+export type Mood = "day" | "night" | "underworld" | "sky" | "paradise";
 
 export type Note = { at: number; midi: number; length: number; velocity: number; voice: "lead" | "pad" };
 export type Piece = { mood: Mood; seconds: number; notes: Note[] };
@@ -14,6 +14,8 @@ const MOODS: Record<Mood, { root: number; scale: number[]; beat: number }> = {
   night: { root: 57, scale: [0, 3, 5, 7, 10], beat: 1.0 },
   underworld: { root: 50, scale: [0, 1, 5, 7, 8], beat: 1.2 },
   sky: { root: 64, scale: [0, 2, 4, 6, 9], beat: 0.85 },
+  // Paradise: a bright, open lydian air, unhurried.
+  paradise: { root: 65, scale: [0, 2, 4, 6, 7, 9, 11], beat: 0.95 },
 };
 
 /** mulberry32: small, seeded, deterministic. */
@@ -32,6 +34,7 @@ function rng(seed: number): () => number {
 export function moodFor(dimension: string, dayFraction: number): Mood {
   if (dimension === "underworld") return "underworld";
   if (dimension === "sky") return "sky";
+  if (dimension === "paradise") return "paradise";
   const t = ((dayFraction % 1) + 1) % 1;
   return t > 0.22 && t < 0.78 ? "day" : "night";
 }
@@ -74,9 +77,10 @@ export function compose(seed: number, mood: Mood): Piece {
   return { mood, seconds: phrases * 8 * beat + 3, notes };
 }
 
-/** Seconds of silence between pieces: 1.5 to 4 minutes. */
-export function pauseAfter(random: () => number): number {
-  return 90 + random() * 150;
+/** Seconds of silence between pieces: 1.5 to 4 minutes; in Paradise the
+ * music returns sooner (20 to 50 seconds). */
+export function pauseAfter(random: () => number, mood: Mood = "day"): number {
+  return mood === "paradise" ? 20 + random() * 30 : 90 + random() * 150;
 }
 
 const frequency = (midi: number) => 440 * 2 ** ((midi - 69) / 12);
@@ -146,7 +150,7 @@ export class Music {
     const t0 = this.ctx.currentTime + 0.2;
     for (const n of piece.notes) this.voice(n, t0);
     this.playing = true;
-    this.schedule(piece.seconds + pauseAfter(this.random));
+    this.schedule(piece.seconds + pauseAfter(this.random, this.mood));
     window.setTimeout(() => (this.playing = false), piece.seconds * 1000);
   }
 

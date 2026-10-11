@@ -153,7 +153,10 @@ pub struct BehaviorContext {
     pub broken: Arc<BrokenBlocks>,
     dirt: Option<u32>,
     turf: Option<u32>,
+    /// Every water-like fluid (water, honey, wine): it hydrates and quenches.
     water: HashSet<u32>,
+    /// Water itself, what melting ice turns into.
+    plain_water: Option<u32>,
     logs: HashSet<u32>,
     opaque: HashSet<u32>,
     crops_on_farmland: HashSet<u32>,
@@ -233,6 +236,7 @@ impl BehaviorContext {
             broken,
             dirt: id("dirt"),
             turf: id("turf"),
+            plain_water: id("water"),
             water: blocks
                 .iter()
                 .filter(|b| b.fluid == Some(FluidKind::Water))
@@ -869,7 +873,7 @@ fn update(
                 || space.get_blue_light(p.0, p.1, p.2) > 11
         });
         if bright {
-            if let Some(&water) = ctx.water.iter().next() {
+            if let Some(water) = ctx.plain_water {
                 return vec![(voxel, water)];
             }
         }

@@ -317,7 +317,12 @@ mod tests {
     fn every_kind_routes_between_the_overworld_and_its_dimension() {
         let content = Content::load(platform_content::default_pack_dir()).unwrap();
         let kinds = PortalBlocks::all(&content);
-        assert_eq!(kinds.len(), 2);
+        assert_eq!(kinds.len(), 3);
+        let light = PortalBlocks::leading_to(&content, Dimension::Paradise).unwrap();
+        assert_eq!(light.frame, content.block("halo_stone").unwrap().id);
+        assert_eq!(light.rift, content.block("heaven_rift").unwrap().id);
+        assert_eq!(light.route(Dimension::Overworld), Some(Dimension::Paradise));
+        assert_eq!(light.route(Dimension::Paradise), Some(Dimension::Overworld));
         let down = PortalBlocks::leading_to(&content, Dimension::Underworld).unwrap();
         let up = PortalBlocks::leading_to(&content, Dimension::Sky).unwrap();
         assert_eq!(down.rift, content.block("rift").unwrap().id);

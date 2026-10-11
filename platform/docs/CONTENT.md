@@ -116,6 +116,20 @@ block, an item and recipes, with no new code. The pack ships three:
 | `crusher` | one raw ore → two crushed ores (160 ticks); stone → rubble → sand |
 | `smelter` | metals only (raw and crushed ores), 100 ticks — twice the furnace's speed |
 
+Paradise (`*-paradise.json`): radiant turf, golden loam and pearlstone;
+honey and wine are still liquids (`"still": true`: drawn in their own
+colour, waded through, never flowing, so a river can never drain;
+`"bottle"` names
+what a glass bottle fills with there: a Bottle of Honey heals and can be
+poured over a hurt player, Wine of Paradise quickens); light wood and light
+leaves (golden fruit), halo blooms, diamond ore and blocks of diamond,
+diamond tools (tier 3, above iron). The Gate of Light is a rift framed by
+halo stone (gold, glass and a lumen shard). Diamonds also lie rarely deep
+in the overworld. Creatures may be `invulnerable` and carry an `aura`
+(`{ effect, level, seconds, radius }`, renewed every 2 s on players within
+the radius): angels fly over the meadows, cannot be harmed and keep those
+near them in regeneration.
+
 Lights: the Wisp Lantern (glass and Wisp Essence from wisps, light 13) and
 the Core Lamp (iron, glass and the Warden Core the Ember Warden drops,
 light 15, four per core) give the creature drops a use.

@@ -22,7 +22,7 @@ use actix_web::{web, App, HttpResponse};
 use log::{info, warn};
 use platform_content::{Content, Dimension};
 use platform_ticket::{Verifier, VerifierConfig};
-use platform_worldgen::{Generator, Sky, Underworld, WorldgenConfig};
+use platform_worldgen::{Generator, Paradise, Sky, Underworld, WorldgenConfig};
 use serde_json::json;
 use voxelize::{Server, Voxelize, World, WorldConfig};
 
@@ -57,6 +57,8 @@ fn build_world(
     let save_dir = config.save_dir.join(&name);
     // Every dimension of a world shares the overworld's player records.
     let players_dir = config.save_dir.join(&config.world);
+    // Paradise is always at noon: its clock is stopped.
+    let paradise = dimension == Dimension::Paradise;
     let world_config = WorldConfig::new()
         .seed(config.seed)
         .water_level(config.sea_level as usize)
@@ -66,8 +68,9 @@ fn build_world(
         .save_dir(&save_dir.to_string_lossy())
         // A new world starts in the morning; afterwards the clock persists
         // with the world's stats.
-        .default_time(START_TIME_OF_DAY * DAY_TICKS as f32)
+        .default_time(if paradise { 0.5 } else { START_TIME_OF_DAY } * DAY_TICKS as f32)
         .time_per_day(DAY_TICKS)
+        .does_tick_time(!paradise)
         .build();
 
     let max_height = world_config.max_height as i32;
@@ -89,6 +92,9 @@ fn build_world(
         )),
         Dimension::Sky => stage::Terrain::Sky(Arc::new(
             Sky::new(&content, config.seed, max_height).unwrap_or_else(|e| fail(e)),
+        )),
+        Dimension::Paradise => stage::Terrain::Paradise(Arc::new(
+            Paradise::new(&content, config.seed, max_height).unwrap_or_else(|e| fail(e)),
         )),
     };
     let biomes = terrain.clone();
@@ -231,6 +237,11 @@ fn build_world(
                 gameplay::AntiCheatSystem::default(),
                 "platform-anticheat",
                 &["platform-metrics"],
+            )
+            .with(
+                gameplay::VirtueSystem::default(),
+                "platform-virtue",
+                &["platform-anticheat"],
             )
     });
     world

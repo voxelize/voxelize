@@ -10,9 +10,9 @@ import { api, ApiError, type WorldView, type WorldVisibility } from "./api";
 export const WORLD_KEY = "platform.world";
 export const SERVER_KEY = "platform.server";
 
-/** "main_underworld" → "main": the world a dimension belongs to. */
+/** "main_underworld", "main_paradise" → "main": the world a dimension belongs to. */
 export function baseWorld(engineWorld: string): string {
-  return engineWorld.replace(/_(underworld|sky)$/, "");
+  return engineWorld.replace(/_(underworld|sky|paradise)$/, "");
 }
 
 /** The http(s) origin of a game server from its WebSocket address. */

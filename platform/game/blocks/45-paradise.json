@@ -1,0 +1,266 @@
+[
+  {
+    "id": 83,
+    "key": "radiant_turf",
+    "name": "Radiant Turf",
+    "material": "soil",
+    "hardness": 0.6,
+    "resistance": 0.6,
+    "texture": {
+      "all": "golden_loam",
+      "top": "radiant_turf_top",
+      "side": "radiant_turf_side"
+    },
+    "tool": {
+      "kind": "shovel",
+      "required": false
+    },
+    "lightEmission": 5,
+    "drops": [
+      {
+        "item": "golden_loam"
+      }
+    ]
+  },
+  {
+    "id": 84,
+    "key": "golden_loam",
+    "name": "Golden Loam",
+    "material": "soil",
+    "hardness": 0.5,
+    "resistance": 0.5,
+    "texture": {
+      "all": "golden_loam"
+    },
+    "tool": {
+      "kind": "shovel",
+      "required": false
+    },
+    "drops": [
+      {
+        "item": "golden_loam"
+      }
+    ]
+  },
+  {
+    "id": 85,
+    "key": "pearlstone",
+    "name": "Pearlstone",
+    "material": "rock",
+    "hardness": 1.5,
+    "resistance": 6,
+    "texture": {
+      "all": "pearlstone"
+    },
+    "tool": {
+      "kind": "pickaxe",
+      "minTier": 0,
+      "required": true
+    },
+    "lightEmission": 2,
+    "drops": [
+      {
+        "item": "pearlstone"
+      }
+    ]
+  },
+  {
+    "id": 86,
+    "key": "diamond_ore",
+    "name": "Diamond Vein",
+    "material": "crystal",
+    "hardness": 3,
+    "resistance": 3,
+    "texture": {
+      "all": "diamond_ore"
+    },
+    "tool": {
+      "kind": "pickaxe",
+      "minTier": 2,
+      "required": true
+    },
+    "lightEmission": 6,
+    "xp": [
+      3,
+      7
+    ],
+    "drops": [
+      {
+        "item": "diamond",
+        "max": 2
+      }
+    ]
+  },
+  {
+    "id": 87,
+    "key": "honey",
+    "name": "Honey",
+    "material": "fluid",
+    "hardness": -1,
+    "resistance": 100,
+    "texture": {
+      "all": "honey"
+    },
+    "transparent": true,
+    "collision": false,
+    "fluid": "water",
+    "bottle": "honey_bottle",
+    "lightEmission": 9,
+    "still": true
+  },
+  {
+    "id": 88,
+    "key": "wine",
+    "name": "Wine",
+    "material": "fluid",
+    "hardness": -1,
+    "resistance": 100,
+    "texture": {
+      "all": "wine"
+    },
+    "transparent": true,
+    "collision": false,
+    "fluid": "water",
+    "bottle": "wine_bottle",
+    "lightEmission": 9,
+    "still": true
+  },
+  {
+    "id": 89,
+    "key": "light_log",
+    "name": "Light Wood",
+    "material": "wood",
+    "hardness": 2,
+    "resistance": 2,
+    "texture": {
+      "all": "light_log_side",
+      "top": "light_log_top",
+      "bottom": "light_log_top"
+    },
+    "tool": {
+      "kind": "axe",
+      "required": false
+    },
+    "lightEmission": 4,
+    "drops": [
+      {
+        "item": "light_log"
+      }
+    ]
+  },
+  {
+    "id": 90,
+    "key": "light_leaves",
+    "name": "Light Leaves",
+    "material": "foliage",
+    "hardness": 0.2,
+    "resistance": 0.2,
+    "texture": {
+      "all": "light_leaves"
+    },
+    "tool": {
+      "kind": "shears",
+      "required": false
+    },
+    "transparent": true,
+    "lightEmission": 12,
+    "behaviors": [
+      "decays"
+    ],
+    "drops": [
+      {
+        "item": "golden_fruit",
+        "chance": 0.35
+      }
+    ]
+  },
+  {
+    "id": 91,
+    "key": "halo_bloom",
+    "name": "Halo Bloom",
+    "material": "plant",
+    "hardness": 0,
+    "resistance": 0,
+    "texture": {
+      "all": "halo_bloom"
+    },
+    "transparent": true,
+    "collision": false,
+    "lightEmission": 10,
+    "support": [
+      "radiant_turf",
+      "golden_loam"
+    ],
+    "drops": [
+      {
+        "item": "halo_bloom"
+      }
+    ]
+  },
+  {
+    "id": 92,
+    "key": "halo_stone",
+    "name": "Halo Stone",
+    "material": "crystal",
+    "hardness": 25,
+    "resistance": 1200,
+    "texture": {
+      "all": "halo_stone"
+    },
+    "tool": {
+      "kind": "pickaxe",
+      "minTier": 2,
+      "required": true
+    },
+    "lightEmission": 8,
+    "drops": [
+      {
+        "item": "halo_stone"
+      }
+    ]
+  },
+  {
+    "id": 93,
+    "key": "heaven_rift",
+    "name": "Gate of Light",
+    "material": "crystal",
+    "hardness": -1,
+    "resistance": 0,
+    "texture": {
+      "all": "heaven_rift"
+    },
+    "transparent": true,
+    "collision": false,
+    "lightEmission": 15,
+    "behaviors": [
+      "rift"
+    ],
+    "portal": {
+      "frame": "halo_stone",
+      "to": "paradise"
+    },
+    "drops": []
+  },
+  {
+    "id": 94,
+    "key": "diamond_block",
+    "name": "Block of Diamond",
+    "material": "crystal",
+    "hardness": 5,
+    "resistance": 6,
+    "texture": {
+      "all": "diamond_block"
+    },
+    "tool": {
+      "kind": "pickaxe",
+      "minTier": 2,
+      "required": true
+    },
+    "lightEmission": 10,
+    "drops": [
+      {
+        "item": "diamond_block"
+      }
+    ]
+  }
+]

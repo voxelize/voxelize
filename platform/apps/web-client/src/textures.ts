@@ -175,6 +175,80 @@ const RECIPES: Record<string, Recipe> = {
     p.speckle(hex("#9cc8f2", 210), 0.06);
     for (let i = 2; i < 13; i++) p.set(i, i + 1, hex("#d7ecff", 220));
   },
+  // Paradise: warm, pale and luminous.
+  radiant_turf_top: (p) => {
+    p.speckle(hex("#b9f28a"), 0.1);
+    p.blobs(hex("#fff6b0"), 7, 0);
+    p.blobs(hex("#e8ffd0"), 5, 0);
+  },
+  radiant_turf_side: (p) => {
+    p.speckle(hex("#e9c97a"), 0.1);
+    for (let y = 0; y < 4; y++) for (let x = 0; x < SIZE; x++) if (y < 3 || p.random() > 0.4) p.set(x, y, shade(hex("#b9f28a"), (p.random() - 0.5) * 0.15));
+  },
+  golden_loam: (p) => {
+    p.speckle(hex("#e9c97a"), 0.12);
+    p.blobs(hex("#fff0b8"), 5, 0);
+  },
+  pearlstone: (p) => {
+    p.speckle(hex("#f4efe6"), 0.05);
+    p.blobs(hex("#fffdf8"), 6, 1);
+    p.blobs(hex("#e3d9f2"), 4, 0);
+  },
+  diamond_ore: (p) => {
+    p.speckle(hex("#f4efe6"), 0.05);
+    p.blobs(hex("#7ff3ff"), 5, 1);
+    p.blobs(hex("#ffffff"), 4, 0);
+  },
+  diamond_block: (p) => {
+    p.speckle(hex("#8ef6ff"), 0.08);
+    for (let i = 0; i < SIZE; i++) {
+      p.set(i, i, hex("#ffffff"));
+      p.set(SIZE - 1 - i, i, hex("#d6fbff"));
+    }
+    p.border(hex("#4fc9d9"));
+  },
+  honey: (p) => {
+    p.speckle(hex("#f2a91f", 225), 0.08);
+    for (let y = 1; y < SIZE; y += 5) for (let x = 0; x < SIZE; x++) if ((x + y) % 6 < 3) p.set(x, y, hex("#ffd36b", 230));
+  },
+  wine: (p) => {
+    p.speckle(hex("#8e1b4b", 215), 0.08);
+    for (let y = 2; y < SIZE; y += 5) for (let x = 0; x < SIZE; x++) if ((x + y) % 7 < 3) p.set(x, y, hex("#d24b86", 220));
+  },
+  light_log_side: (p) => {
+    p.speckle(hex("#f3e3c0"), 0.06);
+    p.streaks(hex("#d8c08c"), 3, 0.2);
+    p.blobs(hex("#fff6d8"), 3, 0);
+  },
+  light_log_top: (p) => p.rings(hex("#fff3cf"), hex("#d8c08c")),
+  light_leaves: (p) => {
+    p.clear();
+    for (let y = 0; y < SIZE; y++)
+      for (let x = 0; x < SIZE; x++) if (p.random() > 0.18) p.set(x, y, shade(hex(p.random() > 0.85 ? "#fff3a0" : "#d8ffb8"), (p.random() - 0.5) * 0.2));
+    p.blobs(hex("#ffcf3f"), 3, 0);
+  },
+  halo_bloom: (p) => {
+    p.clear();
+    for (let y = 9; y < SIZE; y++) p.set(8, y, hex("#9fe07a"));
+    for (let a = 0; a < 12; a++) {
+      const t = (a / 12) * Math.PI * 2;
+      p.set(8 + Math.round(Math.cos(t) * 3), 6 + Math.round(Math.sin(t) * 3), hex("#ffe27a"));
+    }
+    p.set(8, 6, hex("#ffffff"));
+    p.set(7, 6, hex("#fff6c4"));
+  },
+  halo_stone: (p) => {
+    p.speckle(hex("#f6e7b0"), 0.06);
+    p.border(hex("#d6a93a"));
+    for (let a = 0; a < 16; a++) {
+      const t = (a / 16) * Math.PI * 2;
+      p.set(8 + Math.round(Math.cos(t) * 4), 8 + Math.round(Math.sin(t) * 4), hex("#fff8dc"));
+    }
+  },
+  heaven_rift: (p) => {
+    p.speckle(hex("#fff6d0", 200), 0.12);
+    p.blobs(hex("#ffffff", 230), 6, 1);
+  },
   water: (p) => {
     p.speckle(hex("#2f64c8", 190), 0.08);
     for (let y = 2; y < SIZE; y += 5) for (let x = 0; x < SIZE; x++) if ((x + y) % 7 < 3) p.set(x, y, hex("#5d8ee0", 200));

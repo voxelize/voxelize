@@ -165,8 +165,38 @@ pub(super) fn mob_payload(m: &Mob) -> Value {
 pub struct MobSystem {
     last: Option<std::time::Instant>,
     since_spawn: f32,
+    since_aura: f32,
     since_sent: f32,
     since_saved: f32,
+}
+
+/// Each player within an aura-bearing creature's radius, with the aura
+/// (the first that reaches them).
+pub fn auras<'c>(
+    content: &'c platform_content::Content,
+    mobs: &[Mob],
+    players: &[PlayerInfo],
+) -> Vec<(String, &'c platform_content::MobAura)> {
+    let mut out: Vec<(String, &platform_content::MobAura)> = Vec::new();
+    for mob in mobs {
+        let Some(aura) = content.mob(&mob.key).and_then(|d| d.aura.as_ref()) else {
+            continue;
+        };
+        for p in players {
+            if out.iter().any(|(id, _)| *id == p.id) {
+                continue;
+            }
+            let d = [
+                p.feet[0] - mob.position[0],
+                p.feet[1] - mob.position[1],
+                p.feet[2] - mob.position[2],
+            ];
+            if d[0] * d[0] + d[1] * d[1] + d[2] * d[2] <= aura.radius * aura.radius {
+                out.push((p.id.clone(), aura));
+            }
+        }
+    }
+    out
 }
 
 impl<'a> specs::System<'a> for MobSystem {
@@ -248,6 +278,29 @@ impl<'a> specs::System<'a> for MobSystem {
         if self.since_spawn >= 1.0 {
             self.since_spawn = 0.0;
             mobs.spawn_around(&content, &view, &players, mob_rng);
+        }
+
+        // Auras: angels bless every player near them.
+        self.since_aura += dt;
+        if self.since_aura >= 2.0 {
+            self.since_aura = 0.0;
+            for (player, aura) in auras(&content, &mobs.list, &players) {
+                let Some(state) = states.get_mut(&player) else {
+                    continue;
+                };
+                if state.vitals.is_dead() {
+                    continue;
+                }
+                state
+                    .vitals
+                    .apply_effect(aura.effect, aura.level, aura.seconds);
+                events.dispatch(
+                    Event::new(super::VITALS_EVENT)
+                        .payload(super::vitals_payload(state, None))
+                        .filter(ClientFilter::Direct(player.clone()))
+                        .build(),
+                );
+            }
         }
 
         for event in mob_events {
@@ -697,5 +750,24 @@ mod tests {
         npc_trade(&c, &mut p, &farmer.trades[3]).unwrap();
         assert_eq!(p.inventory.count_of(gold), 0);
         assert_eq!(p.inventory.count_of(c.item("bread").unwrap().id), 6);
+    }
+
+    #[test]
+    fn angels_cannot_be_harmed_and_bless_those_near() {
+        let c = platform_content::Content::load(platform_content::default_pack_dir()).unwrap();
+        let mut mobs = Mobs::default();
+        let id = mobs.spawn(&c, "angel", [0.0, 80.0, 0.0], false).unwrap();
+        assert!(!mobs.hurt(&c, id, 1000.0, Some("p"), None), "invulnerable");
+        assert!(mobs.list[0].health > 0.0);
+        let player = |id: &str, x: f32| PlayerInfo {
+            id: id.into(),
+            feet: [x, 80.0, 0.0],
+            holding: None,
+            targetable: true,
+        };
+        let near = auras(&c, &mobs.list, &[player("near", 3.0), player("far", 30.0)]);
+        assert_eq!(near.len(), 1);
+        assert_eq!(near[0].0, "near");
+        assert_eq!(near[0].1.effect, platform_content::EffectKind::Regeneration);
     }
 }

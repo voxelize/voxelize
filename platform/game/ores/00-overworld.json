@@ -81,5 +81,40 @@
     "maxY": 200,
     "veinsPerChunk": 6,
     "veinSize": 5
+  },
+  {
+    "key": "diamond",
+    "block": "diamond_ore",
+    "minY": 3,
+    "maxY": 14,
+    "veinsPerChunk": 1,
+    "veinSize": 3
+  },
+  {
+    "key": "diamond_paradise",
+    "block": "diamond_ore",
+    "replaces": "pearlstone",
+    "minY": 5,
+    "maxY": 90,
+    "veinsPerChunk": 10,
+    "veinSize": 6
+  },
+  {
+    "key": "gold_paradise",
+    "block": "gold_ore",
+    "replaces": "pearlstone",
+    "minY": 5,
+    "maxY": 90,
+    "veinsPerChunk": 8,
+    "veinSize": 7
+  },
+  {
+    "key": "lumenite_paradise",
+    "block": "lumenite_ore",
+    "replaces": "pearlstone",
+    "minY": 5,
+    "maxY": 60,
+    "veinsPerChunk": 4,
+    "veinSize": 4
   }
 ]

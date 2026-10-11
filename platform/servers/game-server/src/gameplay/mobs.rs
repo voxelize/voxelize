@@ -269,6 +269,9 @@ impl Mobs {
         let Some(mob) = self.get_mut(id) else {
             return false;
         };
+        if content.mob(&mob.key).is_some_and(|d| d.invulnerable) {
+            return false; // angels cannot be harmed
+        }
         mob.health -= damage;
         mob.hurt_timer = 0.4;
         let push = if content.mob(&mob.key).is_some_and(|d| d.boss) {
@@ -382,7 +385,7 @@ impl Mobs {
                 && world.is_day()
                 && !in_water
                 && world.sky_light(head[0], head[1], head[2]) >= 15;
-            if sunburn || heat > 0.0 {
+            if (sunburn || heat > 0.0) && !def.invulnerable {
                 mob.burn_timer += dt;
                 while mob.burn_timer >= 1.0 {
                     mob.burn_timer -= 1.0;

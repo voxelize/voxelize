@@ -1,0 +1,10 @@
+[
+  {"type": "shaped", "key": "halo_stone", "pattern": ["gqg", "qlq", "gqg"], "symbols": {"g": "gold_ingot", "q": "glass", "l": "lumen_shard"}, "result": {"item": "halo_stone", "count": 2}},
+  {"type": "shaped", "key": "diamond_block", "pattern": ["ddd", "ddd", "ddd"], "symbols": {"d": "diamond"}, "result": {"item": "diamond_block"}},
+  {"type": "shapeless", "key": "diamonds_from_block", "ingredients": ["diamond_block"], "result": {"item": "diamond", "count": 9}},
+  {"type": "shaped", "key": "diamond_pickaxe", "pattern": ["ddd", " s ", " s "], "symbols": {"d": "diamond", "s": "stick"}, "result": {"item": "diamond_pickaxe"}},
+  {"type": "shaped", "key": "diamond_axe", "pattern": ["dd", "ds", " s"], "symbols": {"d": "diamond", "s": "stick"}, "result": {"item": "diamond_axe"}},
+  {"type": "shaped", "key": "diamond_shovel", "pattern": ["d", "s", "s"], "symbols": {"d": "diamond", "s": "stick"}, "result": {"item": "diamond_shovel"}},
+  {"type": "shaped", "key": "diamond_sword", "pattern": ["d", "d", "s"], "symbols": {"d": "diamond", "s": "stick"}, "result": {"item": "diamond_sword"}},
+  {"type": "shapeless", "key": "light_planks", "ingredients": ["light_log"], "result": {"item": "planks", "count": 4}}
+]

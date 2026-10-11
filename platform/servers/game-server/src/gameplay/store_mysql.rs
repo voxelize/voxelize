@@ -214,6 +214,7 @@ mod tests {
             mode: Default::default(),
             progress: Default::default(),
             work: Default::default(),
+            virtue: Default::default(),
         }
     }
 

@@ -292,6 +292,17 @@ impl Content {
                     "{who} xp must be [min, max] with min <= max <= 100"
                 ));
             }
+            if block.still && block.fluid.is_none() {
+                errors.push(format!("{who} is still but no liquid"));
+            }
+            if let Some(bottle) = &block.bottle {
+                if block.fluid.is_none() {
+                    errors.push(format!("{who} fills bottles but is no fluid"));
+                }
+                if !has_item(bottle) {
+                    errors.push(format!("{who} fills bottles with unknown item {bottle:?}"));
+                }
+            }
             let is_rift = block.behaviors.contains(&crate::BlockBehavior::Rift);
             match (&block.portal, is_rift) {
                 (Some(portal), true) => {
@@ -623,6 +634,16 @@ impl Content {
             }
             if mob.kind != MobKind::Passive && mob.damage <= 0.0 {
                 errors.push(format!("{who} can attack but deals no damage"));
+            }
+            if let Some(aura) = &mob.aura {
+                if !(aura.radius > 0.0 && aura.radius <= 32.0) || !(aura.seconds > 0.0) {
+                    errors.push(format!(
+                        "{who} aura needs a radius in (0, 32] and positive seconds"
+                    ));
+                }
+            }
+            if mob.invulnerable && mob.kind == MobKind::Hostile {
+                errors.push(format!("{who} cannot be hostile and invulnerable"));
             }
             if mob.spawn.group_min == 0 || mob.spawn.group_min > mob.spawn.group_max {
                 errors.push(format!("{who} spawn group must satisfy 1 <= min <= max"));

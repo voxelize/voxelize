@@ -15,7 +15,7 @@ use std::sync::Arc;
 
 use platform_content::Dimension;
 use platform_ticket::Realm;
-use platform_worldgen::{Sky, Underworld};
+use platform_worldgen::{Paradise, Sky, Underworld};
 use serde::{Deserialize, Serialize};
 use serde_json::json;
 use voxelize::{
@@ -224,6 +224,7 @@ fn heights(dimension: Dimension, center_y: i32) -> std::ops::Range<i32> {
         Dimension::Overworld => (2, 250),
         Dimension::Underworld => (Underworld::LAVA_LEVEL + 1, Underworld::ROOF - 6),
         Dimension::Sky => (Sky::ISLAND_LEVEL - 40, Sky::CLOUD_LEVEL - 6),
+        Dimension::Paradise => (Paradise::RIVER_LEVEL, 200),
     };
     (center_y - 24).max(lo)..(center_y + 24).min(hi)
 }
@@ -328,6 +329,11 @@ impl<'a> specs::System<'a> for PortalSystem {
                     // open void, a portal platform is built at island height.
                     Dimension::Sky => sky_landing(x, z, |x, z| top(x, z, Sky::CLOUD_LEVEL))
                         .unwrap_or((x, z, Sky::ISLAND_LEVEL + 1)),
+                    // Arrive on dry meadow, never in a river of honey or wine.
+                    Dimension::Paradise => sky_landing(x, z, |x, z| {
+                        top(x, z, 200).filter(|&y| y > Paradise::RIVER_LEVEL)
+                    })
+                    .unwrap_or((x, z, Paradise::GROUND + 12)),
                 };
                 let center = [x, center_y, z];
                 let range = heights(dims.current, center_y);

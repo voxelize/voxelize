@@ -1,0 +1,16 @@
+[
+  {"id": 137, "key": "golden_loam", "name": "Golden Loam", "type": "block", "placesBlock": "golden_loam", "value": 1},
+  {"id": 138, "key": "pearlstone", "name": "Pearlstone", "type": "block", "placesBlock": "pearlstone", "value": 2},
+  {"id": 139, "key": "diamond", "name": "Diamond", "type": "material", "rarity": "rare", "value": 150},
+  {"id": 140, "key": "diamond_block", "name": "Block of Diamond", "type": "block", "placesBlock": "diamond_block", "rarity": "rare", "value": 1350},
+  {"id": 141, "key": "light_log", "name": "Light Wood", "type": "block", "placesBlock": "light_log", "value": 3},
+  {"id": 142, "key": "halo_bloom", "name": "Halo Bloom", "type": "block", "placesBlock": "halo_bloom", "value": 2},
+  {"id": 143, "key": "halo_stone", "name": "Halo Stone", "type": "block", "placesBlock": "halo_stone", "rarity": "uncommon", "value": 60},
+  {"id": 144, "key": "honey_bottle", "name": "Bottle of Honey", "type": "misc", "stackSize": 16, "value": 6, "potion": {"effect": "regeneration", "level": 1, "seconds": 20}},
+  {"id": 145, "key": "wine_bottle", "name": "Wine of Paradise", "type": "misc", "stackSize": 16, "value": 6, "potion": {"effect": "speed", "level": 0, "seconds": 60}},
+  {"id": 146, "key": "golden_fruit", "name": "Golden Fruit", "type": "food", "food": 8, "value": 5},
+  {"id": 147, "key": "diamond_pickaxe", "name": "Diamond Pickaxe", "type": "tool", "stackSize": 1, "durability": 1500, "rarity": "rare", "value": 500, "tool": {"kind": "pickaxe", "tier": 3, "speed": 9.0, "attackDamage": 5}},
+  {"id": 148, "key": "diamond_axe", "name": "Diamond Axe", "type": "tool", "stackSize": 1, "durability": 1500, "rarity": "rare", "value": 500, "tool": {"kind": "axe", "tier": 3, "speed": 9.0, "attackDamage": 7}},
+  {"id": 149, "key": "diamond_shovel", "name": "Diamond Shovel", "type": "tool", "stackSize": 1, "durability": 1500, "rarity": "rare", "value": 200, "tool": {"kind": "shovel", "tier": 3, "speed": 9.0, "attackDamage": 4}},
+  {"id": 150, "key": "diamond_sword", "name": "Diamond Sword", "type": "tool", "stackSize": 1, "durability": 1500, "rarity": "rare", "value": 350, "tool": {"kind": "sword", "tier": 3, "speed": 1.5, "attackDamage": 8}}
+]

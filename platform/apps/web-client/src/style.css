@@ -1211,3 +1211,47 @@ button.danger {
   font-size: 0.85rem;
   opacity: 0.85;
 }
+
+/* Virtue in Paradise: a small golden chip at the top of the screen. */
+#virtue {
+  position: fixed;
+  top: calc(env(safe-area-inset-top, 0px) + 10px);
+  left: 50%;
+  transform: translateX(-50%);
+  min-width: 220px;
+  max-width: calc(100vw - 32px);
+  padding: 6px 12px 7px;
+  border-radius: 12px;
+  background: rgba(255, 248, 225, 0.82);
+  color: #6b4a00;
+  font-size: 13px;
+  text-align: center;
+  box-shadow: 0 0 18px rgba(255, 214, 102, 0.75);
+  pointer-events: none;
+  z-index: 5;
+}
+#virtue .virtue-track {
+  height: 5px;
+  margin: 4px 0 3px;
+  border-radius: 3px;
+  background: rgba(107, 74, 0, 0.18);
+  overflow: hidden;
+}
+#virtue .virtue-bar {
+  height: 100%;
+  width: 0;
+  background: linear-gradient(90deg, #ffd34d, #fff3b0);
+  transition: width 0.6s ease;
+}
+#virtue .virtue-today {
+  font-size: 11px;
+  opacity: 0.75;
+}
+#virtue.divine {
+  box-shadow: 0 0 28px rgba(255, 236, 160, 1), 0 0 6px #fff;
+}
+#virtue.fallen {
+  background: rgba(60, 50, 60, 0.82);
+  color: #e8dcef;
+  box-shadow: none;
+}

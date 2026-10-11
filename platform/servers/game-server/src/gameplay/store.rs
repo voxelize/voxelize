@@ -61,6 +61,8 @@ pub struct PlayerRecord {
     pub progress: super::progress::Progress,
     #[serde(default)]
     pub work: super::work::Work,
+    #[serde(default)]
+    pub virtue: super::virtue::Virtue,
 }
 
 pub struct PlayerStore {
@@ -150,6 +152,7 @@ impl PlayerStore {
             mode: player.mode,
             progress: player.progress.clone(),
             work: player.work.clone(),
+            virtue: player.virtue.clone(),
         }
     }
 
@@ -266,6 +269,7 @@ mod tests {
             mode: Default::default(),
             progress: Default::default(),
             work: Default::default(),
+            virtue: Default::default(),
         };
         store.save(&record).unwrap();
         assert_eq!(store.load("01ABC").unwrap(), Some(record));

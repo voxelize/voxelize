@@ -31,6 +31,8 @@ import { nearest, TradePanel, type TradeView } from "./trade";
 import { DropsView } from "./drops";
 import { Sfx } from "./audio";
 import { moodFor, Music } from "./music";
+import { ParadiseAmbience } from "./ambience";
+import { peerLabel, VirtueHud, type VirtueState, type VirtueTag } from "./virtue";
 import { MobInfo, MobsView, nearestBoss } from "./mobs-view";
 import { ArrowInfo, CombatView, FuseInfo } from "./combat-view";
 import { EffectInfo, WeatherInfo, WeatherView, effectLine, flash, movement } from "./weather";
@@ -52,8 +54,15 @@ const storedWorld = (() => {
   }
 })();
 const WORLD = storedWorld && /^[a-z0-9_]{1,64}$/.test(storedWorld) ? storedWorld : "main";
-/** The dimension this world is (`main_underworld`, `main_sky`). */
-const DIMENSION = WORLD.endsWith("_underworld") ? "underworld" : WORLD.endsWith("_sky") ? "sky" : "overworld";
+/** The dimension this world is (`main_underworld`, `main_sky`, `main_paradise`). */
+const DIMENSION = WORLD.endsWith("_underworld")
+  ? "underworld"
+  : WORLD.endsWith("_sky")
+    ? "sky"
+    : WORLD.endsWith("_paradise")
+      ? "paradise"
+      : "overworld";
+const PARADISE = DIMENSION === "paradise";
 const UNDERWORLD = DIMENSION === "underworld";
 const FACE_ROLES: Record<string, "top" | "bottom" | "side"> = {
   py: "top",
@@ -101,6 +110,8 @@ class Players extends VOXELIZE.Peers<VOXELIZE.Character> {
   readonly spectators = new Set<string>();
   /** What each player wears (`platform.look`), painted when their body exists. */
   readonly looks = new Map<string, Look>();
+  /** Everyone's virtue title (`platform.virtue`), shown on name tags in Paradise. */
+  readonly titles = new Map<string, VirtueTag>();
 
   createPeer = (id: string) => {
     const character = new VOXELIZE.Character();
@@ -109,9 +120,14 @@ class Players extends VOXELIZE.Peers<VOXELIZE.Character> {
     return character;
   };
 
-  onPeerUpdate = (object: VOXELIZE.Character, data: { position: number[]; direction: number[] }, info: { id: string }) => {
+  onPeerUpdate = (object: VOXELIZE.Character, data: { position: number[]; direction: number[] }, info: { id: string; username?: string }) => {
     object.set(data.position as VOXELIZE.Coords3, data.direction as VOXELIZE.Coords3);
     object.visible = !this.spectators.has(info.id);
+    // Name tags: the name, and in Paradise the title.
+    if (info.username) {
+      const label = peerLabel(info.username, this.titles.get(info.id), PARADISE);
+      if (object.username !== label) object.username = label;
+    }
   };
 
   /** Someone's look changed: remember it and repaint them if they are here. */
@@ -142,7 +158,14 @@ export async function startGame(content: Content, getTicket: () => Promise<strin
   // Our own sky palette; the underworld is a sealed cavern with a smoky
   // red void instead of a sky, and the sky dimension stays pale and bright
   // above a white void.
-  if (DIMENSION === "sky") {
+  if (PARADISE) {
+    // Paradise is always noon: a warm golden glow over a pearl-white haze.
+    const glory = { top: "#ffeec2", middle: "#fffaf0", bottom: "#ffffff" };
+    world.sky.setShadingPhases([
+      { name: "glory", color: glory, skyOffset: 0, voidOffset: 0.4, start: 0 },
+      { name: "glory-late", color: glory, skyOffset: 0, voidOffset: 0.4, start: 0.5 },
+    ]);
+  } else if (DIMENSION === "sky") {
     world.sky.setShadingPhases([
       { name: "sky-day", color: { top: "#6fa8ff", middle: "#cfe4ff", bottom: "#f4f8ff" }, skyOffset: 0, voidOffset: 0.4, start: 0.2 },
       { name: "sky-dusk", color: { top: "#7f78c8", middle: "#f2b7a0", bottom: "#e8e4f4" }, skyOffset: 0.05, voidOffset: 0.4, start: 0.7 },
@@ -160,7 +183,8 @@ export async function startGame(content: Content, getTicket: () => Promise<strin
     { name: "dusk", color: { top: "#5a4f8a", middle: "#e8784a", bottom: "#1d1f24" }, skyOffset: 0.05, voidOffset: 0.6, start: 0.7 },
     { name: "night", color: { top: "#04060c", middle: "#0b1020", bottom: "#000000" }, skyOffset: 0.1, voidOffset: 0.6, start: 0.76 },
   ]);
-  if (!UNDERWORLD) {
+  if (PARADISE) world.sky.paint("bottom", VOXELIZE.artFunctions.drawSun());
+  else if (!UNDERWORLD) {
     world.sky.paint("bottom", VOXELIZE.artFunctions.drawSun());
     world.sky.paint("top", VOXELIZE.artFunctions.drawStars());
     world.sky.paint("top", VOXELIZE.artFunctions.drawMoon());
@@ -194,6 +218,7 @@ export async function startGame(content: Content, getTicket: () => Promise<strin
 
   const sfx = new Sfx();
   const music = new Music();
+  const ambience = PARADISE ? new ParadiseAmbience() : null;
   const applySettings = (s: Settings) => {
     controls.options.sensitivity = s.sensitivity;
     controls.options.invertY = s.invertY;
@@ -203,6 +228,7 @@ export async function startGame(content: Content, getTicket: () => Promise<strin
     document.documentElement.style.setProperty("--ui-scale", String(s.uiScale));
     sfx.setVolume(s.volume);
     music.setVolume(s.music);
+    ambience?.setVolume(s.music);
     applyColourVision(s.colourVision, [canvas, document.getElementById("hud") ?? document.body]);
     keys = s.keys;
     Object.keys(controls.movements).forEach((m) => ((controls.movements as Record<string, boolean>)[m] = false));
@@ -693,6 +719,21 @@ export async function startGame(content: Content, getTicket: () => Promise<strin
   const mobs = new MobsView(content);
   world.add(mobs.group);
   const bossBar = document.getElementById("boss-bar") as HTMLElement;
+  // Virtue: our own standing (the chip, in Paradise) and everyone's titles.
+  const virtueHud = new VirtueHud();
+  events.on<Partial<VirtueState> & { players?: VirtueTag[] }>("platform.virtue", (payload) => {
+    if (!payload) return;
+    if (payload.players) {
+      for (const tag of payload.players) players.titles.set(tag.id, tag);
+      return;
+    }
+    if (!PARADISE || typeof payload.points !== "number") return;
+    const rose = virtueHud.update(payload as VirtueState);
+    if (rose) {
+      hud.toast(payload.divine ? "You have reached the Divine. You may fly here (F)." : `You rise to ${payload.title}.`);
+      sfx.play("craft");
+    }
+  });
   events.on<{ player: string; mode: string }>("platform.mode", (payload) => {
     if (!payload) return;
     if (payload.mode === "spectator") players.spectators.add(payload.player);
@@ -817,6 +858,12 @@ export async function startGame(content: Content, getTicket: () => Promise<strin
       method.call("platform.interact", { mob: mob.id });
       return;
     }
+    // Honey poured over a hurt player heals them (and is a good deed).
+    const friend = hud.heldItem()?.key === "honey_bottle" ? playerInFront() : null;
+    if (friend) {
+      method.call("platform.bless", { player: friend.id });
+      return;
+    }
     secondaryOnBlock(sneaking);
   };
   // A bow: hold the right button to draw, release to shoot.
@@ -866,7 +913,7 @@ export async function startGame(content: Content, getTicket: () => Promise<strin
   });
   canvas.addEventListener("contextmenu", (event) => event.preventDefault());
   // Music starts with the first touch or click (browsers need a gesture).
-  addEventListener("pointerdown", () => music.start(), { once: true });
+  addEventListener("pointerdown", () => (music.start(), ambience?.start()), { once: true });
   canvas.addEventListener("click", () => {
     if (!controls.isLocked && !windowUi.isOpen && !vitalsHud.dead) controls.lock();
   });
@@ -924,8 +971,8 @@ export async function startGame(content: Content, getTicket: () => Promise<strin
     } else if (action === "drop" && controls.isLocked && !windowUi.isOpen) {
       method.call("platform.inventory.drop", { all: event.ctrlKey });
     } else if (action === "fly" && controls.isLocked) {
-      if (realm === "creative") controls.toggleFly();
-      else hud.toast("Flight is for creative worlds");
+      if (realm === "creative" || (PARADISE && virtueHud.state?.divine)) controls.toggleFly();
+      else hud.toast(PARADISE ? "Only the Divine fly in Paradise" : "Flight is for creative worlds");
     } else if (action === "camera" && controls.isLocked) {
       perspective.toggle();
     }

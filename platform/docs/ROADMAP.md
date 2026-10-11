@@ -520,6 +520,21 @@ Then: music — calm pieces composed in the browser from a seeded generator
 with an echo, minutes of silence between pieces; its own volume in the
 settings. No recordings. Tests: music unit tests, checked playing in
 Chromium.
+Then: Paradise — a fourth dimension of plenty and light, reached through a
+Gate of Light (a halo-stone frame lit with a fire striker): glowing meadows
+over pearlstone thick with diamonds, rivers of honey and of wine (bottles
+fill with them), light trees with golden fruit, halo blooms, pearl shrines;
+always noon, no hunger, no falls, no drowning; angels that fly, cannot be
+harmed and keep those near them in regeneration; diamond tools. Virtue:
+building earns, breaking costs (undoing your own building is neutral),
+gifts through the trade window and healing a hurt player with honey earn
+more (daily caps on building and helping), killing a player costs 1000;
+levels from Fallen and Pilgrim to Divine, announced to everyone and shown
+on name tags; Guardians stay in regeneration there and the Divine may fly.
+A calm soundscape (a breathing chord, a murmuring stream, wind chimes,
+birdsong) and brighter, more frequent music. Tests: worldgen, virtue,
+honey, gift, angel and portal unit tests; client tests;
+`tests/bots/paradise.mjs` end to end.
 Then: loose ends found by an audit — moderators approve or reject
 blueprints in the admin panel (Blueprints tab); signing out revokes the
 token on the server (world list, account panel, admin); a wallet tab in the

@@ -1,0 +1,18 @@
+[
+  {
+    "key": "paradise_meadows",
+    "name": "Meadows of Light",
+    "dimension": "paradise",
+    "temperature": 0.5,
+    "humidity": 0.5,
+    "continentalness": 0.0,
+    "erosion": 0.0,
+    "terrain": {
+      "heightOffset": 0,
+      "roughness": 0
+    },
+    "surface": "radiant_turf",
+    "subsurface": "golden_loam",
+    "weather": []
+  }
+]

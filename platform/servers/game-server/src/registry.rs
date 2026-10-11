@@ -49,6 +49,11 @@ pub fn engine_block(def: &BlockDef, content: &Content, ctx: &Arc<BehaviorContext
     }
     match def.fluid {
         None => {}
+        // Still liquids are see-through blocks you wade through: the
+        // engine's flowing water would draw and move them as water.
+        Some(_) if def.still => {
+            block = block.is_transparent(true).is_see_through(true);
+        }
         Some(FluidKind::Water) => {
             block = block
                 .is_fluid(true)

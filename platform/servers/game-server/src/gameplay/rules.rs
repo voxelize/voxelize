@@ -190,6 +190,8 @@ pub struct PlayerState {
     pub notes: Vec<super::progress::Note>,
     /// Job, daily quests and unpaid Crowns (saved with the record).
     pub work: super::work::Work,
+    /// Virtue earned in Paradise (saved with the record).
+    pub virtue: super::virtue::Virtue,
 }
 
 /// The window a player has open.
@@ -230,6 +232,7 @@ impl PlayerState {
             progress: Default::default(),
             notes: Vec::new(),
             work: Default::default(),
+            virtue: Default::default(),
         }
     }
 }
@@ -867,7 +870,9 @@ impl Rules {
         Ok(food)
     }
 
-    /// Fill the held glass bottle from water within 4 blocks of the eye.
+    /// Fill the held glass bottle from the nearest drinkable fluid within 4
+    /// blocks of the eye: water gives water, honey honey, wine wine (the
+    /// fluid's `bottle`).
     pub fn fill_bottle(
         &self,
         player: &mut PlayerState,
@@ -875,12 +880,8 @@ impl Rules {
         eye: [f32; 3],
     ) -> Result<(), IntentError> {
         alive(player)?;
-        let (bottle, water_bottle) = match (
-            self.content.item("glass_bottle"),
-            self.content.item("water_bottle"),
-        ) {
-            (Some(b), Some(w)) => (b.id, w.id),
-            _ => return Err(IntentError::CannotUse),
+        let Some(bottle) = self.content.item("glass_bottle").map(|b| b.id) else {
+            return Err(IntentError::CannotUse);
         };
         let slot = player.inventory.selected;
         if player.inventory.get(slot).map(|s| s.item) != Some(bottle) {
@@ -891,29 +892,41 @@ impl Rules {
             eye[1].floor() as i32,
             eye[2].floor() as i32,
         ];
-        let water = (-4..=4).any(|dx| {
-            (-4..=2).any(|dy| {
-                (-4..=4).any(|dz| {
-                    view.block_at([c[0] + dx, c[1] + dy, c[2] + dz])
+        let mut nearest: Option<(i32, &platform_content::BlockDef)> = None;
+        for dx in -4..=4 {
+            for dy in -4..=2 {
+                for dz in -4..=4 {
+                    let Some(def) = view
+                        .block_at([c[0] + dx, c[1] + dy, c[2] + dz])
                         .and_then(|id| self.content.block_by_id(id))
-                        .is_some_and(|b| b.fluid == Some(platform_content::FluidKind::Water))
-                })
-            })
-        });
-        if !water {
-            return Err(IntentError::NothingThere);
+                        .filter(|b| b.fluid == Some(platform_content::FluidKind::Water))
+                    else {
+                        continue;
+                    };
+                    let d = dx * dx + dy * dy + dz * dz;
+                    if nearest.is_none_or(|(best, _)| d < best) {
+                        nearest = Some((d, def));
+                    }
+                }
+            }
         }
+        let Some((_, fluid)) = nearest else {
+            return Err(IntentError::NothingThere);
+        };
+        let filled = self
+            .content
+            .item(fluid.bottle.as_deref().unwrap_or("water_bottle"))
+            .map(|i| i.id)
+            .ok_or(IntentError::CannotUse)?;
         if player.inventory.get(slot).is_some_and(|s| s.count == 1) {
             player.inventory.slots[slot] = Some(super::inventory::Stack {
-                item: water_bottle,
+                item: filled,
                 count: 1,
                 durability: None,
             });
             return Ok(());
         }
-        if self.content.item_by_id(water_bottle).is_none()
-            || player.inventory.add(&self.content, water_bottle, 1) > 0
-        {
+        if player.inventory.add(&self.content, filled, 1) > 0 {
             return Err(IntentError::InventoryFull);
         }
         player.inventory.take_one(slot)?;
@@ -1548,6 +1561,20 @@ mod tests {
         let water_bottle = c.item("water_bottle").unwrap().id;
         assert_eq!(player.inventory.count_of(water_bottle), 1);
         assert_eq!(player.inventory.count_of(bottle), 1);
+
+        // Honey closer than the water fills a bottle with honey.
+        world.blocks.insert(
+            [eye[0] + 1, eye[1] - 1, eye[2]],
+            c.block("honey").unwrap().id,
+        );
+        rules.fill_bottle(&mut player, &world, HERE).unwrap();
+        assert_eq!(
+            player
+                .inventory
+                .count_of(c.item("honey_bottle").unwrap().id),
+            1
+        );
+        assert_eq!(player.inventory.count_of(bottle), 0);
 
         let strength = c.item("potion_strength").unwrap().id;
         player.inventory.slots[5] = Some(crate::gameplay::inventory::Stack {

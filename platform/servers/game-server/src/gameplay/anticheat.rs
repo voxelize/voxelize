@@ -211,6 +211,8 @@ impl<'a> specs::System<'a> for AntiCheatSystem {
         }
         let dt = std::mem::take(&mut self.since).min(1.0);
         let content = g.rules.content_arc();
+        // The Divine may fly in Paradise.
+        let paradise = g.dimensions.current == platform_content::Dimension::Paradise;
         let max_height = config.max_height as i32;
         // None: the chunk is not loaded (say nothing about it).
         let block = |x: i32, y: i32, z: i32| -> Option<(bool, bool)> {
@@ -256,6 +258,7 @@ impl<'a> specs::System<'a> for AntiCheatSystem {
                 || player.moved > 0.0
                 || player.travel.departed
                 || player.vitals.health <= 0.0
+                || (paradise && player.virtue.level() >= super::virtue::DIVINE)
                 || hurt;
             if exempt {
                 watch.reset(feet);

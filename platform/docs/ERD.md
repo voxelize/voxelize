@@ -127,7 +127,7 @@ table only). `id`, `world` (the world key, every dimension sharing one
 record), `player` (users.public_id), `dimension`, `record_version`,
 `record` json (inventory, armor, off hand, vitals and effects, position,
 travel, market outbox and deliveries, trade hold, home, experience, game
-mode, achievements, job and quests), and the parts admins query as columns:
+mode, achievements, job and quests, virtue in Paradise), and the parts admins query as columns:
 `health`, `xp`, `x`, `y`, `z`; `revision` (bumped on every write),
 `updated_at`. UNIQUE(`world`, `player`), INDEX(`player`).
 
