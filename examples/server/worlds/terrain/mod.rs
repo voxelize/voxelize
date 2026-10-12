@@ -309,7 +309,7 @@ pub fn setup_terrain_world() -> World {
         );
         tiny_trees.set_threshold(3.5);
 
-        let palm = Tree::new(44, 43)
+        let tiny_tree = Tree::new(44, 43)
             .leaf_height(2)
             .leaf_radius(1)
             .branch_initial_radius(1)
@@ -319,7 +319,7 @@ pub fn setup_terrain_world() -> World {
             .system(LSystem::new().axiom("F%[F%]").iterations(1).build())
             .build();
 
-        tiny_trees.register("Tiny", palm);
+        tiny_trees.register("Tiny", tiny_tree);
 
         let mut oak_trees = Trees::new(
             config.seed,
