@@ -92,11 +92,17 @@ export type CrustedFluidShaderOptions = {
   /** Share of seam colour in the far mean colour. */
   meanGlow?: number;
   /**
-   * Texels per screen pixel (along the more compressed axis, so a grazing
-   * view settles too) past which detail starts settling to the mean colour;
-   * at 2.5x this it is settled.
+   * Texels per screen pixel past which detail starts settling to the mean
+   * colour; at 4x this it is settled.
    */
   farFadeTexelFootprint?: number;
+  /**
+   * How much more a grazing view may squeeze the pattern along one screen
+   * axis than along the other before that axis alone settles it, like
+   * anisotropic texture filtering. 1 settles by the squeezed axis alone,
+   * which flattens a pool seen from its shore a few blocks out.
+   */
+  farFadeAnisotropy?: number;
   /** Face shade for the +-X walls, +-Z walls, underside and top. */
   faceShades?: { sideX: number; sideZ: number; bottom: number; top: number };
   /** Scale on the shared surface wave height and speed. */
@@ -110,6 +116,7 @@ export type CrustedFluidShader = {
     uCrustPalette: Uniform<Color[]>;
     uCrustFlow: Uniform<Vector4>;
     uCrustShape: Uniform<Vector4>;
+    uCrustFarAnisotropy: Uniform<number>;
     uCrustBands: Uniform<Vector4>;
     uCrustLife: Uniform<Vector4>;
     uCrustZone: Uniform<Vector4>;
@@ -139,6 +146,7 @@ export const CRUSTED_FLUID_DEFAULTS: Required<CrustedFluidShaderOptions> = {
   glowStrength: 1,
   meanGlow: 0.3,
   farFadeTexelFootprint: 1.2,
+  farFadeAnisotropy: 8,
   faceShades: { sideX: 0.8, sideZ: 0.72, bottom: 0.55, top: 1 },
   wave: { amplitude: 0.35, speed: 0.4 },
 };
@@ -154,6 +162,7 @@ const CRUSTED_FLUID_FUNCTIONS = /* glsl */ `
 uniform vec3 uCrustPalette[6];
 uniform vec4 uCrustFlow;
 uniform vec4 uCrustShape;
+uniform float uCrustFarAnisotropy;
 uniform vec4 uCrustBands;
 uniform vec4 uCrustLife;
 uniform vec4 uCrustZone;
@@ -217,11 +226,23 @@ const CRUSTED_FLUID_SURFACE = /* glsl */ `
     ? vec2(crustAbsNormal.x > crustAbsNormal.z ? vWorldPosition.z : vWorldPosition.x, vWorldPosition.y)
     : vWorldPosition.xz;
   vec2 crustTexel = floor(crustUv * crustTexels);
-  vec2 crustFootprint = fwidth(crustUv * crustTexels);
+  // Texels a screen pixel spans along the most and the least squeezed
+  // directions (the singular values of the screen-to-texel map). A grazing
+  // view squeezes one far faster than the other; it may run up to the
+  // anisotropy allowance ahead before it settles the pattern.
+  vec2 crustDx = dFdx(crustUv * crustTexels);
+  vec2 crustDy = dFdy(crustUv * crustTexels);
+  float crustSpanSum = dot(crustDx, crustDx) + dot(crustDy, crustDy);
+  float crustSpanDiff = length(vec2(
+    dot(crustDx, crustDx) - dot(crustDy, crustDy),
+    2.0 * dot(crustDx, crustDy)
+  ));
+  float crustSpanMajor = sqrt(0.5 * (crustSpanSum + crustSpanDiff));
+  float crustSpanMinor = sqrt(max(0.5 * (crustSpanSum - crustSpanDiff), 0.0));
   float crustFar = smoothstep(
     uCrustShape.w,
-    uCrustShape.w * 2.5,
-    max(crustFootprint.x, crustFootprint.y)
+    uCrustShape.w * 4.0,
+    max(crustSpanMinor, crustSpanMajor / uCrustFarAnisotropy)
   );
 
   float crustSeconds = uTime * 0.001;
@@ -389,6 +410,7 @@ export function createCrustedFluidShader(
           o.farFadeTexelFootprint,
         ),
       ),
+      uCrustFarAnisotropy: new Uniform(Math.max(o.farFadeAnisotropy, 1)),
       uCrustBands: new Uniform(new Vector4(...o.bands)),
       uCrustLife: new Uniform(
         new Vector4(o.formTime, o.grain, o.relief, o.fallCrust),

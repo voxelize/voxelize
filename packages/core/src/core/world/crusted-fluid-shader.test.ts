@@ -36,6 +36,20 @@ describe("crusted fluid shader", () => {
     expect(shader.fragmentShader).not.toContain("sampleShadowMap(uShadowMap0");
   });
 
+  it("settles a grazing view by its squeezed axis only past the anisotropy allowance", () => {
+    const shader = createCrustedFluidShader();
+    expect(shader.fragmentShader).toContain(
+      "max(crustSpanMinor, crustSpanMajor / uCrustFarAnisotropy)",
+    );
+    expect(shader.uniforms.uCrustFarAnisotropy.value).toBe(
+      CRUSTED_FLUID_DEFAULTS.farFadeAnisotropy,
+    );
+    expect(
+      createCrustedFluidShader({ farFadeAnisotropy: 0 }).uniforms
+        .uCrustFarAnisotropy.value,
+    ).toBe(1);
+  });
+
   it("restarts generations on a shader clock wrap", () => {
     expect(
       SHADER_CLOCK_WRAP_SECONDS % CRUSTED_FLUID_DEFAULTS.cycleSeconds,
