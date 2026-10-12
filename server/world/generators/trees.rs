@@ -98,8 +98,10 @@ impl Trees {
     }
 
     pub fn should_plant(&self, pos: &Vec3<i32>) -> bool {
-        ((self.noise.get3d(pos.0, pos.1, pos.2) + 1.0) / 2.0 * 10000.0).floor() / 10000.0
-            > self.threshold
+        // The planted value is never over the noise's own (noise + 1) / 2.
+        self.noise
+            .get3d_over(pos.0, pos.1, pos.2, 2.0 * self.threshold - 1.0)
+            .is_some_and(|noise| ((noise + 1.0) / 2.0 * 10000.0).floor() / 10000.0 > self.threshold)
     }
 
     pub fn generate(&self, name: &str, at: &Vec3<i32>) -> Vec<VoxelUpdate> {
@@ -648,6 +650,82 @@ mod tests {
     fn sorted(mut updates: Vec<VoxelUpdate>) -> Vec<VoxelUpdate> {
         updates.sort_by_key(|(pos, id)| (pos.0, pos.1, pos.2, *id));
         updates
+    }
+
+    /// A field plants exactly where its whole noise, quantized, passes its
+    /// threshold, though a sample far under it reads only a few octaves:
+    /// over a million decisions across sparse and dense fields, coordinates
+    /// out to 200,000 blocks, and thresholds set on a sample's own quantized
+    /// value and a step either side of it.
+    #[test]
+    fn should_plant_is_the_quantized_noise_over_the_threshold() {
+        fn whole(noise: f64, threshold: f64) -> bool {
+            ((noise + 1.0) / 2.0 * 10000.0).floor() / 10000.0 > threshold
+        }
+        let fields = [
+            (31003, 0.18, 2.9, 6, 1.0),
+            (31004, 0.13, 2.9, 6, 1.0),
+            (31001, 0.12, 2.9, 6, 1.0),
+            (7, 0.05, 2.0, 6, 1.0),
+            (u32::MAX, 0.3, 1.7, 6, 1.0),
+            (91, 0.08, 2.2, 4, 0.5),
+            (12, 0.2, 2.5, 3, 0.8),
+        ];
+        let mut state = 0x9e37_79b9_7f4a_7c15_u64;
+        let mut next = move |span: i64| {
+            state ^= state << 13;
+            state ^= state >> 7;
+            state ^= state << 17;
+            (state % (2 * span as u64 + 1)) as i64 - span
+        };
+        let (mut decisions, mut planted, mut on_the_line) = (0, 0, 0);
+        for (seed, frequency, lacunarity, octaves, persistence) in fields {
+            let mut trees = Trees::new(
+                seed,
+                &NoiseOptions::new()
+                    .frequency(frequency)
+                    .lacunarity(lacunarity)
+                    .octaves(octaves)
+                    .persistence(persistence)
+                    .build(),
+            );
+            let samples: Vec<(Vec3<i32>, f64)> = (0..20_000)
+                .map(|_| {
+                    let at = Vec3(
+                        next(200_000) as i32,
+                        128 + next(192) as i32,
+                        next(200_000) as i32,
+                    );
+                    (at.clone(), trees.noise.get3d(at.0, at.1, at.2))
+                })
+                .collect();
+            for threshold in [0.5, 0.62, 0.7, 0.76, 0.78, 0.82, 0.87, 0.95] {
+                trees.set_threshold(threshold);
+                for (at, noise) in &samples {
+                    let plants = whole(*noise, threshold);
+                    assert_eq!(trees.should_plant(at), plants, "{at:?} at {threshold}");
+                    decisions += 1;
+                    planted += plants as usize;
+                }
+            }
+            for (at, noise) in samples.iter().take(2_000) {
+                let quantized = ((noise + 1.0) / 2.0 * 10000.0).floor() / 10000.0;
+                for threshold in [quantized - 1e-4, quantized, quantized + 1e-4] {
+                    trees.set_threshold(threshold);
+                    assert_eq!(
+                        trees.should_plant(at),
+                        whole(*noise, threshold),
+                        "{at:?} on the line at {threshold}"
+                    );
+                    on_the_line += 1;
+                }
+            }
+        }
+        assert!(
+            decisions > 1_000_000 && planted > 1_000,
+            "{decisions} decisions, {planted} planted"
+        );
+        assert_eq!(on_the_line, 7 * 2_000 * 3);
     }
 
     /// A species with neutral variance must generate the exact voxels the
