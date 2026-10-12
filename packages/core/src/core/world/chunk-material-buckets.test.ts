@@ -9,9 +9,11 @@ import {
   SHARED_CUTOUT_MATERIAL_KEY,
   SHARED_CUTOUT_PLANT_MATERIAL_KEY,
   SHARED_OPAQUE_MATERIAL_KEY,
+  SEE_THROUGH_ALPHA_TEST,
   forkChunkMaterial,
   isClosedCutoutCube,
   makeChunkMaterialKey,
+  sharedCutoutBlending,
 } from "./chunk-materials";
 
 const solidShape = (overrides: Partial<Block> = {}): Block =>
@@ -203,5 +205,19 @@ describe("closed cutout cubes", () => {
     expect(makeChunkMaterialKey(host(customized, true), customized.id)).toBe(
       `${customized.id}`,
     );
+  });
+});
+
+describe("shared cutout blending", () => {
+  it("draws a leaf canopy opaque at half coverage and keeps the rest blended", () => {
+    // Blended, a leaf face's mip-averaged half alpha read as plastic wrap.
+    expect(sharedCutoutBlending(true)).toEqual({
+      transparent: false,
+      alphaTest: 0.5,
+    });
+    expect(sharedCutoutBlending(false)).toEqual({
+      transparent: true,
+      alphaTest: SEE_THROUGH_ALPHA_TEST,
+    });
   });
 });

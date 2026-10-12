@@ -111,6 +111,27 @@ export function isSharedOpaqueMaterialBlock(block: Block) {
 export const SEE_THROUGH_ALPHA_TEST = 0.1;
 
 /**
+ * How a shared cutout bucket draws its texels. A closed cutout cube (a leaf
+ * canopy, `isClosedCutoutCube`) draws in the opaque pass: a texel stands, at
+ * full alpha, once it clears half coverage, or it is cut. Blended, a far or
+ * grazing leaf face sampled a mip whose holes averaged its alpha down to a
+ * half, and that half-alpha film read as plastic wrap over the canopy, the
+ * sky pale through every side face. A tile's own texels are all 0 or 255,
+ * so up close the cut is the tile's; at a distance the half-coverage test
+ * keeps about as many texels as the tile has, so the canopy keeps its gaps.
+ * The other cutouts (plants, light-attenuating panes) keep blending at
+ * `SEE_THROUGH_ALPHA_TEST`.
+ */
+export function sharedCutoutBlending(isClosedCube: boolean): {
+  transparent: boolean;
+  alphaTest: number;
+} {
+  return isClosedCube
+    ? { transparent: false, alphaTest: 0.5 }
+    : { transparent: true, alphaTest: SEE_THROUGH_ALPHA_TEST };
+}
+
+/**
  * Detach a customized block without cloning the world's live uniforms/atlas.
  * `clone()` never sees the uniforms: three deep-copies them, and a render
  * target's texture (the shadow maps, the scene colour the water refracts
@@ -600,6 +621,7 @@ export async function loadChunkMaterials(
   const makeSharedCutout = (
     isShadowCasting: boolean,
     side: Side = DoubleSide,
+    isClosedCube = false,
   ) => {
     const mat = makeChunkShaderMaterial(
       world,
@@ -607,11 +629,12 @@ export async function loadChunkMaterials(
       swayShaders.vertexShader,
       { uSwayParams: world.swayProfileTable },
     );
+    const blending = sharedCutoutBlending(isClosedCube);
     mat.side = side;
-    mat.transparent = true;
+    mat.transparent = blending.transparent;
     mat.depthWrite = true;
-    mat.alphaTest = SEE_THROUGH_ALPHA_TEST;
-    mat.uniforms.alphaTest.value = SEE_THROUGH_ALPHA_TEST;
+    mat.alphaTest = blending.alphaTest;
+    mat.uniforms.alphaTest.value = blending.alphaTest;
     mat.map = atlas;
     mat.uniforms.map.value = atlas;
     mat.userData.skipShadow = !isShadowCasting;
@@ -624,7 +647,7 @@ export async function loadChunkMaterials(
   );
   world.chunkRenderer.materials.set(
     SHARED_CUTOUT_CUBE_MATERIAL_KEY,
-    makeSharedCutout(true, FrontSide),
+    makeSharedCutout(true, FrontSide, true),
   );
   world.chunkRenderer.materials.set(
     SHARED_CUTOUT_PLANT_MATERIAL_KEY,
