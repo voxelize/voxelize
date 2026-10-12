@@ -23,6 +23,16 @@ type Held = Partial<RigidControls["movements"]>;
 /** Keys held from `at` seconds into a run, for `for` seconds. */
 type Press = { keys: Held; at: number; for: number };
 
+/** Which voxels of `scene` hold fluid. */
+function sceneFluid(scene: Scene) {
+  if (typeof scene === "object") {
+    const { surface } = scene;
+    return (_vx: number, vy: number, vz: number) =>
+      vz >= 0 && vy >= POOL_BED_TOP && vy < surface;
+  }
+  return (_vx: number, vy: number) => scene === "water" && vy < 200;
+}
+
 /**
  * Open sky; a floor whose top is y = 1; water filling every voxel below
  * y = 200; or the floor with a ladder standing on it at x = 0, z = 0.
@@ -36,13 +46,13 @@ function sceneEngine(scene: Scene) {
     fluidDensity: FLUID_DENSITY,
   };
   if (typeof scene === "object") {
-    const { surface, bankTop } = scene;
+    const { bankTop } = scene;
     return new Engine(
       (vx, vy, vz) =>
         vy < (vz < 0 ? bankTop : POOL_BED_TOP)
           ? [new AABB(vx, vy, vz, vx + 1, vy + 1, vz + 1)]
           : [],
-      (_vx, vy, vz) => vz >= 0 && vy >= POOL_BED_TOP && vy < surface,
+      sceneFluid(scene),
       () => [],
       () => 0,
       () => 0,
@@ -55,7 +65,7 @@ function sceneEngine(scene: Scene) {
       hasFloor && vy === 0
         ? [new AABB(vx, vy, vz, vx + 1, vy + 1, vz + 1)]
         : [],
-    (_vx, vy) => scene === "water" && vy < 200,
+    sceneFluid(scene),
     (vx, vy, vz) =>
       scene === "ladder" && vx === 0 && vz === 0 && vy > 0
         ? [new AABB(vx, vy, vz, vx + 1, vy + 1, vz + 1)]
@@ -80,19 +90,23 @@ afterEach(() => {
 /**
  * A body driven the way a frame drives it: the controls' update (input,
  * walking, swimming, flight), then the world's physics step over the same
- * frame.
+ * frame. `swimSpeedMultiplier` is the scene's fluid's: under 1 it is a
+ * thick fluid, not water.
  */
 function rig(
   scene: Scene,
   start: [number, number, number],
   options: Partial<RigidControlsOptions> = {},
+  swimSpeedMultiplier = 1,
 ) {
   const physics = sceneEngine(scene);
+  const isFluid = sceneFluid(scene);
   const world = {
     physics,
     options: { gravity: GRAVITY, chunkSize: 16 },
     add: () => undefined,
-    getBlockAt: () => null,
+    getBlockAt: (vx: number, vy: number, vz: number) =>
+      isFluid(vx, vy, vz) ? { isFluid: true, swimSpeedMultiplier } : null,
     getBlockAABBsAt: () => [],
   } as unknown as World;
   const controls = new RigidControls(
@@ -362,8 +376,9 @@ function inPool(
   pool: Pool,
   feet: [number, number, number],
   options: Partial<RigidControlsOptions> = {},
+  swimSpeedMultiplier = 1,
 ) {
-  const body = rig(pool, [0, 0, 0], options);
+  const body = rig(pool, [0, 0, 0], options, swimSpeedMultiplier);
   body.place(feet);
   return body;
 }
@@ -542,6 +557,71 @@ describe("RigidControls treading and leaving water at 30, 60, 120 and 240 fps", 
           `${JSON.stringify(keys)}, ${fps} fps`,
         ).toBe(true);
       }
+    }
+  });
+});
+
+/** A fluid far thicker than water. */
+const THICK = 0.4;
+
+describe("RigidControls in a thick fluid at 30, 60, 120 and 240 fps", () => {
+  /** The body's drop over `seconds` let go in the swim pose (well inside
+   * `swimIdleStandDelay`, so it is still swimming). */
+  const sinkInSwimPose = (fps: number, multiplier: number, seconds = 2) => {
+    const body = rig("water", [0, 100, 0], {}, multiplier);
+    body.run(fps, 0.2, [
+      { keys: { front: true, sprint: true }, at: 0, for: 0.2 },
+    ]);
+    const y0 = body.position()[1];
+    body.run(fps, seconds);
+    expect(body.controls.isSwimming, `${fps} fps`).toBe(true);
+    return y0 - body.position()[1];
+  };
+
+  it("sinks slowly in the swim pose, where water holds a swimmer up", () => {
+    const water = atEveryFrameRate((fps) => sinkInSwimPose(fps, 1));
+    const thick = atEveryFrameRate((fps) => sinkInSwimPose(fps, THICK));
+    for (const fps of FRAME_RATES) {
+      expect(Math.abs(water[fps]), `water at ${fps} fps`).toBeLessThan(0.15);
+      expect(thick[fps], `${fps} fps`).toBeGreaterThan(1);
+      expect(thick[fps], `${fps} fps`).toBeLessThan(2.5);
+    }
+    expect(spreadFrom120(thick)).toBeLessThan(0.05);
+  });
+
+  it("swims up slowly, treading or in the swim pose", () => {
+    const rise = (fps: number, multiplier: number) => {
+      const body = rig("water", [0, 100, 0], {}, multiplier);
+      body.run(fps, 1);
+      const y0 = body.position()[1];
+      body.run(fps, 1, [{ keys: { up: true }, at: 0, for: 1 }]);
+      return body.position()[1] - y0;
+    };
+    for (const fps of FRAME_RATES) {
+      const water = rise(fps, 1);
+      const thick = rise(fps, THICK);
+      expect(thick, `${fps} fps`).toBeGreaterThan(0.25 * water);
+      expect(thick, `${fps} fps`).toBeLessThan(0.6 * water);
+    }
+  });
+
+  it("wades slowly and stops where it lets go, where water lets it slide", () => {
+    const pool = { surface: POOL_BED_TOP + 2, bankTop: POOL_BED_TOP + 4 };
+    const wade = (fps: number, multiplier: number) => {
+      const body = inPool(pool, [0.5, POOL_BED_TOP, 4], {}, multiplier);
+      body.run(fps, 0.5);
+      body.run(fps, 1.5, [{ keys: { right: true }, at: 0, for: 1.5 }]);
+      const cruise = body.speed();
+      const x0 = body.position()[0];
+      body.run(fps, 1);
+      return { cruise, coast: body.position()[0] - x0 };
+    };
+    for (const fps of FRAME_RATES) {
+      const water = wade(fps, 1);
+      const thick = wade(fps, THICK);
+      expect(thick.cruise, `${fps} fps`).toBeLessThan(0.55 * water.cruise);
+      expect(thick.cruise, `${fps} fps`).toBeGreaterThan(0.25 * water.cruise);
+      expect(thick.coast, `${fps} fps`).toBeLessThan(0.5 * water.coast);
     }
   });
 });

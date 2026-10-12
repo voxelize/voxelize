@@ -20,6 +20,19 @@ class RigidBody {
   public isSwimming = false;
 
   /**
+   * Scales the fluid drag (`fluidDrag`, or the world's) while the body is in
+   * fluid, so a thick fluid holds it back harder than water does. 1 leaves
+   * the drag as it is.
+   */
+  public fluidDragMultiplier = 1;
+
+  /**
+   * Scales the lift fluid gives the body. Under 1 it sinks slowly even in
+   * the swim pose, where the lift otherwise carries its whole weight.
+   */
+  public fluidBuoyancyMultiplier = 1;
+
+  /**
    * Along-face to into-face motion ratio above which a blocked contact is
    * grazing and slides along the obstruction instead of auto-stepping.
    * `0` disables the check. See `BodyOptions.stepGrazeRatio`.

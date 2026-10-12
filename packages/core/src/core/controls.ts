@@ -24,6 +24,14 @@ import { World } from "./world";
 
 const PI_2 = Math.PI / 2;
 const emptyQ = new Quaternion();
+/**
+ * How much of a thick fluid's slowness (1 - its `swimSpeedMultiplier`) it
+ * takes from a body's lift: in one at 0.4 a swimmer keeps 88% of the lift
+ * that would carry it, and sinks slowly instead of hanging in place.
+ */
+const THICK_FLUID_SINK_SHARE = 0.2;
+/** A wading body feels a thick fluid fully from this depth (of its height). */
+const THICK_FLUID_FULL_WADE_RATIO = 1 / 3;
 
 type SwimState = "upright" | "swimming" | "idleStanding";
 
@@ -1515,24 +1523,52 @@ export class RigidControls extends EventEmitter implements NetIntercept {
   };
 
   /**
-   * Reads `swimSpeedMultiplier` off the fluid block at the body's center, so
-   * a viscous fluid (lava) slows swimming without either side of the engine
-   * boundary knowing the other's name for it (this is the same extension
-   * point as `getGroundFrictionMultiplier`).
+   * Reads `swimSpeedMultiplier` off the fluid block the body is in (at its
+   * center, or at its feet when it wades), so a viscous fluid slows it
+   * without either side of the engine boundary knowing the other's name for
+   * it (this is the same extension point as `getGroundFrictionMultiplier`).
+   * 1 is water; under 1 the fluid is thicker, and holds a body back in
+   * every way, not only at the swim stroke (`applyFluidThickness`).
    */
   private getSwimSpeedMultiplier = (): number => {
     const { aabb } = this.body;
     const vx = Math.floor(aabb.minX + aabb.width / 2);
-    const vy = Math.floor(aabb.minY + aabb.height / 2);
     const vz = Math.floor(aabb.minZ + aabb.depth / 2);
 
-    const block = this.world.getBlockAt(vx, vy, vz);
-    if (!block) {
-      return 1;
+    for (const vy of [
+      Math.floor(aabb.minY + aabb.height / 2),
+      Math.floor(aabb.minY + 0.01),
+    ]) {
+      const block = this.world.getBlockAt(vx, vy, vz);
+      if (block?.isFluid) {
+        return block.swimSpeedMultiplier > 0 ? block.swimSpeedMultiplier : 1;
+      }
     }
 
-    return block.swimSpeedMultiplier > 0 ? block.swimSpeedMultiplier : 1;
+    return 1;
   };
+
+  /**
+   * A thick fluid holds a body back everywhere in it: drag grows as the
+   * fluid's swim speed shrinks, and it takes a share of the lift, so a
+   * swimmer sinks slowly instead of hanging in place. The physics step and
+   * `treadFluid` both read these off the body. Water leaves both at 1.
+   */
+  private applyFluidThickness = () => {
+    const multiplier = this.body.inFluid ? this.getSwimSpeedMultiplier() : 1;
+    this.body.fluidDragMultiplier = 1 / multiplier;
+    this.body.fluidBuoyancyMultiplier =
+      1 - (1 - multiplier) * THICK_FLUID_SINK_SHARE;
+    return multiplier;
+  };
+
+  /**
+   * Footing in fluid: water lifts a wading body off its feet (a tenth of the
+   * friction, so the current can push it); a thick fluid grips it, and the
+   * thicker the fluid the less it slides.
+   */
+  private fluidFrictionMultiplier = (fluidSpeedMultiplier: number) =>
+    this.body.inFluid ? 0.1 + 0.9 * (1 - fluidSpeedMultiplier) : 1;
 
   private isSubmergedForSwimming = (): boolean => {
     return (
@@ -1759,12 +1795,14 @@ export class RigidControls extends EventEmitter implements NetIntercept {
 
     const height = aabb.height;
     const stroke = fluidPushForce * referenceFrameRate;
+    const lift = body.fluidBuoyancyMultiplier;
     const uprightBuoyancy =
       (physics.options.fluidDensity *
         aabb.width *
         height *
         aabb.depth *
-        gravity) /
+        gravity *
+        lift) /
       mass;
     // Gravity stops a rising upright body at least this hard once the stroke
     // eases off, and the stroke stops a sinking one at least this hard.
@@ -1776,9 +1814,11 @@ export class RigidControls extends EventEmitter implements NetIntercept {
     if (surface === null) return;
 
     const ratio = Math.min(Math.max((surface - aabb.minY) / height, 0), 1);
-    const buoyancy = (body.isSwimming ? gravity : uprightBuoyancy) * ratio;
+    const buoyancy =
+      (body.isSwimming ? gravity * lift : uprightBuoyancy) * ratio;
     const fluidDrag =
-      body.fluidDrag >= 0 ? body.fluidDrag : physics.options.fluidDrag;
+      (body.fluidDrag >= 0 ? body.fluidDrag : physics.options.fluidDrag) *
+      body.fluidDragMultiplier;
     const kept = 1 - (fluidDrag * (1 - (1 - ratio) ** 2) * dt) / mass;
     if (kept <= 0) return;
     const unpushed =
@@ -1996,6 +2036,8 @@ export class RigidControls extends EventEmitter implements NetIntercept {
     // per-frame tunables scale by how many reference frames this one lasted.
     const frames = dt * referenceFrameRate;
 
+    const fluidSpeedMultiplier = this.applyFluidThickness();
+
     if (this.body.gravityMultiplier) {
       const isSwimming = this.updateSwimState(dt) === "swimming";
       this.body.isSwimming = isSwimming;
@@ -2097,6 +2139,14 @@ export class RigidControls extends EventEmitter implements NetIntercept {
             (this.body.gravityMultiplier === 0
               ? 1
               : this.options.statusSpeedFactor);
+          // wading a thick fluid is slow, the deeper the slower
+          if (this.body.inFluid && fluidSpeedMultiplier < 1) {
+            const depth = Math.min(
+              this.body.ratioInFluid / THICK_FLUID_FULL_WADE_RATIO,
+              1,
+            );
+            speed *= 1 - (1 - fluidSpeedMultiplier) * depth;
+          }
           // todo: add crouch/sprint modifiers if needed
           if (this.state.sprinting) speed *= sprintFactor;
           if (this.state.crouching && this.body.resting[1] === -1)
@@ -2144,11 +2194,13 @@ export class RigidControls extends EventEmitter implements NetIntercept {
           // different friction when not moving
           // idea from Sonic: http://info.sonicretro.org/SPG:Running
           // reduce friction when in fluid to allow water current to push
-          const fluidFrictionMult = this.body.inFluid ? 0.1 : 1.0;
+          const fluidFrictionMult =
+            this.fluidFrictionMultiplier(fluidSpeedMultiplier);
           this.body.friction =
             runningFriction * fluidFrictionMult * groundFrictionMult;
         } else {
-          const fluidFrictionMult = this.body.inFluid ? 0.1 : 1.0;
+          const fluidFrictionMult =
+            this.fluidFrictionMultiplier(fluidSpeedMultiplier);
           this.body.friction =
             standingFriction * fluidFrictionMult * groundFrictionMult;
         }

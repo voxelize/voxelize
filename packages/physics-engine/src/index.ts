@@ -204,6 +204,7 @@ export class Engine {
     let drag = body.airDrag >= 0 ? body.airDrag : this.options.airDrag;
     if (body.inFluid) {
       drag = body.fluidDrag >= 0 ? body.fluidDrag : this.options.fluidDrag;
+      drag *= body.fluidDragMultiplier;
       drag *= 1 - (1 - body.ratioInFluid) ** 2;
     }
     const mult = Math.max(1 - (drag * dt) / body.mass, 0);
@@ -529,14 +530,18 @@ export class Engine {
         -body.mass *
         this.options.gravity[1] *
         effectiveGravityMult *
-        ratioInFluid;
+        ratioInFluid *
+        body.fluidBuoyancyMultiplier;
       body.applyForce([0, neutralBuoyancyY, 0]);
     } else {
       const vol =
         (box.maxX - box.minX) * (box.maxY - box.minY) * (box.maxZ - box.minZ);
       const displaced = vol * ratioInFluid;
       const scale =
-        -this.options.fluidDensity * displaced * effectiveGravityMult;
+        -this.options.fluidDensity *
+        displaced *
+        effectiveGravityMult *
+        body.fluidBuoyancyMultiplier;
       const f = [
         this.options.gravity[0] * scale,
         this.options.gravity[1] * scale,
