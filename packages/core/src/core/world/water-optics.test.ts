@@ -643,6 +643,13 @@ describe("measureWaterColumn", () => {
     const sample = measureWaterColumn(columnTo(85), 0.5, 85.95, 0.5);
     expect(sample).toBeNull();
   });
+
+  it("puts the waterline at the roof of water sealed under one", () => {
+    const sealedAt = (vx: number, vy: number) => vx === 0 && vy === 85;
+    const sample = measureWaterColumn(columnTo(85), 0.5, 85.95, 0.5, sealedAt);
+    expect(sample?.surfaceY).toBeCloseTo(86);
+    expect(sample?.depth).toBeCloseTo(0.05);
+  });
 });
 
 describe("WaterOptics", () => {

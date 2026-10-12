@@ -1,9 +1,11 @@
 import {
+  BackSide,
   CanvasTexture,
   ClampToEdgeWrapping,
   Color,
   DoubleSide,
   FrontSide,
+  type Material,
   Matrix4,
   NearestFilter,
   ShaderLib,
@@ -150,6 +152,39 @@ export function forkChunkMaterial(material: CustomChunkShaderMaterial) {
   own.map = material.map;
   own.uniforms = { ...uniforms };
   return own;
+}
+
+/** The bucket materials many blocks draw with at once. */
+export const SHARED_CHUNK_MATERIAL_KEYS = [
+  SHARED_OPAQUE_MATERIAL_KEY,
+  SHARED_CUTOUT_MATERIAL_KEY,
+  SHARED_CUTOUT_PLANT_MATERIAL_KEY,
+  SHARED_CUTOUT_CUBE_MATERIAL_KEY,
+] as const;
+
+/**
+ * Why a face-level shader customization must not go ahead, or null when it
+ * may. A face that is neither independent nor isolated draws with its
+ * block's material, and for a block in a shared bucket that is the bucket's:
+ * a shader set there replaces the shader of every block in the bucket. Per
+ * stage faces of one cross-plant block once rewrote the shared plant
+ * material that way, so every plant swayed with that one block's profile
+ * and the per-block sway table went unread.
+ */
+export function sharedFaceCustomizationError(
+  blockName: string,
+  faceName: string | null,
+  material: Material,
+  materials: ReadonlyMap<string, Material>,
+): Error | null {
+  if (faceName === null) return null;
+  const key = SHARED_CHUNK_MATERIAL_KEYS.find(
+    (shared) => materials.get(shared) === material,
+  );
+  if (!key) return null;
+  return new Error(
+    `Face "${faceName}" of ${blockName} draws with the shared "${key}" material, so a shader set on it would replace every block's in that bucket. Customize the whole block (faceName null), make the face independent, or give the block a sway profile with setBlockSway.`,
+  );
 }
 
 /**
@@ -516,6 +551,31 @@ function makeSolidColorCanvas(color: Color) {
   return canvas;
 }
 
+/**
+ * Turns each fluid chunk material to the side the camera sees it from: the
+ * back while the camera is under water, so the water's surface shows from
+ * below, the front otherwise. Only a fluid that counts as water turns. Lava
+ * seen from under water is still the top of a lava pool, and drawn by its
+ * back it vanished, leaving the floor under it.
+ */
+export function setFluidMaterialSides(
+  materials: Iterable<Material>,
+  isCameraUnderwater: boolean,
+  isWater: (blockId: number) => boolean,
+) {
+  for (const material of materials) {
+    if (!material.userData.isFluid) continue;
+    const blockId: number | undefined = material.userData.fluidBlockId;
+    const side =
+      isCameraUnderwater && (blockId === undefined || isWater(blockId))
+        ? BackSide
+        : FrontSide;
+    if (material.side === side) continue;
+    material.side = side;
+    material.needsUpdate = true;
+  }
+}
+
 export async function loadChunkMaterials(
   world: ChunkMaterialHost & {
     registry: Registry;
@@ -668,6 +728,7 @@ export async function loadChunkMaterials(
           blockCastsShadow(block),
         );
     if (isClosedCutoutCube(block)) mat.side = FrontSide;
+    if (block.isFluid) mat.userData.fluidBlockId = block.id;
     // Keyed per id, not through makeChunkMaterialKey: a block that collapses
     // into a shared cutout bucket still needs its own material reachable so
     // customizeMaterialShaders can opt it out into a bespoke shader.
@@ -689,6 +750,7 @@ export async function loadChunkMaterials(
         block.transparentStandalone,
         blockCastsShadow(block),
       );
+      if (block.isFluid) ownTextureMat.userData.fluidBlockId = block.id;
       const ownTextureKey = makeChunkMaterialKey(world, block.id, face.name);
       world.chunkRenderer.materials.set(ownTextureKey, ownTextureMat);
     });

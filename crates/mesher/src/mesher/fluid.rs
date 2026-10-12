@@ -45,6 +45,50 @@ pub(super) fn has_fluid_above<S: VoxelAccess>(
     voxel_holds_fluid(vx, vy + 1, vz, fluid_id, is_waterlogging, space)
 }
 
+/// Whether a block seals the fluid under it: an opaque full cube covers the
+/// whole top of the voxel below and lets no air in.
+pub(super) fn is_fluid_ceiling(block: &Block) -> bool {
+    block.is_opaque && !block.is_fluid && block.is_full_cube()
+}
+
+/// Whether this voxel holds still fluid pressed against a ceiling. Such a
+/// voxel is full to its top and has no surface: a surface at the resting
+/// height drew a slab of air under every flooded cave roof, where the game
+/// counts the voxel as water and a diver's breath runs out. Only still
+/// fluid fills up; a flow under a roof is a shallow sheet with air above
+/// it and keeps its lowered surface.
+pub(super) fn is_sealed_under_ceiling<S: VoxelAccess>(
+    vx: i32,
+    vy: i32,
+    vz: i32,
+    fluid_id: u32,
+    is_waterlogging: bool,
+    space: &S,
+    registry: &Registry,
+) -> bool {
+    voxel_holds_fluid(vx, vy, vz, fluid_id, is_waterlogging, space)
+        && space.get_voxel_fluid_level(vx, vy, vz) == 0
+        && !has_fluid_above(vx, vy, vz, fluid_id, is_waterlogging, space)
+        && registry
+            .get_block_by_id(space.get_voxel(vx, vy + 1, vz))
+            .is_some_and(is_fluid_ceiling)
+}
+
+/// Whether this voxel's fluid stands to the top of the voxel: more of it
+/// rests on top, or a ceiling seals it in.
+pub(super) fn is_fluid_filled<S: VoxelAccess>(
+    vx: i32,
+    vy: i32,
+    vz: i32,
+    fluid_id: u32,
+    is_waterlogging: bool,
+    space: &S,
+    registry: &Registry,
+) -> bool {
+    has_fluid_above(vx, vy, vz, fluid_id, is_waterlogging, space)
+        || is_sealed_under_ceiling(vx, vy, vz, fluid_id, is_waterlogging, space, registry)
+}
+
 /// Whether the block one step along `dir` from a fluid voxel is a window the
 /// fluid is pressed against: a see-through solid whose volume reaches the
 /// boundary plane the two voxels share and spans all of it — Glass, a Barrier
@@ -185,6 +229,36 @@ pub(super) fn calculate_fluid_corner_height<S: VoxelAccess>(
     space: &S,
     registry: &Registry,
 ) -> f32 {
+    fluid_corner_height(
+        vx,
+        vy,
+        vz,
+        corner_offsets,
+        fluid_id,
+        is_waterlogging,
+        space,
+        registry,
+        true,
+    )
+}
+
+/// `calculate_fluid_corner_height`, with `ceilings_fill` choosing whether a
+/// voxel sealed under a ceiling fills the corner. The rendered surface wants
+/// it: an open sheet beside a flooded roof rises to the roof's edge instead
+/// of leaving a slit of nothing under it. The flow field does not: that rise
+/// is no slope the water runs down, and reading it as one set every still
+/// pond under an overhang streaming away from the rock.
+fn fluid_corner_height<S: VoxelAccess>(
+    vx: i32,
+    vy: i32,
+    vz: i32,
+    corner_offsets: &[[i32; 2]; 3],
+    fluid_id: u32,
+    is_waterlogging: bool,
+    space: &S,
+    registry: &Registry,
+    ceilings_fill: bool,
+) -> f32 {
     let [side_a, side_b, _diagonal] = *corner_offsets;
     let walls = |offset: [i32; 2]| {
         walls_corner(
@@ -206,12 +280,14 @@ pub(super) fn calculate_fluid_corner_height<S: VoxelAccess>(
     };
 
     // Fluid standing on any voxel that shares this corner spills onto it, so
-    // the corner is a full block high regardless of the stages below.
-    if has_fluid_above(vx, vy, vz, fluid_id, is_waterlogging, space)
-        || neighbors
-            .iter()
-            .any(|[dx, dz]| has_fluid_above(vx + dx, vy, vz + dz, fluid_id, is_waterlogging, space))
-    {
+    // the corner is a full block high regardless of the stages below. A
+    // voxel sealed under a ceiling is as full as one with fluid on top.
+    let fills = |x: i32, z: i32| {
+        has_fluid_above(x, vy, z, fluid_id, is_waterlogging, space)
+            || (ceilings_fill
+                && is_sealed_under_ceiling(x, vy, z, fluid_id, is_waterlogging, space, registry))
+    };
+    if fills(vx, vz) || neighbors.iter().any(|[dx, dz]| fills(vx + dx, vz + dz)) {
         return 1.0;
     }
 
@@ -266,9 +342,11 @@ fn voxels_around_corner(cx: i32, cz: i32) -> [([i32; 2], [[i32; 2]; 3]); 4] {
     ]
 }
 
-/// The rendered surface height at a corner-grid point, read from the first
-/// voxel around it that holds the fluid — so every face sharing the corner
-/// gets the same answer — or `None` where no fluid meets that point.
+/// The surface height the flow field reads at a corner-grid point — the
+/// rendered height, less the rise to a ceiling (see `fluid_corner_height`)
+/// — from the first voxel around it that holds the fluid, so every face
+/// sharing the corner gets the same answer; `None` where no fluid meets
+/// that point.
 pub(super) fn surface_corner_height<S: VoxelAccess>(
     cx: i32,
     vy: i32,
@@ -282,7 +360,7 @@ pub(super) fn surface_corner_height<S: VoxelAccess>(
         .into_iter()
         .find(|([vx, vz], _)| voxel_holds_fluid(*vx, vy, *vz, fluid_id, is_waterlogging, space))
         .map(|([vx, vz], offsets)| {
-            calculate_fluid_corner_height(
+            fluid_corner_height(
                 vx,
                 vy,
                 vz,
@@ -291,6 +369,7 @@ pub(super) fn surface_corner_height<S: VoxelAccess>(
                 is_waterlogging,
                 space,
                 registry,
+                false,
             )
         })
 }
@@ -417,12 +496,15 @@ pub(super) fn create_fluid_faces<S: VoxelAccess>(
     // along the shared edge — at every riser of a cascade, at every block
     // seam of a falling column. The offset exists for one case only: a solid
     // ceiling occupying that plane, which a coplanar surface would z-fight.
+    // A voxel sealed under its ceiling draws no surface to fight it, so its
+    // walls run all the way up to the rock.
     let ceiling_above = {
         let above = space.get_voxel(vx, vy + 1, vz);
         above != fluid_id
             && registry
                 .get_block_by_id(above)
                 .is_some_and(|block| !block.is_empty)
+            && !is_sealed_under_ceiling(vx, vy, vz, fluid_id, is_waterlogging, space, registry)
     };
 
     let corner_height = |offsets: &[[i32; 2]; 3]| {

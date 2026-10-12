@@ -14,6 +14,7 @@ import {
   isClosedCutoutCube,
   makeChunkMaterialKey,
   sharedCutoutBlending,
+  sharedFaceCustomizationError,
 } from "./chunk-materials";
 
 const solidShape = (overrides: Partial<Block> = {}): Block =>
@@ -219,5 +220,35 @@ describe("shared cutout blending", () => {
       transparent: true,
       alphaTest: SEE_THROUGH_ALPHA_TEST,
     });
+  });
+});
+
+describe("face shader customization on a shared bucket", () => {
+  const plant = new ShaderMaterial();
+  const own = new ShaderMaterial();
+  const materials = new Map([
+    [SHARED_CUTOUT_PLANT_MATERIAL_KEY, plant],
+    [SHARED_OPAQUE_MATERIAL_KEY, new ShaderMaterial()],
+    ["40001-one", own],
+  ]);
+
+  it("refuses a face whose material is the shared bucket's", () => {
+    const error = sharedFaceCustomizationError(
+      "Staged Plant",
+      "s0-one",
+      plant,
+      materials,
+    );
+    expect(error?.message).toContain(SHARED_CUTOUT_PLANT_MATERIAL_KEY);
+    expect(error?.message).toContain("setBlockSway");
+  });
+
+  it("allows a face that owns its material, and a whole-block customization", () => {
+    expect(
+      sharedFaceCustomizationError("Flame", "one", own, materials),
+    ).toBeNull();
+    expect(
+      sharedFaceCustomizationError("Staged Plant", null, plant, materials),
+    ).toBeNull();
   });
 });

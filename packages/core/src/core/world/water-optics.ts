@@ -886,11 +886,19 @@ export type WaterColumnSample = {
   surfaceY: number;
 };
 
+/**
+ * The water column over a point. `isSealedAt` says whether a fluid voxel is
+ * still water sealed under a roof: the mesher fills such a voxel to its top
+ * and draws no surface (`is_sealed_under_ceiling` in the mesher), so its
+ * waterline is the roof rather than the resting height, and a diver pressed
+ * against a flooded cave roof stays under.
+ */
 export function measureWaterColumn(
   isFluidAt: FluidQuery,
   x: number,
   y: number,
   z: number,
+  isSealedAt?: FluidQuery,
 ): WaterColumnSample | null {
   const vx = Math.floor(x);
   const vz = Math.floor(z);
@@ -905,7 +913,8 @@ export function measureWaterColumn(
     vy += 1;
   }
 
-  const surfaceY = vy + WATER_OPTICS.fluidSurfaceHeight;
+  const surfaceY =
+    vy + (isSealedAt?.(vx, vy, vz) ? 1 : WATER_OPTICS.fluidSurfaceHeight);
   const depth = surfaceY - y;
   if (depth <= 0) {
     return null;

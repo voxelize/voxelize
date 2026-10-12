@@ -24,6 +24,7 @@ import {
   setOwnFaceTexture,
   SHADER_LIGHTING_CHUNK_SHADERS,
   SHARED_OPAQUE_MATERIAL_KEY,
+  sharedFaceCustomizationError,
 } from "@voxelize/core";
 import { Color, type Texture, Uniform } from "three";
 
@@ -246,6 +247,13 @@ export class ViewerMaterials {
         `Could not find material for block ${block.name} and face ${faceName}`,
       );
     }
+    const sharedFaceError = sharedFaceCustomizationError(
+      block.name,
+      faceName,
+      material,
+      this.chunkRenderer.materials,
+    );
+    if (sharedFaceError) throw sharedFaceError;
     if (
       faceName === null &&
       material === this.chunkRenderer.materials.get(SHARED_OPAQUE_MATERIAL_KEY)

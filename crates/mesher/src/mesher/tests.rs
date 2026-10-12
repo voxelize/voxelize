@@ -41,6 +41,70 @@ fn opaque_lava_does_not_erase_the_stone_wall_above_its_lowered_surface() {
 }
 
 #[test]
+fn opaque_lava_shows_through_water_and_glass() {
+    let (registry, stone, water) = ocean_registry(1, 2);
+    let lava = Block {
+        is_fluid: true,
+        is_see_through: true,
+        is_opaque: true,
+        faces: six_faces(),
+        ..plain_block(3, "Lava")
+    };
+    let glass = Block {
+        is_see_through: true,
+        is_transparent: [true; 6],
+        faces: six_faces(),
+        ..plain_block(4, "Glass")
+    };
+    let mut registry = Registry::new(vec![
+        (0, registry.get_block_by_id(0).unwrap().clone()),
+        (1, stone),
+        (2, water),
+        (3, lava),
+        (4, glass),
+    ]);
+    registry.build_cache();
+
+    // Lava on the floor of a pond: its top, at the lava's own lowered
+    // surface, is what a swimmer looks down at.
+    let under_water = SparseSpace::new(&[((0, 0, 0), (3, 0)), ((0, 1, 0), (2, 0))]);
+    let lava_tops = mesh_space_greedy(&[-2, -1, -2], &[3, 3, 3], &under_water, &registry)
+        .iter()
+        .filter(|geometry| geometry.voxel == 3)
+        .flat_map(|geometry| {
+            geometry
+                .indices
+                .chunks_exact(6)
+                .filter(|quad| {
+                    let ys: Vec<f32> = quad
+                        .iter()
+                        .map(|&i| geometry.positions[i as usize * 3 + 1] - 1.0)
+                        .collect();
+                    ys.iter().all(|y| *y > 0.01 && (*y - ys[0]).abs() < 0.001)
+                })
+                .map(|_| ())
+                .collect::<Vec<_>>()
+        })
+        .count();
+    assert_eq!(lava_tops, 1, "lava under water lost its surface");
+
+    for (neighbor, name) in [(2, "water"), (4, "glass")] {
+        let beside = SparseSpace::new(&[((0, 0, 0), (3, 0)), ((1, 0, 0), (neighbor, 0))]);
+        assert_eq!(
+            quads_on_plane(&beside, &registry, 3, 0, 1.0),
+            1,
+            "lava beside {name} lost its side face"
+        );
+    }
+
+    // Lava still culls against itself and against stone.
+    let pooled = SparseSpace::new(&[((0, 0, 0), (3, 0)), ((1, 0, 0), (3, 0))]);
+    assert_eq!(quads_on_plane(&pooled, &registry, 3, 0, 1.0), 0);
+    let banked = SparseSpace::new(&[((0, 0, 0), (3, 0)), ((1, 0, 0), (1, 0))]);
+    assert_eq!(quads_on_plane(&banked, &registry, 3, 0, 1.0), 0);
+}
+
+#[test]
 fn rotated_solid_keeps_exposed_faces_and_culls_only_its_actual_neighbors() {
     let mut solid = plain_block(1, "Rotating block");
     solid.is_opaque = true;
@@ -2582,6 +2646,128 @@ fn a_full_corner_meets_the_wall_pouring_onto_it_unless_a_ceiling_takes_the_plane
             "a wall under stacked fluid reaches the voxel boundary, got {}",
             corner.pos[1]
         );
+    }
+}
+
+/// Still water pressed against a solid roof fills its voxel: no surface at
+/// the resting height, which drew a slab of air under every flooded cave
+/// roof where the game counts the voxel as water. An open sheet beside it
+/// rises to the roof's edge rather than leaving a slit under it, without
+/// reading that rise as a current. Flowing water under a roof is a shallow
+/// sheet and keeps its surface, and a block that leaves the plane open
+/// seals nothing.
+#[test]
+fn still_water_sealed_under_a_roof_fills_its_voxel() {
+    const STONE_ID: u32 = 1;
+    const WATER_ID: u32 = 2;
+    const SLAB_ID: u32 = 3;
+    let (registry, _stone, water) = ocean_registry(STONE_ID, WATER_ID);
+    let slab = Block {
+        is_opaque: true,
+        faces: six_faces(),
+        aabbs: vec![AABB {
+            min_x: 0.0,
+            min_y: 0.5,
+            min_z: 0.0,
+            max_x: 1.0,
+            max_y: 1.0,
+            max_z: 1.0,
+        }],
+        ..plain_block(SLAB_ID, "Upper Half")
+    };
+    let mut registry = Registry::new(vec![
+        (0, registry.get_block_by_id(0).unwrap().clone()),
+        (STONE_ID, registry.get_block_by_id(STONE_ID).unwrap().clone()),
+        (WATER_ID, water.clone()),
+        (SLAB_ID, slab),
+    ]);
+    registry.build_cache();
+
+    // The water voxel at the origin as the chunk mesher draws it.
+    let water_positions = |space: &SparseSpace| -> Vec<[f32; 3]> {
+        mesh_space_greedy(&[0, 0, 0], &[1, 1, 1], space, &registry)
+            .iter()
+            .filter(|g| g.voxel == WATER_ID)
+            .flat_map(|g| g.positions.chunks(3).map(|p| [p[0], p[1], p[2]]))
+            .collect()
+    };
+    // Every wall and the floor has a corner on the voxel floor (the floor
+    // inset a hair above it); only the surface lies wholly above it.
+    let has_surface = |positions: &[[f32; 3]]| {
+        positions
+            .chunks(4)
+            .any(|quad| quad.iter().all(|p| p[1] > 0.01))
+    };
+
+    let sealed = SparseSpace::new(&[((0, 0, 0), (WATER_ID, 0)), ((0, 1, 0), (STONE_ID, 0))]);
+    let positions = water_positions(&sealed);
+    assert!(!positions.is_empty(), "the sealed voxel still draws its walls");
+    assert!(
+        !has_surface(&positions),
+        "still water under a roof draws no surface: {positions:?}"
+    );
+    let top = positions.iter().map(|p| p[1]).fold(f32::MIN, f32::max);
+    assert!(
+        (top - 1.0).abs() < 1e-6,
+        "its walls reach the roof, got {top}"
+    );
+    let faces = create_fluid_faces(0, 0, 0, WATER_ID, &sealed, &water.faces, &registry);
+    let side = faces.iter().find(|f| f.name == "px").expect("a side face");
+    let lights = mesh_single_face(&water, side, &registry, &sealed);
+    assert!(!lights.is_empty());
+    for light in lights {
+        assert_eq!(light & WAVE_BIT, 0, "nothing waves under a roof");
+    }
+
+    let flowing = SparseSpace::new(&[((0, 0, 0), (WATER_ID, 2)), ((0, 1, 0), (STONE_ID, 0))]);
+    assert!(
+        has_surface(&water_positions(&flowing)),
+        "a flow under a roof keeps its lowered surface"
+    );
+
+    let under_a_top_slab =
+        SparseSpace::new(&[((0, 0, 0), (WATER_ID, 0)), ((0, 1, 0), (SLAB_ID, 0))]);
+    assert!(
+        has_surface(&water_positions(&under_a_top_slab)),
+        "a block that leaves the plane open seals nothing"
+    );
+
+    // An open sheet at the origin, the voxel beside it at +x sealed, both in
+    // a stone channel so no corner spills over an edge.
+    let mut channel = vec![
+        ((0, 0, 0), (WATER_ID, 0)),
+        ((1, 0, 0), (WATER_ID, 0)),
+        ((1, 1, 0), (STONE_ID, 0)),
+        ((-1, 0, 0), (STONE_ID, 0)),
+    ];
+    for x in -1..=2 {
+        channel.push(((x, 0, -1), (STONE_ID, 0)));
+        channel.push(((x, 0, 1), (STONE_ID, 0)));
+    }
+    let beside_a_roof = SparseSpace::new(&channel);
+    let faces = create_fluid_faces(0, 0, 0, WATER_ID, &beside_a_roof, &water.faces, &registry);
+    let top = faces.iter().find(|f| f.name == "py").expect("a top face");
+    for corner in &top.corners {
+        let expected = if corner.pos[0] == 1.0 {
+            1.0
+        } else {
+            resting(fluid::get_fluid_effective_height(0))
+        };
+        assert!(
+            (corner.pos[1] - expected).abs() < 1e-6,
+            "corner at x={} should sit at {expected}, got {}",
+            corner.pos[0],
+            corner.pos[1]
+        );
+    }
+    for cx in 0..=1 {
+        for cz in 0..=1 {
+            assert_eq!(
+                surface_flow_at_corner(cx, 0, cz, WATER_ID, true, &beside_a_roof, &registry),
+                None,
+                "the rise to the roof is no current at ({cx}, {cz})"
+            );
+        }
     }
 }
 

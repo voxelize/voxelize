@@ -14,7 +14,6 @@ import {
 import { raycast } from "@voxelize/raycast";
 import {
   Box3,
-  BackSide,
   BatchedMesh,
   BufferAttribute,
   BufferGeometry,
@@ -122,8 +121,10 @@ import {
   makeChunkMaterialKey,
   makeChunkShaderMaterial,
   makeOwnFaceTexture,
+  setFluidMaterialSides,
   setOwnFaceTexture,
   sharedCutoutMaterialKeyFor,
+  sharedFaceCustomizationError,
 } from "./chunk-materials";
 import { computeNormalsFromBuffers } from "./chunk-normals";
 import { ChunkRegionArenas } from "./chunk-region-arenas";
@@ -5171,6 +5172,14 @@ export class World<T = any> extends Scene implements NetIntercept {
       );
     }
 
+    const sharedFaceError = sharedFaceCustomizationError(
+      this.getBlockOf(idOrName).name,
+      faceName,
+      mat,
+      this.chunkRenderer.materials,
+    );
+    if (sharedFaceError) throw sharedFaceError;
+
     // Shared solid shapes retain a per-id alias until a caller customizes
     // one. Detach at that boundary so a bespoke shader cannot mutate the
     // atlas material used by every ordinary terrain section.
@@ -6816,6 +6825,33 @@ export class World<T = any> extends Scene implements NetIntercept {
       x,
       y,
       z,
+      (cx, cy, cz) =>
+        this.isRawVoxelSealedFluid(
+          chunk.getRawValue(cx, cy, cz),
+          chunk.getRawValue(cx, cy + 1, cz),
+        ),
+    );
+  }
+
+  /**
+   * Whether a fluid voxel is still fluid sealed under the voxel above it: an
+   * opaque full cube, which the mesher fills the fluid up to instead of
+   * drawing a surface (`is_sealed_under_ceiling` in the mesher).
+   */
+  private isRawVoxelSealedFluid(raw: number, rawAbove: number) {
+    if (BlockUtils.extractFluidLevel(raw) !== 0) return false;
+    if (this.isRawVoxelFluid(rawAbove)) return false;
+    const above = this.registry.blocksById.get(BlockUtils.extractID(rawAbove));
+    if (!above || !above.isOpaque || above.isFluid) return false;
+    const [box] = above.aabbs;
+    return (
+      above.aabbs.length === 1 &&
+      box.minX === 0 &&
+      box.minY === 0 &&
+      box.minZ === 0 &&
+      box.maxX === 1 &&
+      box.maxY === 1 &&
+      box.maxZ === 1
     );
   }
 
@@ -6851,11 +6887,18 @@ export class World<T = any> extends Scene implements NetIntercept {
     const renderFluidBackSides = this.waterOptics.submersion >= 0.5;
     if (renderFluidBackSides !== this.fluidMaterialsRenderBackSide) {
       this.fluidMaterialsRenderBackSide = renderFluidBackSides;
-      for (const material of this.chunkRenderer.materials.values()) {
-        if (!material.userData.isFluid) continue;
-        material.side = renderFluidBackSides ? BackSide : FrontSide;
-        material.needsUpdate = true;
-      }
+      setFluidMaterialSides(
+        this.chunkRenderer.materials.values(),
+        renderFluidBackSides,
+        (blockId) => {
+          const block = this.registry.blocksById.get(blockId);
+          return (
+            !block ||
+            !this.waterOpticsFluidFilter ||
+            this.waterOpticsFluidFilter(block)
+          );
+        },
+      );
     }
 
     this.sky.uUnderwaterAmbient.value.copy(this.waterOptics.ambientColor);

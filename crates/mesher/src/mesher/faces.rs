@@ -177,11 +177,26 @@ pub(super) fn should_render_face<S: VoxelAccess>(
                     }
                 })))
         || (!see_through && (!is_opaque || !n_block_type.is_opaque))
+        // An opaque see-through block (lava) shows through whatever does
+        // not hide it, like any opaque block: lava under water, behind glass.
+        || (see_through && is_opaque && !n_block_type.is_opaque)
+        // A fluid's lowered surface stays open under a solid block, unless
+        // still fluid is sealed against it and fills its voxel.
         || (is_fluid
             && n_block_type.is_opaque
             && !n_block_type.is_fluid
             && !has_fluid_above(vx, vy, vz, voxel_id, block.is_waterlogging_fluid, space)
-            && (!n_block_type.is_full_cube() || dir == [0, 1, 0]))
+            && (!n_block_type.is_full_cube()
+                || (dir == [0, 1, 0]
+                    && !is_sealed_under_ceiling(
+                        vx,
+                        vy,
+                        vz,
+                        voxel_id,
+                        block.is_waterlogging_fluid,
+                        space,
+                        registry,
+                    ))))
 }
 
 /// Whether the client draws a block's chunk faces from both sides: every
@@ -721,11 +736,24 @@ pub(super) fn process_face<S: VoxelAccess>(
                     }
                 })))
         || (!see_through && (!is_opaque || !n_block_type.is_opaque))
+        || (see_through && is_opaque && !n_block_type.is_opaque)
+        // A fluid's lowered surface stays open under a solid block, unless
+        // still fluid is sealed against it and fills its voxel.
         || (is_fluid
             && n_block_type.is_opaque
             && !n_block_type.is_fluid
             && !has_fluid_above(vx, vy, vz, voxel_id, block.is_waterlogging_fluid, space)
-            && (!n_block_type.is_full_cube() || dir == [0, 1, 0]));
+            && (!n_block_type.is_full_cube()
+                || (dir == [0, 1, 0]
+                    && !is_sealed_under_ceiling(
+                        vx,
+                        vy,
+                        vz,
+                        voxel_id,
+                        block.is_waterlogging_fluid,
+                        space,
+                        registry,
+                    ))));
 
     if !should_mesh {
         return;
@@ -811,8 +839,16 @@ pub(super) fn process_face<S: VoxelAccess>(
     let fluid_stack_bits = fluid_column
         .map(|(index, count)| with_stack(0, index, count))
         .unwrap_or(0);
-    let fluid_surface_above =
-        is_fluid && has_fluid_above(vx, vy, vz, voxel_id, block.is_waterlogging_fluid, space);
+    let fluid_surface_above = is_fluid
+        && is_fluid_filled(
+            vx,
+            vy,
+            vz,
+            voxel_id,
+            block.is_waterlogging_fluid,
+            space,
+            registry,
+        );
     let block_stack = if !is_fluid && block.stack_group != 0 {
         Some(stack_position(
             vx,
