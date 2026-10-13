@@ -865,6 +865,32 @@ export function buildFarSkyMesh(input: FarMeshInput): FarMeshData | null {
             j,
           );
         }
+        // The underside steps too: the deeper cell's side shows between
+        // the two bottoms, or a stepped underside opens into the hollow
+        // island and out past its rim to the sky.
+        const b0 = bottomOf(i, j);
+        const b1 = bottomOf(i + 1, j);
+        if (b0 !== b1) {
+          const [lo, hi, ci, faces] =
+            b0 < b1 ? [b0, b1, i, 1] : [b1, b0, i + 1, -1];
+          wall(
+            faces > 0
+              ? [
+                  [x1, lo, z0],
+                  [x1, hi, z0],
+                  [x1, hi, z1],
+                  [x1, lo, z1],
+                ]
+              : [
+                  [x1, lo, z1],
+                  [x1, hi, z1],
+                  [x1, hi, z0],
+                  [x1, lo, z0],
+                ],
+            ci,
+            j,
+          );
+        }
       }
       const south = has(i, j + 1);
       if (here !== south) {
@@ -894,6 +920,29 @@ export function buildFarSkyMesh(input: FarMeshInput): FarMeshData | null {
         if (t0 !== t1) {
           const [lo, hi, cj, faces] =
             t0 > t1 ? [t1, t0, j, 1] : [t0, t1, j + 1, -1];
+          wall(
+            faces > 0
+              ? [
+                  [x0, lo, z1],
+                  [x1, lo, z1],
+                  [x1, hi, z1],
+                  [x0, hi, z1],
+                ]
+              : [
+                  [x0, hi, z1],
+                  [x1, hi, z1],
+                  [x1, lo, z1],
+                  [x0, lo, z1],
+                ],
+            i,
+            cj,
+          );
+        }
+        const b0 = bottomOf(i, j);
+        const b1 = bottomOf(i, j + 1);
+        if (b0 !== b1) {
+          const [lo, hi, cj, faces] =
+            b0 < b1 ? [b0, b1, j, 1] : [b1, b0, j + 1, -1];
           wall(
             faces > 0
               ? [

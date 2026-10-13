@@ -234,7 +234,9 @@ export type FarTerrainOptions = {
    * Chunk columns nearer the viewer's than this, in chunks, show sky and
    * fog while still on their way, whatever tile could stand in: right by
    * the viewer, a coarse tile shows through the walls of a canyon. Further
-   * out any drawn tile stands in. 0 lets one stand in everywhere.
+   * out any drawn tile stands in. 0 lets one stand in everywhere. The
+   * default 1 guards only the viewer's own column: a wider guard opened
+   * holes of fog right ahead of anyone flying faster than chunks load.
    */
   pendingGuardRadius: number;
   /** Tile builds in flight at once. */
@@ -289,7 +291,7 @@ const DEFAULT_OPTIONS: FarTerrainOptions = {
   fadeMs: 450,
   maxResidentTiles: 640,
   evictAfterMs: 60_000,
-  pendingGuardRadius: 3,
+  pendingGuardRadius: 1,
   maxBuildsInFlight: 4,
   buildMesh: null,
   castShadow: null,
@@ -333,6 +335,8 @@ export type FarTerrainStats = {
    * they were still on their way (not loaded yet), inside the guard radius
    * or under no drawn tile: 0 once everything inside has landed. */
   pendingCovered: number;
+  /** Loaded chunks hidden while the far layer stands in for their unfinished meshes. */
+  chunksHeld: number;
   /**
    * Chunk columns still on their way the last mask left to the far layer,
    * under drawn tiles: the strip a flight brings inside the render radius,
@@ -865,6 +869,7 @@ export class FarTerrain extends Group {
     updates: 0,
     maskRebuilds: 0,
     pendingCovered: 0,
+    chunksHeld: 0,
     pendingStoodIn: 0,
     triangles: 0,
     lastBuildMs: 0,
@@ -966,6 +971,10 @@ export class FarTerrain extends Group {
   private standInGeneration = 0;
 
   private coverageStandIns = -1;
+
+  /** Loaded chunks the far layer still stands in for (`isHeld`), and those that have settled once. */
+  private heldColumns = new Set<string>();
+  private settledColumns = new Set<string>();
 
   /** Sea depth per texel (0 dry, 255 at DEPTH_RANGE or deeper), around the viewer. */
   private depth = new Uint8Array(DEPTH_TEXELS * DEPTH_TEXELS).fill(255);
@@ -1890,7 +1899,7 @@ export class FarTerrain extends Group {
     // them change.
     const now = performance.now();
     const isRecheckDue =
-      this.stats.pendingCovered > 0 &&
+      this.stats.pendingCovered + this.heldColumns.size > 0 &&
       now - this.coverageBuiltAt >= PENDING_RECHECK_MS;
     const isStandInStale =
       this.coverageStandIns !== this.standInGeneration &&
@@ -1925,7 +1934,31 @@ export class FarTerrain extends Group {
     }
     this.stats.pendingCovered = covered.length;
     this.stats.pendingStoodIn = stoodIn;
-    world.forEachMeshedChunk((x, z) => covered.push([x, z]));
+    // A chunk landing where the far layer draws keeps the far layer until
+    // every section of it has meshed: the world hides it meanwhile
+    // (`isHeld`), and both change hands in one frame instead of the column
+    // opening onto the sky section by section. Only a first landing is
+    // held; a chunk that has settled once keeps drawing through a remesh.
+    const held = new Set<string>();
+    const settled = new Set<string>();
+    world.forEachMeshedChunk((x, z) => {
+      const key = `${x},${z}`;
+      const wasSettled = this.settledColumns.has(key);
+      const isPending = !wasSettled && world.isChunkPending(x, z);
+      if (
+        isPending &&
+        !this.isGuarded(x, z) &&
+        this.isStoodIn(x, z, world.chunkSize)
+      ) {
+        held.add(key);
+        return;
+      }
+      if (!isPending) settled.add(key);
+      covered.push([x, z]);
+    });
+    this.heldColumns = held;
+    this.settledColumns = settled;
+    this.stats.chunksHeld = held.size;
     buildCoverageMask(
       covered,
       originCx,
@@ -1950,6 +1983,16 @@ export class FarTerrain extends Group {
    * itself rather than reveal it out of the fog, which would flash over
    * that terrain.
    */
+  /**
+   * Whether a loaded chunk is still being held back for the far layer:
+   * landed where the far layer draws and not every section meshed yet.
+   * The world hides it while this holds (and its column still owes
+   * meshes), so the two swap in one frame.
+   */
+  isHeld(cx: number, cz: number) {
+    return this.visible && this.heldColumns.has(`${cx},${cz}`);
+  }
+
   drawsColumn(cx: number, cz: number) {
     return (
       this.visible &&

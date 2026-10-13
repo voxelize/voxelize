@@ -335,4 +335,24 @@ describe("buildFarSkyMesh", () => {
     expect(quads.filter((q) => q.kind === FAR_FACE_KIND.wall)).toHaveLength(4);
     expect(quads.every((q) => q.cls === 2)).toBe(true);
   });
+
+  it("closes a stepped underside: a wall between two cells' bottoms", () => {
+    // Two cells side by side, one top, the west one hanging 12 deeper.
+    const sky = new Uint16Array(16 * 2);
+    sky[(1 * 4 + 1) * 2] = 200;
+    sky[(1 * 4 + 1) * 2 + 1] = 168;
+    sky[(1 * 4 + 2) * 2] = 200;
+    sky[(1 * 4 + 2) * 2 + 1] = 180;
+    const mesh = must(
+      buildFarSkyMesh(inputOf(4, () => 90, { sky, skyClass: 2 })),
+    );
+    const step = quadsOf(mesh).filter(
+      (q) =>
+        q.kind === FAR_FACE_KIND.wall &&
+        q.corners.every(([x]) => x === 2 * 4) &&
+        Math.min(...q.corners.map(([, y]) => y)) === 168 &&
+        Math.max(...q.corners.map(([, y]) => y)) === 180,
+    );
+    expect(step).toHaveLength(1);
+  });
 });

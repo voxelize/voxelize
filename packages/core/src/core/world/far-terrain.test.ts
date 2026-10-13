@@ -365,12 +365,14 @@ describe("FarTerrain coverage", () => {
     });
     far.configure({ ...descriptor, tileSamples: 9, levels: 2 });
     let isLanded = false;
+    // In the scene with a section or more but still owing the rest.
+    let isPartial = false;
     const chunks = {
       ...world,
       renderRadius: 1,
       loadedGeneration: 0,
       forEachMeshedChunk: (callback: (cx: number, cz: number) => void) => {
-        if (isLanded) callback(0, 0);
+        if (isLanded || isPartial) callback(0, 0);
       },
       isChunkPending: (cx: number, cz: number) =>
         !isLanded && cx === 0 && cz === 0,
@@ -408,10 +410,16 @@ describe("FarTerrain coverage", () => {
     };
     const land = () => {
       isLanded = true;
-      chunks.loadedGeneration = 1;
+      isPartial = false;
+      chunks.loadedGeneration += 1;
       far.update(at, chunks);
     };
-    return { far, coveredAt, reply, run, land };
+    const landPart = () => {
+      isPartial = true;
+      chunks.loadedGeneration += 1;
+      far.update(at, chunks);
+    };
+    return { far, coveredAt, reply, run, land, landPart };
   };
 
   it("stands in for a chunk on its way with any tile it draws", async () => {
@@ -446,6 +454,25 @@ describe("FarTerrain coverage", () => {
     far.distance = 0;
     land();
     expect(far.drawsColumn(0, 0)).toBe(false);
+  });
+
+  it("keeps drawing a chunk's column until every section of it has meshed", async () => {
+    const { far, coveredAt, reply, run, land, landPart } = coverage({
+      pendingGuardRadius: 0,
+    });
+    reply(0);
+    await run(() => far.stats.pendingStoodIn === 1);
+
+    // A first section lands: the chunk is held back and the far layer keeps
+    // the column, rather than opening it onto the sky section by section.
+    landPart();
+    expect(far.isHeld(0, 0)).toBe(true);
+    expect(coveredAt(0, 0)).toBe(0);
+
+    // The last section lands: the two change hands in one update.
+    land();
+    expect(far.isHeld(0, 0)).toBe(false);
+    expect(coveredAt(0, 0)).toBe(255);
   });
 
   it("shows a tile over nothing whole at once, but dissolves one over a coarser tile", async () => {

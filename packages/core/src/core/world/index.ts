@@ -5915,6 +5915,48 @@ export class World<T = any> extends Scene implements NetIntercept {
    * Drive the far layer and send the tile requests it queued. Runs after the
    * sky so the frame's sun and fog are already current.
    */
+  // Inside the world and still owing its terrain: not loaded yet
+  // (requested or not), or loaded moments ago with its mesh still being
+  // built at some level. The far layer must not show through it
+  // meanwhile. A loaded, meshed chunk with nothing to draw is not
+  // pending, so the far layer keeps showing where the world is
+  // genuinely empty; nor is one that has owed its mesh past the grace
+  // (`CHUNK_PENDING_GRACE_MS`), so a section a missing neighbour keeps
+  // failing never pins sky over the far layer.
+  private isFarColumnPending(cx: number, cz: number) {
+    if (!this.isWithinWorld(cx, cz)) return false;
+    const name = ChunkUtils.getChunkName([cx, cz]);
+    const stage = this.chunkPipeline.getStage(name);
+    const chunk =
+      stage === "loaded" ? this.chunkPipeline.getLoadedChunk(name) : undefined;
+    // Owed means scheduled: a section's job waiting to be dispatched
+    // or running. A generation left behind by a failed job is not
+    // owed, so a stranded section never pins sky over the far layer.
+    let isMeshOwed = false;
+    if (chunk) {
+      for (let level = 0; level < this.options.subChunks; level++) {
+        const key = MeshPipeline.makeKey(cx, cz, level);
+        if (
+          this.meshPipeline.isDirty(key) ||
+          this.meshPipeline.hasInFlightJob(key)
+        ) {
+          isMeshOwed = true;
+          break;
+        }
+      }
+    }
+    const loadedAt = this.chunkPipeline.getTiming(name)?.loadedAt;
+    return isChunkColumnPending({
+      stage,
+      isReady: !!chunk?.isReady,
+      isMeshOwed,
+      loadedForMs:
+        loadedAt === null || loadedAt === undefined
+          ? 0
+          : performance.now() - loadedAt,
+    });
+  }
+
   private updateFarTerrain(position: Vector3) {
     const far = this.farTerrain;
     far.update(position, {
@@ -5927,49 +5969,7 @@ export class World<T = any> extends Scene implements NetIntercept {
           if (chunk.group.parent) callback(chunk.coords[0], chunk.coords[1]);
         });
       },
-      // Inside the world and still owing its terrain: not loaded yet
-      // (requested or not), or loaded moments ago with its mesh still being
-      // built at some level. The far layer must not show through it
-      // meanwhile. A loaded, meshed chunk with nothing to draw is not
-      // pending, so the far layer keeps showing where the world is
-      // genuinely empty; nor is one that has owed its mesh past the grace
-      // (`CHUNK_PENDING_GRACE_MS`), so a section a missing neighbour keeps
-      // failing never pins sky over the far layer.
-      isChunkPending: (cx, cz) => {
-        if (!this.isWithinWorld(cx, cz)) return false;
-        const name = ChunkUtils.getChunkName([cx, cz]);
-        const stage = this.chunkPipeline.getStage(name);
-        const chunk =
-          stage === "loaded"
-            ? this.chunkPipeline.getLoadedChunk(name)
-            : undefined;
-        // Owed means scheduled: a section's job waiting to be dispatched
-        // or running. A generation left behind by a failed job is not
-        // owed, so a stranded section never pins sky over the far layer.
-        let isMeshOwed = false;
-        if (chunk) {
-          for (let level = 0; level < this.options.subChunks; level++) {
-            const key = MeshPipeline.makeKey(cx, cz, level);
-            if (
-              this.meshPipeline.isDirty(key) ||
-              this.meshPipeline.hasInFlightJob(key)
-            ) {
-              isMeshOwed = true;
-              break;
-            }
-          }
-        }
-        const loadedAt = this.chunkPipeline.getTiming(name)?.loadedAt;
-        return isChunkColumnPending({
-          stage,
-          isReady: !!chunk?.isReady,
-          isMeshOwed,
-          loadedForMs:
-            loadedAt === null || loadedAt === undefined
-              ? 0
-              : performance.now() - loadedAt,
-        });
-      },
+      isChunkPending: (cx, cz) => this.isFarColumnPending(cx, cz),
     });
     const packets = far.takePackets();
     if (packets.length) this.packets.push(...packets);
@@ -9411,6 +9411,15 @@ export class World<T = any> extends Scene implements NetIntercept {
       const distanceSquared = dx * dx + dz * dz;
 
       this.updateChunkPlantDetail(chunk, distanceSquared);
+
+      // A chunk landing where the far layer draws stays hidden until all
+      // of it has meshed, the far layer drawing its column meanwhile
+      // (`FarTerrain.isHeld`); asked live, so the frame it finishes is the
+      // frame it shows and the far layer steps aside.
+      if (this.farTerrain.isHeld(cx, cz) && this.isFarColumnPending(cx, cz)) {
+        chunk.group.visible = false;
+        return;
+      }
 
       // Chunks inside the shadow-safe ring are still inside the shadow
       // cascades, and hiding a caster is visible from the front even when the
