@@ -2,10 +2,11 @@
 //! their texture border only around the outline of the sheet they form.
 //!
 //! Faces are compared in world texel space, `texels_per_block` to a block. A
-//! texel is part of the sheet when a live face of a same-key block covers it,
-//! facing the same way in the same plane. Two such faces meeting in one plane
-//! from opposite sides are inside the sheet — the wall two stacked panes
-//! share, a pane's post behind its own arm — and neither is drawn there.
+//! texel is part of the sheet when a live face of a same-key block holding
+//! the same pigment covers it, facing the same way in the same plane. Two
+//! such faces meeting in one plane from opposite sides are inside the sheet
+//! — the wall two stacked panes share, a pane's post behind its own arm — and
+//! neither is drawn there.
 //!
 //! Every visible texel then samples one texel of the face's own texture:
 //! - within `frame_texels` of a texel outside the sheet, the frame band on
@@ -16,7 +17,7 @@
 //!   draws its frame, reflects into the glass beside it — or, when the
 //!   texture is clear inside its frame, is not drawn at all. A clear
 //!   texture's inside (glints) is kept on one joined block in
-//!   `interior_one_in`, picked by position.
+//!   `interior_one_in`, picked by position, or on none at 0.
 //!
 //! Texels that sample one translated window of the texture merge into one
 //! quad, so density stays uniform, and a face nothing joins keeps its single
@@ -122,8 +123,21 @@ fn is_buried<S: VoxelAccess>(
         .is_some_and(|block| block.is_opaque)
 }
 
+/// The pigment the voxel at `at` holds: its stage under the mask its faces
+/// take a pigment through, 0 for a block that takes none.
+fn pigment_at<'a, S: VoxelAccess>(
+    faces: impl IntoIterator<Item = &'a BlockFace>,
+    at: [i32; 3],
+    space: &S,
+) -> u32 {
+    let mask = faces.into_iter().fold(0, |mask, face| mask | face.pigment_mask);
+    space.get_voxel_stage(at[0], at[1], at[2]) & mask
+}
+
 /// Every face of the same-frame blocks in the 3x3x3 around `voxel`, whose
 /// own faces are `own`: all a face within reach of one frame width can meet.
+/// A neighbour holding another pigment is not part of the sheet, so where
+/// two colours meet each keeps its frame, the way two glass kinds do.
 fn gather_sheet<S: VoxelAccess>(
     frame: &ConnectedFrame,
     voxel: [i32; 3],
@@ -132,6 +146,7 @@ fn gather_sheet<S: VoxelAccess>(
     registry: &Registry,
 ) -> Vec<SheetFace> {
     let per_block = frame.texels_per_block as i32;
+    let pigment = pigment_at(own.iter().map(|(face, _)| face), voxel, space);
     let mut sheet = Vec::new();
     let add = |face: &BlockFace, at: [i32; 3], sheet: &mut Vec<SheetFace>| {
         if let Some(mut face) = sheet_face(face, at, per_block) {
@@ -153,7 +168,9 @@ fn gather_sheet<S: VoxelAccess>(
                 else {
                     continue;
                 };
-                if block.connected.as_ref() != Some(frame) {
+                if block.connected.as_ref() != Some(frame)
+                    || pigment_at(&block.faces, at, space) != pigment
+                {
                     continue;
                 }
                 if block.dynamic_patterns.is_some() {
@@ -271,11 +288,14 @@ fn reflect(natural: i32, zone: i32, per_block: i32) -> i32 {
 
 /// Whether the block at `voxel` keeps what its texture draws inside the frame
 /// once joined: one block in `one_in`, scattered by world position so a large
-/// sheet does not repeat one speck on every block. The same integer hash on
-/// every target, so server and client meshes agree.
+/// sheet does not repeat one speck on every block; every block at 1, none at
+/// 0. The same integer hash on every target, so server and client meshes
+/// agree.
 pub(super) fn keeps_interior(voxel: [i32; 3], one_in: u32) -> bool {
-    if one_in <= 1 {
-        return true;
+    match one_in {
+        0 => return false,
+        1 => return true,
+        _ => {}
     }
     let [x, y, z] = voxel.map(|v| v as u32);
     let mut h =

@@ -107,10 +107,15 @@ pub struct ConnectedFrame {
     pub clear_interior: bool,
     /// With a clear interior, one joined face in this many keeps what its
     /// texture draws inside the frame (glass glints), picked by world
-    /// position so a large sheet is not the same speck on every block. 0 or
-    /// 1 keeps every face's.
-    #[serde(default)]
+    /// position so a large sheet is not the same speck on every block. 1
+    /// keeps every face's, the default; 0 keeps none, so a sheet is clear
+    /// inside its outline. A face nothing joins always keeps its own.
+    #[serde(default = "every_interior")]
     pub interior_one_in: u32,
+}
+
+fn every_interior() -> u32 {
+    1
 }
 
 impl Block {

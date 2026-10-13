@@ -34,7 +34,7 @@ fn frame(key: u32) -> ConnectedFrame {
         corner_texels: 0,
         texels_per_block: T as u32,
         clear_interior: false,
-        interior_one_in: 0,
+        interior_one_in: 1,
     }
 }
 
@@ -347,13 +347,21 @@ fn registry() -> Registry {
 #[derive(Default)]
 struct Scene {
     voxels: HashMap<(i32, i32, i32), u32>,
+    stages: HashMap<(i32, i32, i32), u32>,
 }
 
 impl Scene {
     fn of(cells: &[((i32, i32, i32), u32)]) -> Self {
         Self {
             voxels: cells.iter().copied().collect(),
+            ..Default::default()
         }
+    }
+
+    /// Sets the stage (a pigment, on a block that takes one) at `at`.
+    fn stage(mut self, at: (i32, i32, i32), stage: u32) -> Self {
+        self.stages.insert(at, stage);
+        self
     }
 
     /// Fills the inclusive box `from..=to` with `id`.
@@ -382,8 +390,8 @@ impl VoxelAccess for Scene {
         BlockRotation::PY(0.0)
     }
 
-    fn get_voxel_stage(&self, _vx: i32, _vy: i32, _vz: i32) -> u32 {
-        0
+    fn get_voxel_stage(&self, vx: i32, vy: i32, vz: i32) -> u32 {
+        self.stages.get(&(vx, vy, vz)).copied().unwrap_or(0)
     }
 
     fn get_voxel_waterlogged(&self, _vx: i32, _vy: i32, _vz: i32) -> bool {
@@ -1004,7 +1012,86 @@ fn a_clear_interior_keeps_its_glints_on_one_joined_block_in_n_scattered_by_posit
             assert!((3..=24).contains(&count), "line {line}: {count} of {side}");
         }
     }
-    assert!(keeps_interior([3, -9, 12], 0) && keeps_interior([3, -9, 12], 1));
+    assert!(keeps_interior([3, -9, 12], 1) && !keeps_interior([3, -9, 12], 0));
+}
+
+#[test]
+fn pigmented_glass_joins_its_own_colour_and_frames_where_two_colours_meet() {
+    let mut blocks = registry().blocks_by_id.clone();
+    for (_, block) in blocks.iter_mut() {
+        if block.id == GLASS {
+            for face in &mut block.faces {
+                face.pigment_mask = 15;
+            }
+        }
+    }
+    let mut dyeable = Registry::new(blocks);
+    dyeable.build_cache();
+    let pair = || Scene::of(&[((0, 0, 0), GLASS), ((1, 0, 0), GLASS)]);
+    let drawn = |scene: &Scene| rendered(&mesh_space_greedy(&LO, &HI, scene, &dyeable), GLASS);
+
+    // One colour joins exactly as undyed glass does.
+    let joined = rendered(&mesh(&pair()), GLASS);
+    assert_eq!(drawn(&pair().stage((0, 0, 0), 3).stage((1, 0, 0), 3)), joined);
+    assert_eq!(drawn(&pair()), joined);
+
+    // Two colours: each block keeps its whole frame, as if alone.
+    let planes = drawn(&pair().stage((0, 0, 0), 3).stage((1, 0, 0), 6));
+    assert_ne!(planes, joined);
+    for (&(x, y), samples) in front(&planes, T) {
+        assert_eq!(samples[0], (x.rem_euclid(T), y), "texel {x},{y}");
+    }
+}
+
+#[test]
+fn a_clear_interior_kept_on_none_leaves_every_joined_sheet_clear_inside_its_outline() {
+    let bare_registry = registry_with(|frame| {
+        frame.clear_interior = true;
+        frame.interior_one_in = 0;
+    });
+    for (name, scene, id) in [
+        (
+            "glass 8x8",
+            Scene::default().fill((-2, -2, 0), (5, 5, 0), GLASS),
+            GLASS,
+        ),
+        (
+            "glass 4x4x2",
+            Scene::default().fill((0, 0, 0), (3, 3, 1), GLASS),
+            GLASS,
+        ),
+        (
+            "pane 6x4",
+            Scene::default().fill((-1, 0, 0), (4, 3, 0), PANE),
+            PANE,
+        ),
+    ] {
+        let clear = rendered(&mesh_space_greedy(&LO, &HI, &scene, &clear_registry()), id);
+        let bare = rendered(&mesh_space_greedy(&LO, &HI, &scene, &bare_registry), id);
+        for (plane, texels) in &clear {
+            let drawn = bare.get(plane).cloned().unwrap_or_default();
+            for (texel, samples) in texels {
+                let frame = is_frame(samples[0]);
+                assert_eq!(
+                    drawn.get(texel),
+                    frame.then_some(samples),
+                    "{name} {plane:?} {texel:?}: only the outline is drawn"
+                );
+            }
+            assert!(
+                drawn.keys().all(|t| texels.contains_key(t)),
+                "{name} {plane:?}"
+            );
+        }
+    }
+
+    // A block nothing joins still keeps its whole texture, glints and all.
+    let lone = Scene::of(&[((0, 0, 0), GLASS)]);
+    let meshes = mesh_space_greedy(&LO, &HI, &lone, &bare_registry);
+    assert_eq!(quads(&meshes, GLASS), 6);
+    for (&(x, y), samples) in front(&rendered(&meshes, GLASS), T) {
+        assert_eq!(samples[0], (x, y), "a lone block samples itself");
+    }
 }
 
 #[test]
