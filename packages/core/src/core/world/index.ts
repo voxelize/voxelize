@@ -203,7 +203,7 @@ import {
   WATER_DEPTH_BIAS_BLOCKS,
 } from "./shaders";
 import { singlePassWhenOneFacing } from "./single-pass-sides";
-import { getVisibleDiscDirection, Sky } from "./sky";
+import { getSunDiscDirection, getVisibleDiscDirection, Sky } from "./sky";
 import {
   emptyTally,
   IsolatedFaceLedger,
@@ -6687,6 +6687,12 @@ export class World<T = any> extends Scene implements NetIntercept {
       timeRatio,
       this.chunkRenderer.shaderLightingUniforms.celestialDirection.value,
     );
+    // The sky's glow centres on the drawn disc too, below the horizon
+    // included: pre-dawn light gathers where the sun is about to rise.
+    getSunDiscDirection(
+      timeRatio,
+      this.chunkRenderer.uniforms.skyGlowSunDirection.value,
+    );
 
     const sunlightIntensity = Math.max(0, sunY);
 
@@ -7837,7 +7843,16 @@ export class World<T = any> extends Scene implements NetIntercept {
       ...this.options.chunkUniformsOverwrite,
     };
 
-    this.sky = new Sky(skyOptions);
+    // One set of glow uniforms for the dome and every fogged surface.
+    this.sky = new Sky(skyOptions, {
+      sunDirection: chunkUniforms.skyGlowSunDirection,
+      color: chunkUniforms.skyGlowColor,
+      sunHaloColor: chunkUniforms.skySunHaloColor,
+      moonHaloColor: chunkUniforms.skyMoonHaloColor,
+      sunDiscColor: chunkUniforms.skySunDiscColor,
+      moonDiscColor: chunkUniforms.skyMoonDiscColor,
+      discRadii: chunkUniforms.skyDiscRadii,
+    });
     this.clouds = new Clouds({
       ...cloudsOptions,
       uFogColor: cloudsOptions.uFogColor ?? chunkUniforms.fogColor,
@@ -7882,6 +7897,7 @@ export class World<T = any> extends Scene implements NetIntercept {
         cloudsOptions.uCameraWaterPlaneY ?? chunkUniforms.cameraWaterPlaneY,
       uUnderwaterAmbient:
         cloudsOptions.uUnderwaterAmbient ?? chunkUniforms.underwaterAmbient,
+      skyGlow: cloudsOptions.skyGlow ?? this.sky.glow,
     });
     this.add(this.sky, this.clouds);
     if (this.orderIndependent) {
@@ -7909,6 +7925,7 @@ export class World<T = any> extends Scene implements NetIntercept {
         skyFogStrength: chunkUniforms.skyFogStrength,
         sunlightIntensity: chunkUniforms.sunlightIntensity,
         directSunlight: lighting.directSunlight,
+        skyGlow: this.sky.glow,
         minLightLevel: chunkUniforms.minLightLevel,
         baseAmbient: chunkUniforms.baseAmbient,
         faceShades: chunkUniforms.faceShades,

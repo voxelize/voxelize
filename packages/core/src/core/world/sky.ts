@@ -5,6 +5,7 @@ import {
   Mesh,
   MeshBasicMaterial,
   ShaderMaterial,
+  Vector2,
   Vector3,
 } from "three";
 
@@ -13,6 +14,10 @@ import SkyFragmentShader from "../../shaders/sky/fragment.glsl?raw";
 import SkyVertexShader from "../../shaders/sky/vertex.glsl?raw";
 
 import { markNeverCaster } from "./shadow-casters";
+import {
+  createSkyGlowStatements,
+  SKY_GLOW_UNIFORM_DECLARATIONS,
+} from "./sky-fog";
 import { WATER_OPTICS } from "./water-optics";
 
 export type SkyShadingCycleData = {
@@ -51,6 +56,60 @@ export type SkyOptions = {
    */
   textureBloomIntensity: number;
 };
+
+/**
+ * The sky's own light, drawn by the dome and by every fogged surface from
+ * one set of uniform objects (`createSkyGlowStatements`), so the haze in
+ * front of a sunset wears exactly the light of the sky behind it. Colours
+ * are linear and already scaled by their strength; all black, the default,
+ * adds nothing. The world keeps `sunDirection` on the drawn disc each frame
+ * (`getSunDiscDirection`); a host paints the colours.
+ */
+export type SkyGlowUniforms = {
+  /** Toward the sun's disc, never clamped or tilted; the moon is opposite. */
+  sunDirection: { value: Vector3 };
+  /** The broad aura round the sun and the band along the horizon under it. */
+  color: { value: Color };
+  /** The halo the haze scatters round the sun's disc. */
+  sunHaloColor: { value: Color };
+  /** The halo round the moon's disc. */
+  moonHaloColor: { value: Color };
+  /**
+   * The discs as the host draws them in the sky (colour times how much of
+   * it shows), for the fog to carry: terrain hides the drawn disc by depth
+   * even where its haze has made it the sky's own colour.
+   */
+  sunDiscColor: { value: Color };
+  moonDiscColor: { value: Color };
+  /** The discs' angular radii in radians: x the sun, y the moon. */
+  discRadii: { value: Vector2 };
+};
+
+export const createSkyGlowUniforms = (): SkyGlowUniforms => ({
+  sunDirection: { value: new Vector3(0, 1, 0) },
+  color: { value: new Color(0, 0, 0) },
+  sunHaloColor: { value: new Color(0, 0, 0) },
+  moonHaloColor: { value: new Color(0, 0, 0) },
+  sunDiscColor: { value: new Color(0, 0, 0) },
+  moonDiscColor: { value: new Color(0, 0, 0) },
+  discRadii: { value: new Vector2(0.07, 0.07) },
+});
+
+/** The glow as a shader binds it; black for a host that paints none. */
+export const bindSkyGlowUniforms = (
+  glow: SkyGlowUniforms = createSkyGlowUniforms(),
+) => ({
+  uSkyGlowSunDirection: glow.sunDirection,
+  uSkyGlowColor: glow.color,
+  uSkySunHaloColor: glow.sunHaloColor,
+  uSkyMoonHaloColor: glow.moonHaloColor,
+  uSkySunDiscColor: glow.sunDiscColor,
+  uSkyMoonDiscColor: glow.moonDiscColor,
+  uSkyDiscRadii: glow.discRadii,
+});
+
+/** Marks where the dome's shader takes the glow statements. */
+const SKY_GLOW_INCLUDE = "#include <sky_glow>";
 
 const defaultOptions: SkyOptions = {
   dimension: 2000,
@@ -98,6 +157,21 @@ export function getVisibleDiscDirection(
     target.negate();
   }
   return target;
+}
+
+/**
+ * The dome's fragment shader with the sky's glow spliced in: the same
+ * statements the fog runs, along the dome's own view ray.
+ */
+export function composeSkyFragmentShader(): string {
+  if (!SkyFragmentShader.includes(SKY_GLOW_INCLUDE)) {
+    throw new Error(`Sky: the dome shader lost its ${SKY_GLOW_INCLUDE} line`);
+  }
+  return `${SKY_GLOW_UNIFORM_DECLARATIONS}
+${SkyFragmentShader.replace(
+  SKY_GLOW_INCLUDE,
+  createSkyGlowStatements("normalize(skyPosition)", "skyGlow"),
+)}`;
 }
 
 /**
@@ -192,6 +266,12 @@ export class Sky extends CanvasBox {
    * chunk renderer's `directSunlight`): a veiled disc is not drawn. */
   public uDirectSunlight = { value: 1 };
 
+  /**
+   * The sky's own light (see {@link SkyGlowUniforms}). The world shares these
+   * objects with the fog of every surface it draws.
+   */
+  public readonly glow: SkyGlowUniforms;
+
   public shadingData: SkyShadingCycleData[] = [];
 
   private textureBloomMaterials = new WeakSet<MeshBasicMaterial>();
@@ -201,8 +281,12 @@ export class Sky extends CanvasBox {
    *
    * @param dimension The dimension of the dodecahedron sky. The inner canvas box is 0.8 times this dimension.
    * @param lerpFactor The lerp factor for the sky gradient. The sky gradient is updated every frame by lerping the current color to the target color.
+   * @param glow The glow's uniform objects, to share them with the fog.
    */
-  constructor(options: Partial<SkyOptions> = {}) {
+  constructor(
+    options: Partial<SkyOptions> = {},
+    glow: SkyGlowUniforms = createSkyGlowUniforms(),
+  ) {
     super({
       width:
         (options.dimension ? options.dimension : defaultOptions.dimension) *
@@ -219,6 +303,8 @@ export class Sky extends CanvasBox {
       ...defaultOptions,
       ...options,
     };
+
+    this.glow = glow;
 
     this.uTextureBloomThreshold = {
       value: this.options.textureBloomThreshold,
@@ -480,9 +566,10 @@ export class Sky extends CanvasBox {
         uSunColor: this.uSunColor,
         uSunlightIntensity: this.uSunlightIntensity,
         uDirectSunlight: this.uDirectSunlight,
+        ...bindSkyGlowUniforms(this.glow),
       },
       vertexShader: SkyVertexShader,
-      fragmentShader: SkyFragmentShader,
+      fragmentShader: composeSkyFragmentShader(),
       depthWrite: false,
       side: BackSide,
     });

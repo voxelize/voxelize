@@ -4,11 +4,14 @@ import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 import SkyFragmentShader from "../../shaders/sky/fragment.glsl?raw";
 
 import { SHADER_LIGHTING_CHUNK_SHADERS } from "./shaders";
-import { Sky } from "./sky";
+import { composeSkyFragmentShader, createSkyGlowUniforms, Sky } from "./sky";
 import {
   createSkyAtmosphereFragment,
+  createSkyDiscStatements,
+  createSkyGlowStatements,
   SKY_FOG_COMMON_UNIFORM_DECLARATIONS,
   SKY_FOG_FRAGMENT,
+  SKY_GLOW_UNIFORM_DECLARATIONS,
 } from "./sky-fog";
 
 describe("camera-relative sky sampling", () => {
@@ -31,16 +34,51 @@ describe("camera-relative sky sampling", () => {
   });
 });
 
-describe("the sun's halo in the haze", () => {
+describe("the sky's glow in the haze", () => {
   it("is the beam's: every fog shader gates it by the weather's direct sunlight", () => {
     expect(SKY_FOG_COMMON_UNIFORM_DECLARATIONS).toContain(
       "uniform float uDirectSunlight;",
     );
+    expect(createSkyGlowStatements("ray", "glow")).toMatch(
+      /\) \* uDirectSunlight;/,
+    );
     for (const fragment of [SKY_FOG_FRAGMENT, createSkyAtmosphereFragment()]) {
-      expect(fragment).toMatch(
-        /fogTint \+= uSunColor \* sunAlignment \* uSunlightIntensity \* uDirectSunlight/,
+      expect(fragment).toContain(createSkyGlowStatements("fogRay", "fogGlow"));
+      expect(fragment).toContain(createSkyDiscStatements("fogRay", "fogDiscs"));
+      expect(fragment).toContain(
+        "fogTint += (fogGlow + fogDiscs) * uSkyFogStrength * (1.0 - uFogVerticalBlend);",
       );
     }
+  });
+
+  it("is the same light the dome draws, along the same ray", () => {
+    const dome = composeSkyFragmentShader();
+    expect(dome).toContain(SKY_GLOW_UNIFORM_DECLARATIONS);
+    expect(dome).toContain(
+      createSkyGlowStatements("normalize(skyPosition)", "skyGlow"),
+    );
+    expect(dome).toContain("color += skyGlow;");
+    expect(dome).not.toContain("#include <sky_glow>");
+  });
+
+  it("centres on the drawn disc, not the tilted shading light", () => {
+    const glow = createSkyGlowStatements("ray", "glow");
+    expect(glow).toContain("dot(skyGlowRay, uSkyGlowSunDirection)");
+    expect(glow).not.toContain("uSunDirection");
+  });
+
+  it("carries the discs only in the fog: the host draws them in the sky", () => {
+    const discs = createSkyDiscStatements("ray", "discs");
+    expect(discs).toContain("uSkySunDiscColor * skyDiscCover.x");
+    expect(discs).toContain("uSkyMoonDiscColor * skyDiscCover.y");
+    expect(discs).toMatch(/\* skyDiscHorizon \* uDirectSunlight;/);
+    expect(composeSkyFragmentShader()).not.toContain("skyDiscCover");
+  });
+
+  it("adds nothing to additive effects, which only attenuate", () => {
+    expect(
+      createSkyAtmosphereFragment(undefined, undefined, true),
+    ).not.toContain("fogGlow");
   });
 
   it("is declared once in the chunk shader, with the fog's uniforms", () => {
@@ -62,10 +100,11 @@ describe("the sky from under water", () => {
     );
   });
 
-  it("draws the refracted sun as a pixel disc inside the window", () => {
+  it("draws the refracted sun as the same glowing disc inside the window", () => {
     expect(SkyFragmentShader).toContain(
-      "floor(vec2(dot(airDir, sunSide), dot(airDir, sunUp)) / SNELL_SUN_PIXEL)",
+      "float sunAngle = sqrt(max(2.0 - 2.0 * sunCos, 0.0));",
     );
+    expect(SkyFragmentShader).not.toContain("SNELL_SUN_PIXEL");
     expect(SkyFragmentShader).not.toContain("outsideWindow");
   });
 });
@@ -105,5 +144,23 @@ describe("the sun through the window under a veiled sky", () => {
     expect(bound).toHaveLength(1);
     expect(bound[0]).toBe(sky.uDirectSunlight);
     expect(sky.uDirectSunlight.value).toBe(1);
+  });
+
+  it("is one set of uniform objects for the dome and the world's fog", () => {
+    const glow = createSkyGlowUniforms();
+    const sky = new Sky({}, glow);
+    const dome = sky.children.find(
+      (object) =>
+        (object as Mesh).material instanceof ShaderMaterial &&
+        ((object as Mesh).material as ShaderMaterial).uniforms.uSkyGlowColor,
+    ) as Mesh<never, ShaderMaterial>;
+    expect(dome.material.uniforms.uSkyGlowColor).toBe(glow.color);
+    expect(dome.material.uniforms.uSkyGlowSunDirection).toBe(glow.sunDirection);
+    expect(dome.material.uniforms.uSkySunHaloColor).toBe(glow.sunHaloColor);
+    expect(dome.material.uniforms.uSkyMoonHaloColor).toBe(glow.moonHaloColor);
+    expect(dome.material.uniforms.uSkyDiscRadii).toBe(glow.discRadii);
+    // Black by default: a host that paints no glow keeps the sky it had.
+    expect(glow.color.value.getHex()).toBe(0);
+    expect(glow.sunHaloColor.value.getHex()).toBe(0);
   });
 });

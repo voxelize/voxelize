@@ -35,6 +35,7 @@ import {
   SHADER_LIGHTING_SEE_THROUGH_CHUNK_SHADERS,
   WATER_DEPTH_SIDE_OFF,
 } from "./shaders";
+import { bindSkyGlowUniforms } from "./sky";
 import { AtlasTexture, type AtlasFilteringMode } from "./textures";
 import { positionUnitsPerBlock } from "./vertex-quantization";
 
@@ -412,6 +413,15 @@ export function makeChunkShaderMaterial(
       uSkyFogExponent2: chunksUniforms.skyFogExponent2,
       uSkyFogDimension: chunksUniforms.skyFogDimension,
       uSkyFogStrength: chunksUniforms.skyFogStrength,
+      ...bindSkyGlowUniforms({
+        sunDirection: chunksUniforms.skyGlowSunDirection,
+        color: chunksUniforms.skyGlowColor,
+        sunHaloColor: chunksUniforms.skySunHaloColor,
+        moonHaloColor: chunksUniforms.skyMoonHaloColor,
+        sunDiscColor: chunksUniforms.skySunDiscColor,
+        moonDiscColor: chunksUniforms.skyMoonDiscColor,
+        discRadii: chunksUniforms.skyDiscRadii,
+      }),
       uSceneColor: chunksUniforms.sceneColor,
       uSceneTextureSize: chunksUniforms.sceneTextureSize,
       uWaterRefractionReady: chunksUniforms.waterRefractionReady,

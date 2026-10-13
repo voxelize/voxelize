@@ -147,6 +147,18 @@ export class ChunkRenderer {
     skyFogDimension: { value: number };
     skyFogStrength: { value: number };
     /**
+     * The sky's own light, the same objects the sky dome draws with
+     * (`Sky.glow`), so every fogged surface glows toward the sun and moon
+     * exactly as the sky behind it does. Black adds nothing.
+     */
+    skyGlowSunDirection: { value: Vector3 };
+    skyGlowColor: { value: Color };
+    skySunHaloColor: { value: Color };
+    skyMoonHaloColor: { value: Color };
+    skySunDiscColor: { value: Color };
+    skyMoonDiscColor: { value: Color };
+    skyDiscRadii: { value: Vector2 };
+    /**
      * What the water refracts: a copy of the frame drawn before it, or with
      * order-independent transparency the scene target's own colour, read
      * while the blended layers draw elsewhere.
@@ -211,6 +223,13 @@ export class ChunkRenderer {
     skyFogExponent2: { value: 1.2 },
     skyFogDimension: { value: 2000 },
     skyFogStrength: { value: 1.0 },
+    skyGlowSunDirection: { value: new Vector3(0, 1, 0) },
+    skyGlowColor: { value: new Color(0, 0, 0) },
+    skySunHaloColor: { value: new Color(0, 0, 0) },
+    skyMoonHaloColor: { value: new Color(0, 0, 0) },
+    skySunDiscColor: { value: new Color(0, 0, 0) },
+    skyMoonDiscColor: { value: new Color(0, 0, 0) },
+    skyDiscRadii: { value: new Vector2(0.07, 0.07) },
     sceneColor: { value: makeSceneColorTexture() },
     sceneTextureSize: { value: new Vector2(1, 1) },
     waterRefractionReady: { value: 0 },

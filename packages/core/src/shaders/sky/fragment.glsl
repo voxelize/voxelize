@@ -19,13 +19,14 @@ uniform float uSunlightIntensity;
 // The share of that light arriving as a beam: through cloud there is no
 // disc to see, only the overcast's own light.
 uniform float uDirectSunlight;
+// The sky's own light (uSkyGlow*, uSkySunHaloColor, uSkyMoonHaloColor) is
+// declared by sky.ts, which splices its statements in below.
 
 varying vec3 vWorldPosition;
 
-// The disc seen through the surface, drawn in square angular pixels so it
-// reads as the same pixel sun, not a smooth blob.
-const float SNELL_SUN_PIXEL = 0.0065;
-const float SNELL_SUN_RADIUS_PIXELS = 5.0;
+// The disc seen through the surface, in radians of the sky above: smaller
+// than the disc in the air, as the window squeezes the whole sky into it.
+const float SNELL_SUN_RADIUS = 0.03;
 
 void main() {
   // Sky colors are view-relative. Sampling absolute world coordinates makes
@@ -36,6 +37,10 @@ void main() {
   float h2 = normalize(skyPosition + uVoidOffset).y;
   vec3 color = mix(uMiddleColor, uTopColor, max(pow(max(h, 0.0), uExponent), 0.0));
   color = mix(color, uBottomColor, max(pow(max(-h2, 0.0), uExponent2), 0.0));
+  // The sky's own light toward its discs, the same statements every fogged
+  // surface runs (sky-fog.ts), so the haze and the sky behind it agree.
+  #include <sky_glow>
+  color += skyGlow;
   // From under water the sky only reaches the eye through the Snell
   // window: a ray within the critical angle of straight up leaves the
   // water bent away from the vertical, so the whole sky, horizon to
@@ -53,12 +58,14 @@ void main() {
       vec3 airDir = refract(viewDir, vec3(0.0, -1.0, 0.0), 1.333);
       if (dot(airDir, airDir) > 0.5) {
         vec3 windowSky = mix(uMiddleColor, uTopColor, pow(max(airDir.y, 0.0), uExponent));
-        vec3 sunSide = normalize(cross(uCelestialDirection, vec3(0.0, 0.0, 1.0)) + vec3(1e-4, 0.0, 0.0));
-        vec3 sunUp = cross(sunSide, uCelestialDirection);
-        vec2 sunPixel = floor(vec2(dot(airDir, sunSide), dot(airDir, sunUp)) / SNELL_SUN_PIXEL) + 0.5;
-        float sunDisc = step(dot(sunPixel, sunPixel), SNELL_SUN_RADIUS_PIXELS * SNELL_SUN_RADIUS_PIXELS)
-          * step(0.0, dot(airDir, uCelestialDirection));
-        float sunGlow = pow(max(dot(airDir, uCelestialDirection), 0.0), 48.0);
+        // The same glowing disc as in the air: a soft-edged core and a
+        // halo around it, not a hard sticker.
+        float sunCos = dot(airDir, uCelestialDirection);
+        float sunAngle = sqrt(max(2.0 - 2.0 * sunCos, 0.0));
+        float sunEdge = fwidth(sunAngle) * 1.5;
+        float sunDisc = (1.0 - smoothstep(SNELL_SUN_RADIUS - sunEdge, SNELL_SUN_RADIUS + sunEdge, sunAngle))
+          * step(0.0, sunCos);
+        float sunGlow = exp(-sunAngle / SNELL_SUN_RADIUS * 0.9) * 0.6 + pow(max(sunCos, 0.0), 48.0);
         windowSky += uSunColor * uSunlightIntensity * uDirectSunlight
           * (sunDisc * 2.2 + sunGlow * 0.35);
         float transmit = 1.0 - (0.02 + 0.98 * pow(1.0 - airDir.y, 5.0));

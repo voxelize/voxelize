@@ -65,8 +65,10 @@ import {
   farTileSpan,
   pendingChunksWithin,
 } from "./far-terrain-tiles";
+import { bindSkyGlowUniforms, type SkyGlowUniforms } from "./sky";
 import {
   createSkyAtmosphereFragment,
+  createSkyGlowStatements,
   SKY_FOG_UNIFORM_DECLARATIONS,
 } from "./sky-fog";
 import {
@@ -122,6 +124,8 @@ export type FarTerrainSharedUniforms = {
   sunlightIntensity: ShaderUniform<number>;
   /** The share of the sun reaching the world as a beam (the weather's). */
   directSunlight?: ShaderUniform<number>;
+  /** The sky's own light, so the far hills haze into the glow behind them. */
+  skyGlow?: SkyGlowUniforms;
   minLightLevel: ShaderUniform<number>;
   baseAmbient: ShaderUniform<number>;
   faceShades: ShaderUniform<{ x: number; y: number; z: number; w: number }>;
@@ -595,7 +599,9 @@ vec3 farWaterAlbedo(float seaDepth, float fresnel) {
 vec3 farSkyMirror(vec3 toCamera) {
   vec3 reflectDir = reflect(-toCamera, vec3(0.0, 1.0, 0.0));
   float skyH = normalize(reflectDir * uSkyFogDimension + uSkyFogOffset).y;
-  return mix(uSkyMiddleColor, uSkyTopColor, pow(max(skyH, 0.0), uSkyFogExponent));
+  ${createSkyGlowStatements("reflectDir", "mirroredSkyGlow")}
+  return mix(uSkyMiddleColor, uSkyTopColor, pow(max(skyH, 0.0), uSkyFogExponent))
+    + mirroredSkyGlow;
 }
 `;
 
@@ -914,6 +920,7 @@ export class FarTerrain extends Group {
       uSunColor: shared.sunColor,
       uSunlightIntensity: shared.sunlightIntensity,
       uDirectSunlight: shared.directSunlight ?? { value: 1 },
+      ...bindSkyGlowUniforms(shared.skyGlow),
       uAmbientColor: shared.ambientColor,
       uMinLightLevel: shared.minLightLevel,
       uBaseAmbient: shared.baseAmbient,

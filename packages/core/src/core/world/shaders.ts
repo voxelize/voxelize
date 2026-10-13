@@ -26,7 +26,11 @@ import {
 } from "./local-lights/shader";
 import { defaultLocalLightsOptions } from "./local-lights/types";
 import { QUAD_LIGHT_VERTEX_GLSL } from "./quad-light";
-import { createSkyFogFragment, SKY_FOG_UNIFORM_DECLARATIONS } from "./sky-fog";
+import {
+  createSkyFogFragment,
+  createSkyGlowStatements,
+  SKY_FOG_UNIFORM_DECLARATIONS,
+} from "./sky-fog";
 import {
   FLOW_CREST_PHASE_PER_HEIGHT,
   FLUID_SPILL_CORNER_MIN_HEIGHT,
@@ -1322,6 +1326,10 @@ ${WATER_SURFACE_NORMAL_LAYERS_GLSL}
     uSkyTopColor,
     pow(max(skyH, 0.0), uSkyFogExponent)
   );
+  // And the sky's own light along it: a sunset lays its glow across the
+  // water, and the moon its halo, as the dome draws them above.
+  ${createSkyGlowStatements("reflectDir", "reflectedSkyGlow")}
+  skyReflection += reflectedSkyGlow;
   // A surface that sees no sky mirrors the rock around it instead, lit the
   // way the surface itself is: a cave pool reads dark, a lamp's pool warm.
   skyReflection = mix(

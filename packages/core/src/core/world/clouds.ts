@@ -19,6 +19,7 @@ import CloudsVertexShader from "../../shaders/clouds/vertex.glsl?raw";
 import { Coords2, Coords3 } from "../../types";
 
 import { markNeverCaster } from "./shadow-casters";
+import { bindSkyGlowUniforms, type SkyGlowUniforms } from "./sky";
 import { createSkyFogFragment, SKY_FOG_UNIFORM_DECLARATIONS } from "./sky-fog";
 import CloudWorker from "./workers/clouds-worker.ts?worker&inline";
 
@@ -184,6 +185,9 @@ export type CloudsOptions = {
   uSunColor?: ShaderUniform<Color>;
 
   uSunlightIntensity?: ShaderUniform<number>;
+
+  /** The sky's own light, so the deck hazes into the glow behind it. */
+  skyGlow?: SkyGlowUniforms;
 
   uCloudFogDistanceScale?: ShaderUniform<number>;
 
@@ -401,6 +405,7 @@ export class Clouds extends Group {
         },
         uSunColor: uSunColor || { value: new Color(1.0, 0.98, 0.9) },
         uSunlightIntensity: uSunlightIntensity || { value: 1.0 },
+        ...bindSkyGlowUniforms(this.options.skyGlow),
         uCloudFogDistanceScale: uCloudFogDistanceScale || { value: 8 },
         uCloudEndFadeNear: uCloudEndFadeNear || {
           value: cloudRadius * this.options.endFadeNearRatio,
