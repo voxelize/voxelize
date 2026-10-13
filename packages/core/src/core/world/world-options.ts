@@ -369,7 +369,9 @@ export type WorldClientOptions = {
   /**
    * How many blocks of the loaded area's outer edge hand over to the far
    * layer across a dithered band, up to half a chunk; 0 leaves the edge
-   * hard. Defaults to `8`.
+   * hard. Defaults to `0`: the band dithers by screen pixel, which
+   * shimmers as the view moves, and over anything standing off the ground
+   * (a floating island, a tall crown) it interleaves two different shapes.
    */
   farTerrainSeamBand: number;
 
@@ -568,7 +570,7 @@ export const defaultWorldClientOptions: WorldClientOptions = {
   farTerrainFogNearRatio: 0.6,
   farTerrainFogFarRatio: 1,
   farTerrainEdgeBand: 0.1,
-  farTerrainSeamBand: 8,
+  farTerrainSeamBand: 0,
   chunkUniformsOverwrite: {},
   sunlightStartTimeFrac: 0.25,
   sunlightEndTimeFrac: 0.7,

@@ -132,7 +132,7 @@ describe("buildFarMaterialTable", () => {
 });
 
 describe("farLayerTexels", () => {
-  it("flips the image so its top row is the layer's top, and fills gaps darker", () => {
+  it("flips the image so its top row is the layer's top, and keeps gaps see-through and darker", () => {
     // A 2x2 face: top row red and see-through, bottom row blue.
     const pixels = [255, 0, 0, 255, 0, 0, 0, 0, 0, 0, 255, 255, 0, 0, 255, 255];
     const out = new Uint8Array(FAR_LAYER_SIZE * FAR_LAYER_SIZE * 4);
@@ -152,9 +152,10 @@ describe("farLayerTexels", () => {
     expect(at(0, 0)).toEqual([0, 0, 255, 255]);
     // The image's top-left texel is red, now in the layer's top row.
     expect(at(0, FAR_LAYER_SIZE - 1)).toEqual([255, 0, 0, 255]);
-    // Its see-through neighbour is the face's colour, darker, and opaque.
+    // Its see-through neighbour is the face's colour, darker, and keeps its
+    // transparency for a crown to see into.
     const gap = at(FAR_LAYER_SIZE - 1, FAR_LAYER_SIZE - 1);
-    expect(gap[3]).toBe(255);
+    expect(gap[3]).toBe(0);
     expect(gap[0]).toBeLessThan(188);
     expect(gap[0]).toBe(gap[1]);
   });

@@ -106,8 +106,11 @@ const linearToByte = (v: number) => {
 /**
  * One face's texels as a `FAR_LAYER_SIZE` layer: box-filtered in linear
  * light when larger, nearest when smaller, rows flipped so the image's top
- * is the layer's top, and see-through texels (a leaf's gaps) filled with a
- * darker shade of the face's own colour, as the inside of a canopy looks.
+ * is the layer's top. See-through texels (a leaf's gaps) keep their
+ * transparency in alpha, the share of the texel the face covers, for a
+ * crown to see into; their colour is a darker shade of the face's own, as
+ * the inside of a canopy looks, for the faces drawn opaque and for the
+ * mips, which average it in.
  */
 export function farLayerTexels(
   look: FarFaceLook,
@@ -148,14 +151,14 @@ export function farLayerTexels(
       // Image row y is the layer's row n - 1 - y: GL samples bottom up.
       const to = offset + ((n - 1 - y) * n + x) * 4;
       if (weight === 0) {
-        out.set([fill[0], fill[1], fill[2], 255], to);
+        out.set([fill[0], fill[1], fill[2], 0], to);
       } else {
         out.set(
           [
             linearToByte(r / weight),
             linearToByte(g / weight),
             linearToByte(b / weight),
-            255,
+            Math.round((255 * weight) / ((x1 - x0) * (y1 - y0))),
           ],
           to,
         );

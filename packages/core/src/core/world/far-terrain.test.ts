@@ -104,10 +104,7 @@ const syncBuild = (input: FarMeshInput): Promise<FarBuiltTile | null> =>
   });
 
 const landMeshes = (far: FarTerrain) =>
-  far.children.filter(
-    (child): child is Mesh =>
-      child instanceof Mesh && child.name.startsWith("far-terrain-0:"),
-  );
+  far.tileSlots().filter((slot) => slot.name.startsWith("far-terrain-0:"));
 
 const flush = () => new Promise((resolve) => setTimeout(resolve, 0));
 
@@ -616,7 +613,7 @@ describe("far shaders", () => {
     const water = far.children.find(
       (child): child is Mesh => child.name === "far-terrain-water",
     );
-    const materials = [must(water), ...landMeshes(far)].map(
+    const materials = [must(water), far.batch.mesh].map(
       (mesh) => mesh.material as ShaderMaterial,
     );
     expect(materials.length).toBeGreaterThan(1);
@@ -660,6 +657,8 @@ describe("CHUNK_DAYLIGHT", () => {
       `smoothstep(${d.brightTexture.from}, ${d.brightTexture.to}, texLuma)`,
       `mix(1.0, ${d.brightTextureSun}, isBrightTex)`,
       `uAmbientColor * ${d.groundAmbient}`,
+      `mix(${d.shadedAmbient}, 1.0, shadow)`,
+      `uAmbientColor * ${d.bounce} * (1.0 - shadow)`,
       `vec3(${d.starlight}) * sunVisibility`,
       `vec3 coolTint = vec3(${d.daylightBalance})`,
       `(totalLight * (${d.toneMap.a} * totalLight + ${d.toneMap.b}))`,

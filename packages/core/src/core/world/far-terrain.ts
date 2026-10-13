@@ -1,15 +1,12 @@
 import { MessageProtocol } from "@voxelize/protocol";
 import {
-  Box3,
-  BufferAttribute,
-  BufferGeometry,
   Color,
   DataArrayTexture,
   DataTexture,
   DoubleSide,
   FloatType,
   Group,
-  Int16BufferAttribute,
+  HalfFloatType,
   LinearFilter,
   LinearMipmapLinearFilter,
   Mesh,
@@ -19,10 +16,8 @@ import {
   RepeatWrapping,
   RGBAFormat,
   ShaderMaterial,
-  Sphere,
   SRGBColorSpace,
   Texture,
-  Uint8BufferAttribute,
   UnsignedByteType,
   Vector2,
   Vector3,
@@ -31,7 +26,13 @@ import {
 
 import { WorkerPool } from "../../libs/worker-pool";
 
-import { DEFAULT_FAR_LOD, FarLodOptions, planFarLod } from "./far-terrain-lod";
+import { FarBatch, type FarBatchSlot } from "./far-terrain-batch";
+import {
+  DEFAULT_FAR_LOD,
+  FarLodOptions,
+  FarLodPlan,
+  planFarLod,
+} from "./far-terrain-lod";
 import {
   buildFarMaterialTable,
   FAR_LAYER_SIZE,
@@ -53,6 +54,7 @@ import {
   FAR_SEAM_UNIFORM_DECLARATIONS,
   farSeamScale,
 } from "./far-terrain-seam";
+import { FAR_SHADOW_NONE, type FarShadowInput } from "./far-terrain-shadow";
 import {
   buildCoverageMask,
   decodeFarTerrainReply,
@@ -101,6 +103,25 @@ const DEPTH_TEXELS = 256;
 const DEPTH_BLOCKS_PER_TEXEL = 8;
 const DEPTH_RANGE = 32;
 const DEPTH_RECENTER = 256;
+
+/**
+ * The far sun shadows: blocks a shadow may reach along the ground, the
+ * blocks its edge softens over and the lift that keeps a surface clear of
+ * its own texel's line, and how far the sun turns (as a unit vector) or how
+ * long passes before the lines are cast again.
+ */
+const FAR_SHADOW_REACH = 512;
+const FAR_SHADOW_SOFT = "1.5";
+const FAR_SHADOW_BIAS = "1.0";
+const FAR_SHADOW_SUN_TURN = 0.004;
+const FAR_SHADOW_MIN_INTERVAL_MS = 400;
+
+/** How far the viewer moves, or how long passes, before the plan is redone. */
+const PLAN_MOVE_BLOCKS = 4;
+const PLAN_MAX_AGE_MS = 500;
+
+/** Blocks of sea below which the far water plane leaves the land's top be. */
+const FAR_SEA_MIN_DEPTH = "0.25";
 
 type ShaderUniform<T> = { value: T };
 
@@ -223,6 +244,16 @@ export type FarTerrainOptions = {
    * host without workers, passes its own.
    */
   buildMesh: ((input: FarMeshInput) => Promise<FarBuiltTile | null>) | null;
+  /**
+   * Casts the sun shadow lines (far-terrain-shadow), as half floats; the
+   * default hands it to the mesh workers. A host that builds its own meshes
+   * gets no shadows unless it passes this too.
+   */
+  castShadow:
+    | ((
+        input: FarShadowInput,
+      ) => Promise<{ lines: Uint16Array; buildMs: number } | null>)
+    | null;
   /** Tiles one request may name; the server caps it too. */
   maxTilesPerRequest: number;
   /** Least time between two requests. */
@@ -239,7 +270,8 @@ export type FarTerrainOptions = {
   buildBudgetMs: number;
   /**
    * Blocks of the loaded area's outer edge that hand over to the far layer
-   * across a dithered band, up to half a chunk; 0 keeps the edge hard.
+   * across a dithered band, up to half a chunk; 0 (the default) keeps the
+   * edge hard (see `WorldOptions.farTerrainSeamBand`).
    */
   seamBand: number;
 };
@@ -260,12 +292,13 @@ const DEFAULT_OPTIONS: FarTerrainOptions = {
   pendingGuardRadius: 3,
   maxBuildsInFlight: 4,
   buildMesh: null,
+  castShadow: null,
   maxTilesPerRequest: 16,
   requestIntervalMs: 120,
   retryAfterMs: 6000,
   budgetHeadroom: 1,
   buildBudgetMs: 0.6,
-  seamBand: 8,
+  seamBand: 0,
 };
 
 /** Counters a harness can read to prove the budget. */
@@ -316,6 +349,8 @@ export type FarTerrainStats = {
   /** Main-thread ms the last built tile took to become a mesh, and the highest. */
   lastUploadMs: number;
   peakUploadMs: number;
+  /** Worker ms the last cast of the far sun shadows took. */
+  lastShadowMs: number;
   /** Bytes of vertex and index data across resident meshes. */
   meshBytes: number;
   /** Quads of the drawn land by what they are. */
@@ -332,6 +367,7 @@ export type FarTerrainStats = {
 };
 
 const VERTEX_SHADER = `
+#include <batching_pars_vertex>
 attribute vec2 aFarColumn;
 attribute vec4 aFarMaterial;
 attribute vec4 aFarTint;
@@ -340,13 +376,29 @@ varying float vFarOcclusion;
 flat varying vec4 vFarMaterial;
 flat varying vec2 vFarColumn;
 flat varying vec3 vFarTint;
+flat varying float vFarStep;
+flat varying vec2 vFarFade;
 void main() {
-  vec4 worldPosition = modelMatrix * vec4(position, 1.0);
+  #include <batching_vertex>
+  vec4 local = vec4(position, 1.0);
+  #ifdef USE_BATCHING
+    local = batchingMatrix * local;
+  #endif
+  vec4 worldPosition = modelMatrix * local;
+  // The tile's fade, from its instance colour (far-terrain-batch): its
+  // opacity, and whether it is the one dissolving in.
+  #ifdef USE_BATCHING_COLOR
+    vec4 fade = getBatchingColor(getIndirectIndex(gl_DrawID));
+    vFarFade = vec2(fade.r, fade.g > 0.5 ? 1.0 : -1.0);
+  #else
+    vFarFade = vec2(1.0);
+  #endif
   vWorldPosition = worldPosition.xyz;
   vFarMaterial = aFarMaterial;
   vFarOcclusion = aFarMaterial.z / 255.0;
   vFarColumn = aFarColumn;
   vFarTint = aFarTint.rgb * (1.0 / 128.0);
+  vFarStep = aFarTint.a;
   gl_Position = projectionMatrix * viewMatrix * worldPosition;
 }
 `;
@@ -376,6 +428,10 @@ export const CHUNK_DAYLIGHT = {
   brightTextureSun: "0.7",
   /** `uAmbientColor * 0.4`: the sky ambient a face looking down gets. */
   groundAmbient: "0.4",
+  /** `mix(0.72, 1.0, shadow)`: the sky ambient a shaded face keeps. */
+  shadedAmbient: "0.72",
+  /** `uAmbientColor * 0.04 * (1.0 - shadow)`: light bounced into shade. */
+  bounce: "0.04",
   /** `vec3(0.025, 0.03, 0.04) * sunVisibility`: starlight under open sky. */
   starlight: "0.025, 0.03, 0.04",
   /** `vec3 coolTint = vec3(0.92, 0.95, 1.05)`: daylight white balance. */
@@ -386,6 +442,20 @@ export const CHUNK_DAYLIGHT = {
 
 const D = CHUNK_DAYLIGHT;
 
+/**
+ * What a crown's inside keeps of the light on its leaves: the leaves deeper
+ * in a canopy, seen through the gaps of those outside them.
+ */
+const FAR_CROWN_INSIDE = "0.75";
+
+/**
+ * How a crown's leaves lose the sun with depth below its top: the share lit
+ * falls off over `depth` blocks toward `floor`, measured against generated
+ * trees in loaded chunks at the same pose (far-terrain-textures.ts with
+ * RENDER_RADIUS=16).
+ */
+const FAR_CROWN_SUN = { depth: "8.0", floor: "0.35" } as const;
+
 /** The face kinds as GLSL integer constants. */
 const KIND_GLSL = Object.entries(FAR_FACE_KIND)
   .map(
@@ -394,24 +464,28 @@ const KIND_GLSL = Object.entries(FAR_FACE_KIND)
   .join("\n");
 
 /**
- * Light an albedo as the chunk shader lights an open face in full sun
+ * Light an albedo as the chunk shader lights an open face in sun
  * ({@link CHUNK_DAYLIGHT}), with `occlusion` where the chunks have their
- * vertex occlusion, then wear the chunks' sky fog and thin into it across
- * the outer `uFarEdge` band.
+ * vertex occlusion and `shadow` (1 lit, 0 shaded) where they have their
+ * shadow cascades: a shaded face loses the sun and keeps
+ * `CHUNK_DAYLIGHT.shadedAmbient` of the sky, plus the bounce. Then wear
+ * the chunks' sky fog and thin into it across the outer `uFarEdge` band.
  */
 const lightAndFog = (afterLight = "") => `
   float NdotL = max(dot(normal, uSunDirection) * ${D.sunWrap.scale} + ${D.sunWrap.bias}, 0.0);
   float brightTexture = smoothstep(${D.brightTexture.from}, ${D.brightTexture.to}, dot(albedo, vec3(0.2126, 0.7152, 0.0722)));
-  vec3 sun = uSunColor * NdotL * uSunlightIntensity * mix(1.0, ${D.brightTextureSun}, brightTexture);
+  vec3 sun = uSunColor * NdotL * shadow * uSunlightIntensity * mix(1.0, ${D.brightTextureSun}, brightTexture);
   float hemisphere = normal.y * 0.5 + 0.5;
-  vec3 skyAmbient = mix(uAmbientColor * ${D.groundAmbient}, uAmbientColor, hemisphere);
+  vec3 skyAmbient = mix(uAmbientColor * ${D.groundAmbient}, uAmbientColor, hemisphere)
+    * mix(${D.shadedAmbient}, 1.0, shadow);
+  vec3 bounce = uAmbientColor * ${D.bounce} * (1.0 - shadow) * uSunlightIntensity;
   float ambientFloor = max(uMinLightLevel + uBaseAmbient, 0.0);
   vec3 globalAmbient = vec3(${D.starlight}) + uAmbientColor * ambientFloor;
   vec3 weights = abs(normal);
   weights /= max(weights.x + weights.y + weights.z, 0.0001);
   float verticalShade = normal.y > 0.0 ? uFaceShades.w : uFaceShades.z;
   float faceShade = weights.x * uFaceShades.x + weights.z * uFaceShades.y + weights.y * verticalShade;
-  vec3 light = (skyAmbient + sun + globalAmbient) * vec3(${D.daylightBalance}) * occlusion * faceShade;
+  vec3 light = (skyAmbient + sun + bounce + globalAmbient) * vec3(${D.daylightBalance}) * occlusion * faceShade;
   light = (light * (${D.toneMap.a} * light + ${D.toneMap.b})) / (light * (${D.toneMap.c} * light + ${D.toneMap.d}) + ${D.toneMap.e});
   light = max(light, vec3(ambientFloor) * faceShade);
 
@@ -435,9 +509,22 @@ uniform vec4 uFaceShades;
 uniform float uRingOuter;
 uniform vec2 uRingCenter;
 uniform vec2 uFarEdge;
+uniform sampler2D uFarShadowMap;
+uniform vec4 uFarShadow;
 ${FAR_SEAM_UNIFORM_DECLARATIONS}
 varying vec3 vWorldPosition;
 ${FAR_SEAM_FUNCTIONS}
+
+// The sun on a point as the far land and canopy toward the sun let it
+// through (far-terrain-shadow): 1 above the shadow line over its texel, 0
+// below it, softened across a couple of blocks since a texel is eight.
+float farTerrainSun(vec3 p) {
+  if (uFarShadow.w <= 0.0) return 1.0;
+  vec2 uv = (p.xz - uFarShadow.xy) / (uFarShadow.z * uFarShadow.w);
+  if (any(lessThan(uv, vec2(0.0))) || any(greaterThan(uv, vec2(1.0)))) return 1.0;
+  float line = texture2D(uFarShadowMap, uv).r;
+  return smoothstep(line - ${FAR_SHADOW_SOFT}, line + ${FAR_SHADOW_SOFT}, p.y + ${FAR_SHADOW_BIAS});
+}
 `;
 
 /**
@@ -456,18 +543,21 @@ const COVER_DISCARD = `
 
 /**
  * The land: each face's block picked from the class table by what the
- * face is (a top dithers its flat covers in per block, a wall shows the
- * strata down from its column's ground, a crown its leaves), sampled at
- * the block's own 16 texels a block in world space, so mips track the
- * footprint and the smallest is the face's mean; the climate tint on the
- * faces that take it.
+ * face is (a top picks one of its flat covers per cell, a wall shows the
+ * strata down from its column's ground, a crown its leaves), with the
+ * climate tint on the faces that take it. A cell of `vFarStep` blocks wears
+ * its block's 16 texels across the whole cell, as one big block: a cell
+ * subtends about the same angle at every level (far-terrain-lod), so the
+ * texels stay a pixel or two wide out to the reach instead of filtering
+ * down to the face's mean, and the distant land keeps its pixel grain.
  */
 const LAND_FRAGMENT_SHADER = `
 precision highp sampler2DArray;
 ${COMMON_DECLARATIONS}
 uniform highp sampler2DArray uFarLayers;
 uniform highp sampler2D uFarMaterials;
-uniform vec2 uFarFade;
+flat varying vec2 vFarFade;
+flat varying float vFarStep;
 varying float vFarOcclusion;
 flat varying vec4 vFarMaterial;
 flat varying vec2 vFarColumn;
@@ -482,18 +572,35 @@ float farCoverHash(vec2 cell) {
   return float(h & 0xffffffu) / 16777216.0;
 }
 
-vec3 farLayerColor(float code, vec2 uv, vec2 dx, vec2 dy) {
+// The sun on a crown's outer leaves, as the leaves above let it through:
+// the chunks' cascades shade a canopy's lower leaves and its underside
+// wholly. Each block is lit or shaded on its own, dappled, until blocks
+// shrink under a few pixels and take the share lit instead.
+float farCrownSun(vec3 p, vec3 normal, float tip, float blockFootprint) {
+  if (normal.y < -0.5) return 0.0;
+  float depth = max(tip - p.y, 0.0);
+  float lit = mix(${FAR_CROWN_SUN.floor}, 1.0, exp(-depth / ${FAR_CROWN_SUN.depth}));
+  vec3 block = floor(p - normal * 0.5);
+  float dapple = step(farCoverHash(vec2(block.x + block.y * 31.0, block.z - block.y * 17.0)), lit);
+  return mix(dapple, lit, smoothstep(0.25, 0.5, blockFootprint));
+}
+
+vec4 farLayerTexel(float code, vec2 uv, vec2 dx, vec2 dy) {
   bool tinted = code >= ${FAR_TINTED_LAYER}.0;
   float layer = tinted ? code - ${FAR_TINTED_LAYER}.0 : code;
-  vec3 color = textureGrad(uFarLayers, vec3(uv, max(layer, 0.0)), dx, dy).rgb;
-  return tinted ? color * vFarTint : color;
+  vec4 texel = textureGrad(uFarLayers, vec3(uv, max(layer, 0.0)), dx, dy);
+  return tinted ? vec4(texel.rgb * vFarTint, texel.a) : texel;
+}
+
+vec3 farLayerColor(float code, vec2 uv, vec2 dx, vec2 dy) {
+  return farLayerTexel(code, uv, dx, dy).rgb;
 }
 
 void main() {
   // A tile dissolving in draws the pixels under its opacity; one
   // dissolving out the rest, so a swap never shows both or neither.
   float fadeDither = farSeamDither(gl_FragCoord.xy);
-  if (uFarFade.y > 0.0 ? fadeDither >= uFarFade.x : fadeDither < 1.0 - uFarFade.x) discard;
+  if (vFarFade.y > 0.0 ? fadeDither >= vFarFade.x : fadeDither < 1.0 - vFarFade.x) discard;
   ${COVER_DISCARD}
 
   vec3 normal = normalize(cross(dFdx(vWorldPosition), dFdy(vWorldPosition)));
@@ -506,22 +613,28 @@ void main() {
   vec4 m2 = texelFetch(uFarMaterials, ivec2(2, cls), 0);
 
   vec3 p = vWorldPosition;
+  // In cells, a wall's rows counted down from its column's ground so the
+  // top cell's side starts at the ground, as a block's does.
+  float step = max(vFarStep, 1.0);
+  vec3 c = vec3(p.x, p.y - vFarColumn.x, p.z) / step;
   bool isFlat = abs(normal.y) > 0.5;
   // The chunk mesher's face orientation (greedyFaceUv), unwrapped.
   vec2 uv = isFlat
-    ? (normal.y > 0.0 ? vec2(-p.x, p.z) : vec2(p.x, -p.z))
+    ? (normal.y > 0.0 ? vec2(-c.x, c.z) : vec2(c.x, -c.z))
     : (abs(normal.x) > 0.5
-        ? vec2(normal.x > 0.0 ? -p.z : p.z, p.y)
-        : vec2(normal.z > 0.0 ? p.x : -p.x, p.y));
+        ? vec2(normal.x > 0.0 ? -c.z : c.z, c.y)
+        : vec2(normal.z > 0.0 ? c.x : -c.x, c.y));
   vec2 dx = dFdx(uv);
   vec2 dy = dFdy(uv);
+  float blockFootprint = max(length(dFdx(p)), length(dFdy(p)));
 
   vec3 albedo;
+  float shadow = 1.0;
   if (kind == FAR_KIND_TOP) {
-    // Flat covers are whole blocks of their own, chosen per block. Once a
-    // block shrinks under a couple of pixels the choice would sparkle, so
+    // Flat covers are whole cells of their own, chosen per cell. Once a
+    // cell shrinks under a couple of pixels the choice would sparkle, so
     // the covers blend in by share instead.
-    float choice = farCoverHash(p.xz);
+    float choice = farCoverHash(c.xz);
     float code = choice < m1.x ? m0.y : choice < m1.y ? m0.z : choice < m1.z ? m0.w : m0.x;
     vec3 chosen = farLayerColor(code, uv, dx, dy);
     float footprint = max(length(dx), length(dy));
@@ -535,20 +648,35 @@ void main() {
     }
     albedo = chosen;
   } else if (kind == FAR_KIND_CROWN) {
-    // A crown's class is its species': leaves on every face.
-    albedo = farLayerColor(m0.x, uv, dx, dy);
+    // A crown's class is its species': leaves on every face, see-through
+    // where the leaves are. Through a gap shows the crown's far side from
+    // within, in the canopy's own shade, and through a gap there whatever
+    // stands behind the tree, as through a leaf block's gaps.
+    vec4 leaves = farLayerTexel(m0.x, uv, dx, dy);
+    // A gap under a few pixels wide winks in and out as the view moves, so
+    // the cut eases off as the texels shrink and the gap shows its shade.
+    float texelFootprint = max(length(dx), length(dy)) * ${FAR_LAYER_SIZE}.0;
+    if (leaves.a < 0.5 * (1.0 - smoothstep(0.3, 0.6, texelFootprint))) discard;
+    if (gl_FrontFacing) {
+      albedo = leaves.rgb;
+      shadow = farCrownSun(p, normal, vFarColumn.y, blockFootprint);
+    } else {
+      albedo = leaves.rgb * ${FAR_CROWN_INSIDE};
+      shadow = 0.0;
+    }
   } else if (kind == FAR_KIND_TRUNK) {
     albedo = farLayerColor(m2.y, uv, dx, dy);
   } else if (kind == FAR_KIND_BOTTOM) {
     albedo = farLayerColor(m2.z, uv, dx, dy);
   } else {
-    // A wall: the ground block's side for its top block, the side block for
-    // sideDepth more, and the deep block below.
-    float depth = vFarColumn.x - p.y;
-    float code = depth < 1.0 ? m2.x : depth < 1.0 + m1.w ? m2.y : m2.z;
+    // A wall: the ground block's side for its top cell, the side block for
+    // the cells sideDepth blocks reach into, and the deep block below.
+    float depth = -c.y;
+    float code = depth < 1.0 ? m2.x : depth < 1.0 + ceil(m1.w / step) ? m2.y : m2.z;
     albedo = farLayerColor(code, uv, dx, dy);
   }
   float occlusion = vFarOcclusion;
+  shadow = min(shadow, farTerrainSun(p));
   ${lightAndFog()}
 }
 `;
@@ -620,10 +748,17 @@ void main() {
   vec3 normal = vec3(0.0, 1.0, 0.0);
   vec2 depthUv = (vWorldPosition.xz - uFarDepth.xy) / (uFarDepth.z * uFarDepth.w);
   float seaDepth = texture2D(uFarDepthMap, depthUv).r * ${DEPTH_RANGE}.0;
+  // No sea where the tiles stand at or above it. A lake or shore level
+  // with the sea has its own top an eighth of a block over this plane, and
+  // a few hundred blocks out the depth buffer cannot part them: the two
+  // fought in bands, the sea's side painted as the sand of a zero depth.
+  bool inMap = all(greaterThanEqual(depthUv, vec2(0.0))) && all(lessThanEqual(depthUv, vec2(1.0)));
+  if (inMap && seaDepth < ${FAR_SEA_MIN_DEPTH}) discard;
   vec3 toCamera = normalize(cameraPosition - vWorldPosition);
   float fresnel = farWaterFresnel(toCamera.y);
   vec3 albedo = farWaterAlbedo(seaDepth, fresnel);
   float occlusion = 1.0;
+  float shadow = farTerrainSun(vWorldPosition);
   ${lightAndFog(
     "gl_FragColor.rgb = mix(gl_FragColor.rgb, farSkyMirror(toCamera), fresnel);",
   )}
@@ -632,8 +767,8 @@ void main() {
 
 type ResidentTile = {
   data: FarTileData;
-  land: Mesh | null;
-  sky: Mesh | null;
+  land: FarBatchSlot | null;
+  sky: FarBatchSlot | null;
   isBuilt: boolean;
   isBuilding: boolean;
   /** 0 hidden, 1 fully drawn; eases toward 1 while drawn, 0 when not. */
@@ -649,17 +784,35 @@ type ResidentTile = {
 let sharedPool: WorkerPool | null = null;
 
 const workerBuild = (input: FarMeshInput): Promise<FarBuiltTile | null> => {
+  const pool = poolOf();
+  return new Promise((resolve) => {
+    pool.addJob({
+      message: { input },
+      resolve: (data: FarBuiltTile | null) => resolve(data),
+      timeoutMs: 20000,
+    });
+  });
+};
+
+const poolOf = () => {
   if (!sharedPool) {
     sharedPool = new WorkerPool(FarTerrainWorker, {
       maxWorker: 2,
       name: "far-terrain-worker",
     });
   }
-  const pool = sharedPool;
+  return sharedPool;
+};
+
+const workerShadow = (
+  shadow: FarShadowInput,
+): Promise<{ lines: Uint16Array; buildMs: number } | null> => {
+  const pool = poolOf();
   return new Promise((resolve) => {
     pool.addJob({
-      message: { input },
-      resolve: (data: FarBuiltTile | null) => resolve(data),
+      message: { shadow },
+      buffers: [shadow.heights.buffer as ArrayBuffer],
+      resolve,
       timeoutMs: 20000,
     });
   });
@@ -719,6 +872,7 @@ export class FarTerrain extends Group {
     buildsInFlight: 0,
     lastUploadMs: 0,
     peakUploadMs: 0,
+    lastShadowMs: 0,
     meshBytes: 0,
     quads: { tops: 0, risers: 0, skirts: 0, crowns: 0 },
     facesResolved: 0,
@@ -752,6 +906,18 @@ export class FarTerrain extends Group {
   private budgetRefilledAt = 0;
 
   private lastUpdateAt = -Infinity;
+
+  /**
+   * The detail plan, kept while nothing it reads has changed: the viewer
+   * within PLAN_MOVE_BLOCKS of where it was made, no tile arrived, built or
+   * dropped (`planVersion`), and no older than PLAN_MAX_AGE_MS. Planning
+   * walks every tile in reach, which every frame cost more than drawing.
+   */
+  private plan: FarLodPlan | null = null;
+  private planVersion = 0;
+  private plannedVersion = -1;
+  private plannedAt = new Vector2(Infinity, Infinity);
+  private plannedTime = -Infinity;
 
   private palette: Float32Array;
 
@@ -809,6 +975,31 @@ export class FarTerrain extends Group {
 
   private depthTexture: DataTexture;
 
+  /**
+   * The highest surface per depth-map texel, ground or canopy, from the
+   * finest tile over it (the tallest sample of that tile): what casts the
+   * far layer's sun shadows. `heightLevel` keeps finer over coarser.
+   */
+  private heights = new Float32Array(DEPTH_TEXELS * DEPTH_TEXELS).fill(
+    FAR_SHADOW_NONE,
+  );
+  private heightLevel = new Uint8Array(DEPTH_TEXELS * DEPTH_TEXELS).fill(255);
+  private heightsVersion = 0;
+
+  /** Shadow lines per texel as half floats, from the worker. */
+  private shadowTexture: DataTexture;
+
+  /** `(originX, originZ, blocks per texel, texels)` the shadow lines cover; w 0 while there are none. */
+  private shadowWindow: ShaderUniform<Vector4> = {
+    value: new Vector4(0, 0, DEPTH_BLOCKS_PER_TEXEL, 0),
+  };
+
+  /** The heights and sun the last shadow job ran on, and whether one is out. */
+  private shadowedVersion = -1;
+  private shadowedSun = new Vector3(0, -1, 0);
+  private shadowedAt = -Infinity;
+  private isShadowing = false;
+
   /** `(originX, originZ, blocks per texel, texels)` of the depth map. */
   private depthWindow: ShaderUniform<Vector4> = {
     value: new Vector4(0, 0, DEPTH_BLOCKS_PER_TEXEL, DEPTH_TEXELS),
@@ -833,7 +1024,8 @@ export class FarTerrain extends Group {
   };
 
   /** The fade of the mesh about to draw, written per draw. */
-  private farFade: ShaderUniform<Vector2> = { value: new Vector2(1, 1) };
+  /** Every tile's land and floating-land meshes, drawn as one. */
+  public readonly batch: FarBatch;
 
   /** Bumped by configure and clearTiles, so a build in flight that was asked for an older layer is dropped. */
   private epoch = 0;
@@ -879,6 +1071,17 @@ export class FarTerrain extends Group {
     this.depthTexture.magFilter = LinearFilter;
     this.depthTexture.minFilter = LinearFilter;
     this.depthTexture.needsUpdate = true;
+
+    this.shadowTexture = new DataTexture(
+      new Uint16Array(DEPTH_TEXELS * DEPTH_TEXELS),
+      DEPTH_TEXELS,
+      DEPTH_TEXELS,
+      RedFormat,
+      HalfFloatType,
+    );
+    this.shadowTexture.magFilter = LinearFilter;
+    this.shadowTexture.minFilter = LinearFilter;
+    this.shadowTexture.needsUpdate = true;
     this.seabedColor.value.set(this.options.waterColor);
 
     this.layersTexture = new DataArrayTexture(
@@ -939,11 +1142,14 @@ export class FarTerrain extends Group {
       uniforms: {
         ...common(),
         uFarLayers: { value: this.layersTexture },
+        uFarShadowMap: { value: this.shadowTexture },
+        uFarShadow: this.shadowWindow,
         uFarMaterials: { value: this.materialsTexture },
-        uFarFade: this.farFade,
       },
       side: DoubleSide,
     });
+    this.batch = new FarBatch(this.landMaterial);
+    this.add(this.batch.mesh);
     this.waterMaterial = new ShaderMaterial({
       vertexShader: WATER_VERTEX_SHADER,
       fragmentShader: WATER_FRAGMENT_SHADER,
@@ -952,6 +1158,8 @@ export class FarTerrain extends Group {
         uWaterColor: { value: new Color(this.options.waterColor) },
         uSeabedColor: this.seabedColor,
         uFarDepthMap: { value: this.depthTexture },
+        uFarShadowMap: { value: this.shadowTexture },
+        uFarShadow: this.shadowWindow,
         uFarDepth: this.depthWindow,
         uSkyTopColor: shared.skyTopColor ?? shared.skyFogTopColor,
         uSkyMiddleColor: shared.skyMiddleColor ?? shared.skyFogMiddleColor,
@@ -1022,6 +1230,7 @@ export class FarTerrain extends Group {
     const next = Math.max(0, Math.floor(distance));
     if (next === this.options.distance) return;
     this.options.distance = next;
+    this.planVersion += 1;
     if (next === 0) this.clearTiles();
   }
 
@@ -1085,20 +1294,36 @@ export class FarTerrain extends Group {
     this.landMaterial.uniforms.uRingOuter.value = this.options.distance;
     this.waterMaterial.uniforms.uRingOuter.value = this.options.distance;
 
-    const plan = planFarLod(
-      descriptor,
-      position.x,
-      position.z,
-      this.options.distance,
-      this.options.lod,
-      (key) => this.resident.get(farTileId(key))?.isBuilt === true,
-      (key) => this.reliefs.get(farTileId(key)) ?? null,
-    );
+    let plan = this.plan;
+    if (
+      !plan ||
+      this.plannedVersion !== this.planVersion ||
+      started - this.plannedTime > PLAN_MAX_AGE_MS ||
+      Math.hypot(
+        position.x - this.plannedAt.x,
+        position.z - this.plannedAt.y,
+      ) >= PLAN_MOVE_BLOCKS
+    ) {
+      plan = planFarLod(
+        descriptor,
+        position.x,
+        position.z,
+        this.options.distance,
+        this.options.lod,
+        (key) => this.resident.get(farTileId(key))?.isBuilt === true,
+        (key) => this.reliefs.get(farTileId(key)) ?? null,
+      );
+      this.plan = plan;
+      this.plannedVersion = this.planVersion;
+      this.plannedAt.set(position.x, position.z);
+      this.plannedTime = started;
+    }
     this.stats.tilesWanted = plan.wanted.length;
     this.requestTiles([...plan.fallback, ...plan.wanted], started);
     this.applyDrawn(plan.drawn, plan.wanted, plan.fallback, started, elapsed);
     this.updateCoverage(position, world);
     this.updateDepth(position);
+    this.updateShadow(started);
     this.updateWater(position, descriptor);
     this.farEdge.value.set(
       this.options.distance * (1 - this.options.edgeBand),
@@ -1114,6 +1339,16 @@ export class FarTerrain extends Group {
       this.stats.peakUpdateMs,
       this.stats.lastUpdateMs,
     );
+  }
+
+  /** The batch slots the resident tiles hold, land and floating land. */
+  tileSlots(): FarBatchSlot[] {
+    const slots: FarBatchSlot[] = [];
+    for (const tile of this.resident.values()) {
+      if (tile.land) slots.push(tile.land);
+      if (tile.sky) slots.push(tile.sky);
+    }
+    return slots;
   }
 
   /** A method reply to hand over; ignored unless it is a far-terrain tile. */
@@ -1133,6 +1368,7 @@ export class FarTerrain extends Group {
     if (existing) this.disposeTile(existing);
     if (this.depthCenter) this.writeDepth(tile);
     this.reliefs.set(id, reliefOf(tile));
+    this.planVersion += 1;
     this.resident.set(id, {
       data: tile,
       land: null,
@@ -1170,6 +1406,7 @@ export class FarTerrain extends Group {
     for (const tile of this.resident.values()) this.disposeTile(tile);
     this.resident.clear();
     this.reliefs.clear();
+    this.planVersion += 1;
     this.pending.clear();
     this.queuedRequests = [];
     this.epoch += 1;
@@ -1184,6 +1421,7 @@ export class FarTerrain extends Group {
 
   dispose() {
     this.clearTiles();
+    this.batch.dispose();
     this.landMaterial.dispose();
     this.waterMaterial.dispose();
     this.water.geometry.dispose();
@@ -1191,6 +1429,7 @@ export class FarTerrain extends Group {
     this.layersTexture.dispose();
     this.materialsTexture.dispose();
     this.depthTexture.dispose();
+    this.shadowTexture.dispose();
   }
 
   private requestTiles(wanted: FarTileKey[], now: number) {
@@ -1319,12 +1558,12 @@ export class FarTerrain extends Group {
       ) {
         standIns.add(id);
       }
-      for (const mesh of [tile.land, tile.sky]) {
-        if (!mesh) continue;
-        mesh.visible = tile.opacity > 0;
-        if (mesh.visible) {
+      for (const slot of [tile.land, tile.sky]) {
+        if (!slot) continue;
+        this.batch.setFade(slot, tile.opacity, tile.isDrawn);
+        if (slot.visible) {
           meshes += 1;
-          triangles += (mesh.geometry.getIndex()?.count ?? 0) / 3;
+          triangles += slot.indexCount / 3;
         }
       }
       bytes += tile.bytes;
@@ -1341,6 +1580,7 @@ export class FarTerrain extends Group {
         continue;
       this.disposeTile(tile);
       this.resident.delete(id);
+      this.planVersion += 1;
       excess -= 1;
     }
     for (const id of Array.from(this.pending.keys())) {
@@ -1487,6 +1727,8 @@ export class FarTerrain extends Group {
     if (sameClasses) return;
     for (const tile of this.resident.values()) {
       tile.isBuilt = false;
+      this.planVersion += 1;
+      this.planVersion += 1;
       tile.isBuilding = false;
     }
   }
@@ -1569,29 +1811,34 @@ export class FarTerrain extends Group {
     span: number,
   ) {
     const started = performance.now();
-    for (const mesh of [tile.land, tile.sky]) {
-      if (!mesh) continue;
-      this.remove(mesh);
-      mesh.geometry.dispose();
+    for (const slot of [tile.land, tile.sky]) {
+      if (slot) this.batch.remove(slot);
     }
     tile.bytes = 0;
     const name = farTileId(tile.data.key);
     tile.land = built.land
-      ? this.meshFrom(built.land, originX, originZ, span, tile)
+      ? this.slotFor(
+          built.land,
+          originX,
+          originZ,
+          span,
+          tile,
+          `far-terrain-${name}`,
+        )
       : null;
     tile.sky = built.sky
-      ? this.meshFrom(built.sky, originX, originZ, span, tile)
+      ? this.slotFor(
+          built.sky,
+          originX,
+          originZ,
+          span,
+          tile,
+          `far-terrain-sky-${name}`,
+        )
       : null;
-    if (tile.land) {
-      tile.land.name = `far-terrain-${name}`;
-      this.add(tile.land);
-    }
-    if (tile.sky) {
-      tile.sky.name = `far-terrain-sky-${name}`;
-      this.add(tile.sky);
-    }
     tile.counts = built.land?.counts ?? null;
     tile.isBuilt = true;
+    this.planVersion += 1;
     this.stats.tilesBuilt += 1;
     this.stats.lastBuildMs = built.buildMs;
     this.stats.peakBuildMs = Math.max(this.stats.peakBuildMs, built.buildMs);
@@ -1602,58 +1849,21 @@ export class FarTerrain extends Group {
     );
   }
 
-  private meshFrom(
+  private slotFor(
     data: FarMeshData,
     originX: number,
     originZ: number,
     span: number,
     tile: ResidentTile,
+    name: string,
   ) {
-    const geometry = new BufferGeometry();
-    geometry.setAttribute(
-      "position",
-      new Int16BufferAttribute(data.position, 3),
-    );
-    geometry.setAttribute(
-      "aFarColumn",
-      new Int16BufferAttribute(data.column, 2),
-    );
-    geometry.setAttribute(
-      "aFarMaterial",
-      new Uint8BufferAttribute(data.material, 4),
-    );
-    geometry.setAttribute("aFarTint", new Uint8BufferAttribute(data.tint, 4));
-    geometry.setIndex(new BufferAttribute(data.index, 1));
-    // Local bounds from the tile's own extent: cheaper than a pass over the
-    // vertices, and the frustum test only needs them conservative.
-    geometry.boundingBox = new Box3(
-      new Vector3(0, data.minY, 0),
-      new Vector3(span, data.maxY, span),
-    );
-    geometry.boundingSphere = new Sphere();
-    geometry.boundingBox.getBoundingSphere(geometry.boundingSphere);
-    const mesh = new Mesh(geometry, this.landMaterial);
-    // Far tiles stay out of the shadow cascades: they lie past the cascades'
-    // reach, and each would otherwise cost a draw per cascade.
-    mesh.castShadow = false;
-    mesh.receiveShadow = false;
-    mesh.position.set(originX, 0, originZ);
-    mesh.matrixAutoUpdate = false;
-    mesh.updateMatrix();
-    mesh.visible = false;
-    const fade = this.farFade;
-    const material = this.landMaterial;
-    mesh.onBeforeRender = () => {
-      fade.value.set(tile.opacity, tile.isDrawn ? 1 : -1);
-      material.uniformsNeedUpdate = true;
-    };
     tile.bytes +=
       data.position.byteLength +
       data.column.byteLength +
       data.material.byteLength +
       data.tint.byteLength +
       data.index.byteLength;
-    return mesh;
+    return this.batch.add(data, originX, originZ, span, name);
   }
 
   private updateCoverage(
@@ -1845,11 +2055,56 @@ export class FarTerrain extends Group {
     );
     this.depth.fill(255);
     this.depthLevel.fill(255);
+    this.heights.fill(FAR_SHADOW_NONE);
+    this.heightLevel.fill(255);
+    this.heightsVersion += 1;
     for (const tile of this.resident.values()) this.writeDepth(tile.data);
   }
 
-  /** A tile's sea depths into the map, over each sample's own cell. */
+  /**
+   * Cast the far sun shadows again in a worker once the sun has turned a
+   * little or the heights have changed, one job at a time; the lines go
+   * up with the window they were cast over, so a relayout in between
+   * never puts them in the wrong place.
+   */
+  private updateShadow(now: number) {
+    const cast =
+      this.options.castShadow ?? (this.options.buildMesh ? null : workerShadow);
+    const sun = this.shared.sunDirection.value;
+    if (
+      !cast ||
+      this.isShadowing ||
+      !this.depthCenter ||
+      now - this.shadowedAt < FAR_SHADOW_MIN_INTERVAL_MS ||
+      (this.shadowedVersion === this.heightsVersion &&
+        sun.distanceTo(this.shadowedSun) < FAR_SHADOW_SUN_TURN)
+    )
+      return;
+    this.isShadowing = true;
+    this.shadowedAt = now;
+    this.shadowedVersion = this.heightsVersion;
+    this.shadowedSun.copy(sun);
+    const window = this.depthWindow.value.clone();
+    const epoch = this.epoch;
+    cast({
+      heights: this.heights.slice(),
+      size: DEPTH_TEXELS,
+      texelBlocks: DEPTH_BLOCKS_PER_TEXEL,
+      sun: [sun.x, sun.y, sun.z],
+      maxDistance: FAR_SHADOW_REACH,
+    }).then((result) => {
+      this.isShadowing = false;
+      if (!result || epoch !== this.epoch) return;
+      (this.shadowTexture.image.data as Uint16Array).set(result.lines);
+      this.shadowTexture.needsUpdate = true;
+      this.shadowWindow.value.copy(window);
+      this.stats.lastShadowMs = result.buildMs;
+    });
+  }
+
+  /** A tile's sea depths and heights into the maps, over each sample's own cell. */
   private writeDepth(tile: FarTileData) {
+    this.writeHeights(tile);
     const surface = this.descriptor?.waterSurface;
     if (surface === undefined) return;
     const { x: originX, y: originZ } = this.depthWindow.value;
@@ -1892,6 +2147,59 @@ export class FarTerrain extends Group {
     if (touched) this.depthTexture.needsUpdate = true;
   }
 
+  /**
+   * A tile's highest surface per texel, its canopy over the ground where
+   * crowns cover most of a sample; a finer tile replaces a coarser one's.
+   */
+  private writeHeights(tile: FarTileData) {
+    const { x: originX, y: originZ } = this.depthWindow.value;
+    const span = (tile.size - 1) * tile.step;
+    const tileX = tile.key.tx * span;
+    const tileZ = tile.key.tz * span;
+    const per = DEPTH_BLOCKS_PER_TEXEL;
+    const level = tile.key.level;
+    let touched = false;
+    for (let j = 0; j < tile.size - 1; j++) {
+      const z = tileZ + j * tile.step;
+      const tz0 = Math.max(0, Math.floor((z - originZ) / per));
+      const tz1 = Math.min(
+        DEPTH_TEXELS,
+        Math.ceil((z + tile.step - originZ) / per),
+      );
+      if (tz0 >= tz1) continue;
+      for (let i = 0; i < tile.size - 1; i++) {
+        const x = tileX + i * tile.step;
+        const tx0 = Math.max(0, Math.floor((x - originX) / per));
+        const tx1 = Math.min(
+          DEPTH_TEXELS,
+          Math.ceil((x + tile.step - originX) / per),
+        );
+        if (tx0 >= tx1) continue;
+        const sample = j * tile.size + i;
+        let height = tile.heights[sample];
+        const canopy = tile.canopy;
+        if (canopy && canopy[sample * 4] > 0 && canopy[sample * 4 + 2] >= 128) {
+          height += canopy[sample * 4];
+        }
+        for (let tz = tz0; tz < tz1; tz++) {
+          for (let tx = tx0; tx < tx1; tx++) {
+            const at = tz * DEPTH_TEXELS + tx;
+            const was = this.heightLevel[at];
+            if (was < level) continue;
+            if (was > level) {
+              this.heights[at] = height;
+              this.heightLevel[at] = level;
+            } else if (height > this.heights[at]) {
+              this.heights[at] = height;
+            }
+            touched = true;
+          }
+        }
+      }
+    }
+    if (touched) this.heightsVersion += 1;
+  }
+
   private updateWater(position: Vector3, descriptor: FarTerrainDescriptor) {
     const span =
       (this.options.distance + farTileSpan(descriptor, descriptor.levels - 1)) *
@@ -1906,14 +2214,13 @@ export class FarTerrain extends Group {
   }
 
   private disposeTile(tile: ResidentTile) {
-    for (const mesh of [tile.land, tile.sky]) {
-      if (!mesh) continue;
-      this.remove(mesh);
-      mesh.geometry.dispose();
+    for (const slot of [tile.land, tile.sky]) {
+      if (slot) this.batch.remove(slot);
     }
     tile.land = null;
     tile.sky = null;
     tile.isBuilt = false;
+    this.planVersion += 1;
     tile.isBuilding = false;
     tile.bytes = 0;
   }

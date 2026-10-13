@@ -52,9 +52,10 @@ export type FarMeshInput = {
 /**
  * One mesh's vertex data. Positions are relative to the tile's origin
  * (`originX`, 0, `originZ`). `column` is per vertex the ground top and the
- * column top of the column the face belongs to; `material` is class, kind,
- * occlusion (255 open) and an unused byte; `tint` is RGB plus an unused
- * byte.
+ * column top of the column the face belongs to (for a crown, the canopy
+ * over it, which its leaves are shaded below); `material` is class, kind,
+ * occlusion (255 open) and an unused byte; `tint` is RGB plus the tile's
+ * cell size in blocks, which the shader scales its texels to.
  */
 export type FarMeshData = {
   position: Int16Array;
@@ -89,7 +90,11 @@ class QuadWriter {
   maxY = -Infinity;
   counts: FarMeshCounts = { tops: 0, risers: 0, skirts: 0, crowns: 0 };
 
-  constructor(capacity: number) {
+  /** The tile's cell size, carried in each vertex's spare tint byte. */
+  constructor(
+    capacity: number,
+    private readonly step: number,
+  ) {
     const vertices = Math.max(4, capacity * 4);
     this.position = new Int16Array(vertices * 3);
     this.column = new Int16Array(vertices * 2);
@@ -141,6 +146,7 @@ class QuadWriter {
       this.tint[v * 4] = tint[0];
       this.tint[v * 4 + 1] = tint[1];
       this.tint[v * 4 + 2] = tint[2];
+      this.tint[v * 4 + 3] = Math.min(255, this.step);
       if (y < this.minY) this.minY = y;
       if (y > this.maxY) this.maxY = y;
     }
@@ -196,6 +202,12 @@ const NEUTRAL_TINT = [128, 128, 128];
 const UNDER_CROWN = 0.55;
 
 /**
+ * Blocks around a crowned cell whose crowns shade its leaves: about a
+ * broad crown's radius, so a dome's rim sits in the shade of its top.
+ */
+const CANOPY_SHADE_REACH = 6;
+
+/**
  * A tile's land: per cell a column at its sample's height (whole blocks), a
  * wall along every edge whose two columns differ (facing the lower,
  * belonging to the higher), skirts down from the tile's four edges, and a
@@ -242,6 +254,29 @@ export function buildFarLandMesh(input: FarMeshInput): FarMeshData | null {
     }
   }
 
+  // The canopy over each crowned cell: the highest crown within
+  // CANOPY_SHADE_REACH blocks, the leaves whose shade a crown's own leaves
+  // stand in. A dome's rim is low only for being the rim.
+  const canopyTop = new Int16Array(size * size);
+  const reach = Math.max(1, Math.round(CANOPY_SHADE_REACH / step));
+  for (let j = 0; j < size; j++) {
+    for (let i = 0; i < size; i++) {
+      const at = j * size + i;
+      if (crownTop[at] <= 0) continue;
+      let highest = crownTop[at];
+      for (let dj = -reach; dj <= reach; dj++) {
+        const nj = j + dj;
+        if (nj < 0 || nj >= size) continue;
+        for (let di = -reach; di <= reach; di++) {
+          const ni = i + di;
+          if (ni < 0 || ni >= size) continue;
+          highest = Math.max(highest, crownTop[nj * size + ni]);
+        }
+      }
+      canopyTop[at] = highest;
+    }
+  }
+
   const tintOf = (at: number) =>
     tints
       ? [tints[at * 3], tints[at * 3 + 1], tints[at * 3 + 2]]
@@ -282,7 +317,7 @@ export function buildFarLandMesh(input: FarMeshInput): FarMeshData | null {
       tints[a * 3 + 1] === tints[b * 3 + 1] &&
       tints[a * 3 + 2] === tints[b * 3 + 2]);
 
-  const writer = new QuadWriter(cells * cells * 2 + cells * 4);
+  const writer = new QuadWriter(cells * cells * 2 + cells * 4, step);
   const s = step;
 
   // Tops, an open run of equal cells as one quad.
@@ -526,7 +561,7 @@ export function buildFarLandMesh(input: FarMeshInput): FarMeshData | null {
       corners,
       OPEN,
       ground[at],
-      tip,
+      Math.max(tip, canopyTop[at]),
       treeClass + slot[at],
       FAR_FACE_KIND.crown,
       0,
@@ -730,7 +765,7 @@ export function buildFarSkyMesh(input: FarMeshInput): FarMeshData | null {
   const topOf = (i: number, j: number) => Math.round(sky[(j * size + i) * 2]);
   const bottomOf = (i: number, j: number) =>
     Math.round(sky[(j * size + i) * 2 + 1]);
-  const writer = new QuadWriter(cells * cells * 2);
+  const writer = new QuadWriter(cells * cells * 2, input.step);
   const s = step;
   const wall = (corners: [number, number, number][], i: number, j: number) =>
     writer.quad(
