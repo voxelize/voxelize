@@ -186,9 +186,27 @@ pub(super) fn process_greedy_quad(
         );
     }
 
-    let face_aos = quad.data.key.ao;
-    let face_lights = quad.data.key.light;
+    if quad_flips(&quad.data.key.ao, &quad.data.key.light) {
+        geometry.indices.push(ndx);
+        geometry.indices.push(ndx + 1);
+        geometry.indices.push(ndx + 3);
+        geometry.indices.push(ndx + 3);
+        geometry.indices.push(ndx + 2);
+        geometry.indices.push(ndx);
+    } else {
+        geometry.indices.push(ndx);
+        geometry.indices.push(ndx + 1);
+        geometry.indices.push(ndx + 2);
+        geometry.indices.push(ndx + 2);
+        geometry.indices.push(ndx + 1);
+        geometry.indices.push(ndx + 3);
+    }
+}
 
+/// Whether a quad's four corners (in emission order) split along their
+/// `1-2` diagonal rather than `0-3`, so occlusion and light gradients
+/// interpolate across the darker pair instead of smearing over it.
+pub(super) fn quad_flips(face_aos: &[i32; 4], face_lights: &[i32; 4]) -> bool {
     let a_rt = LightUtils::extract_red_light(face_lights[0] as u32) as i32;
     let b_rt = LightUtils::extract_red_light(face_lights[1] as u32) as i32;
     let c_rt = LightUtils::extract_red_light(face_lights[2] as u32) as i32;
@@ -229,24 +247,9 @@ pub(super) fn process_greedy_quad(
     let anz_g = one_tg0 && anzp1_g;
     let anz_b = one_tb0 && anzp1_b;
 
-    if face_aos[0] + face_aos[3] > face_aos[1] + face_aos[2]
+    face_aos[0] + face_aos[3] > face_aos[1] + face_aos[2]
         || (ozao_r || ozao_g || ozao_b)
         || (anz_r || anz_g || anz_b)
-    {
-        geometry.indices.push(ndx);
-        geometry.indices.push(ndx + 1);
-        geometry.indices.push(ndx + 3);
-        geometry.indices.push(ndx + 3);
-        geometry.indices.push(ndx + 2);
-        geometry.indices.push(ndx);
-    } else {
-        geometry.indices.push(ndx);
-        geometry.indices.push(ndx + 1);
-        geometry.indices.push(ndx + 2);
-        geometry.indices.push(ndx + 2);
-        geometry.indices.push(ndx + 1);
-        geometry.indices.push(ndx + 3);
-    }
 }
 
 /// The stage that picks `block`'s faces at `voxel` (see [`Block::faces_at`]);

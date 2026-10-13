@@ -77,6 +77,7 @@ pub struct BlockBuilder {
         Arc<dyn Fn(Vec3<i32>, &dyn VoxelAccess, &Registry) -> Vec<VoxelUpdate> + Send + Sync>,
     >,
     active_ticker: Option<Arc<dyn Fn(Vec3<i32>, &dyn VoxelAccess, &Registry) -> u64 + Send + Sync>>,
+    hands_off_wakes: bool,
 }
 
 impl BlockBuilder {
@@ -585,6 +586,25 @@ impl BlockBuilder {
         self
     }
 
+    /// Wake this block as an active block, but hand each wake that comes
+    /// due to the game instead of to an updater: `ticker` says when, as for
+    /// [`Self::active_fn`], and the due voxel waits on
+    /// [`crate::Chunks::take_handed_wakes`] for a game system to take. For
+    /// behaviour that reaches past the voxels (spawning an entity, paying
+    /// out), which an updater, reading only voxels, cannot do. A world whose
+    /// registry holds such a block takes its wakes every tick.
+    pub fn hand_off_wakes<
+        F: Fn(Vec3<i32>, &dyn VoxelAccess, &Registry) -> u64 + 'static + Send + Sync,
+    >(
+        mut self,
+        ticker: F,
+    ) -> Self {
+        self.active_ticker = Some(Arc::new(ticker));
+        self.active_updater = Some(Arc::new(|_, _, _| Vec::new()));
+        self.hands_off_wakes = true;
+        self
+    }
+
     pub fn is_entity(mut self, is_entity: bool) -> Self {
         self.is_entity = is_entity;
         self
@@ -897,6 +917,7 @@ impl BlockBuilder {
             is_active: active_updater.is_some() && active_ticker.is_some(),
             active_ticker,
             active_updater,
+            hands_off_wakes: self.hands_off_wakes,
             is_random_tickable: self.is_random_tickable,
             is_entity: self.is_entity,
             default_entity_json: self.default_entity_json,

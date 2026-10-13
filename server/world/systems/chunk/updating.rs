@@ -452,6 +452,10 @@ fn plan_due_active_voxels(
         let Some(voxel) = chunks.pop_overdue_active_voxel() else {
             break;
         };
+        let id = chunks.get_voxel(voxel.0, voxel.1, voxel.2);
+        if registry.get_block_by_id(id).hands_off_wakes {
+            chunks.hand_off_wake(voxel.clone());
+        }
         plan_active_updates(chunks, plan, registry, &voxel);
         budget.spend();
         planned += 1;
@@ -1741,6 +1745,41 @@ mod wake_budget_tests {
             plan_due_active_voxels(&mut chunks, &mut plan, &registry, tick, &mut one_unit());
         }
         assert_eq!(calls(&planned), vec![a, b, c]);
+    }
+
+    #[test]
+    fn a_handed_off_wake_waits_for_the_game_and_plans_no_write() {
+        const HANDER: u32 = 9;
+        let mut registry = Registry::new();
+        registry.register_block(
+            &Block::new("Hander")
+                .id(HANDER)
+                .hand_off_wakes(|_, _, _| 1)
+                .build(),
+        );
+        assert!(registry.get_block_by_id(HANDER).is_active);
+        let (a, b) = (Vec3(1, 1, 1), Vec3(2, 1, 1));
+        let mut chunks = chunks_with(&[]);
+        for voxel in [&a, &b] {
+            chunks.set_raw_voxel(voxel.0, voxel.1, voxel.2, BlockUtils::insert_id(0, HANDER));
+            chunks.mark_voxel_active(voxel, 5);
+        }
+
+        let mut plan = ActivePlan::new();
+        plan_due_active_voxels(&mut chunks, &mut plan, &registry, 5, &mut TickBudget::new(1e6));
+        chunks.mark_voxel_active(&a, 6);
+        plan_due_active_voxels(&mut chunks, &mut plan, &registry, 6, &mut TickBudget::new(1e6));
+
+        assert!(plan.is_empty(), "a handed-off wake proposes no write");
+        assert_eq!(
+            chunks.take_handed_wakes(),
+            vec![a.clone(), b],
+            "each voxel once, however often it came due before the take"
+        );
+        assert!(chunks.take_handed_wakes().is_empty());
+        chunks.mark_voxel_active(&a, 7);
+        plan_due_active_voxels(&mut chunks, &mut plan, &registry, 7, &mut TickBudget::new(1e6));
+        assert_eq!(chunks.take_handed_wakes(), vec![a]);
     }
 
     #[test]

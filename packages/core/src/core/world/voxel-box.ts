@@ -18,6 +18,9 @@ export type VoxelBoxInput = {
   bandHeight?: number;
   /** Mesh ahead of the chunk queue. */
   isUrgent?: boolean;
+  /** Its light is rewritten as it moves (`relightLoneCube`): every piece
+   * keeps a mesh of its own rather than riding the shared opaque batch. */
+  isRelit?: boolean;
 };
 
 export type VoxelBoxMesh = {

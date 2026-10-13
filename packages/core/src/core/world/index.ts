@@ -281,6 +281,7 @@ export * from "./loader";
 export * from "./memory-pressure";
 export * from "./order-independent-transparency";
 export * from "./pipelines";
+export * from "./lone-cube-light";
 export * from "./quad-light";
 export * from "./registry";
 export * from "./section-visibility";
@@ -2084,7 +2085,9 @@ export class World<T = any> extends Scene implements NetIntercept {
       return fork;
     };
     const geometriesToDispose: BufferGeometry[] = [];
-    const isArenaBucketed = this.options.regionArenas !== null;
+    // A box relit as it moves keeps meshes of its own: the opaque batch
+    // holds its pieces where their light cannot be rewritten.
+    const isArenaBucketed = this.options.regionArenas !== null && !box.isRelit;
     const opaqueMaterial = this.chunkRenderer.materials.get(
       SHARED_OPAQUE_MATERIAL_KEY,
     );

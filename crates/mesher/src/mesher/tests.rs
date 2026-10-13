@@ -3689,3 +3689,131 @@ fn of_two_see_through_faces_on_one_plane_exactly_one_stays() {
     assert_eq!(on_plane(PANE, SWINGING_PANE), (0, 1));
     assert_eq!(on_plane(SWINGING_PANE, PANE), (1, 0));
 }
+
+/// A lone opaque cube at the origin in a lit corner: ground under it, a
+/// wall piece at `+x -z`, an overhang at `-x +y +z`, and light that varies
+/// cell to cell. Pins what every face's corners bake (occlusion, packed
+/// light, and which diagonal the quad splits along), so a consumer that
+/// relights a lone cube by hand, rather than remeshing it, can pin the
+/// same numbers against the same corner.
+struct LitCornerSpace;
+
+impl LitCornerSpace {
+    const STONE: u32 = 1;
+    const CUBE: u32 = 2;
+
+    fn id(x: i32, y: i32, z: i32) -> u32 {
+        match (x, y, z) {
+            (0, 0, 0) => Self::CUBE,
+            (_, -1, _) => Self::STONE,
+            (1, 0, -1) | (1, 1, -1) | (-1, 1, 1) => Self::STONE,
+            _ => 0,
+        }
+    }
+
+    fn lights(x: i32, y: i32, z: i32) -> (u32, u32, u32, u32) {
+        if Self::id(x, y, z) != 0 {
+            return (0, 0, 0, 0);
+        }
+        let level = |value: i32| value.clamp(0, 15) as u32;
+        (
+            level(9 + 3 * y - 2 * x),
+            level(6 + 2 * z - y),
+            0,
+            level(3 - x - z),
+        )
+    }
+}
+
+impl VoxelAccess for LitCornerSpace {
+    fn get_voxel(&self, vx: i32, vy: i32, vz: i32) -> u32 {
+        Self::id(vx, vy, vz)
+    }
+
+    fn get_raw_voxel(&self, vx: i32, vy: i32, vz: i32) -> u32 {
+        Self::id(vx, vy, vz)
+    }
+
+    fn get_voxel_rotation(&self, _vx: i32, _vy: i32, _vz: i32) -> BlockRotation {
+        BlockRotation::default()
+    }
+
+    fn get_voxel_stage(&self, _vx: i32, _vy: i32, _vz: i32) -> u32 {
+        0
+    }
+
+    fn get_voxel_waterlogged(&self, _vx: i32, _vy: i32, _vz: i32) -> bool {
+        false
+    }
+
+    fn get_voxel_fluid_level(&self, _vx: i32, _vy: i32, _vz: i32) -> u32 {
+        0
+    }
+
+    fn get_sunlight(&self, vx: i32, vy: i32, vz: i32) -> u32 {
+        Self::lights(vx, vy, vz).0
+    }
+
+    fn get_torch_light(&self, vx: i32, vy: i32, vz: i32, color: LightColor) -> u32 {
+        let (_, red, green, blue) = Self::lights(vx, vy, vz);
+        match color {
+            LightColor::Red => red,
+            LightColor::Green => green,
+            LightColor::Blue => blue,
+            LightColor::Sunlight => Self::lights(vx, vy, vz).0,
+        }
+    }
+
+    fn get_all_lights(&self, vx: i32, vy: i32, vz: i32) -> (u32, u32, u32, u32) {
+        Self::lights(vx, vy, vz)
+    }
+
+    fn get_max_height(&self, _vx: i32, _vz: i32) -> u32 {
+        2
+    }
+
+    fn contains(&self, vx: i32, vy: i32, vz: i32) -> bool {
+        vx.abs() <= 2 && vz.abs() <= 2 && (-1..=2).contains(&vy)
+    }
+}
+
+#[test]
+fn a_lone_cube_in_a_lit_corner_bakes_its_pinned_corners() {
+    let stone = Block {
+        is_opaque: true,
+        ..plain_block(LitCornerSpace::STONE, "Stone")
+    };
+    let cube = Block {
+        is_opaque: true,
+        ..plain_block(LitCornerSpace::CUBE, "Cube")
+    };
+    let mut registry = Registry::new(vec![(LitCornerSpace::STONE, stone), (LitCornerSpace::CUBE, cube)]);
+    registry.build_cache();
+    let neighbors = NeighborCache::populate(0, 0, 0, &LitCornerSpace);
+    let cube = registry.get_block_by_id(LitCornerSpace::CUBE).unwrap();
+
+    let baked: Vec<([i32; 4], [i32; 4], bool)> = [
+        [1, 0, 0],
+        [-1, 0, 0],
+        [0, 1, 0],
+        [0, -1, 0],
+        [0, 0, 1],
+        [0, 0, -1],
+    ]
+    .into_iter()
+    .map(|dir| {
+        let (aos, lights) = compute_face_ao_and_light(dir, cube, &neighbors, &registry);
+        (aos, lights, greedy::quad_flips(&aos, &lights))
+    })
+    .collect();
+    assert_eq!(baked, LIT_CORNER_PINS.to_vec());
+}
+
+const LIT_CORNER_PINS: [([i32; 4], [i32; 4], bool); 6] = [
+    ([3, 1, 1, 0], [34305, 30465, 34050, 30210], true),
+    ([3, 1, 2, 1], [50180, 46340, 50691, 46851], true),
+    ([2, 3, 3, 2], [50435, 46594, 54276, 46083], false),
+    ([0, 0, 0, 0], [0, 0, 0, 0], false),
+    ([1, 1, 2, 3], [43010, 34817, 42754, 38657], true),
+    ([0, 1, 1, 3], [37892, 41988, 41732, 45828], true),
+];

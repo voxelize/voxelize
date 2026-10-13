@@ -241,6 +241,13 @@ pub struct Chunks {
     /// again while it waits there runs once, not twice.
     pub(crate) overdue_active_set: HashSet<Vec3<i32>>,
 
+    /// Due wakes of blocks that hand them to the game
+    /// (`Block::hands_off_wakes`), oldest first, until a game system takes
+    /// them ([`Self::take_handed_wakes`]). Exactly the voxels in
+    /// `handed_wake_set`: a voxel due twice before it is taken waits once.
+    pub(crate) handed_wakes: Vec<Vec3<i32>>,
+    pub(crate) handed_wake_set: HashSet<Vec3<i32>>,
+
     /// Voxels a write touched (the written voxel and its neighbors) whose
     /// active tickers are still to be asked when they next want to run, in
     /// the order their ticks queued them. Drained under
@@ -389,6 +396,8 @@ impl Chunks {
         self.active_voxel_set.clear();
         self.overdue_active_voxels.clear();
         self.overdue_active_set.clear();
+        self.handed_wakes.clear();
+        self.handed_wake_set.clear();
         self.ticker_consults.clear();
         self.ticker_consult_written.clear();
         self.wake_backlog = None;
@@ -1197,6 +1206,23 @@ impl Chunks {
         if self.overdue_active_set.insert(voxel.clone()) {
             self.overdue_active_voxels.push_back(voxel);
         }
+    }
+
+    /// Hand a due wake to the game, once however often it comes due before
+    /// the game takes it.
+    pub(crate) fn hand_off_wake(&mut self, voxel: Vec3<i32>) {
+        if self.handed_wake_set.insert(voxel.clone()) {
+            self.handed_wakes.push(voxel);
+        }
+    }
+
+    /// Every wake handed to the game since the last take, oldest first: the
+    /// due voxels of blocks declared with `BlockBuilder::hand_off_wakes`.
+    /// Each is what the voxel was when it came due; the game reads the world
+    /// as it stands when it acts on one.
+    pub fn take_handed_wakes(&mut self) -> Vec<Vec3<i32>> {
+        self.handed_wake_set.clear();
+        std::mem::take(&mut self.handed_wakes)
     }
 
     /// The oldest due voxel still to plan.

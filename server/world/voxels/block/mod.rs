@@ -267,6 +267,12 @@ pub struct Block {
 
     pub is_active: bool,
 
+    /// Each wake of this block that comes due is handed to the game
+    /// ([`crate::Chunks::take_handed_wakes`]) rather than run through an
+    /// updater. Declared with [`BlockBuilder::hand_off_wakes`].
+    #[serde(skip)]
+    pub hands_off_wakes: bool,
+
     /// When true, the subchunk random-tick sampler may invoke this block's
     /// `active_updater` (scheduled via `mark_voxel_active` at the current
     /// tick). Default false -- copper/fluids stay neighbor/scheduled only;
