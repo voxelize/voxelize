@@ -1332,8 +1332,11 @@ ${WATER_SURFACE_NORMAL_LAYERS_GLSL}
   skyReflection += reflectedSkyGlow;
   // A surface that sees no sky mirrors the rock around it instead, lit the
   // way the surface itself is: a cave pool reads dark, a lamp's pool warm.
+  // A faint sheen of the water's own tint rides on that mirror, so the
+  // ripples still show on a pool nothing lights (WATER_OPTICS.enclosedTintFloor).
   skyReflection = mix(
-    totalLight * ${WATER_OPTICS.enclosedReflectance.toFixed(4)},
+    totalLight * ${WATER_OPTICS.enclosedReflectance.toFixed(4)}
+      + uWaterTint * ${(WATER_OPTICS.enclosedTintFloor * WATER_OPTICS.enclosedSheenStrength).toFixed(4)},
     skyReflection,
     skyOpen
   );
@@ -1407,8 +1410,17 @@ ${LOCAL_LIGHTS_SPECULAR_FRAGMENT}
   float verticalDepthFactor = 1.0 - exp(-max(0.0, vWaterSurfaceY - wPos.y) * ${WATER_OPTICS.downwellingExtinction.green.toFixed(
     5,
   )});
-  vec3 shallowWater = mix(baseWater, uWaterTint, 0.1);
-  vec3 deepWater = mix(baseWater, uWaterTint, 0.28);
+  // The tint is the water's colour, not a light of its own. A surface that
+  // sees the sky keeps it as tuned; one that sees none takes it in the
+  // light the surface stands in (lamps, the ambient floor), down to a
+  // floor that keeps a pool nothing lights from going black.
+  vec3 waterTint = uWaterTint * mix(
+    max(clamp(totalLight, 0.0, 1.0), vec3(${WATER_OPTICS.enclosedTintFloor.toFixed(4)})),
+    vec3(1.0),
+    skyOpen
+  );
+  vec3 shallowWater = mix(baseWater, waterTint, 0.1);
+  vec3 deepWater = mix(baseWater, waterTint, 0.28);
   vec3 waterColor = mix(shallowWater, deepWater, max(depthFactor, verticalDepthFactor) * 0.72);
   // Indoor lamps light the water texture like a solid; a tank wall then
   // reads as frosted glass. Pull head-on air-side faces toward the tint
@@ -1426,7 +1438,7 @@ ${LOCAL_LIGHTS_SPECULAR_FRAGMENT}
     float streakNoise = snoise(vec3(sideCoord * 1.4, wPos.y * 0.32 - waveTime * 0.75, 17.0));
     float fineStreakNoise = snoise(vec3(sideCoord * 5.0, wPos.y * 0.9 - waveTime * 1.4, 27.0));
     float streak = smoothstep(0.35, 0.95, streakNoise * 0.7 + fineStreakNoise * 0.3);
-    vec3 streakColor = mix(waterColor * 0.96, waterColor + uWaterTint * 0.08, streak);
+    vec3 streakColor = mix(waterColor * 0.96, waterColor + waterTint * 0.08, streak);
     waterColor = mix(waterColor, streakColor, streakStrength);
   }
 

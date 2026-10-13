@@ -12,6 +12,7 @@ import {
   FLUID_SPILL_CORNER_MIN_HEIGHT,
   getDownwellingTransmittance,
   getUnderwaterAmbientColor,
+  findWaterBodySurface,
   measureWaterColumn,
   UNDERSIDE_CRITICAL_COS,
   UNDERWATER_FOG_FRAGMENT,
@@ -649,6 +650,55 @@ describe("measureWaterColumn", () => {
     const sample = measureWaterColumn(columnTo(85), 0.5, 85.95, 0.5, sealedAt);
     expect(sample?.surfaceY).toBeCloseTo(86);
     expect(sample?.depth).toBeCloseTo(0.05);
+    expect(sample?.roofed).toBe(true);
+  });
+});
+
+describe("findWaterBodySurface", () => {
+  // Water fills y <= 59 except where `rock` says otherwise.
+  const sea =
+    (rock: (vx: number, vy: number, vz: number) => boolean) =>
+    (vx: number, vy: number, vz: number) =>
+      vy <= 59 && !rock(vx, vy, vz);
+  const sealedUnder =
+    (isFluidAt: (vx: number, vy: number, vz: number) => boolean) =>
+    (vx: number, vy: number, vz: number) =>
+      vy < 59 && !isFluidAt(vx, vy + 1, vz);
+
+  it("climbs out from under a shelf to the open sea's surface", () => {
+    // A shelf at y 55-57 reaching three blocks around the column.
+    const isFluidAt = sea(
+      (vx, vy, vz) =>
+        vy >= 55 && vy <= 57 && Math.abs(vx) <= 3 && Math.abs(vz) <= 3,
+    );
+    const surfaceY = findWaterBodySurface(
+      isFluidAt,
+      sealedUnder(isFluidAt),
+      0,
+      54,
+      0,
+    );
+    expect(surfaceY).toBeCloseTo(59 + WATER_OPTICS.fluidSurfaceHeight);
+  });
+
+  it("keeps the highest roof of a cave sealed all round", () => {
+    // A flooded chamber, x and z in 0..9, its roof at y 50 over x < 5 and
+    // y 53 over the rest.
+    const isFluidAt = (vx: number, vy: number, vz: number) =>
+      vx >= 0 &&
+      vx <= 9 &&
+      vz >= 0 &&
+      vz <= 9 &&
+      vy >= 40 &&
+      vy < (vx < 5 ? 50 : 53);
+    const surfaceY = findWaterBodySurface(
+      isFluidAt,
+      (vx, vy, vz) => isFluidAt(vx, vy, vz) && !isFluidAt(vx, vy + 1, vz),
+      1,
+      49,
+      1,
+    );
+    expect(surfaceY).toBe(53);
   });
 });
 

@@ -144,6 +144,18 @@ export const WATER_OPTICS = Object.freeze({
   enclosedReflectance: 0.25,
 
   /**
+   * What keeps water that sees no sky reading as water when nothing lights
+   * it. Its tint takes the light the surface stands in, but never less
+   * than `enclosedTintFloor` of it: unlit, the tint glowed one flat sheet
+   * across a dark cave pool; fully lit-only, the pool went as black as a
+   * hole. Its mirror also carries a faint sheen of that floor's tint at
+   * `enclosedSheenStrength`, which the Fresnel and its ripple steps shape:
+   * dark and see-through below the eye, ripples catching it toward grazing.
+   */
+  enclosedTintFloor: 0.25,
+  enclosedSheenStrength: 0.5,
+
+  /**
    * View-incidence cosine (geometric surface normal vs. view direction)
    * below which the surface's screen-space refraction distortion is fully
    * suppressed. At grazing angles the displaced sample no longer lands on
@@ -579,6 +591,16 @@ export const WATER_OPTICS = Object.freeze({
   maxSurfaceScanBlocks: 96,
 
   /**
+   * Bounds of the walk that finds the open surface of the water a roofed
+   * column belongs to (`findWaterBodySurface`): voxels visited, and blocks
+   * it strays sideways from the column. A shelf or an arch in open sea
+   * costs a few dozen visits; a sealed cave spends the budget and keeps
+   * its highest roof.
+   */
+  bodySurfaceSearchVoxels: 4096,
+  bodySurfaceSearchRadius: 32,
+
+  /**
    * Height of a resting fluid surface within its voxel. Mirrors
    * FLUID_BASE_HEIGHT in the mesher so the waterline plane matches the
    * rendered surface.
@@ -884,6 +906,8 @@ export type FluidQuery = (vx: number, vy: number, vz: number) => boolean;
 export type WaterColumnSample = {
   depth: number;
   surfaceY: number;
+  /** The column ends at a roof: `surfaceY` is its underside. */
+  roofed?: boolean;
 };
 
 /**
@@ -913,14 +937,86 @@ export function measureWaterColumn(
     vy += 1;
   }
 
-  const surfaceY =
-    vy + (isSealedAt?.(vx, vy, vz) ? 1 : WATER_OPTICS.fluidSurfaceHeight);
+  const roofed = isSealedAt?.(vx, vy, vz) ?? false;
+  const surfaceY = vy + (roofed ? 1 : WATER_OPTICS.fluidSurfaceHeight);
   const depth = surfaceY - y;
   if (depth <= 0) {
     return null;
   }
 
-  return { depth, surfaceY };
+  return roofed ? { depth, surfaceY, roofed } : { depth, surfaceY };
+}
+
+/**
+ * The open surface of the water a roofed column belongs to. Under a shelf
+ * or an arch in open sea the column's own top is the rock's underside, and
+ * a waterline there cut the water beside it in two: everything above the
+ * rock lost its fog and its depth, a hard line across the view that jumped
+ * as the diver swam in and out from under the overhang.
+ *
+ * Walks the connected fluid from the column's top voxel `(vx, vy, vz)`,
+ * highest voxel first, so wherever the water rises it climbs straight to
+ * the top and a shelf costs only the walk to its edge. The first column
+ * top that is not sealed is the surface. A cave sealed all round keeps its
+ * highest roof the walk reaches, so a low roof never cuts its own higher
+ * dome out of the water either.
+ */
+export function findWaterBodySurface(
+  isFluidAt: FluidQuery,
+  isSealedAt: FluidQuery,
+  vx: number,
+  vy: number,
+  vz: number,
+): number {
+  const radius = WATER_OPTICS.bodySurfaceSearchRadius;
+  const span = radius * 2 + 1;
+  const minY = vy - radius;
+  const maxY = vy + WATER_OPTICS.maxSurfaceScanBlocks;
+  const levels: number[][] = [];
+  const seen = new Set<number>();
+  let top = -1;
+
+  const push = (x: number, y: number, z: number) => {
+    const dx = x - vx + radius;
+    const dz = z - vz + radius;
+    if (dx < 0 || dx >= span || dz < 0 || dz >= span) return;
+    if (y < minY || y > maxY) return;
+    const level = y - minY;
+    const key = (level * span + dx) * span + dz;
+    if (seen.has(key) || !isFluidAt(x, y, z)) return;
+    seen.add(key);
+    (levels[level] ??= []).push(dx * span + dz);
+    if (level > top) top = level;
+  };
+
+  let highestRoof = vy + 1;
+  let visits = 0;
+  push(vx, vy, vz);
+  while (top >= 0 && visits < WATER_OPTICS.bodySurfaceSearchVoxels) {
+    const level = levels[top];
+    if (!level || level.length === 0) {
+      top -= 1;
+      continue;
+    }
+    const packed = level.pop() as number;
+    const x = vx + Math.floor(packed / span) - radius;
+    const z = vz + (packed % span) - radius;
+    const y = top + minY;
+    visits += 1;
+
+    if (!isFluidAt(x, y + 1, z)) {
+      if (!isSealedAt(x, y, z)) return y + WATER_OPTICS.fluidSurfaceHeight;
+      highestRoof = Math.max(highestRoof, y + 1);
+    }
+    push(x, y + 1, z);
+    push(x + 1, y, z);
+    push(x - 1, y, z);
+    push(x, y, z + 1);
+    push(x, y, z - 1);
+    push(x, y - 1, z);
+  }
+
+  return highestRoof;
 }
 
 function expSmooth(

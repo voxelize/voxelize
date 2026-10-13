@@ -242,6 +242,7 @@ import { WaterDepthPass } from "./water-depth";
 import {
   WATER_OPTICS,
   WaterOptics,
+  findWaterBodySurface,
   measureWaterColumn,
   type WaterColumnSample,
 } from "./water-optics";
@@ -669,6 +670,20 @@ export class World<T = any> extends Scene implements NetIntercept {
     chunk: Chunk | undefined;
   } = { cx: NaN, cz: NaN, generation: -1, chunk: undefined };
   private fluidMaterialsRenderBackSide = false;
+
+  /**
+   * The last open surface found over a roofed camera column (see
+   * {@link World.measureCameraWaterColumn}), kept while the camera stays
+   * in that column and for a second at most, so an edit to the water is
+   * picked up without walking it every frame.
+   */
+  private waterBodySurfaceMemo = {
+    vx: NaN,
+    vy: NaN,
+    vz: NaN,
+    atMs: -Infinity,
+    surfaceY: 0,
+  };
 
   /**
    * Whether the cloud layer is hidden because the camera is under water:
@@ -6864,14 +6879,63 @@ export class World<T = any> extends Scene implements NetIntercept {
     );
   }
 
+  /**
+   * The water column over the camera, its waterline at the open surface of
+   * the water it is in. Where the column ends at a roof (a shelf, an arch,
+   * a flooded cave) that is the surface {@link findWaterBodySurface} walks
+   * to, not the roof's underside: the waterline is one plane for every
+   * fragment in view, and at the roof it would lift the water beside the
+   * rock out of the sea.
+   */
+  private measureCameraWaterColumn(
+    cameraPosition: Vector3,
+  ): WaterColumnSample | null {
+    const { x, y, z } = cameraPosition;
+    const column = this.measureWaterColumnAt(x, y, z);
+    if (!column?.roofed) return column;
+
+    const vx = Math.floor(x);
+    const vy = Math.round(column.surfaceY) - 1;
+    const vz = Math.floor(z);
+    const memo = this.waterBodySurfaceMemo;
+    const now = performance.now();
+    if (
+      memo.vx !== vx ||
+      memo.vy !== vy ||
+      memo.vz !== vz ||
+      now - memo.atMs > 1000
+    ) {
+      const filter = this.waterOpticsFluidFilter;
+      memo.surfaceY = findWaterBodySurface(
+        (cx, cy, cz) => {
+          const raw = this.getRawVoxelAt(cx, cy, cz);
+          if (BlockUtils.extractWaterlogged(raw)) return true;
+          const block = this.registry.blocksById.get(BlockUtils.extractID(raw));
+          return !!block?.isFluid && (!filter || filter(block));
+        },
+        (cx, cy, cz) =>
+          this.isRawVoxelSealedFluid(
+            this.getRawVoxelAt(cx, cy, cz),
+            this.getRawVoxelAt(cx, cy + 1, cz),
+          ),
+        vx,
+        vy,
+        vz,
+      );
+      memo.vx = vx;
+      memo.vy = vy;
+      memo.vz = vz;
+      memo.atMs = now;
+    }
+
+    const surfaceY = Math.max(column.surfaceY, memo.surfaceY);
+    return { depth: surfaceY - y, surfaceY };
+  }
+
   updateWaterOptics(cameraPosition: Vector3, deltaSeconds: number) {
     if (!this.isInitialized) return;
 
-    let column = this.measureWaterColumnAt(
-      cameraPosition.x,
-      cameraPosition.y,
-      cameraPosition.z,
-    );
+    let column = this.measureCameraWaterColumn(cameraPosition);
     if (column && this.waterOpticsFluidFilter) {
       const block = this.getBlockAt(
         Math.floor(cameraPosition.x),
