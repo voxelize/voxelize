@@ -921,7 +921,15 @@ if (uFarSeam > 0.0 && vIsFluid < 0.5) {
   }
   vec2 finalUvDx = dFdx(seamlessUv);
   vec2 finalUvDy = dFdy(seamlessUv);
-  
+  // A face seen at a grazing angle stretches its footprint along the view,
+  // and the anisotropic taps along it ran out of the tile's margin into its
+  // atlas neighbours: tan streaks on every leaf top in a distant forest.
+  // Capped at half the tile, the taps stay inside the tile and its margin
+  // (a quarter of the cell each side) at every mip.
+  float atlasTileSize = 0.5 / uAtlasSize;
+  finalUvDx *= min(1.0, atlasTileSize * 0.5 / max(length(finalUvDx), 1e-8));
+  finalUvDy *= min(1.0, atlasTileSize * 0.5 / max(length(finalUvDy), 1e-8));
+
   
   ${CHUNK_TEXTURE_SAMPLE_GLSL}
   #ifdef DECODE_VIDEO_TEXTURE
@@ -1946,7 +1954,7 @@ const FAR_SEAM_TEST_OPEN = "if (uFarSeam > 0.0 && vIsFluid < 0.5) {";
 // See-through solids (glass, foliage) draw as stacked double-sided layers,
 // so a full-screen pane multiplies whatever the fragment costs by every
 // layer behind it. They take the same 5-tap shadow fast path as fluids —
-// tinted glass and leaf clusters swallow soft shadow detail exactly as
+// a tinted pane and leaf clusters swallow soft shadow detail exactly as
 // waves do — while compiling the fluid surface branch out like the opaque
 // shader does.
 export const SHADER_LIGHTING_SEE_THROUGH_CHUNK_SHADERS = {
