@@ -640,8 +640,8 @@ describe("far shaders", () => {
     const water = far.children.find(
       (child): child is Mesh => child.name === "far-terrain-water",
     );
-    const materials = [must(water), far.batch.mesh].map(
-      (mesh) => mesh.material as ShaderMaterial,
+    const materials = [must(water).material, far.batch.material].map(
+      (material) => material as ShaderMaterial,
     );
     expect(materials.length).toBeGreaterThan(1);
     for (const material of materials) {

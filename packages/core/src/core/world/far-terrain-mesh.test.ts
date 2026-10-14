@@ -4,6 +4,9 @@ import {
   buildFarLandMesh,
   buildFarSkyMesh,
   FAR_FACE_KIND,
+  FAR_POSITION_SIZE,
+  FAR_QUAD_CORNERS,
+  FAR_QUAD_VERTICES,
   farHash,
   FarMeshData,
   FarMeshInput,
@@ -69,21 +72,26 @@ type Quad = {
   occlusion: number[];
 };
 
+/** Each corner's first vertex among a quad's six. */
+const firstOfCorner = [0, 1, 2, 3].map((k) =>
+  (FAR_QUAD_CORNERS as readonly number[]).indexOf(k),
+);
+
 const quadsOf = (mesh: FarMeshData): Quad[] => {
   const quads: Quad[] = [];
   for (let q = 0; q < mesh.quads; q++) {
     const corners: [number, number, number][] = [];
     const occlusion: number[] = [];
     for (let k = 0; k < 4; k++) {
-      const v = q * 4 + k;
+      const v = q * FAR_QUAD_VERTICES + firstOfCorner[k];
       corners.push([
-        mesh.position[v * 3],
-        mesh.position[v * 3 + 1],
-        mesh.position[v * 3 + 2],
+        mesh.position[v * FAR_POSITION_SIZE],
+        mesh.position[v * FAR_POSITION_SIZE + 1],
+        mesh.position[v * FAR_POSITION_SIZE + 2],
       ]);
       occlusion.push(mesh.material[v * 4 + 2]);
     }
-    const v = q * 4;
+    const v = q * FAR_QUAD_VERTICES;
     quads.push({
       corners,
       ground: mesh.column[v * 2],

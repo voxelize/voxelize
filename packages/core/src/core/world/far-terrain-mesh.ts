@@ -50,7 +50,27 @@ export type FarMeshInput = {
 };
 
 /**
- * One mesh's vertex data. Positions are relative to the tile's origin
+ * Vertices a quad is drawn with: its own two triangles, corners
+ * `FAR_QUAD_CORNERS`, with no index buffer. The far batch changes whenever a
+ * tile lands, and ANGLE's Metal backend (every browser on a Mac) answers a
+ * draw from a changed index buffer by waiting for the GPU and scanning the
+ * whole buffer for primitive-restart markers on the CPU.
+ */
+export const FAR_QUAD_VERTICES = 6;
+
+/** The quad corner (0-3, counter-clockwise) each of its six vertices is. */
+export const FAR_QUAD_CORNERS = [0, 1, 2, 0, 2, 3] as const;
+
+/**
+ * Components of a position: x, y, z and a zero. Metal reads vertex data at
+ * strides of four bytes, and ANGLE answers a 6-byte one by converting the
+ * whole buffer into an aligned copy, again after every upload into it.
+ */
+export const FAR_POSITION_SIZE = 4;
+
+/**
+ * One mesh's vertex data, `FAR_QUAD_VERTICES` vertices a quad. Positions
+ * (`FAR_POSITION_SIZE` a vertex) are relative to the tile's origin
  * (`originX`, 0, `originZ`). `column` is per vertex the ground top and the
  * column top of the column the face belongs to (for a crown, the canopy
  * over it, which its leaves are shaded below); `material` is class, kind,
@@ -62,7 +82,6 @@ export type FarMeshData = {
   column: Int16Array;
   material: Uint8Array;
   tint: Uint8Array;
-  index: Uint16Array | Uint32Array;
   quads: number;
   /** Quads by what they are, for the budget. */
   counts: FarMeshCounts;
@@ -95,8 +114,8 @@ class QuadWriter {
     capacity: number,
     private readonly step: number,
   ) {
-    const vertices = Math.max(4, capacity * 4);
-    this.position = new Int16Array(vertices * 3);
+    const vertices = Math.max(1, capacity) * FAR_QUAD_VERTICES;
+    this.position = new Int16Array(vertices * FAR_POSITION_SIZE);
     this.column = new Int16Array(vertices * 2);
     this.material = new Uint8Array(vertices * 4);
     this.tint = new Uint8Array(vertices * 4);
@@ -130,13 +149,15 @@ class QuadWriter {
     slot: number,
     tint: readonly number[],
   ) {
-    if ((this.quads + 1) * 4 * 3 > this.position.length) this.grow();
-    for (let k = 0; k < 4; k++) {
-      const v = this.quads * 4 + k;
+    const next = (this.quads + 1) * FAR_QUAD_VERTICES;
+    if (next * FAR_POSITION_SIZE > this.position.length) this.grow();
+    for (let n = 0; n < FAR_QUAD_VERTICES; n++) {
+      const k = FAR_QUAD_CORNERS[n];
+      const v = this.quads * FAR_QUAD_VERTICES + n;
       const [x, y, z] = corners[k];
-      this.position[v * 3] = x;
-      this.position[v * 3 + 1] = y;
-      this.position[v * 3 + 2] = z;
+      this.position[v * FAR_POSITION_SIZE] = x;
+      this.position[v * FAR_POSITION_SIZE + 1] = y;
+      this.position[v * FAR_POSITION_SIZE + 2] = z;
       this.column[v * 2] = ground;
       this.column[v * 2 + 1] = top;
       this.material[v * 4] = cls;
@@ -155,21 +176,12 @@ class QuadWriter {
 
   finish(): FarMeshData | null {
     if (this.quads === 0) return null;
-    const vertices = this.quads * 4;
-    const index =
-      vertices > 65535
-        ? new Uint32Array(this.quads * 6)
-        : new Uint16Array(this.quads * 6);
-    for (let q = 0; q < this.quads; q++) {
-      const a = q * 4;
-      index.set([a, a + 1, a + 2, a, a + 2, a + 3], q * 6);
-    }
+    const vertices = this.quads * FAR_QUAD_VERTICES;
     return {
-      position: this.position.slice(0, vertices * 3),
+      position: this.position.slice(0, vertices * FAR_POSITION_SIZE),
       column: this.column.slice(0, vertices * 2),
       material: this.material.slice(0, vertices * 4),
       tint: this.tint.slice(0, vertices * 4),
-      index,
       quads: this.quads,
       counts: this.counts,
       minY: this.minY,

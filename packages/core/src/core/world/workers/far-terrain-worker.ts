@@ -17,7 +17,6 @@ const buffersOf = (mesh: FarMeshData | null): ArrayBuffer[] =>
         mesh.column.buffer as ArrayBuffer,
         mesh.material.buffer as ArrayBuffer,
         mesh.tint.buffer as ArrayBuffer,
-        mesh.index.buffer as ArrayBuffer,
       ]
     : [];
 

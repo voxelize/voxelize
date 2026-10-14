@@ -16,3 +16,13 @@ heavy one-time work therefore has exactly one correct home: the **load phase**, 
 - never iterate a chunk's voxels synchronously on the client main thread. same rule, different scale: offload to a worker, or chunk it across frames.
 
 measure rather than assert. the agent's `measureFrameRate({ warmupMs, durationMs })` against a busy scene is what makes a frame-rate claim true, and a measurement keeps its exact repro inputs (world, camera, warmup, duration, thresholds). the `voxelize-instanced-entities` skill covers the warmup contract end to end.
+
+## uploads during play, on a Mac
+
+every browser on a Mac draws WebGL through ANGLE's Metal backend, and three things it does there turn a small upload into a cost of the whole buffer. the far layer lost most of its frame rate to them while it streamed tiles (`far-terrain-batch.ts`):
+
+- a `bufferSubData` into a buffer the GPU still draws from (anything drawn in the last frames) allocates a new buffer of the whole size and copies all of the old one into it. a buffer that takes uploads during play stays small: page it (the far layer's batch is pages of a million vertices), don't grow one.
+- an indexed draw from an index buffer that changed waits for the GPU and scans the whole buffer for primitive-restart markers on the CPU. a buffer that changes during play draws without an index.
+- a vertex stride that is not a multiple of four bytes (an `Int16` vec3) is converted into an aligned copy of the whole buffer, again after every upload into it. pad to four components.
+
+texture uploads go through a freshly allocated staging buffer, and a `BatchedMesh` re-uploads its draw-id texture every frame it culls, so count batches as well as draw calls. to see any of this, run macOS `sample <pid>` on the browser's GPU process (`--type=gpu-process`) during the motion: ANGLE is stripped, but Metal's `waitUntilCompleted`, `commandBuffer` waits and `AGXBuffer` allocations show by name.

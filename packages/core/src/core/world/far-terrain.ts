@@ -320,8 +320,10 @@ export type FarTerrainStats = {
   tilesWanted: number;
   /** Tiles drawn this frame at each level, finest first. */
   levelCounts: number[];
-  /** Tile meshes (land + sky) in the scene; each is one draw call when in view. */
+  /** Tile meshes (land + sky) shown. */
   meshes: number;
+  /** Pages of the batch the tile meshes are drawn from, one draw call each. */
+  batchPages: number;
   /** Main-thread ms the last update spent (planning, requests, mask). */
   lastUpdateMs: number;
   /** Highest `lastUpdateMs` since the counters were last read. */
@@ -863,6 +865,7 @@ export class FarTerrain extends Group {
     tilesWanted: 0,
     levelCounts: [],
     meshes: 0,
+    batchPages: 0,
     lastUpdateMs: 0,
     peakUpdateMs: 0,
     totalUpdateMs: 0,
@@ -1158,7 +1161,7 @@ export class FarTerrain extends Group {
       side: DoubleSide,
     });
     this.batch = new FarBatch(this.landMaterial);
-    this.add(this.batch.mesh);
+    this.add(this.batch.root);
     this.waterMaterial = new ShaderMaterial({
       vertexShader: WATER_VERTEX_SHADER,
       fragmentShader: WATER_FRAGMENT_SHADER,
@@ -1572,7 +1575,7 @@ export class FarTerrain extends Group {
         this.batch.setFade(slot, tile.opacity, tile.isDrawn);
         if (slot.visible) {
           meshes += 1;
-          triangles += slot.indexCount / 3;
+          triangles += slot.vertexCount / 3;
         }
       }
       bytes += tile.bytes;
@@ -1604,6 +1607,7 @@ export class FarTerrain extends Group {
     }
     this.stats.tilesDrawn = drawnIds.size;
     this.stats.meshes = meshes;
+    this.stats.batchPages = this.batch.pages.length;
     this.stats.triangles = triangles;
     this.stats.meshBytes = bytes;
     this.stats.quads = quads;
@@ -1870,8 +1874,7 @@ export class FarTerrain extends Group {
       data.position.byteLength +
       data.column.byteLength +
       data.material.byteLength +
-      data.tint.byteLength +
-      data.index.byteLength;
+      data.tint.byteLength;
     return this.batch.add(data, originX, originZ, span, name);
   }
 
