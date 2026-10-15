@@ -46,7 +46,8 @@ const _forward = new Vector3();
  *   staged copy.
  *
  * An array camera, a wireframe material or a custom sort take three's own
- * path, as does a three whose BatchedMesh lacks the state read here.
+ * path. The state read here is three 0.183's; a three without it throws at
+ * construction rather than drawing a stale list.
  */
 export class StaticBatchedMesh extends BatchedMesh {
   /** Per instance: bounding sphere centre and radius in the local frame. */
@@ -62,6 +63,22 @@ export class StaticBatchedMesh extends BatchedMesh {
   /** The indirect texture whose GPU copy matches its array. */
   private uploaded: DataTexture | null = null;
 
+  constructor(...args: ConstructorParameters<typeof BatchedMesh>) {
+    super(...args);
+    const internals = this as unknown as Partial<BatchedMeshInternals>;
+    if (
+      !Array.isArray(internals._instanceInfo) ||
+      !Array.isArray(internals._geometryInfo) ||
+      !internals._multiDrawStarts ||
+      !internals._multiDrawCounts ||
+      !internals._indirectTexture
+    ) {
+      throw new Error(
+        "[StaticBatchedMesh] this three's BatchedMesh lacks the draw-list state (three 0.183's) the cached cull reads",
+      );
+    }
+  }
+
   override setMatrixAt(instanceId: number, matrix: Matrix4) {
     this.markStale(instanceId);
     return super.setMatrixAt(instanceId, matrix);
@@ -69,8 +86,7 @@ export class StaticBatchedMesh extends BatchedMesh {
 
   override setGeometryAt(geometryId: number, geometry: BufferGeometry) {
     const id = super.setGeometryAt(geometryId, geometry);
-    const internals = this as unknown as Partial<BatchedMeshInternals>;
-    const info = internals._instanceInfo ?? [];
+    const info = (this as unknown as BatchedMeshInternals)._instanceInfo;
     for (let i = 0; i < info.length; i++) {
       if (info[i].geometryIndex === geometryId) this.markStale(i);
     }
@@ -91,13 +107,7 @@ export class StaticBatchedMesh extends BatchedMesh {
     material: Material,
     group: Group,
   ) {
-    const internals = this as unknown as Partial<BatchedMeshInternals>;
     if (
-      !internals._instanceInfo ||
-      !internals._geometryInfo ||
-      !internals._multiDrawStarts ||
-      !internals._multiDrawCounts ||
-      !internals._indirectTexture ||
       (camera as { isArrayCamera?: boolean }).isArrayCamera ||
       (material as { wireframe?: boolean }).wireframe ||
       this.customSort !== null
@@ -107,7 +117,7 @@ export class StaticBatchedMesh extends BatchedMesh {
       super.onBeforeRender(renderer, scene, camera, geometry, material, group);
       return;
     }
-    const state = internals as BatchedMeshInternals;
+    const state = this as unknown as BatchedMeshInternals;
     if (
       !state._visibilityChanged &&
       !this.perObjectFrustumCulled &&

@@ -325,6 +325,13 @@ const ARENA_BUCKETS: readonly string[] = [
   SHARED_CUTOUT_PLANT_MATERIAL_KEY,
 ];
 
+/** Region arenas' regions and sections, in all and per batched bucket. */
+export type RegionArenaStats = {
+  regions: number;
+  sections: number;
+  buckets: Record<string, { regions: number; sections: number }>;
+};
+
 /** Dirty sections picked, nearest first, for one mesh dispatch window. */
 const MESH_CANDIDATES = 64;
 /** A mesh dispatch window (`maxMeshesPerUpdate` sections), about a frame. */
@@ -631,9 +638,19 @@ export class World<T = any> extends Scene implements NetIntercept {
    */
   private readonly arenaSets = new Map<string, ChunkRegionArenas>();
 
-  /** The shared-opaque bucket's region arenas, `null` until one lands. */
-  get regionArenas(): ChunkRegionArenas | null {
-    return this.arenaSets.get(SHARED_OPAQUE_MATERIAL_KEY) ?? null;
+  /**
+   * The region arenas' live regions and slotted sections, in all and per
+   * batched bucket.
+   */
+  get regionArenaStats(): RegionArenaStats {
+    const stats: RegionArenaStats = { regions: 0, sections: 0, buckets: {} };
+    for (const [bucket, arenas] of this.arenaSets) {
+      const { regions, sections } = arenas.stats;
+      stats.regions += regions;
+      stats.sections += sections;
+      stats.buckets[bucket] = { regions, sections };
+    }
+    return stats;
   }
 
   /** The materials the region arenas draw with, one per batched bucket. */
