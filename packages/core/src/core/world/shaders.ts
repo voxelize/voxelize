@@ -1101,7 +1101,9 @@ float torchSaturation = torchPeak > 0.0
   ? 1.0 - min(min(torchLight.r, torchLight.g), torchLight.b) / torchPeak
   : 0.0;
 warmTint = mix(warmTint, vec3(1.0), torchSaturation * uBlockLightCurve);
-vec3 coolTint = vec3(0.92, 0.95, 1.05);
+// Daylight stays white: the sun is already warm and the sky fill already
+// cool, and a blue white balance on top of them turned every lawn teal.
+vec3 coolTint = vec3(1.0, 1.0, 1.0);
 vec3 temperatureShift = mix(coolTint, warmTint, torchDominance);
 totalLight *= temperatureShift;
 

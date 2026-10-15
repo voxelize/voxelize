@@ -15,9 +15,9 @@ import { meanLinearRgb } from "./far-terrain-tiles";
 
 /**
  * Weather on surfaces: what rain and snow leave on the world, drawn by the
- * terrain shaders themselves. Rain darkens open ground and gives it a calm
- * sky sheen, and pocks open ground with pixel splashes and still water with
- * rings while it falls. Snow near the
+ * terrain shaders themselves. Rain darkens open ground (matte: wet soil
+ * reads darker, never glossy), and pocks open ground with pixel splashes and
+ * still water with rings while it falls. Snow near the
  * player is the host's to lay as blocks; only the far layer, which has no
  * blocks to lay it on, wears a coat that grows from patches to white.
  *
@@ -46,14 +46,6 @@ export const SURFACE_WEATHER = {
   /** Wetness a wall keeps, and what facing into the wind adds. */
   sideWet: 0.25,
   windwardWet: 0.6,
-  /** Fresnel scale of the wet sheen, and its ceiling: glossy, never a mirror. */
-  sheenReflectivity: 0.35,
-  sheenMax: 0.15,
-  /** Per-texel sheen variation (porosity), and its mean once texels are subpixel. */
-  sheenGrainFloor: 0.75,
-  /** The wet sun glint: its sharpness, and its strength on wet ground. */
-  glintExponent: 120,
-  glintWet: 0.3,
   /** The coat's drift field: two octaves (blocks per cell), weights, contrast. */
   driftScaleLarge: 3.5,
   driftScaleSmall: 1.3,
@@ -332,16 +324,9 @@ float surfaceWeatherAbove(vec2 xz, float y, float lineCode) {
   return smoothstep(line - band, line + band, y + jitter);
 }
 
-// How much of the sky a wet surface mirrors at this view: a Fresnel sheen,
-// strongest at grazing angles, never past its ceiling.
-float surfaceWeatherSheen(float nDotV, float porous) {
-  float fresnel = 0.02 + 0.98 * pow(1.0 - clamp(nDotV, 0.0, 1.0), 5.0);
-  return min(fresnel * ${f(S.sheenReflectivity)} * porous, ${f(S.sheenMax)});
-}
-
 // The sky dome along a ray, in the colours the sky and the haze are drawn
-// with right now: the weather greys them, so wet ground under a storm
-// mirrors a storm.
+// with right now: the weather greys them, so a ring's crest under a storm
+// catches a storm.
 vec3 surfaceWeatherSkyAlong(vec3 dir) {
   float h = normalize(dir * uSkyFogDimension + uSkyFogOffset).y;
   return mix(uSkyFogMiddleColor, uSkyFogTopColor, pow(max(h, 0.0), uSkyFogExponent));
@@ -429,8 +414,6 @@ export const SURFACE_WEATHER_ALBEDO_FRAGMENT = `
 // Weather on the ground (surface-weather.ts). Skipped whole while the host
 // sets no weather, so a dry world renders exactly as it always has.
 float surfaceWeatherRainHere = 0.0;
-float surfaceWeatherWetUp = 0.0;
-float surfaceWeatherGrain = 0.5;
 float surfaceWeatherFootprint = 1.0;
 ${SURFACE_WEATHER_TERRAIN_OPEN}
   // The footprint first, while control flow is still uniform.
@@ -445,7 +428,6 @@ ${SURFACE_WEATHER_TERRAIN_OPEN}
   if (swOpen > 0.0) {
     vec2 swTexel = floor(swPos.xz * ${f(SURFACE_WEATHER_TEXELS, 1)});
     vec2 swTexelCentre = (swTexel + 0.5) * ${f(1 / SURFACE_WEATHER_TEXELS)};
-    surfaceWeatherGrain = surfaceWeatherHash(swTexel);
     vec4 swWeather = surfaceWeatherSample(swTexelCentre);
     float swAbove = surfaceWeatherAbove(swTexelCentre, swPos.y, swWeather.a);
     float swBelow = 1.0 - swAbove;
@@ -456,7 +438,6 @@ ${SURFACE_WEATHER_TERRAIN_OPEN}
     if (swWet > 0.0) {
       diffuseColor.rgb = surfaceWeatherWetAlbedo(diffuseColor.rgb, swWet);
     }
-    surfaceWeatherWetUp = swWet * swUp;
 
     surfaceWeatherRainHere = clamp(uSurfaceWeather.x, 0.0, 1.0) * swBelow * swOpen * swUp;
   }
@@ -465,37 +446,18 @@ ${SURFACE_WEATHER_TERRAIN_OPEN}
 
 /**
  * The chunk fragment's lighting pass, after the face is lit and before the
- * fog: the wet sheen's mirror of the sky, the sun's glint on it, and the
- * rain's pocks on open ground. All of it is light the sky or the sun puts
- * there, so nothing glows at night.
+ * fog: the rain's pocks on open ground. Wet ground takes no sheen or sun
+ * glint: a mirror on soil and grass read as plastic. The pocks are light
+ * the sky puts there, so nothing glows at night.
  */
 export const SURFACE_WEATHER_LIGHT_FRAGMENT = `
 ${SURFACE_WEATHER_TERRAIN_OPEN}
-  if (surfaceWeatherWetUp + surfaceWeatherRainHere > 0.0) {
+  if (surfaceWeatherRainHere > 0.0) {
     vec3 swPos = vWorldPosition.xyz;
-    vec3 swView = normalize(cameraPosition - swPos);
     vec2 swTexel = floor(swPos.xz * ${f(SURFACE_WEATHER_TEXELS, 1)});
     float swSeconds = uTime * 0.001;
     float swTexelPixels = ${f(1 / SURFACE_WEATHER_TEXELS)} / max(surfaceWeatherFootprint, 1e-5);
     float swNear = smoothstep(${f(S.pockFadeFrom)}, ${f(S.pockFadeTo)}, swTexelPixels);
-
-    if (surfaceWeatherWetUp > 0.0) {
-      vec3 swReflectDir = reflect(-swView, vec3(0.0, 1.0, 0.0));
-      float swPorous = mix(
-        ${f((1 + S.sheenGrainFloor) / 2)},
-        ${f(S.sheenGrainFloor)} + ${f(1 - S.sheenGrainFloor)} * surfaceWeatherGrain,
-        swNear
-      );
-      outgoingLight.rgb = mix(
-        outgoingLight.rgb,
-        surfaceWeatherSkyAlong(swReflectDir),
-        surfaceWeatherSheen(swView.y, swPorous) * surfaceWeatherWetUp
-      );
-      // The sun's glint, only where the beam reaches.
-      float swGlint = pow(max(dot(swReflectDir, uCelestialDirection), 0.0), ${f(S.glintExponent, 1)})
-        * shadow * uDirectSunlight * uSunlightIntensity;
-      outgoingLight.rgb += uSunColor * swGlint * ${f(S.glintWet)} * surfaceWeatherWetUp;
-    }
 
     // Drops landing: pixel splashes up close, their faint average shimmer
     // once texels shrink under a couple of pixels. Lit by the sky above and
@@ -589,7 +551,7 @@ float surfaceCoatMean(float coat) {
 // The far layer's ground under the weather: the wet ground the chunks draw
 // and the snow laid near the player as blocks, averaged at the footprint it
 // is seen at (no texels, no pocks, no rings), so the two meet without a seam.
-vec3 surfaceWeatherFarAlbedo(vec3 albedo, vec3 p, vec3 normal, float footprint, out float wetUp) {
+vec3 surfaceWeatherFarAlbedo(vec3 albedo, vec3 p, vec3 normal, float footprint) {
   vec4 weather = surfaceWeatherSample(p.xz);
   float above = surfaceWeatherAbove(p.xz, p.y, weather.a);
   float up = smoothstep(${f(S.upFrom)}, ${f(S.upTo)}, normal.y);
@@ -601,7 +563,6 @@ vec3 surfaceWeatherFarAlbedo(vec3 albedo, vec3 p, vec3 normal, float footprint, 
     surfaceCoatMean(coat),
     smoothstep(${f(S.driftFadeFrom)}, ${f(S.driftFadeTo)}, footprint)
   );
-  wetUp = wet * up;
   return mix(albedo, uSurfaceCoatColor, cover);
 }
 `;
@@ -615,22 +576,8 @@ ${SURFACE_WEATHER_FAR_FUNCTIONS}
 
 /** The far land's albedo under the weather, after its face kinds pick the block. */
 export const SURFACE_WEATHER_FAR_ALBEDO_FRAGMENT = `
-  float surfaceWeatherFarWetUp = 0.0;
   if (uSurfaceWeather != vec3(0.0)) {
-    albedo = surfaceWeatherFarAlbedo(albedo, p, normal, blockFootprint, surfaceWeatherFarWetUp);
-  }
-`;
-
-/** The far land's wet sheen, once it is lit and before its fog. */
-export const SURFACE_WEATHER_FAR_SHEEN_FRAGMENT = `
-  if (surfaceWeatherFarWetUp > 0.0) {
-    vec3 swView = normalize(cameraPosition - vWorldPosition);
-    vec3 swSky = surfaceWeatherSkyAlong(reflect(-swView, vec3(0.0, 1.0, 0.0)));
-    gl_FragColor.rgb = mix(
-      gl_FragColor.rgb,
-      swSky,
-      surfaceWeatherSheen(swView.y, ${f((1 + S.sheenGrainFloor) / 2)}) * surfaceWeatherFarWetUp
-    );
+    albedo = surfaceWeatherFarAlbedo(albedo, p, normal, blockFootprint);
   }
 `;
 

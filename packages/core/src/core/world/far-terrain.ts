@@ -77,7 +77,6 @@ import {
   createSurfaceWeatherUniforms,
   SURFACE_WEATHER_FAR_ALBEDO_FRAGMENT,
   SURFACE_WEATHER_FAR_DECLARATIONS,
-  SURFACE_WEATHER_FAR_SHEEN_FRAGMENT,
   type SurfaceWeatherUniforms,
 } from "./surface-weather";
 import { AtlasTexture } from "./textures";
@@ -459,8 +458,8 @@ export const CHUNK_DAYLIGHT = {
   bounce: "0.04",
   /** `vec3(0.025, 0.03, 0.04) * sunVisibility`: starlight under open sky. */
   starlight: "0.025, 0.03, 0.04",
-  /** `vec3 coolTint = vec3(0.92, 0.95, 1.05)`: daylight white balance. */
-  daylightBalance: "0.92, 0.95, 1.05",
+  /** `vec3 coolTint = vec3(1.0, 1.0, 1.0)`: daylight white balance. */
+  daylightBalance: "1.0, 1.0, 1.0",
   /** The ACES fit `(x (2.51 x + 0.03)) / (x (2.43 x + 0.59) + 0.14)`. */
   toneMap: { a: "2.51", b: "0.03", c: "2.43", d: "0.59", e: "0.14" },
 } as const;
@@ -704,7 +703,7 @@ void main() {
 ${SURFACE_WEATHER_FAR_ALBEDO_FRAGMENT}
   float occlusion = vFarOcclusion;
   shadow = min(shadow, farTerrainSun(p));
-  ${lightAndFog(SURFACE_WEATHER_FAR_SHEEN_FRAGMENT)}
+  ${lightAndFog()}
 }
 `;
 

@@ -76,8 +76,8 @@ const SHADOWED_SKY_OCCLUSION = 0.72;
 const BOUNCE_STRENGTH = 0.04;
 /** `vec3 groundColor = uAmbientColor * 0.4` */
 const GROUND_AMBIENT_SCALE = 0.4;
-/** `vec3 coolTint = vec3(0.92, 0.95, 1.05)` */
-const COOL_TINT: readonly [number, number, number] = [0.92, 0.95, 1.05];
+/** `vec3 coolTint = vec3(1.0, 1.0, 1.0)` */
+const COOL_TINT: readonly [number, number, number] = [1.0, 1.0, 1.0];
 /** `mix(vec3(0.8, 0.88, 1.0), vec3(1.0), sunVisibility)` under the floor */
 const DARKNESS_FLOOR_TINT: readonly [number, number, number] = [0.8, 0.88, 1.0];
 /** `dot(sunContribution, vec3(0.33))` */

@@ -38,7 +38,6 @@ import {
   SURFACE_WEATHER,
   SURFACE_WEATHER_ALBEDO_FRAGMENT,
   SURFACE_WEATHER_FAR_ALBEDO_FRAGMENT,
-  SURFACE_WEATHER_FAR_SHEEN_FRAGMENT,
   SURFACE_WEATHER_LIGHT_FRAGMENT,
   SURFACE_WEATHER_TERRAIN_OPEN,
   SURFACE_WEATHER_WATER_CREST_FRAGMENT,
@@ -133,9 +132,6 @@ describe("surface weather is inert at its defaults", () => {
     );
     expect(SURFACE_WEATHER_FAR_ALBEDO_FRAGMENT).toContain(
       "if (uSurfaceWeather != vec3(0.0)) {",
-    );
-    expect(SURFACE_WEATHER_FAR_SHEEN_FRAGMENT.trim()).toMatch(
-      /^if \(surfaceWeatherFarWetUp > 0\.0\) \{/,
     );
   });
 
@@ -366,7 +362,6 @@ describe("surface weather on the far land", () => {
     expect(land.uniforms.uSurfaceCoatColor).toBe(weather.surfaceCoatColor);
     expect(land.uniforms.uSurfaceWind).toBe(weather.surfaceWind);
     expect(land.fragmentShader).toContain(SURFACE_WEATHER_FAR_ALBEDO_FRAGMENT);
-    expect(land.fragmentShader).toContain(SURFACE_WEATHER_FAR_SHEEN_FRAGMENT);
   });
 
   it("wears none without them", () => {
