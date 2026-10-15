@@ -9,6 +9,7 @@ import {
 } from "three";
 
 import { CustomChunkShaderMaterial } from "./chunk-materials";
+import { StaticBatchedMesh } from "./static-batched-mesh";
 import { POSITION_BLOCK_BIAS } from "./vertex-quantization";
 import { ChunkRegionArenasOptions } from "./world-options";
 
@@ -241,7 +242,7 @@ export class ChunkRegionArenas {
     if (existing) return existing;
 
     const { initialVertexCapacity, indexPerVertexRatio } = this.options;
-    const mesh = new BatchedMesh(
+    const mesh = new StaticBatchedMesh(
       this.maxSectionsPerRegion,
       initialVertexCapacity,
       Math.ceil(initialVertexCapacity * indexPerVertexRatio),

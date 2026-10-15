@@ -36,6 +36,7 @@ import {
 } from "three";
 
 import { FAR_POSITION_SIZE, type FarMeshData } from "./far-terrain-mesh";
+import { StaticBatchedMesh } from "./static-batched-mesh";
 
 /** One tile mesh's place in the batch. */
 export type FarBatchSlot = {
@@ -82,9 +83,8 @@ const slotCapacity = (vertices: number) => {
  * `_geometryInfo`, and a three without it throws here.
  */
 const setDrawCount = (page: BatchedMesh, geometryId: number, count: number) => {
-  const info = (
-    page as unknown as { _geometryInfo?: { count: number }[] }
-  )._geometryInfo?.[geometryId];
+  const info = (page as unknown as { _geometryInfo?: { count: number }[] })
+    ._geometryInfo?.[geometryId];
   if (!info) {
     throw new Error(
       "[far-terrain] BatchedMesh has no _geometryInfo; the far batch cannot trim its draws",
@@ -227,11 +227,7 @@ export class FarBatch {
   /** The smallest free slot that holds `vertices`, within REUSE_SLACK. */
   private takeFree(vertices: number): FarBatchSlot | null {
     const own = slotCapacity(vertices);
-    for (
-      let capacity = own;
-      capacity <= own * REUSE_SLACK;
-      capacity *= 2
-    ) {
+    for (let capacity = own; capacity <= own * REUSE_SLACK; capacity *= 2) {
       const slot = this.free.get(capacity)?.pop();
       if (slot) return slot;
     }
@@ -243,7 +239,7 @@ export class FarBatch {
     for (const page of this.pageList) {
       if (page.unusedVertexCount >= capacity) return page;
     }
-    const page = new BatchedMesh(
+    const page = new StaticBatchedMesh(
       PAGE_INSTANCES,
       Math.max(this.pageVertices, capacity),
       0,
