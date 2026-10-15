@@ -32,6 +32,17 @@ import {
   SKY_FOG_UNIFORM_DECLARATIONS,
 } from "./sky-fog";
 import {
+  SURFACE_WEATHER_ALBEDO_FRAGMENT,
+  SURFACE_WEATHER_CHUNK_UNIFORM_DECLARATIONS,
+  SURFACE_WEATHER_FUNCTIONS,
+  SURFACE_WEATHER_LIGHT_FRAGMENT,
+  SURFACE_WEATHER_TERRAIN_OPEN,
+  SURFACE_WEATHER_UNIFORM_DECLARATIONS,
+  SURFACE_WEATHER_WATER_CREST_FRAGMENT,
+  SURFACE_WEATHER_WATER_DECLARATION,
+  SURFACE_WEATHER_WATER_RINGS_FRAGMENT,
+} from "./surface-weather";
+import {
   FLOW_CREST_PHASE_PER_HEIGHT,
   FLUID_SPILL_CORNER_MIN_HEIGHT,
   UNDERSIDE_CRITICAL_COS,
@@ -677,6 +688,9 @@ uniform float uWaterRefractionStrength;
 uniform vec3 uSkyTopColor;
 uniform vec3 uSkyMiddleColor;
 uniform float uShadowDebugMode;
+${SURFACE_WEATHER_UNIFORM_DECLARATIONS}
+${SURFACE_WEATHER_CHUNK_UNIFORM_DECLARATIONS}
+${SURFACE_WEATHER_FUNCTIONS}
 
 varying float vAO;
 varying float vIsFluid;
@@ -947,6 +961,7 @@ if (uFarSeam > 0.0 && vIsFluid < 0.5) {
   diffuseColor *= sampledDiffuseColor;
   diffuseColor.rgb *= vStageTint;
 #endif
+${SURFACE_WEATHER_ALBEDO_FRAGMENT}
 `,
     )
     .replace(
@@ -1141,6 +1156,8 @@ if (underwaterCaustic > 0.0) {
     + ${WATER_OPTICS.bedCausticStrength.toFixed(4)} * uBedCausticScale * underwaterCaustic * causticSun;
 }
 
+${SURFACE_WEATHER_LIGHT_FRAGMENT}
+
 if (vIsFluid > 0.5) {
   float waveTime = uTime * 0.0005;
   vec3 wPos = vWorldPosition.xyz;
@@ -1242,6 +1259,7 @@ if (vIsFluid > 0.5) {
   // highlight.
   vec2 flowTilt = vec2(0.0);
   float flowCrest = 0.0;
+${SURFACE_WEATHER_WATER_DECLARATION}
   if (vWorldNormal.y >= 0.5) {
     // A slow isotropic wobble bends the contours so they read as water,
     // not as a survey map; continuous, so it cannot introduce a seam.
@@ -1277,6 +1295,7 @@ ${WATER_SURFACE_NORMAL_LAYERS_GLSL}
       // The flow crests tilt the normal too, so reflection, refraction and
       // the caustics below all travel downstream with them.
       + flowTilt * ${WATER_OPTICS.flowSlopeAmplitude.toFixed(4)};
+${SURFACE_WEATHER_WATER_RINGS_FRAGMENT}
     waterNormal = normalize(vec3(waterSlope.x, 1.0, waterSlope.y));
     // A facet steep enough to reflect the view ray back down into the water
     // is eased toward flat, so the reflection never samples the sky from
@@ -1606,6 +1625,7 @@ ${LOCAL_LIGHTS_SPECULAR_FRAGMENT}
 
   outgoingLight.rgb = mix(waterColor, skyReflection, fresnel);
   outgoingLight.rgb += specularColor;
+${SURFACE_WEATHER_WATER_CREST_FRAGMENT}
 
   // From below, the surface is a Snell window (style 1, the default),
   // evaluated per 1/16-block texel: inside the critical angle of the
@@ -1878,6 +1898,10 @@ export const SHADER_LIGHTING_CHUNK_SHADERS = {
 export const SHADER_LIGHTING_FLUID_CHUNK_SHADERS = {
   vertex: FULL_CHUNK_SHADERS.vertex,
   fragment: FULL_CHUNK_SHADERS.fragment
+    // A fluid face takes the weather as rings in its own branch; the
+    // ground's passes would only skip it per fragment.
+    .split(SURFACE_WEATHER_TERRAIN_OPEN)
+    .join("if (false) {")
     .replace(
       "float shadow0 = sampleShadowMap(uShadowMap0, vShadowCoord0, slopeBias, receiverBiasScale);",
       "float shadow0 = sampleShadowMapFast(uShadowMap0, vShadowCoord0, slopeBias, receiverBiasScale);",

@@ -13,6 +13,10 @@ import {
 } from "three";
 
 import { CustomChunkShaderMaterial } from "./chunk-materials";
+import {
+  createSurfaceWeatherUniforms,
+  type SurfaceWeatherUniforms,
+} from "./surface-weather";
 import { makeWaterNormalTexture } from "./water-normal-texture";
 import { WATER_OPTICS } from "./water-optics";
 
@@ -190,7 +194,9 @@ export class ChunkRenderer {
     farCover: { value: Vector4 };
     /** The seam band's ramp scale; 0 keeps the loaded edge hard. */
     farSeam: { value: number };
-  } = {
+  } & SurfaceWeatherUniforms = {
+    // Weather on surfaces (surface-weather.ts): off until a host sets it.
+    ...createSurfaceWeatherUniforms(),
     fogColor: { value: new Color("#B1CCFD") },
     fogNear: { value: 100 },
     fogFar: { value: 200 },

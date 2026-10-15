@@ -210,6 +210,7 @@ import {
 } from "./shaders";
 import { singlePassWhenOneFacing } from "./single-pass-sides";
 import { getSunDiscDirection, getVisibleDiscDirection, Sky } from "./sky";
+import { applySurfaceCoatFace } from "./surface-weather";
 import {
   emptyTally,
   IsolatedFaceLedger,
@@ -298,6 +299,7 @@ export * from "./shaders";
 export * from "./shadow-sampling";
 export * from "./sky";
 export * from "./sky-fog";
+export * from "./surface-weather";
 export * from "./texture-census";
 export * from "./textures";
 export * from "./uv";
@@ -3963,6 +3965,31 @@ export class World<T = any> extends Scene implements NetIntercept {
 
     return this.chunkRenderer.materials.get(
       makeChunkMaterialKey(this, block.id),
+    );
+  }
+
+  /**
+   * Colour the far layer's surface-weather coat
+   * (`chunkRenderer.uniforms.surfaceCoatColor`, see surface-weather.ts) as a
+   * block face's texels average: the face named, or the block's top. Call
+   * once block textures are painted; it returns false while the face's
+   * texels cannot be read yet.
+   */
+  setSurfaceCoatFace(idOrName: number | string, faceName?: string): boolean {
+    this.checkIsInitialized("set the surface coat face", false);
+    const block = this.getBlockOf(idOrName);
+    const face = faceName
+      ? block.faces.find(({ name }) => name === faceName)
+      : block.faces.find(
+          ({ dir }) => dir[0] === 0 && dir[1] === 1 && dir[2] === 0,
+        ) ?? block.faces[0];
+    if (!face) {
+      throw new Error(`${block.name} has no face "${faceName}" to coat with`);
+    }
+    const map = this.getBlockFaceMaterial(block.id, face.name)?.map;
+    return applySurfaceCoatFace(
+      this.chunkRenderer.uniforms,
+      map instanceof AtlasTexture ? map.readRangePixels(face.range) : null,
     );
   }
 
@@ -8198,6 +8225,12 @@ export class World<T = any> extends Scene implements NetIntercept {
         farCoverMask: chunkUniforms.farCoverMask,
         farCover: chunkUniforms.farCover,
         farSeam: chunkUniforms.farSeam,
+        surfaceWeather: chunkUniforms.surfaceWeather,
+        surfaceWeatherMap: chunkUniforms.surfaceWeatherMap,
+        surfaceWeatherWindow: chunkUniforms.surfaceWeatherWindow,
+        surfaceWeatherLine: chunkUniforms.surfaceWeatherLine,
+        surfaceCoatColor: chunkUniforms.surfaceCoatColor,
+        surfaceWind: chunkUniforms.surfaceWind,
       },
       {
         distance: this.options.farTerrainDistance,

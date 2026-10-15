@@ -74,6 +74,14 @@ import {
   SKY_FOG_UNIFORM_DECLARATIONS,
 } from "./sky-fog";
 import {
+  createSurfaceWeatherUniforms,
+  SURFACE_WEATHER_FAR_ALBEDO_FRAGMENT,
+  SURFACE_WEATHER_FAR_DECLARATIONS,
+  SURFACE_WEATHER_FAR_SHEEN_FRAGMENT,
+  type SurfaceWeatherUniforms,
+} from "./surface-weather";
+import { AtlasTexture } from "./textures";
+import {
   createUnderwaterFogFragment,
   WATER_DOWNWELLING_EXTINCTION_GLSL,
   WATER_OPTICS,
@@ -172,6 +180,17 @@ export type FarTerrainSharedUniforms = {
   farCoverMask: ShaderUniform<Texture | null>;
   farCover: ShaderUniform<Vector4>;
   farSeam: ShaderUniform<number>;
+  /**
+   * The weather on surfaces the chunks draw (surface-weather.ts), so the
+   * far land wears the same coat and wet ground; without them it wears
+   * none.
+   */
+  surfaceWeather?: SurfaceWeatherUniforms["surfaceWeather"];
+  surfaceWeatherMap?: SurfaceWeatherUniforms["surfaceWeatherMap"];
+  surfaceWeatherWindow?: SurfaceWeatherUniforms["surfaceWeatherWindow"];
+  surfaceWeatherLine?: SurfaceWeatherUniforms["surfaceWeatherLine"];
+  surfaceCoatColor?: SurfaceWeatherUniforms["surfaceCoatColor"];
+  surfaceWind?: SurfaceWeatherUniforms["surfaceWind"];
 };
 
 /** A tile's meshes, built off the main thread. */
@@ -569,6 +588,7 @@ flat varying vec4 vFarMaterial;
 flat varying vec2 vFarColumn;
 flat varying vec3 vFarTint;
 ${KIND_GLSL}
+${SURFACE_WEATHER_FAR_DECLARATIONS}
 
 float farCoverHash(vec2 cell) {
   uvec2 q = uvec2(ivec2(floor(cell)));
@@ -681,9 +701,10 @@ void main() {
     float code = depth < 1.0 ? m2.x : depth < 1.0 + ceil(m1.w / step) ? m2.y : m2.z;
     albedo = farLayerColor(code, uv, dx, dy);
   }
+${SURFACE_WEATHER_FAR_ALBEDO_FRAGMENT}
   float occlusion = vFarOcclusion;
   shadow = min(shadow, farTerrainSun(p));
-  ${lightAndFog()}
+  ${lightAndFog(SURFACE_WEATHER_FAR_SHEEN_FRAGMENT)}
 }
 `;
 
@@ -1159,11 +1180,25 @@ export class FarTerrain extends Group {
       uFarEdge: this.farEdge,
     });
 
+    // The weather the chunks wear, by reference; a host that shares none
+    // gets the inert defaults, and the land wears none.
+    const weatherDefaults = createSurfaceWeatherUniforms();
     this.landMaterial = new ShaderMaterial({
       vertexShader: VERTEX_SHADER,
       fragmentShader: LAND_FRAGMENT_SHADER,
       uniforms: {
         ...common(),
+        uSurfaceWeather:
+          shared.surfaceWeather ?? weatherDefaults.surfaceWeather,
+        uSurfaceWeatherMap:
+          shared.surfaceWeatherMap ?? weatherDefaults.surfaceWeatherMap,
+        uSurfaceWeatherWindow:
+          shared.surfaceWeatherWindow ?? weatherDefaults.surfaceWeatherWindow,
+        uSurfaceWeatherLine:
+          shared.surfaceWeatherLine ?? weatherDefaults.surfaceWeatherLine,
+        uSurfaceCoatColor:
+          shared.surfaceCoatColor ?? weatherDefaults.surfaceCoatColor,
+        uSurfaceWind: shared.surfaceWind ?? weatherDefaults.surfaceWind,
         uFarLayers: { value: this.layersTexture },
         uFarShadowMap: { value: this.shadowTexture },
         uFarShadow: this.shadowWindow,

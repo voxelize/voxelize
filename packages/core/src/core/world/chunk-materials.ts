@@ -15,6 +15,7 @@ import {
   Texture,
   Uniform,
   UniformsUtils,
+  Vector2,
 } from "three";
 
 import { Coords3 } from "../../types";
@@ -36,6 +37,11 @@ import {
   WATER_DEPTH_SIDE_OFF,
 } from "./shaders";
 import { bindSkyGlowUniforms } from "./sky";
+import {
+  bindSurfaceWeatherUniforms,
+  SURFACE_OPEN_LIGHT,
+  SURFACE_RESPONSE,
+} from "./surface-weather";
 import { AtlasTexture, type AtlasFilteringMode } from "./textures";
 import { positionUnitsPerBlock } from "./vertex-quantization";
 
@@ -446,6 +452,11 @@ export function makeChunkShaderMaterial(
       uFarCoverMask: chunksUniforms.farCoverMask,
       uFarCover: chunksUniforms.farCover,
       uFarSeam: chunksUniforms.farSeam,
+      ...bindSurfaceWeatherUniforms(chunksUniforms),
+      // Per material: how it takes the weather (SURFACE_RESPONSE). Forks
+      // share it with the material they draw for.
+      uSurfaceResponse: { value: new Vector2(...SURFACE_RESPONSE.solid) },
+      uSurfaceOpenLight: { value: new Vector2(...SURFACE_OPEN_LIGHT.solid) },
       uChunkReveal: { value: 1 },
       // Per material: a chunk's greedy faces take their texels from where
       // they are drawn; a voxel box's forks turn on a frame of their own.
@@ -644,6 +655,19 @@ export async function loadChunkMaterials(
     mat.uniforms.map.value = map;
     mat.userData.skipShadow = !castsShadow;
     mat.userData.isFluid = isFluid;
+    mat.uniforms.uSurfaceResponse.value.set(
+      ...(isFluid
+        ? SURFACE_RESPONSE.fluid
+        : transparent
+          ? SURFACE_RESPONSE.seeThrough
+          : SURFACE_RESPONSE.solid),
+    );
+    // A see-through block's faces carry its own voxel's light.
+    if (transparent) {
+      mat.uniforms.uSurfaceOpenLight.value.set(
+        ...SURFACE_OPEN_LIGHT.seeThrough,
+      );
+    }
 
     // Sorted-transparent meshes (the depth-non-writing ones the main-thread
     // sorter rewrites) keep full-float positions; everything else is
@@ -708,6 +732,8 @@ export async function loadChunkMaterials(
     mat.map = atlas;
     mat.uniforms.map.value = atlas;
     mat.userData.skipShadow = !isShadowCasting;
+    mat.uniforms.uSurfaceResponse.value.set(...SURFACE_RESPONSE.cutout);
+    mat.uniforms.uSurfaceOpenLight.value.set(...SURFACE_OPEN_LIGHT.seeThrough);
     applyQuantizedPositionDefine(mat, positionUnits);
     return mat;
   };
