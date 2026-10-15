@@ -54,7 +54,23 @@ export type WorldClientOptions = {
    */
   meshJobTimeoutMs: number;
 
+  /**
+   * Chunk sections the mesh dispatcher may start in about a frame, air
+   * sections (which finish without a worker) included; the rest wait for
+   * the next frame. Workers are refilled as their jobs finish, so this only
+   * bounds the main thread's dispatch work. Defaults to `32`.
+   */
   maxMeshesPerUpdate: number;
+
+  /**
+   * Regular (non-urgent) chunk mesh jobs running at once; each worker that
+   * finishes takes the next nearest section. More stream terrain in sooner
+   * and cost frame time: on a sprint flight (M5 Max) 2 drew a column about
+   * 0.9 s after it came into range where 1 took 1.7 s, for about a
+   * millisecond more a frame, and 3 or 4 doubled the slowest frames.
+   * Capped by the mesh worker pool. Defaults to `2`.
+   */
+  meshJobsInFlight: number;
 
   /**
    * How long, in milliseconds, a finished re-mesh of a section already on
@@ -533,7 +549,8 @@ export const defaultWorldClientOptions: WorldClientOptions = {
   lightJobTimeoutMs: 20000,
   meshJobTimeoutMs: 30000,
   maxLightsUpdateTime: 5, // ms
-  maxMeshesPerUpdate: 8,
+  maxMeshesPerUpdate: 32,
+  meshJobsInFlight: 2,
   borderSwapHoldMs: 20000,
   maxUrgentMeshWorkers: 4,
   isCullingChunksByFrustum: true,

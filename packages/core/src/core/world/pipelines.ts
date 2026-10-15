@@ -543,6 +543,12 @@ function keyColumnDistanceSq(key: string, centerX: number, centerZ: number) {
   return dx * dx + dz * dz;
 }
 
+/**
+ * Rebuilds of sections already on screen that may be started in a row ahead
+ * of a nearer-than-them section with nothing drawn yet.
+ */
+const REBUILD_QUOTA = 2;
+
 export class MeshPipeline {
   private states = new Map<string, MeshState>();
   private dirty = new Set<string>();
@@ -735,6 +741,77 @@ export class MeshPipeline {
 
   /** Each dirty key's distance for one {@link getDirtyKeys} sort. */
   private dirtyKeyDistances = new Map<string, number>();
+
+  /** Urgent keys a dispatch can start now, in the order they went dirty. */
+  urgentDirtyKeys(): string[] {
+    return [...this.urgentDirty].filter((key) => this.shouldStartJob(key));
+  }
+
+  /**
+   * The keys to dispatch next: the urgent lane whole, then at most `limit`
+   * regular keys, nearest first but sections with nothing on screen ahead
+   * of rebuilds of ones already drawn (`REBUILD_QUOTA`). Found in one pass
+   * instead of a sort: a
+   * flight keeps thousands of sections dirty, and sorting them all for
+   * every dispatch cost more than the dispatches did. A regular key
+   * `isReady` turns down is left out (and stays dirty) for this pass.
+   */
+  nearestDirtyKeys(
+    center: Coords2,
+    limit: number,
+    isReady?: (key: string) => boolean,
+  ): string[] {
+    const urgentKeys = this.urgentDirtyKeys();
+    const [centerX, centerZ] = center;
+    // Two lanes, each the nearest `limit`: sections with nothing on screen
+    // yet, and sections being rebuilt (a neighbour landed, the light moved).
+    const fresh: string[] = [];
+    const freshDistances: number[] = [];
+    const rebuilt: string[] = [];
+    const rebuiltDistances: number[] = [];
+    for (const key of this.dirty) {
+      if (this.urgentDirty.has(key)) continue;
+      const isFresh = !this.hasDisplayed(key);
+      const keys = isFresh ? fresh : rebuilt;
+      const distances = isFresh ? freshDistances : rebuiltDistances;
+      const distance = keyColumnDistanceSq(key, centerX, centerZ);
+      if (keys.length >= limit && distance >= distances[limit - 1]) continue;
+      if (!this.shouldStartJob(key)) continue;
+      if (isReady && !isReady(key)) continue;
+      // Insertion keeps the kept keys sorted; equal distances keep the
+      // dirty set's insertion order, as the full sort does.
+      let at = keys.length;
+      while (at > 0 && distances[at - 1] > distance) at -= 1;
+      keys.splice(at, 0, key);
+      distances.splice(at, 0, distance);
+      if (keys.length > limit) {
+        keys.pop();
+        distances.pop();
+      }
+    }
+    // Fresh sections first: terrain nobody can see yet beats a better
+    // version of terrain already drawn. A rebuild goes first only when it
+    // is nearer, and at most REBUILD_QUOTA in a row, so a stream of them
+    // near the camera cannot starve the frontier.
+    const ordered: string[] = [];
+    let quota = REBUILD_QUOTA;
+    let f = 0;
+    let r = 0;
+    while (ordered.length < limit && (f < fresh.length || r < rebuilt.length)) {
+      const takeRebuild =
+        r < rebuilt.length &&
+        (f >= fresh.length ||
+          (quota > 0 && rebuiltDistances[r] < freshDistances[f]));
+      if (takeRebuild) {
+        ordered.push(rebuilt[r++]);
+        quota -= 1;
+      } else {
+        ordered.push(fresh[f++]);
+        quota = REBUILD_QUOTA;
+      }
+    }
+    return [...urgentKeys, ...ordered];
+  }
 
   hasDirtyChunks(): boolean {
     for (const key of this.urgentDirty) {

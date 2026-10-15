@@ -56,9 +56,10 @@ describe("BorderSwapHold", () => {
 /**
  * A render disc streaming in through the real MeshPipeline with the World's
  * scheduling around it: every arriving chunk re-queues its ready neighbours
- * (`markChunkAndNeighborsForMeshing`), and dispatch runs batches of one job
- * per worker, each awaited whole, the next starting two frames later
- * (`processDirtyChunks`). Time is in frames.
+ * (`markChunkAndNeighborsForMeshing`), and every worker takes the nearest
+ * dirty section as soon as its last job lands (`processDirtyChunks`). The
+ * `batched` dispatch is the one before it: a batch of one job per worker,
+ * awaited whole, the next starting two frames later. Time is in frames.
  *
  * A border gap is a re-mesh swapped in (the wall it drew against a missing
  * chunk comes down) while the chunk whose arrival asked for it still has a
@@ -67,6 +68,9 @@ describe("BorderSwapHold", () => {
  */
 /** `before` swaps every re-mesh in on arrival; `held` is the World now. */
 type Policy = "before" | "held";
+
+/** `refill` is the World's dispatch now; `batched` the one before it. */
+type Dispatch = "refill" | "batched";
 
 type Scenario = {
   radius: number;
@@ -87,7 +91,11 @@ const mulberry32 = (seed: number) => () => {
   return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
 };
 
-function stream(policy: Policy, scenario: Scenario) {
+function stream(
+  policy: Policy,
+  scenario: Scenario,
+  dispatch: Dispatch = "refill",
+) {
   const random = mulberry32(scenario.seed);
   const between = ([low, high]: [number, number]) =>
     low + Math.floor(random() * (high - low + 1));
@@ -209,16 +217,26 @@ function stream(policy: Policy, scenario: Scenario) {
       }
     }
 
-    if (batch.length > 0 && batch.every((job) => job.doneAt <= frame)) {
-      for (const job of batch) land(job.key, job.generation, job.covers);
-      batch = [];
-      nextDispatchAt = frame + 2;
+    if (dispatch === "batched") {
+      if (batch.length > 0 && batch.every((job) => job.doneAt <= frame)) {
+        for (const job of batch) land(job.key, job.generation, job.covers);
+        batch = [];
+        nextDispatchAt = frame + 2;
+      }
+    } else {
+      const done = batch.filter((job) => job.doneAt <= frame);
+      batch = batch.filter((job) => job.doneAt > frame);
+      for (const job of done) land(job.key, job.generation, job.covers);
     }
 
-    if (batch.length === 0 && frame >= nextDispatchAt) {
-      for (const key of pipeline
-        .getDirtyKeys([0, 0])
-        .slice(0, scenario.workers)) {
+    const free =
+      dispatch === "batched"
+        ? batch.length === 0 && frame >= nextDispatchAt
+          ? scenario.workers
+          : 0
+        : scenario.workers - batch.length;
+    if (free > 0) {
+      for (const key of pipeline.nearestDirtyKeys([0, 0], free)) {
         const covers = causes.get(key) ?? new Set<string>();
         causes.delete(key);
         batch.push({
@@ -290,16 +308,27 @@ describe("frontier borders while a render disc streams in", () => {
     it(`${name}: no border opens before what covers it is drawn`, () => {
       const before = stream("before", scenario);
       const held = stream("held", scenario);
-      console.log(`[border-gaps] ${name}`, JSON.stringify({ before, held }));
+      const batched = stream("held", scenario, "batched");
+      console.log(
+        `[border-gaps] ${name}`,
+        JSON.stringify({ before, held, batched }),
+      );
 
       expect(before.borderGaps).toBeGreaterThan(0);
       expect(held.borderGaps).toBe(0);
       expect(held.heldAtEnd).toBe(0);
       expect(held.staleAtEnd).toBe(0);
       expect(before.staleAtEnd).toBe(0);
-      // Holding the swap back must not slow new terrain or add work.
-      expect(held.visibleFill).toBeLessThanOrEqual(before.visibleFill);
-      expect(held.jobs).toBeLessThanOrEqual(before.jobs * 1.01);
+      // Holding the swap back must barely slow new terrain or add work. A
+      // held section's job stays in flight, so a neighbour arriving while it
+      // waits costs it one more job: a few percent where the server holds
+      // chunks back, nothing elsewhere.
+      expect(held.visibleFill).toBeLessThanOrEqual(before.visibleFill * 1.05);
+      expect(held.jobs).toBeLessThanOrEqual(before.jobs * 1.05);
+      // Refilling each worker as it lands fills the disc no later than
+      // batches did, and opens no border either.
+      expect(batched.borderGaps).toBe(0);
+      expect(held.visibleFill).toBeLessThanOrEqual(batched.visibleFill);
     });
   }
 });

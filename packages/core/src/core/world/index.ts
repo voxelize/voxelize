@@ -310,6 +310,15 @@ const warnedUnloadedUpdateChunks = new Set<string>();
 /** Overdue chunk requests one report names before summing up the rest. */
 const MAX_OVERDUE_CHUNKS_NAMED = 8;
 
+/** Dirty sections picked, nearest first, for one mesh dispatch window. */
+const MESH_CANDIDATES = 64;
+/** A mesh dispatch window (`maxMeshesPerUpdate` sections), about a frame. */
+const MESH_DISPATCH_WINDOW_MS = 16;
+/** Past this frame time a finished mesh job leaves its refill to the next frame. */
+const MESH_REFILL_FRAME_MS = 25;
+/** How long a section waits for a neighbouring chunk already on its way. */
+const MESH_NEIGHBOUR_WAIT_MS = 1_000;
+
 /** Main-thread time a frame gives every voxel box being built, together: a
  * felled giant baking several boxes at once still costs one budget. */
 const VOXEL_BOX_FRAME_BUDGET_MS = 2;
@@ -622,6 +631,17 @@ export class World<T = any> extends Scene implements NetIntercept {
 
   /** The render loop has driven at least one {@link update} tick. */
   private isTicking = false;
+
+  /** The nearest dirty sections, picked for this dispatch window. */
+  private meshCandidates: string[] = [];
+  private meshCandidatesAt = -Infinity;
+
+  /** When this dispatch window began and how many sections it started. */
+  private meshDispatchWindowAt = -Infinity;
+  private meshDispatchesInWindow = 0;
+
+  /** How long the last frame took, from one {@link update} to the next. */
+  private lastFrameMs = 0;
 
   /**
    * The voxel physics engine using `@voxelize/physics-engine`.
@@ -5423,6 +5443,7 @@ export class World<T = any> extends Scene implements NetIntercept {
 
     this.timer.update();
     const delta = this.timer.getDelta();
+    this.lastFrameMs = delta * 1000;
 
     const center = ChunkUtils.mapVoxelToChunk(
       position.toArray() as Coords3,
@@ -8331,138 +8352,225 @@ export class World<T = any> extends Scene implements NetIntercept {
     this.scheduleDirtyChunkProcessing();
   }
 
-  private processDirtyChunks = async () => {
-    const dirtyKeys = this.meshPipeline.getDirtyKeys(this.centerChunk);
-    if (dirtyKeys.length === 0) return;
-
-    const urgentKeys = dirtyKeys.filter((key) =>
-      this.meshPipeline.isUrgent(key),
-    );
+  /**
+   * Start every dirty section the mesh workers can take now, nearest the
+   * camera first; each job settles on its own (`settleMeshJob`) and frees its
+   * worker for the next section at once. It used to start a batch, wait for
+   * the slowest job in it and then two frames: a flight dirtied sections
+   * faster than that, and they waited seconds to be dispatched while the
+   * workers sat idle. Air sections finish here without a worker, so a
+   * window of about a frame starts at most `maxMeshesPerUpdate`; the rest
+   * goes to the next frame.
+   */
+  private processDirtyChunks = () => {
+    const urgentKeys = this.meshPipeline.urgentDirtyKeys();
     if (
       urgentKeys.length === 0 &&
       (this.urgentMeshWorkerPool.workingCount > 0 ||
         this.urgentMeshWorkerPool.queue.length > 0)
     ) {
-      this.scheduleDirtyChunkProcessing();
+      // Regular meshing waits out the player's own edits; their jobs
+      // settling start it again.
       return;
     }
 
-    const maxConcurrentMeshJobs = this.options.maxMeshesPerUpdate || 8;
-    const candidateKeys = urgentKeys.length > 0 ? urgentKeys : dirtyKeys;
-    // Dispatch only what the target pool can start right now. A dispatched
-    // job eagerly serializes its 9-chunk stencil, and a saturated pool used
-    // to park those multi-MB payloads in its queue — during update floods
-    // that queue grew without bound and OOMed the renderer.
-    const targetPool =
-      urgentKeys.length > 0 ? this.urgentMeshWorkerPool : this.meshWorkerPool;
-    const workerPromises = [];
-    for (const key of candidateKeys) {
-      // Dispatch reserves a worker synchronously only when it actually
-      // needs one. Air sections complete locally, so they must not consume
-      // an imaginary worker slot and stall the rest of this bounded batch.
-      if (
-        workerPromises.length >= maxConcurrentMeshJobs ||
-        targetPool.workingCount + targetPool.queue.length >=
-          targetPool.options.maxWorker
-      ) {
-        break;
+    const now = performance.now();
+    if (now - this.meshDispatchWindowAt > MESH_DISPATCH_WINDOW_MS) {
+      this.meshDispatchWindowAt = now;
+      this.meshDispatchesInWindow = 0;
+    }
+
+    const isUrgent = urgentKeys.length > 0;
+    const pool = isUrgent ? this.urgentMeshWorkerPool : this.meshWorkerPool;
+    // Player edits take every urgent worker; streaming keeps to
+    // `meshJobsInFlight`, since more busy workers made the frames uneven.
+    const jobLimit = isUrgent
+      ? pool.options.maxWorker
+      : Math.max(
+          1,
+          Math.min(pool.options.maxWorker, this.options.meshJobsInFlight),
+        );
+    // The nearest regular keys are picked once a window and taken from as
+    // workers free up; a key started or cleaned since is skipped below.
+    if (
+      !isUrgent &&
+      (this.meshCandidates.length === 0 ||
+        now - this.meshCandidatesAt > MESH_DISPATCH_WINDOW_MS)
+    ) {
+      this.meshCandidates = this.meshPipeline.nearestDirtyKeys(
+        this.centerChunk,
+        MESH_CANDIDATES,
+        this.isSectionMeshable,
+      );
+      this.meshCandidatesAt = now;
+    }
+    let candidates = isUrgent ? urgentKeys : this.meshCandidates;
+    let isRefreshed = false;
+
+    for (;;) {
+      if (candidates.length === 0) {
+        // The picked keys ran out with workers still free: pick again once,
+        // and stop when nothing startable is left.
+        if (isUrgent || isRefreshed) break;
+        this.meshCandidates = this.meshPipeline.nearestDirtyKeys(
+          this.centerChunk,
+          MESH_CANDIDATES,
+          this.isSectionMeshable,
+        );
+        this.meshCandidatesAt = now;
+        candidates = this.meshCandidates;
+        isRefreshed = true;
+        if (candidates.length === 0) return;
       }
+      if (this.meshDispatchesInWindow >= this.options.maxMeshesPerUpdate) {
+        this.scheduleDirtyChunkProcessing();
+        return;
+      }
+      // Dispatch reserves a worker synchronously only when it needs one;
+      // an air section completes locally without taking a slot.
+      if (pool.workingCount + pool.queue.length >= jobLimit) {
+        return;
+      }
+      const key = candidates.shift() as string;
+      if (!this.meshPipeline.shouldStartJob(key)) continue;
       const { cx, cz, level } = MeshPipeline.parseKey(key);
       const isPriority = this.meshPipeline.isUrgent(key);
       const generation = this.meshPipeline.startJob(key);
-
-      workerPromises.push(
-        this.dispatchMeshWorker(cx, cz, level, isPriority).then(
-          (result) =>
-            ({
-              cx,
-              cz,
-              level,
-              generation,
-              key,
-              geometries: result?.geometries ?? null,
-              connectivity: result?.connectivity ?? CONNECTIVITY_FULL,
-            }) as const,
-          (error) => {
-            // A dispatch that throws (e.g. payload serialization failing an
-            // array-buffer allocation under memory pressure) must still settle:
-            // an unhandled rejection here escapes Promise.all, skips every
-            // failJob in the batch, and leaves those generations in flight
-            // forever — wedging the whole mesh pipeline on chunks that will
-            // never be retried.
-            console.error(`[world] mesh dispatch failed for ${key}`, error);
-            return {
-              cx,
-              cz,
-              level,
-              generation,
-              key,
-              geometries: null,
-              connectivity: CONNECTIVITY_FULL,
-            } as const;
-          },
-        ),
+      this.meshDispatchesInWindow += 1;
+      this.dispatchMeshWorker(cx, cz, level, isPriority).then(
+        (result) =>
+          this.settleMeshJob(
+            key,
+            cx,
+            cz,
+            level,
+            generation,
+            isPriority,
+            result,
+          ),
+        (error) => {
+          // A dispatch that throws (e.g. payload serialization failing an
+          // array-buffer allocation under memory pressure) must still
+          // settle, or its generation stays in flight forever and wedges
+          // the section on a chunk that is never retried.
+          console.error(`[world] mesh dispatch failed for ${key}`, error);
+          this.settleMeshJob(key, cx, cz, level, generation, isPriority, null);
+        },
       );
     }
 
-    const results = await Promise.all(workerPromises);
-    const isUrgentBatch = urgentKeys.length > 0;
-
-    for (const result of results) {
-      if (result.geometries) {
-        // Urgent results (player edits) apply immediately for latency; the
-        // join flow applies immediately too so loading drains at full speed.
-        // Steady-state regular results queue up and apply under a per-frame
-        // time budget so a burst of finished sections cannot spike a frame.
-        if (isUrgentBatch || !this.isTicking) {
-          this.applyMeshResult(
-            result.cx,
-            result.cz,
-            result.level,
-            result.geometries,
-            result.connectivity,
-            result.generation,
-          );
-        } else {
-          this.pendingMeshResults.push({
-            cx: result.cx,
-            cz: result.cz,
-            level: result.level,
-            geometries: result.geometries,
-            connectivity: result.connectivity,
-            generation: result.generation,
-          });
-          this.scheduleMeshResultDrain();
-        }
-      } else {
-        // dispatchMeshWorker returns null when the chunk is mid-load/update
-        // or neighbors are missing. startJob already reserved this generation
-        // in inFlightGenerations; without releasing it, shouldStartJob stays
-        // false forever and the client keeps the pre-break ghost mesh even
-        // though getVoxelAt is already air (server echo is a no-op then).
-        this.meshPipeline.failJob(result.key, result.generation);
-      }
-
-      if (this.meshPipeline.needsRemesh(result.key)) {
-        this.scheduleDirtyChunkProcessing();
-      }
-    }
-
+    // Every startable key was started; any left over show up next frame.
     if (this.meshPipeline.hasDirtyChunks()) {
       this.scheduleDirtyChunkProcessing();
     }
   };
 
+  /**
+   * Whether a dirty section should be meshed now: not while a neighbouring
+   * chunk is on its way (asked for, arriving, or loaded and still lighting)
+   * and has been for under `MESH_NEIGHBOUR_WAIT_MS`. A section meshed
+   * without a neighbour is meshed again when it lands; during a flight that
+   * was two dispatches in five, and the second one was the one that showed.
+   * A neighbour nobody asked for (past the load radius) or one that is late
+   * holds nothing back.
+   */
+  private isSectionMeshable = (key: string) => {
+    const { cx, cz } = MeshPipeline.parseKey(key);
+    const now = performance.now();
+    for (let dx = -1; dx <= 1; dx++) {
+      for (let dz = -1; dz <= 1; dz++) {
+        if (dx === 0 && dz === 0) continue;
+        const name = ChunkUtils.getChunkName([cx + dx, cz + dz]);
+        const stage = this.chunkPipeline.getStage(name);
+        if (stage === null) continue;
+        if (stage === "loaded") {
+          if (this.chunkPipeline.getLoadedChunk(name)?.isReady !== false) {
+            continue;
+          }
+          const loadedAt = this.chunkPipeline.getTiming(name)?.loadedAt;
+          if (loadedAt != null && now - loadedAt < MESH_NEIGHBOUR_WAIT_MS) {
+            return false;
+          }
+          continue;
+        }
+        const askedAt = this.chunkPipeline.getTiming(name)?.requestedAt;
+        if (askedAt == null || now - askedAt < MESH_NEIGHBOUR_WAIT_MS) {
+          return false;
+        }
+      }
+    }
+    return true;
+  };
+
+  /**
+   * One mesh job's end: urgent results (player edits) and the join flow's
+   * apply at once, steady-state results queue for the budgeted drain. A job
+   * that produced nothing (its chunk mid-load or gone) releases its
+   * generation and retries on the next frame's pass; one that did frees its
+   * worker for the next nearest section now.
+   */
+  private settleMeshJob(
+    key: string,
+    cx: number,
+    cz: number,
+    level: number,
+    generation: number,
+    isPriority: boolean,
+    result: { geometries: GeometryProtocol[]; connectivity: number } | null,
+  ) {
+    if (!result) {
+      // dispatchMeshWorker answers null when the chunk is mid-load/update or
+      // gone. startJob reserved this generation; without releasing it,
+      // shouldStartJob stays false forever and the client keeps the
+      // pre-break ghost mesh even though getVoxelAt is already air.
+      this.meshPipeline.failJob(key, generation);
+      this.scheduleDirtyChunkProcessing();
+      return;
+    }
+    if (isPriority || !this.isTicking) {
+      this.applyMeshResult(
+        cx,
+        cz,
+        level,
+        result.geometries,
+        result.connectivity,
+        generation,
+      );
+    } else {
+      this.pendingMeshResults.push({
+        cx,
+        cz,
+        level,
+        geometries: result.geometries,
+        connectivity: result.connectivity,
+        generation,
+      });
+      this.scheduleMeshResultDrain();
+    }
+    // The section changed again while this job ran: its result re-dirties
+    // it once applied, which the drain may do a frame from now.
+    if (this.meshPipeline.needsRemesh(key)) {
+      this.scheduleDirtyChunkProcessing();
+    }
+    // A long last frame means the main thread has no room to spare: the
+    // next frame's pass fills the free workers instead, so a machine short
+    // of cores meshes at the frame's pace rather than at its expense.
+    if (this.lastFrameMs > MESH_REFILL_FRAME_MS) {
+      this.scheduleDirtyChunkProcessing();
+      return;
+    }
+    this.processDirtyChunks();
+  }
+
+  /** The next frame's dispatch pass, once however often it is asked for. */
   private scheduleDirtyChunkProcessing = (() => {
     let scheduled = false;
     return () => {
       if (scheduled) return;
       scheduled = true;
       requestAnimationFrame(() => {
-        requestAnimationFrame(() => {
-          scheduled = false;
-          this.processDirtyChunks();
-        });
+        scheduled = false;
+        this.processDirtyChunks();
       });
     };
   })();

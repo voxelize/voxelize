@@ -541,6 +541,73 @@ describe("MeshPipeline voxel-change remesh", () => {
     ]);
   });
 
+  it("picks the nearest dirty keys without sorting them all", () => {
+    const pipeline = new MeshPipeline();
+    const columns: [number, number][] = [];
+    for (let cx = -6; cx <= 6; cx++) {
+      for (let cz = -6; cz <= 6; cz++) columns.push([cx, cz]);
+    }
+    // A shuffled insertion order, so the pass cannot lean on it.
+    for (let i = columns.length - 1; i > 0; i--) {
+      const j = (i * 7919) % (i + 1);
+      [columns[i], columns[j]] = [columns[j], columns[i]];
+    }
+    for (const [cx, cz] of columns) pipeline.onVoxelChange(cx, cz, 1);
+    pipeline.onVoxelChange(40, 40, 0, true);
+    const inFlight = MeshPipeline.makeKey(0, 0, 1);
+    pipeline.startJob(inFlight);
+    pipeline.onVoxelChange(0, 0, 1);
+
+    for (const center of [
+      [0, 0],
+      [5, -3],
+      [-20, 7],
+    ] as [number, number][]) {
+      const full = pipeline.getDirtyKeys(center);
+      const nearest = pipeline.nearestDirtyKeys(center, 12);
+      // The urgent lane leads, whole; then the regular lane's nearest 12,
+      // exactly the full sort's first 12 (an in-flight key in neither).
+      expect(nearest).toEqual(full.slice(0, 13));
+      expect(nearest[0]).toBe("40,40:0");
+      expect(nearest).not.toContain(inFlight);
+    }
+    expect(pipeline.nearestDirtyKeys([0, 0], 1000)).toEqual(
+      pipeline.getDirtyKeys([0, 0]),
+    );
+  });
+
+  it("dispatches sections with nothing drawn ahead of nearer rebuilds, two at most", () => {
+    const pipeline = new MeshPipeline();
+    const shown = (cx: number) => {
+      pipeline.onVoxelChange(cx, 0, 0);
+      const key = MeshPipeline.makeKey(cx, 0, 0);
+      pipeline.onJobComplete(key, pipeline.startJob(key));
+      pipeline.onVoxelChange(cx, 0, 0);
+    };
+    // Rebuilds at 1..4 columns from the centre, fresh sections at 5 and 6.
+    for (const cx of [1, 2, 3, 4]) shown(cx);
+    pipeline.onVoxelChange(5, 0, 0);
+    pipeline.onVoxelChange(6, 0, 0);
+
+    expect(pipeline.nearestDirtyKeys([0, 0], 10)).toEqual([
+      "1,0:0",
+      "2,0:0",
+      "5,0:0",
+      "3,0:0",
+      "4,0:0",
+      "6,0:0",
+    ]);
+    // A rebuild farther than every fresh section waits for them all.
+    expect(pipeline.nearestDirtyKeys([7, 0], 10)).toEqual([
+      "6,0:0",
+      "5,0:0",
+      "4,0:0",
+      "3,0:0",
+      "2,0:0",
+      "1,0:0",
+    ]);
+  });
+
   it("reads negative and multi-digit columns off the key for that order", () => {
     const pipeline = new MeshPipeline();
     const columns: [number, number][] = [
