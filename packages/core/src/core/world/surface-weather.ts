@@ -7,6 +7,7 @@ import {
   RGBAFormat,
   type Texture,
   UnsignedByteType,
+  Vector3,
   Vector4,
 } from "three";
 
@@ -15,8 +16,8 @@ import { meanLinearRgb } from "./far-terrain-tiles";
 /**
  * Weather on surfaces: what rain and snow leave on the world, drawn by the
  * terrain shaders themselves. Rain darkens open ground and gives it a calm
- * sky sheen, fills sparse puddles in hollows, and pocks open ground with
- * pixel splashes and still water with rings while it falls. Snow near the
+ * sky sheen, and pocks open ground with pixel splashes and still water with
+ * rings while it falls. Snow near the
  * player is the host's to lay as blocks; only the far layer, which has no
  * blocks to lay it on, wears a coat that grows from patches to white.
  *
@@ -36,14 +37,9 @@ export const SURFACE_WEATHER_TEXELS = 16;
 
 /** The tuning of every surface-weather term, shared by the GLSL and its TypeScript twins. */
 export const SURFACE_WEATHER = {
-  /** The stricter sky exposure a puddle needs (none under an eave). */
-  puddleSkyFrom: 0.95,
-  puddleSkyTo: 0.995,
   /** World normal y over which a face counts as facing up. */
   upFrom: 0.55,
   upTo: 0.9,
-  /** Normal y a puddle needs: flat ground only. */
-  puddleFlat: 0.97,
   /** Albedo scale of fully wet porous ground, and its saturation lift. */
   wetDarken: 0.65,
   wetSaturation: 0.15,
@@ -55,17 +51,9 @@ export const SURFACE_WEATHER = {
   sheenMax: 0.15,
   /** Per-texel sheen variation (porosity), and its mean once texels are subpixel. */
   sheenGrainFloor: 0.75,
-  /** Puddles: albedo scale, share of flat ground at full level, lean toward inside corners. */
-  puddleDarken: 0.5,
-  puddleShare: 0.3,
-  puddleCornerBias: 0.25,
-  /** The puddle's Fresnel ceiling and how far the rain rings tilt it. */
-  puddleReflectMax: 0.6,
-  puddleRingTilt: 0.6,
-  /** The wet sun glint: its sharpness, and its strength on wet ground and puddles. */
+  /** The wet sun glint: its sharpness, and its strength on wet ground. */
   glintExponent: 120,
   glintWet: 0.3,
-  glintPuddle: 0.6,
   /** The coat's drift field: two octaves (blocks per cell), weights, contrast. */
   driftScaleLarge: 3.5,
   driftScaleSmall: 1.3,
@@ -89,9 +77,6 @@ export const SURFACE_WEATHER = {
   /** Blocks per pixel over which the drift patches hand over to their mean. */
   driftFadeFrom: 0.35,
   driftFadeTo: 1.0,
-  /** Pixels per texel over which a texel pattern hands over to its density. */
-  texelFadeFrom: 0.6,
-  texelFadeTo: 1.4,
   /** The roughening of the snow line, blocks: two octaves of (cell, swing). */
   lineJitterLarge: { cell: 23, swing: 6 },
   lineJitterSmall: { cell: 7, swing: 2 },
@@ -114,7 +99,7 @@ export const SURFACE_WEATHER = {
   pockFadeFrom: 0.8,
   pockFadeTo: 2.0,
   /**
-   * Rain rings on still water and puddles: three layers of one-block cells,
+   * Rain rings on still water: three layers of one-block cells,
    * a ring's life (s), its widest radius (blocks), the wave's sharpness
    * (radians per block), the share of slots that ring, the slope it tilts
    * the surface by, and the distance (blocks) it fades over.
@@ -138,12 +123,11 @@ const f = (value: number, digits = 4) => value.toFixed(digits);
 export type SurfaceWeatherUniforms = {
   /**
    * x: rain falling now, 0..1 (pocks on open ground, rings on open water);
-   * y, z, w: wetness, the far layer's coat and puddle gains, 0..1, each
-   * multiplying its channel of `surfaceWeatherMap`. All zero skips every
-   * term.
+   * y, z: wetness and the far layer's coat gains, 0..1, each multiplying
+   * its channel of `surfaceWeatherMap`. All zero skips every term.
    */
-  surfaceWeather: { value: Vector4 };
-  /** RGBA8, linear filtered: r coat, g wetness, b puddles, a the coat line (see `surfaceWeatherLine`). */
+  surfaceWeather: { value: Vector3 };
+  /** RGBA8, linear filtered: r coat, g wetness, b unused, a the coat line (see `surfaceWeatherLine`). */
   surfaceWeatherMap: { value: Texture };
   /** `(x0, z0, 1 / width, 1 / depth)` in blocks: the map's uv is `(xz - (x0, z0)) * (1 / width, 1 / depth)`. */
   surfaceWeatherWindow: { value: Vector4 };
@@ -159,7 +143,7 @@ export type SurfaceWeatherUniforms = {
   surfaceWind: { value: Vector4 };
 };
 
-/** A 1x1 map holding nothing: no coat, no wetness, no puddles. */
+/** A 1x1 map holding nothing: no coat, no wetness. */
 export function makeSurfaceWeatherMap(
   data: Uint8Array = new Uint8Array(4),
   width = 1,
@@ -186,7 +170,7 @@ export function makeSurfaceWeatherMap(
 /** The defaults: everything off. */
 export function createSurfaceWeatherUniforms(): SurfaceWeatherUniforms {
   return {
-    surfaceWeather: { value: new Vector4(0, 0, 0, 0) },
+    surfaceWeather: { value: new Vector3(0, 0, 0) },
     surfaceWeatherMap: { value: makeSurfaceWeatherMap() },
     surfaceWeatherWindow: { value: new Vector4(0, 0, 1, 1) },
     surfaceWeatherLine: { value: new Vector4(0, 0, S.lineBand, 0) },
@@ -224,24 +208,24 @@ export function applySurfaceCoatFace(
 }
 
 /**
- * How a chunk material takes the weather (`uSurfaceResponse`, per
- * material): x wetness, y puddles. Both zero skips the material entirely.
+ * How far a chunk material takes the weather (`uSurfaceResponse`, per
+ * material): its wetness. Zero skips the material entirely.
  */
 export const SURFACE_RESPONSE = {
   /** Solid ground and everything drawn like it. */
-  solid: [1, 1],
-  /** Leaves and other cutouts: wet, but no puddles on a canopy. */
-  cutout: [1, 0],
+  solid: 1,
+  /** Leaves and other cutouts. */
+  cutout: 1,
   /** Blended see-through blocks (glass): never darkened. */
-  seeThrough: [0, 0],
+  seeThrough: 0,
   /** Fluids: their own rings, in the water's branch. */
-  fluid: [0, 0],
-} as const satisfies Record<string, readonly [number, number]>;
+  fluid: 0,
+} as const satisfies Record<string, number>;
 
 export const SURFACE_WEATHER_UNIFORM_DECLARATIONS = `
-// Weather on surfaces (surface-weather.ts). x: rain now; y, z, w: wetness,
-// the far coat and puddle gains. All zero skips every term.
-uniform vec4 uSurfaceWeather;
+// Weather on surfaces (surface-weather.ts). x: rain now; y, z: wetness and
+// the far coat gains. All zero skips every term.
+uniform vec3 uSurfaceWeather;
 uniform sampler2D uSurfaceWeatherMap;
 uniform vec4 uSurfaceWeatherWindow;
 uniform vec4 uSurfaceWeatherLine;
@@ -264,7 +248,7 @@ export const SURFACE_OPEN_LIGHT = {
 
 /** The chunk shader's own: the material's response and open light. */
 export const SURFACE_WEATHER_CHUNK_UNIFORM_DECLARATIONS = `
-uniform vec2 uSurfaceResponse;
+uniform float uSurfaceResponse;
 uniform vec2 uSurfaceOpenLight;
 `;
 
@@ -326,7 +310,7 @@ float surfaceWeatherNoise(vec2 p) {
   return mix(mix(a, b, t.x), mix(c, d, t.x), t.y);
 }
 
-// The weather map at a world xz: r coat, g wetness, b puddles, a the line.
+// The weather map at a world xz: r coat, g wetness, a the line.
 vec4 surfaceWeatherSample(vec2 xz) {
   return textureLod(
     uSurfaceWeatherMap,
@@ -346,18 +330,6 @@ float surfaceWeatherAbove(vec2 xz, float y, float lineCode) {
       * ${f(S.lineJitterSmall.swing)};
   float band = max(uSurfaceWeatherLine.z, 0.01);
   return smoothstep(line - band, line + band, y + jitter);
-}
-
-// Where puddles stand: the high ground of this field (plus a lean toward
-// inside corners) floods first.
-float surfacePuddleField(vec2 xz) {
-  return surfaceWeatherNoise(xz * 0.4 + vec2(31.7)) * 0.75
-    + surfaceWeatherNoise(xz * ${f(1 / 0.9, 6)} + vec2(5.1)) * 0.25;
-}
-
-// The share of flat ground puddles cover at a level, averaged.
-float surfacePuddleMean(float level) {
-  return 0.135 * level * level * level;
 }
 
 // How much of the sky a wet surface mirrors at this view: a Fresnel sheen,
@@ -446,19 +418,18 @@ vec3 surfaceWeatherRings(vec2 xz, float seconds, float rain) {
 
 /**
  * The chunk fragment's albedo pass, right after the atlas sample: the
- * weather the ground holds (wetness, puddles), and what the
+ * weather the ground holds (wetness), and what the
  * lighting pass after it needs to know. Declares its outputs at the top of
  * `main` so the later pass can read them.
  */
 export const SURFACE_WEATHER_TERRAIN_OPEN =
-  "if (uSurfaceWeather != vec4(0.0) && uSurfaceResponse != vec2(0.0)) {";
+  "if (uSurfaceWeather != vec3(0.0) && uSurfaceResponse > 0.0) {";
 
 export const SURFACE_WEATHER_ALBEDO_FRAGMENT = `
 // Weather on the ground (surface-weather.ts). Skipped whole while the host
 // sets no weather, so a dry world renders exactly as it always has.
 float surfaceWeatherRainHere = 0.0;
 float surfaceWeatherWetUp = 0.0;
-float surfaceWeatherPuddle = 0.0;
 float surfaceWeatherGrain = 0.5;
 float surfaceWeatherFootprint = 1.0;
 ${SURFACE_WEATHER_TERRAIN_OPEN}
@@ -481,26 +452,11 @@ ${SURFACE_WEATHER_TERRAIN_OPEN}
     float swUp = smoothstep(${f(S.upFrom)}, ${f(S.upTo)}, vWorldNormal.y);
 
     float swWet = clamp(swWeather.g * uSurfaceWeather.y, 0.0, 1.0) * swBelow * swOpen
-      * surfaceWeatherFaceWet(vWorldNormal) * uSurfaceResponse.x;
+      * surfaceWeatherFaceWet(vWorldNormal) * uSurfaceResponse;
     if (swWet > 0.0) {
       diffuseColor.rgb = surfaceWeatherWetAlbedo(diffuseColor.rgb, swWet);
     }
     surfaceWeatherWetUp = swWet * swUp;
-
-    float swPuddleLevel = clamp(swWeather.b * uSurfaceWeather.w, 0.0, 1.0) * swBelow * uSurfaceResponse.y;
-    if (swPuddleLevel > 0.0) {
-      float swFlat = (vWorldNormal.y > ${f(S.puddleFlat)} ? 1.0 : 0.0) * swGate
-        * smoothstep(${f(S.puddleSkyFrom)}, ${f(S.puddleSkyTo)}, swLight.a);
-      float swField = surfacePuddleField(swTexelCentre) + ${f(S.puddleCornerBias)} * (1.0 - vAO);
-      float swEdge = 1.0 - ${f(S.puddleShare)} * swPuddleLevel;
-      float swTexelPixels = ${f(1 / SURFACE_WEATHER_TEXELS)} / max(surfaceWeatherFootprint, 1e-5);
-      surfaceWeatherPuddle = swFlat * mix(
-        smoothstep(swEdge - 0.03, swEdge + 0.03, swField),
-        swField > swEdge ? 1.0 : 0.0,
-        smoothstep(${f(S.texelFadeFrom)}, ${f(S.texelFadeTo)}, swTexelPixels)
-      );
-      diffuseColor.rgb *= mix(1.0, ${f(S.puddleDarken)}, surfaceWeatherPuddle);
-    }
 
     surfaceWeatherRainHere = clamp(uSurfaceWeather.x, 0.0, 1.0) * swBelow * swOpen * swUp;
   }
@@ -509,13 +465,13 @@ ${SURFACE_WEATHER_TERRAIN_OPEN}
 
 /**
  * The chunk fragment's lighting pass, after the face is lit and before the
- * fog: the wet sheen and the puddles' mirror of the sky, the sun's glint on
- * them, the rain's rings on puddles and its pocks on open ground. All of it
- * is light the sky or the sun puts there, so nothing glows at night.
+ * fog: the wet sheen's mirror of the sky, the sun's glint on it, and the
+ * rain's pocks on open ground. All of it is light the sky or the sun puts
+ * there, so nothing glows at night.
  */
 export const SURFACE_WEATHER_LIGHT_FRAGMENT = `
 ${SURFACE_WEATHER_TERRAIN_OPEN}
-  if (surfaceWeatherWetUp + surfaceWeatherPuddle + surfaceWeatherRainHere > 0.0) {
+  if (surfaceWeatherWetUp + surfaceWeatherRainHere > 0.0) {
     vec3 swPos = vWorldPosition.xyz;
     vec3 swView = normalize(cameraPosition - swPos);
     vec2 swTexel = floor(swPos.xz * ${f(SURFACE_WEATHER_TEXELS, 1)});
@@ -523,48 +479,29 @@ ${SURFACE_WEATHER_TERRAIN_OPEN}
     float swTexelPixels = ${f(1 / SURFACE_WEATHER_TEXELS)} / max(surfaceWeatherFootprint, 1e-5);
     float swNear = smoothstep(${f(S.pockFadeFrom)}, ${f(S.pockFadeTo)}, swTexelPixels);
 
-    // Rain rings tilt a puddle's mirror.
-    vec3 swNormal = vec3(0.0, 1.0, 0.0);
-    float swRingCrest = 0.0;
-    if (surfaceWeatherPuddle > 0.0 && surfaceWeatherRainHere > 0.0) {
-      vec3 swRings = surfaceWeatherRings(
-        (swTexel + 0.5) * ${f(1 / SURFACE_WEATHER_TEXELS)},
-        swSeconds,
-        surfaceWeatherRainHere
-      ) * swNear;
-      swNormal = normalize(vec3(
-        swRings.x * ${f(S.puddleRingTilt)},
-        1.0,
-        swRings.y * ${f(S.puddleRingTilt)}
-      ));
-      swRingCrest = min(swRings.z, 1.0) * surfaceWeatherPuddle;
+    if (surfaceWeatherWetUp > 0.0) {
+      vec3 swReflectDir = reflect(-swView, vec3(0.0, 1.0, 0.0));
+      float swPorous = mix(
+        ${f((1 + S.sheenGrainFloor) / 2)},
+        ${f(S.sheenGrainFloor)} + ${f(1 - S.sheenGrainFloor)} * surfaceWeatherGrain,
+        swNear
+      );
+      outgoingLight.rgb = mix(
+        outgoingLight.rgb,
+        surfaceWeatherSkyAlong(swReflectDir),
+        surfaceWeatherSheen(swView.y, swPorous) * surfaceWeatherWetUp
+      );
+      // The sun's glint, only where the beam reaches.
+      float swGlint = pow(max(dot(swReflectDir, uCelestialDirection), 0.0), ${f(S.glintExponent, 1)})
+        * shadow * uDirectSunlight * uSunlightIntensity;
+      outgoingLight.rgb += uSunColor * swGlint * ${f(S.glintWet)} * surfaceWeatherWetUp;
     }
-    float swNdotV = dot(swNormal, swView);
-    vec3 swReflectDir = reflect(-swView, swNormal);
-    vec3 swSky = surfaceWeatherSkyAlong(swReflectDir);
-    float swPorous = mix(
-      ${f((1 + S.sheenGrainFloor) / 2)},
-      ${f(S.sheenGrainFloor)} + ${f(1 - S.sheenGrainFloor)} * surfaceWeatherGrain,
-      swNear
-    );
-    float swReflect = max(
-      surfaceWeatherSheen(swNdotV, swPorous) * surfaceWeatherWetUp,
-      min(0.02 + 0.98 * pow(1.0 - clamp(swNdotV, 0.0, 1.0), 5.0), ${f(S.puddleReflectMax)})
-        * surfaceWeatherPuddle
-    );
-    outgoingLight.rgb = mix(outgoingLight.rgb, swSky, swReflect);
-    outgoingLight.rgb = mix(outgoingLight.rgb, swSky * 1.15, swRingCrest * ${f(S.ringCrest)});
-    // The sun's glint, only where the beam reaches.
-    float swGlint = pow(max(dot(swReflectDir, uCelestialDirection), 0.0), ${f(S.glintExponent, 1)})
-      * shadow * uDirectSunlight * uSunlightIntensity;
-    outgoingLight.rgb += uSunColor * swGlint
-      * (${f(S.glintWet)} * surfaceWeatherWetUp + ${f(S.glintPuddle)} * surfaceWeatherPuddle);
 
     // Drops landing: pixel splashes up close, their faint average shimmer
     // once texels shrink under a couple of pixels. Lit by the sky above and
     // the ground's own light, so they dim with the day.
     if (surfaceWeatherRainHere > 0.0) {
-      float swChance = ${f(S.pockChance)} * surfaceWeatherRainHere * (1.0 - surfaceWeatherPuddle);
+      float swChance = ${f(S.pockChance)} * surfaceWeatherRainHere;
       float swPock = mix(
         ${f(SURFACE_POCK_MEAN, 5)} * swChance,
         surfaceWeatherPock(swTexel, swSeconds, swChance),
@@ -658,9 +595,6 @@ vec3 surfaceWeatherFarAlbedo(vec3 albedo, vec3 p, vec3 normal, float footprint, 
   float up = smoothstep(${f(S.upFrom)}, ${f(S.upTo)}, normal.y);
   float wet = clamp(weather.g * uSurfaceWeather.y, 0.0, 1.0) * (1.0 - above) * surfaceWeatherFaceWet(normal);
   albedo = surfaceWeatherWetAlbedo(albedo, wet);
-  float puddles = surfacePuddleMean(clamp(weather.b * uSurfaceWeather.w, 0.0, 1.0)) * (1.0 - above)
-    * step(${f(S.puddleFlat)}, normal.y);
-  albedo *= mix(1.0, ${f(S.puddleDarken)}, puddles);
   float coat = clamp(weather.r * uSurfaceWeather.z, 0.0, 1.0) * above;
   float cover = up * mix(
     surfaceCoatDensity(coat, surfaceCoatDrift(p.xz)),
@@ -682,7 +616,7 @@ ${SURFACE_WEATHER_FAR_FUNCTIONS}
 /** The far land's albedo under the weather, after its face kinds pick the block. */
 export const SURFACE_WEATHER_FAR_ALBEDO_FRAGMENT = `
   float surfaceWeatherFarWetUp = 0.0;
-  if (uSurfaceWeather != vec4(0.0)) {
+  if (uSurfaceWeather != vec3(0.0)) {
     albedo = surfaceWeatherFarAlbedo(albedo, p, normal, blockFootprint, surfaceWeatherFarWetUp);
   }
 `;
@@ -809,24 +743,6 @@ export function surfaceCoatMean(coat: number): number {
   return (
     speckle + (1 - speckle) * smoothstep(S.coatMean.from, S.coatMean.to, drifts)
   );
-}
-
-/** `surfacePuddleField`. */
-export function surfacePuddleField(x: number, z: number): number {
-  return (
-    surfaceWeatherNoise(x * 0.4 + 31.7, z * 0.4 + 31.7) * 0.75 +
-    surfaceWeatherNoise(x / 0.9 + 5.1, z / 0.9 + 5.1) * 0.25
-  );
-}
-
-/** Whether open flat ground at a texel holds a puddle (no corner lean). */
-export function isTexelPuddle(texelX: number, texelZ: number, level: number) {
-  if (!(level > 0)) return false;
-  const field = surfacePuddleField(
-    (texelX + 0.5) / SURFACE_WEATHER_TEXELS,
-    (texelZ + 0.5) / SURFACE_WEATHER_TEXELS,
-  );
-  return field > 1 - S.puddleShare * level;
 }
 
 /**

@@ -455,7 +455,7 @@ export function makeChunkShaderMaterial(
       ...bindSurfaceWeatherUniforms(chunksUniforms),
       // Per material: how it takes the weather (SURFACE_RESPONSE). Forks
       // share it with the material they draw for.
-      uSurfaceResponse: { value: new Vector2(...SURFACE_RESPONSE.solid) },
+      uSurfaceResponse: { value: SURFACE_RESPONSE.solid as number },
       uSurfaceOpenLight: { value: new Vector2(...SURFACE_OPEN_LIGHT.solid) },
       uChunkReveal: { value: 1 },
       // Per material: a chunk's greedy faces take their texels from where
@@ -655,13 +655,11 @@ export async function loadChunkMaterials(
     mat.uniforms.map.value = map;
     mat.userData.skipShadow = !castsShadow;
     mat.userData.isFluid = isFluid;
-    mat.uniforms.uSurfaceResponse.value.set(
-      ...(isFluid
-        ? SURFACE_RESPONSE.fluid
-        : transparent
-          ? SURFACE_RESPONSE.seeThrough
-          : SURFACE_RESPONSE.solid),
-    );
+    mat.uniforms.uSurfaceResponse.value = isFluid
+      ? SURFACE_RESPONSE.fluid
+      : transparent
+        ? SURFACE_RESPONSE.seeThrough
+        : SURFACE_RESPONSE.solid;
     // A see-through block's faces carry its own voxel's light.
     if (transparent) {
       mat.uniforms.uSurfaceOpenLight.value.set(
@@ -732,7 +730,7 @@ export async function loadChunkMaterials(
     mat.map = atlas;
     mat.uniforms.map.value = atlas;
     mat.userData.skipShadow = !isShadowCasting;
-    mat.uniforms.uSurfaceResponse.value.set(...SURFACE_RESPONSE.cutout);
+    mat.uniforms.uSurfaceResponse.value = SURFACE_RESPONSE.cutout;
     mat.uniforms.uSurfaceOpenLight.value.set(...SURFACE_OPEN_LIGHT.seeThrough);
     applyQuantizedPositionDefine(mat, positionUnits);
     return mat;

@@ -31,7 +31,6 @@ import {
 import {
   applySurfaceCoatFace,
   createSurfaceWeatherUniforms,
-  isTexelPuddle,
   stripSurfaceWeatherFromFragment,
   SURFACE_OPEN_LIGHT,
   SURFACE_POCK_MEAN,
@@ -81,7 +80,7 @@ const leadingStatements = (pass: string) =>
 describe("surface weather is inert at its defaults", () => {
   it("defaults every shared uniform to off", () => {
     const { uniforms } = new ChunkRenderer();
-    expect(uniforms.surfaceWeather.value.toArray()).toEqual([0, 0, 0, 0]);
+    expect(uniforms.surfaceWeather.value.toArray()).toEqual([0, 0, 0]);
     expect(uniforms.surfaceWeatherWindow.value.toArray()).toEqual([0, 0, 1, 1]);
     expect(uniforms.surfaceWeatherLine.value.toArray()).toEqual([
       0,
@@ -123,7 +122,7 @@ describe("surface weather is inert at its defaults", () => {
     }
     // Uniforms alone, so the branch is uniform: no varying in its test.
     expect(SURFACE_WEATHER_TERRAIN_OPEN).toMatch(
-      /^if \(uSurfaceWeather != vec4\(0\.0\) && uSurfaceResponse != vec2\(0\.0\)\) \{$/,
+      /^if \(uSurfaceWeather != vec3\(0\.0\) && uSurfaceResponse > 0\.0\) \{$/,
     );
     expect(SURFACE_WEATHER_WATER_RINGS_FRAGMENT.trim()).toMatch(
       /^if \(uSurfaceWeather\.x > 0\.0\) \{/,
@@ -133,7 +132,7 @@ describe("surface weather is inert at its defaults", () => {
       /^if \(surfaceWeatherRingCrest > 0\.0\) \{/,
     );
     expect(SURFACE_WEATHER_FAR_ALBEDO_FRAGMENT).toContain(
-      "if (uSurfaceWeather != vec4(0.0)) {",
+      "if (uSurfaceWeather != vec3(0.0)) {",
     );
     expect(SURFACE_WEATHER_FAR_SHEEN_FRAGMENT.trim()).toMatch(
       /^if \(surfaceWeatherFarWetUp > 0\.0\) \{/,
@@ -144,7 +143,7 @@ describe("surface weather is inert at its defaults", () => {
     for (const [name, fragment] of Object.entries(VARIANTS)) {
       const stripped = stripSurfaceWeatherFromFragment(fragment);
       expect(stripped, name).not.toMatch(
-        /uSurface(Weather|Coat|Response|Wind)|surfaceWeather|surfaceCoat|surfacePuddle|\bsw[A-Z]/,
+        /uSurface(Weather|Coat|Response|Wind)|surfaceWeather|surfaceCoat|\bsw[A-Z]/,
       );
     }
   });
@@ -241,9 +240,7 @@ describe("surface weather reaches every chunk material", () => {
         world.chunkRenderer.uniforms[name],
       );
     }
-    expect(a.uniforms.uSurfaceResponse.value.toArray()).toEqual([
-      ...SURFACE_RESPONSE.solid,
-    ]);
+    expect(a.uniforms.uSurfaceResponse.value).toBe(SURFACE_RESPONSE.solid);
     expect(a.uniforms.uSurfaceOpenLight.value.toArray()).toEqual([
       ...SURFACE_OPEN_LIGHT.solid,
     ]);
@@ -253,7 +250,7 @@ describe("surface weather reaches every chunk material", () => {
 
   it("takes the host's overwrites", () => {
     const world = host();
-    const surfaceWeather = { value: new Vector4(1, 0, 0, 0) };
+    const surfaceWeather = { value: new Vector3(1, 0, 0) };
     world.options.chunkUniformsOverwrite = { surfaceWeather };
     const material = makeChunkShaderMaterial(world);
     expect(material.uniforms.uSurfaceWeather).toBe(surfaceWeather);
@@ -374,8 +371,8 @@ describe("surface weather on the far land", () => {
 
   it("wears none without them", () => {
     const land = landOf(new FarTerrain(farShared(), { distance: 0 }));
-    const weather = land.uniforms.uSurfaceWeather as { value: Vector4 };
-    expect(weather.value.toArray()).toEqual([0, 0, 0, 0]);
+    const weather = land.uniforms.uSurfaceWeather as { value: Vector3 };
+    expect(weather.value.toArray()).toEqual([0, 0, 0]);
     expect(
       (land.uniforms.uSurfaceWeatherMap as { value: Texture }).value,
     ).toBeInstanceOf(Texture);
@@ -430,29 +427,6 @@ describe("the far layer's coat", () => {
     const pixels = [255, 255, 255, 255, 255, 255, 255, 255, 0, 0, 0, 0];
     expect(applySurfaceCoatFace(uniforms, pixels)).toBe(true);
     expect(uniforms.surfaceCoatColor.value.r).toBeCloseTo(1, 5);
-  });
-});
-
-describe("puddles", () => {
-  const share = (level: number) => {
-    let wet = 0;
-    let n = 0;
-    for (let x = -600; x < 600; x += 3) {
-      for (let z = -600; z < 600; z += 7) {
-        if (isTexelPuddle(x, z, level)) wet++;
-        n++;
-      }
-    }
-    return wet / n;
-  };
-
-  it("stay sparse: none when dry, under a fifth of open ground when full", () => {
-    expect(share(0)).toBe(0);
-    const half = share(0.5);
-    const full = share(1);
-    expect(half).toBeLessThan(full);
-    expect(full).toBeGreaterThan(0.05);
-    expect(full).toBeLessThan(0.2);
   });
 });
 
