@@ -785,15 +785,19 @@ export type RenderStats = {
     faces: number;
   };
   /**
-   * Region-arena batching state: live `BatchedMesh` regions and the chunk
-   * sections slotted into them, in all and per batched material bucket
-   * (opaque terrain, leaves, plants). Zero when batching is disabled or
-   * nothing batched is loaded.
+   * Region-arena batching state: live regions, their `BatchedMesh` pages
+   * (one draw each per pass) and the chunk sections slotted into them, in
+   * all and per batched material bucket (opaque terrain, leaves, plants).
+   * Zero when batching is disabled or nothing batched is loaded.
    */
   regionArenas: {
     regions: number;
+    pages: number;
     sections: number;
-    buckets: Record<string, { regions: number; sections: number }>;
+    buckets: Record<
+      string,
+      { regions: number; pages: number; sections: number }
+    >;
   };
   /**
    * Occlusion-walk state: graph size, sections reporting real (non-full)

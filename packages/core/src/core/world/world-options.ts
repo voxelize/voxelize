@@ -505,7 +505,7 @@ export type WorldClientOptions = {
 
 /**
  * Tunables for the per-region `BatchedMesh` arenas that batch every
- * shared-opaque chunk section into one multi-draw call per region.
+ * section of a batched chunk bucket into a few multi-draw calls per region.
  */
 export type ChunkRegionArenasOptions = {
   /**
@@ -515,23 +515,19 @@ export type ChunkRegionArenasOptions = {
   regionSizeInChunks: number;
 
   /**
-   * Vertex capacity a region arena is created with. Arenas grow geometrically
-   * from here, so this is a floor, not a limit.
+   * Vertices a page of a region holds. A region is pages that never grow:
+   * one that fills opens another, so what one frame uploads when a region
+   * gains room is one page (about 9 MB at the default), never the whole
+   * region. Larger pages mean fewer draws, smaller ones smaller uploads; a
+   * section larger than a page gets a page of its own.
    */
-  initialVertexCapacity: number;
+  pageVertexCapacity: number;
 
   /**
    * Multiplier applied to a section's vertex/index count when reserving its
    * arena slot, so small remeshes update in place instead of reallocating.
    */
   slotSlack: number;
-
-  /**
-   * Factor a full arena's capacity is multiplied by when it grows. Growth
-   * re-uploads the region's buffers, so it should be rare: geometric growth
-   * bounds the number of growth events logarithmically.
-   */
-  growthFactor: number;
 
   /**
    * Index capacity per vertex of capacity. Quad geometry uses six indices for
@@ -606,9 +602,8 @@ export const defaultWorldClientOptions: WorldClientOptions = {
   memoryPressure: {},
   regionArenas: {
     regionSizeInChunks: 8,
-    initialVertexCapacity: 1 << 18,
+    pageVertexCapacity: 1 << 18,
     slotSlack: 1.1,
-    growthFactor: 1.5,
     indexPerVertexRatio: 1.5,
   },
   swayProfileCapacity: 16,

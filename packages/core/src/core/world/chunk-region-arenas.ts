@@ -25,8 +25,19 @@ const _scale = new Vector3();
 // of recompiling mid-play the first time a fade fires.
 const _sectionColor = new Color(1, 1, 1);
 
+type ArenaPage = {
+  mesh: BatchedMesh;
+  vertexCapacity: number;
+  indexCapacity: number;
+  /** Vertices and indices reserved by the page's live slots. */
+  usedVertexCount: number;
+  usedIndexCount: number;
+  slotCount: number;
+};
+
 type SectionSlot = {
   regionKey: string;
+  page: ArenaPage;
   geometryId: number;
   instanceId: number;
   reservedVertexCount: number;
@@ -34,20 +45,24 @@ type SectionSlot = {
 };
 
 type RegionArena = {
-  mesh: BatchedMesh;
-  vertexCapacity: number;
-  usedVertexCount: number;
-  usedIndexCount: number;
-  slotCount: number;
+  pages: ArenaPage[];
 };
 
 /**
- * Region buffer arenas for the shared-opaque chunk bucket, adapted from
- * Sodium's region-arena renderer. Every opaque section inside an NxN block of
- * chunk columns lives as one slot of one `BatchedMesh`, so an entire region
- * renders as a single multi-draw call per pass instead of one draw per
+ * Region buffer arenas for batched chunk buckets, adapted from Sodium's
+ * region-arena renderer. Every section of the bucket inside an NxN block of
+ * chunk columns lives as one slot of the region's pages, so a region draws
+ * as one multi-draw call per page per pass instead of one draw per
  * (section x bucket) mesh, and a remesh rewrites a slot in place
  * (`setGeometryAt`) instead of disposing and recreating GPU buffers.
+ *
+ * A region is pages of `pageVertexCapacity` vertices that never grow: a
+ * region that fills opens another page. Growing one buffer instead meant
+ * rebuilding and re-uploading the whole region in one frame, tens of
+ * megabytes once a forest region passed a million vertices, which landed
+ * as a hitch every time a region crossed a threshold. Opening a page
+ * uploads one page, and a page that ran out of room between freed slots
+ * is compacted (`optimize`), which also moves one page at most.
  *
  * `BatchedMesh` culls and sorts per instance against whichever camera renders
  * it, so sections keep per-section frustum culling in the main pass while the
@@ -68,7 +83,7 @@ export class ChunkRegionArenas {
     private parent: Object3D,
     private positionUnitsPerBlock: number,
     /**
-     * Told of each region mesh as it joins the scene (`true`) and before it
+     * Told of each page mesh as it joins the scene (`true`) and before it
      * leaves (`false`), for a host that registers the meshes it draws (the
      * shadow casters it hides, the see-through surfaces it plans).
      */
@@ -93,17 +108,19 @@ export class ChunkRegionArenas {
 
     const sectionKey = `${cx},${cz},${level}`;
     const existing = this.sections.get(sectionKey);
-    const region = this.getOrCreateRegion(cx, cz);
 
     if (
       existing &&
       vertexCount <= existing.reservedVertexCount &&
       index.count <= existing.reservedIndexCount
     ) {
-      region.mesh.setGeometryAt(existing.geometryId, geometry);
+      existing.page.mesh.setGeometryAt(existing.geometryId, geometry);
       return;
     }
 
+    const regionKey = this.regionKeyFor(cx, cz);
+    const region = this.regions.get(regionKey) ?? { pages: [] };
+    this.regions.set(regionKey, region);
     if (existing) {
       this.releaseSlot(region, existing);
       this.sections.delete(sectionKey);
@@ -112,24 +129,26 @@ export class ChunkRegionArenas {
     const { slotSlack } = this.options;
     const reservedVertexCount = Math.ceil(vertexCount * slotSlack);
     const reservedIndexCount = Math.ceil(index.count * slotSlack);
-    const geometryId = this.allocateGeometry(
+    const page = this.pageWithRoom(
       region,
+      reservedVertexCount,
+      reservedIndexCount,
+    );
+    const geometryId = page.mesh.addGeometry(
       geometry,
       reservedVertexCount,
       reservedIndexCount,
     );
-    const instanceId = region.mesh.addInstance(geometryId);
-    region.mesh.setMatrixAt(
-      instanceId,
-      this.sectionTransform(geometry, x, y, z),
-    );
-    region.mesh.setColorAt(instanceId, _sectionColor.setRGB(1, 1, 1));
-    region.usedVertexCount += reservedVertexCount;
-    region.usedIndexCount += reservedIndexCount;
-    region.slotCount += 1;
+    const instanceId = page.mesh.addInstance(geometryId);
+    page.mesh.setMatrixAt(instanceId, this.sectionTransform(geometry, x, y, z));
+    page.mesh.setColorAt(instanceId, _sectionColor.setRGB(1, 1, 1));
+    page.usedVertexCount += reservedVertexCount;
+    page.usedIndexCount += reservedIndexCount;
+    page.slotCount += 1;
 
     this.sections.set(sectionKey, {
-      regionKey: this.regionKeyFor(cx, cz),
+      regionKey,
+      page,
       geometryId,
       instanceId,
       reservedVertexCount,
@@ -140,9 +159,7 @@ export class ChunkRegionArenas {
   setSectionVisible(cx: number, cz: number, level: number, isVisible: boolean) {
     const slot = this.sections.get(`${cx},${cz},${level}`);
     if (!slot) return;
-    this.regions
-      .get(slot.regionKey)
-      ?.mesh.setVisibleAt(slot.instanceId, isVisible);
+    slot.page.mesh.setVisibleAt(slot.instanceId, isVisible);
   }
 
   /**
@@ -154,9 +171,7 @@ export class ChunkRegionArenas {
   setSectionReveal(cx: number, cz: number, level: number, reveal: number) {
     const slot = this.sections.get(`${cx},${cz},${level}`);
     if (!slot) return false;
-    const region = this.regions.get(slot.regionKey);
-    if (!region) return false;
-    region.mesh.setColorAt(
+    slot.page.mesh.setColorAt(
       slot.instanceId,
       _sectionColor.setRGB(Math.min(1, Math.max(0, reveal)), 1, 1),
     );
@@ -171,9 +186,7 @@ export class ChunkRegionArenas {
     const region = this.regions.get(slot.regionKey);
     if (region) {
       this.releaseSlot(region, slot);
-      if (region.slotCount === 0) {
-        this.disposeRegion(slot.regionKey, region);
-      }
+      if (region.pages.length === 0) this.regions.delete(slot.regionKey);
     }
 
     this.sections.delete(sectionKey);
@@ -189,15 +202,19 @@ export class ChunkRegionArenas {
   }
 
   dispose() {
-    for (const [regionKey, region] of this.regions) {
-      this.disposeRegion(regionKey, region);
+    for (const region of this.regions.values()) {
+      for (const page of region.pages) this.disposePage(page);
     }
+    this.regions.clear();
     this.sections.clear();
   }
 
   get stats() {
+    let pages = 0;
+    for (const region of this.regions.values()) pages += region.pages.length;
     return {
       regions: this.regions.size,
+      pages,
       sections: this.sections.size,
     };
   }
@@ -236,16 +253,44 @@ export class ChunkRegionArenas {
     return `${rx},${rz}`;
   }
 
-  private getOrCreateRegion(cx: number, cz: number) {
-    const regionKey = this.regionKeyFor(cx, cz);
-    const existing = this.regions.get(regionKey);
-    if (existing) return existing;
-
-    const { initialVertexCapacity, indexPerVertexRatio } = this.options;
+  /**
+   * A page of `region` with room for a slot of this size: the first with
+   * room at its end, else the first whose freed slots add up to it once
+   * compacted, else a new page (as large as the slot when the slot is
+   * larger than a page).
+   */
+  private pageWithRoom(
+    region: RegionArena,
+    vertexCount: number,
+    indexCount: number,
+  ): ArenaPage {
+    for (const page of region.pages) {
+      if (
+        page.mesh.unusedVertexCount >= vertexCount &&
+        page.mesh.unusedIndexCount >= indexCount
+      ) {
+        return page;
+      }
+    }
+    for (const page of region.pages) {
+      if (
+        page.vertexCapacity - page.usedVertexCount >= vertexCount &&
+        page.indexCapacity - page.usedIndexCount >= indexCount
+      ) {
+        page.mesh.optimize();
+        return page;
+      }
+    }
+    const { pageVertexCapacity, indexPerVertexRatio } = this.options;
+    const vertexCapacity = Math.max(pageVertexCapacity, vertexCount);
+    const indexCapacity = Math.max(
+      Math.ceil(pageVertexCapacity * indexPerVertexRatio),
+      indexCount,
+    );
     const mesh = new StaticBatchedMesh(
       this.maxSectionsPerRegion,
-      initialVertexCapacity,
-      Math.ceil(initialVertexCapacity * indexPerVertexRatio),
+      vertexCapacity,
+      indexCapacity,
       this.getMaterial(),
     );
     mesh.frustumCulled = false;
@@ -255,76 +300,33 @@ export class ChunkRegionArenas {
     mesh.userData.isChunkRegionArena = true;
     this.parent.add(mesh);
     this.onRegionMesh?.(mesh, true);
-
-    const region: RegionArena = {
+    const page: ArenaPage = {
       mesh,
-      vertexCapacity: initialVertexCapacity,
+      vertexCapacity,
+      indexCapacity,
       usedVertexCount: 0,
       usedIndexCount: 0,
       slotCount: 0,
     };
-    this.regions.set(regionKey, region);
-    return region;
+    region.pages.push(page);
+    return page;
   }
 
+  /** Frees a slot's space in its page; a page left empty is dropped. */
   private releaseSlot(region: RegionArena, slot: SectionSlot) {
-    region.mesh.deleteGeometry(slot.geometryId);
-    region.usedVertexCount -= slot.reservedVertexCount;
-    region.usedIndexCount -= slot.reservedIndexCount;
-    region.slotCount -= 1;
+    const { page } = slot;
+    page.mesh.deleteGeometry(slot.geometryId);
+    page.usedVertexCount -= slot.reservedVertexCount;
+    page.usedIndexCount -= slot.reservedIndexCount;
+    page.slotCount -= 1;
+    if (page.slotCount > 0) return;
+    region.pages.splice(region.pages.indexOf(page), 1);
+    this.disposePage(page);
   }
 
-  private disposeRegion(regionKey: string, region: RegionArena) {
-    this.onRegionMesh?.(region.mesh, false);
-    this.parent.remove(region.mesh);
-    region.mesh.dispose();
-    this.regions.delete(regionKey);
-  }
-
-  /**
-   * Space in a region only truly runs out at device memory; before that the
-   * arena first repacks freed slots (`optimize`), then grows geometrically.
-   * Every attempt is made in place so the caller never sees a partial state.
-   */
-  private allocateGeometry(
-    region: RegionArena,
-    geometry: BufferGeometry,
-    reservedVertexCount: number,
-    reservedIndexCount: number,
-  ) {
-    try {
-      return region.mesh.addGeometry(
-        geometry,
-        reservedVertexCount,
-        reservedIndexCount,
-      );
-    } catch {
-      region.mesh.optimize();
-    }
-
-    try {
-      return region.mesh.addGeometry(
-        geometry,
-        reservedVertexCount,
-        reservedIndexCount,
-      );
-    } catch {
-      const { growthFactor, indexPerVertexRatio } = this.options;
-      const requiredVertexCount = region.usedVertexCount + reservedVertexCount;
-      const capacity = Math.ceil(
-        Math.max(region.vertexCapacity, requiredVertexCount) * growthFactor,
-      );
-      region.mesh.setGeometrySize(
-        capacity,
-        Math.ceil(capacity * indexPerVertexRatio),
-      );
-      region.vertexCapacity = capacity;
-    }
-
-    return region.mesh.addGeometry(
-      geometry,
-      reservedVertexCount,
-      reservedIndexCount,
-    );
+  private disposePage(page: ArenaPage) {
+    this.onRegionMesh?.(page.mesh, false);
+    this.parent.remove(page.mesh);
+    page.mesh.dispose();
   }
 }
