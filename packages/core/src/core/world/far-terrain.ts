@@ -970,6 +970,17 @@ export class FarTerrain extends Group {
    */
   private standIns = new Set<string>();
 
+  /** The set the next frame's stand-ins are gathered in, swapped on change. */
+  private nextStandIns = new Set<string>();
+
+  /** The plan `drawnIds` and `keepIds` were taken from (`takePlanIds`). */
+  private idsPlan: FarLodPlan | null = null;
+  private readonly drawnIds = new Set<string>();
+  private readonly keepIds = new Set<string>();
+
+  /** Resident tiles hidden and faded out, gathered each frame. */
+  private readonly idleTiles: [string, ResidentTile][] = [];
+
   /** Bumped whenever `standIns` changes, so the mask follows it. */
   private standInGeneration = 0;
 
@@ -1331,8 +1342,8 @@ export class FarTerrain extends Group {
       this.plannedTime = started;
     }
     this.stats.tilesWanted = plan.wanted.length;
-    this.requestTiles([...plan.fallback, ...plan.wanted], started);
-    this.applyDrawn(plan.drawn, plan.wanted, plan.fallback, started, elapsed);
+    this.requestTiles(plan, started);
+    this.applyDrawn(plan, started, elapsed);
     this.updateCoverage(position, world);
     this.updateDepth(position);
     this.updateShadow(started);
@@ -1444,8 +1455,9 @@ export class FarTerrain extends Group {
     this.shadowTexture.dispose();
   }
 
-  private requestTiles(wanted: FarTileKey[], now: number) {
-    if (wanted.length === 0) return;
+  /** Asks for the plan's missing tiles, its fallbacks first. */
+  private requestTiles(plan: FarLodPlan, now: number) {
+    if (plan.fallback.length + plan.wanted.length === 0) return;
     if (now - this.lastRequestAt < this.options.requestIntervalMs) return;
     const cap = Math.min(
       this.options.maxTilesPerRequest,
@@ -1453,15 +1465,17 @@ export class FarTerrain extends Group {
     );
     if (cap < 1) return;
     const tiles: [number, number, number][] = [];
-    for (const key of wanted) {
-      const id = farTileId(key);
-      if (this.resident.has(id)) continue;
-      const askedAt = this.pending.get(id);
-      if (askedAt !== undefined && now - askedAt < this.options.retryAfterMs)
-        continue;
-      tiles.push([key.level, key.tx, key.tz]);
-      this.pending.set(id, now);
-      if (tiles.length >= cap) break;
+    for (const keys of [plan.fallback, plan.wanted]) {
+      for (const key of keys) {
+        if (tiles.length >= cap) break;
+        const id = farTileId(key);
+        if (this.resident.has(id)) continue;
+        const askedAt = this.pending.get(id);
+        if (askedAt !== undefined && now - askedAt < this.options.retryAfterMs)
+          continue;
+        tiles.push([key.level, key.tx, key.tz]);
+        this.pending.set(id, now);
+      }
     }
     if (tiles.length === 0) return;
     if (this.budgetTokens !== null) this.budgetTokens -= tiles.length;
@@ -1502,49 +1516,38 @@ export class FarTerrain extends Group {
    * are more than `maxResidentTiles`, and any no plan has wanted for a few
    * seconds. Pending asks no plan wants any more are forgotten too.
    */
-  private applyDrawn(
-    drawn: FarTileKey[],
-    wanted: FarTileKey[],
-    fallback: FarTileKey[],
-    now: number,
-    elapsed: number,
-  ) {
-    const drawnIds = new Set(drawn.map(farTileId));
-    const wantedIds = new Set(wanted.map(farTileId));
-    const keepIds = new Set([...wantedIds, ...fallback.map(farTileId)]);
-    // Every coarser tile over what is drawn or wanted stays: it is the
-    // stand-in the plan falls back to when the viewer outruns the finer
-    // tiles, and without it the layer opens a hole until a refetch lands.
-    const top = (this.descriptor?.levels ?? 1) - 1;
-    const ancestors = new Set<string>();
-    for (const key of [...drawn, ...wanted]) {
-      let { level, tx, tz } = key;
-      while (level < top) {
-        level += 1;
-        tx = Math.floor(tx / 2);
-        tz = Math.floor(tz / 2);
-        const id = farTileId({ level, tx, tz });
-        if (ancestors.has(id)) break;
-        ancestors.add(id);
-        keepIds.add(id);
+  private applyDrawn(plan: FarLodPlan, now: number, elapsed: number) {
+    // The ids a plan draws and keeps only change with the plan: taken once
+    // per plan, not once per frame.
+    if (this.idsPlan !== plan) {
+      this.idsPlan = plan;
+      this.takePlanIds(plan);
+      for (const id of this.pending.keys()) {
+        if (!this.keepIds.has(id)) this.pending.delete(id);
       }
     }
+    const { drawnIds, keepIds } = this;
     const step = this.options.fadeMs > 0 ? elapsed / this.options.fadeMs : 1;
-    const levels = new Map<number, number>();
+    const levels = this.stats.levelCounts;
+    levels.length = this.descriptor?.levels ?? 0;
+    levels.fill(0);
     let meshes = 0;
     let triangles = 0;
     let bytes = 0;
-    const quads: FarMeshCounts = { tops: 0, risers: 0, skirts: 0, crowns: 0 };
-    const idle: [string, ResidentTile][] = [];
-    const standIns = new Set<string>();
+    const quads = this.stats.quads;
+    quads.tops = 0;
+    quads.risers = 0;
+    quads.skirts = 0;
+    quads.crowns = 0;
+    const idle = this.idleTiles;
+    idle.length = 0;
+    const standIns = this.nextStandIns;
+    standIns.clear();
     for (const [id, tile] of this.resident) {
       const isDrawn = drawnIds.has(id);
       if (isDrawn) {
         tile.lastDrawnAt = now;
-        levels.set(
-          tile.data.key.level,
-          (levels.get(tile.data.key.level) ?? 0) + 1,
-        );
+        levels[tile.data.key.level] = (levels[tile.data.key.level] ?? 0) + 1;
         if (tile.counts) {
           quads.tops += tile.counts.tops;
           quads.risers += tile.counts.risers;
@@ -1595,13 +1598,16 @@ export class FarTerrain extends Group {
       this.planVersion += 1;
       excess -= 1;
     }
-    for (const id of Array.from(this.pending.keys())) {
-      if (!keepIds.has(id)) this.pending.delete(id);
+    let isStandInChanged = standIns.size !== this.standIns.size;
+    if (!isStandInChanged) {
+      for (const id of standIns) {
+        if (this.standIns.has(id)) continue;
+        isStandInChanged = true;
+        break;
+      }
     }
-    if (
-      standIns.size !== this.standIns.size ||
-      [...standIns].some((id) => !this.standIns.has(id))
-    ) {
+    if (isStandInChanged) {
+      this.nextStandIns = this.standIns;
       this.standIns = standIns;
       this.standInGeneration += 1;
     }
@@ -1610,13 +1616,40 @@ export class FarTerrain extends Group {
     this.stats.batchPages = this.batch.pages.length;
     this.stats.triangles = triangles;
     this.stats.meshBytes = bytes;
-    this.stats.quads = quads;
-    this.stats.rings = levels.size;
-    const counts: number[] = [];
-    for (let level = 0; level < (this.descriptor?.levels ?? 0); level++) {
-      counts.push(levels.get(level) ?? 0);
+    let rings = 0;
+    for (const count of levels) if (count > 0) rings += 1;
+    this.stats.rings = rings;
+  }
+
+  /**
+   * The ids `plan` draws, and those it keeps resident: what it draws or
+   * wants, its fallbacks, and every coarser tile over what it draws or
+   * wants (the stand-in it falls back to when the viewer outruns the finer
+   * tiles; without it the layer opens a hole until a refetch lands).
+   */
+  private takePlanIds(plan: FarLodPlan) {
+    const { drawnIds, keepIds } = this;
+    drawnIds.clear();
+    keepIds.clear();
+    for (const key of plan.drawn) drawnIds.add(farTileId(key));
+    for (const key of plan.wanted) keepIds.add(farTileId(key));
+    for (const key of plan.fallback) keepIds.add(farTileId(key));
+    const top = (this.descriptor?.levels ?? 1) - 1;
+    const ancestors = new Set<string>();
+    for (const keys of [plan.drawn, plan.wanted]) {
+      for (const key of keys) {
+        let { level, tx, tz } = key;
+        while (level < top) {
+          level += 1;
+          tx = Math.floor(tx / 2);
+          tz = Math.floor(tz / 2);
+          const id = farTileId({ level, tx, tz });
+          if (ancestors.has(id)) break;
+          ancestors.add(id);
+          keepIds.add(id);
+        }
+      }
     }
-    this.stats.levelCounts = counts;
   }
 
   /**

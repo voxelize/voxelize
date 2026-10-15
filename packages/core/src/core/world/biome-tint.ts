@@ -16,35 +16,63 @@ export function biomeTintAttribute(
   positionBias = 0,
 ): BufferAttribute {
   const colors = new Uint8Array(positions.length);
-  if (corners?.length === 12) {
-    const inverseSize = 1 / size;
-    const inverseUnits = 1 / positionUnits;
-    for (let i = 0, vertex = 0; i < positions.length; i += 3, vertex++) {
-      // The sign bit marks an opted-in face, including a neutral palette.
-      const light = lights[vertex] ?? 0;
-      if ((light & 0x80000000) === 0) continue;
-      if (((light >>> STACK_COUNT_SHIFT) & 0xf) === PIGMENT_CODE) continue;
-      const x = Math.max(
-        0,
-        Math.min(1, (positions[i] * inverseUnits - positionBias) * inverseSize),
-      );
-      const z = Math.max(
-        0,
-        Math.min(
-          1,
-          (positions[i + 2] * inverseUnits - positionBias) * inverseSize,
-        ),
-      );
-      for (let c = 0; c < 3; c++) {
-        const north = corners[c] + (corners[3 + c] - corners[c]) * x;
-        const south = corners[6 + c] + (corners[9 + c] - corners[6 + c]) * x;
-        colors[i + c] = Math.round(north + (south - north) * z);
-      }
-    }
-  }
+  writeBiomeTint(
+    colors,
+    0,
+    positions,
+    lights,
+    corners,
+    size,
+    positionUnits,
+    positionBias,
+  );
   // An all-zero vertex falls back to the authored stage palette. Every
   // bucket has the same attribute layout, preserving merged/arena draws.
   return new BufferAttribute(colors, 3, true);
+}
+
+/**
+ * The biome colour of each vertex of one geometry, three bytes a vertex,
+ * written into `target` from `offset` (a merge writes many geometries into
+ * one array). Vertices without the opt-in sign bit, and colour-table faces,
+ * are written zero: they keep their stage palette.
+ */
+export function writeBiomeTint(
+  target: Uint8Array,
+  offset: number,
+  positions: Float32Array | Uint16Array,
+  lights: Uint32Array | Int32Array,
+  corners: Uint8Array | undefined,
+  size: number,
+  positionUnits = 1,
+  positionBias = 0,
+) {
+  target.fill(0, offset, offset + positions.length);
+  if (corners?.length !== 12) return;
+  const inverseSize = 1 / size;
+  const inverseUnits = 1 / positionUnits;
+  for (let i = 0, vertex = 0; i < positions.length; i += 3, vertex++) {
+    // The sign bit marks an opted-in face, including a neutral palette.
+    const light = lights[vertex] ?? 0;
+    if ((light & 0x80000000) === 0) continue;
+    if (((light >>> STACK_COUNT_SHIFT) & 0xf) === PIGMENT_CODE) continue;
+    const x = Math.max(
+      0,
+      Math.min(1, (positions[i] * inverseUnits - positionBias) * inverseSize),
+    );
+    const z = Math.max(
+      0,
+      Math.min(
+        1,
+        (positions[i + 2] * inverseUnits - positionBias) * inverseSize,
+      ),
+    );
+    for (let c = 0; c < 3; c++) {
+      const north = corners[c] + (corners[3 + c] - corners[c]) * x;
+      const south = corners[6 + c] + (corners[9 + c] - corners[6 + c]) * x;
+      target[offset + i + c] = Math.round(north + (south - north) * z);
+    }
+  }
 }
 
 export type BiomeTintAtOptions = {

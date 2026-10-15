@@ -24,6 +24,10 @@ type BatchedMeshInternals = {
   _visibilityChanged: boolean;
 };
 
+/** Sort distances are exact to within this many blocks either way. */
+const SORT_RANGE_BITS = 21;
+const SORT_RANGE = 2 ** SORT_RANGE_BITS;
+
 const _matrix = new Matrix4();
 const _frustum = new Frustum();
 const _sphere = new Sphere();
@@ -56,9 +60,15 @@ export class StaticBatchedMesh extends BatchedMesh {
   /** Per instance: 1 while its sphere must be taken again. */
   private isSphereStale = new Uint8Array(0);
 
-  /** Visible instances of the pass being built, and their sort keys. */
+  /** Visible instances of the pass being built. */
   private order: number[] = [];
-  private keys = new Float32Array(0);
+
+  /**
+   * Sort keys packing each visible instance's distance with its index (see
+   * `sortOrder`), sorted as plain numbers: an array sort with a comparator
+   * copies the array on every call.
+   */
+  private sortKeys = new Float64Array(0);
 
   /** The indirect texture whose GPU copy matches its array. */
   private uploaded: DataTexture | null = null;
@@ -189,16 +199,7 @@ export class StaticBatchedMesh extends BatchedMesh {
         .set(0, 0, -1)
         .transformDirection(camera.matrixWorld)
         .transformDirection(_matrix);
-      const keys = this.keys;
-      for (let k = 0; k < order.length; k++) {
-        const i = order[k];
-        keys[i] =
-          (spheres[i * 4] - _camera.x) * _forward.x +
-          (spheres[i * 4 + 1] - _camera.y) * _forward.y +
-          (spheres[i * 4 + 2] - _camera.z) * _forward.z;
-      }
-      if (material.transparent) order.sort((a, b) => keys[b] - keys[a]);
-      else order.sort((a, b) => keys[a] - keys[b]);
+      this.sortOrder(count, material.transparent);
     }
 
     const index = geometry.getIndex();
@@ -227,6 +228,39 @@ export class StaticBatchedMesh extends BatchedMesh {
     state._visibilityChanged = false;
   }
 
+  /**
+   * Sorts `order` nearest first (farthest first when transparent), ties in
+   * index order as three's stable sort leaves them. Each key is the
+   * distance, offset positive and scaled to the finest step that still
+   * fits, times a power of two above every index, plus the index: one
+   * exact integer per instance under 2^52, sorted natively in place and
+   * read back by its low bits. Distances reach `SORT_RANGE` blocks; with a
+   * region's thousand sections the step is about two millionths of a block.
+   */
+  private sortOrder(instanceCount: number, isFarthestFirst: boolean) {
+    const order = this.order;
+    const spheres = this.spheres;
+    const bits = Math.max(1, Math.ceil(Math.log2(instanceCount + 1)));
+    const span = 2 ** bits;
+    const scale = 2 ** (52 - bits - SORT_RANGE_BITS - 1);
+    if (this.sortKeys.length < order.length) {
+      this.sortKeys = new Float64Array(Math.max(order.length, 64) * 2);
+    }
+    const keys = this.sortKeys;
+    for (let k = 0; k < order.length; k++) {
+      const i = order[k];
+      const distance =
+        (spheres[i * 4] - _camera.x) * _forward.x +
+        (spheres[i * 4 + 1] - _camera.y) * _forward.y +
+        (spheres[i * 4 + 2] - _camera.z) * _forward.z;
+      const signed = isFarthestFirst ? -distance : distance;
+      const clamped = Math.min(SORT_RANGE, Math.max(-SORT_RANGE, signed));
+      keys[k] = Math.floor((clamped + SORT_RANGE) * scale) * span + i;
+    }
+    const sorted = keys.subarray(0, order.length).sort();
+    for (let k = 0; k < sorted.length; k++) order[k] = sorted[k] % span;
+  }
+
   private markStale(instanceId: number) {
     if (instanceId < 0) return;
     this.ensureCapacity(instanceId + 1);
@@ -243,8 +277,5 @@ export class StaticBatchedMesh extends BatchedMesh {
     const stale = new Uint8Array(size).fill(1);
     stale.set(this.isSphereStale);
     this.isSphereStale = stale;
-    const keys = new Float32Array(size);
-    keys.set(this.keys);
-    this.keys = keys;
   }
 }

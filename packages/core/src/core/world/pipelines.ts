@@ -487,6 +487,10 @@ export class ChunkPipeline {
 }
 
 interface MeshState {
+  /** The section's column and level, read off its key once. */
+  cx: number;
+  cz: number;
+  level: number;
   generation: number;
   inFlightGenerations: Set<number>;
   displayedGeneration: number;
@@ -498,6 +502,10 @@ interface MeshState {
    */
   inFlightStartedAt: Map<number, number>;
 }
+
+/** One number per chunk column, for maps keyed by column. */
+const columnKey = (cx: number, cz: number) =>
+  (cx + 0x8000) * 0x10000 + (cz + 0x8000);
 
 const CHAR_MINUS = 45;
 const CHAR_ZERO = 48;
@@ -557,7 +565,11 @@ export class MeshPipeline {
   private getOrCreate(key: string): MeshState {
     let state = this.states.get(key);
     if (!state) {
+      const { cx, cz, level } = MeshPipeline.parseKey(key);
       state = {
+        cx,
+        cz,
+        level,
         generation: 0,
         inFlightGenerations: new Set(),
         displayedGeneration: 0,
@@ -759,7 +771,7 @@ export class MeshPipeline {
   nearestDirtyKeys(
     center: Coords2,
     limit: number,
-    isReady?: (key: string) => boolean,
+    isReady?: (cx: number, cz: number) => boolean,
   ): string[] {
     const urgentKeys = this.urgentDirtyKeys();
     const [centerX, centerZ] = center;
@@ -769,6 +781,7 @@ export class MeshPipeline {
     const freshDistances: number[] = [];
     const rebuilt: string[] = [];
     const rebuiltDistances: number[] = [];
+    const readyColumns = new Map<number, boolean>();
     for (const key of this.dirty) {
       if (this.urgentDirty.has(key)) continue;
       const isFresh = !this.hasDisplayed(key);
@@ -777,7 +790,17 @@ export class MeshPipeline {
       const distance = keyColumnDistanceSq(key, centerX, centerZ);
       if (keys.length >= limit && distance >= distances[limit - 1]) continue;
       if (!this.shouldStartJob(key)) continue;
-      if (isReady && !isReady(key)) continue;
+      if (isReady) {
+        // Asked once per column: its sections share the answer.
+        const { cx, cz } = this.states.get(key) ?? MeshPipeline.parseKey(key);
+        const column = columnKey(cx, cz);
+        let isColumnReady = readyColumns.get(column);
+        if (isColumnReady === undefined) {
+          isColumnReady = isReady(cx, cz);
+          readyColumns.set(column, isColumnReady);
+        }
+        if (!isColumnReady) continue;
+      }
       // Insertion keeps the kept keys sorted; equal distances keep the
       // dirty set's insertion order, as the full sort does.
       let at = keys.length;

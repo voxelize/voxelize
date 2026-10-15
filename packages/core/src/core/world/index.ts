@@ -107,6 +107,11 @@ import { BlockEntityLedger } from "./block-entity-ledger";
 import { BorderSwapHold } from "./border-swap-hold";
 import { branchAABBsAt, branchHoldsWater } from "./branch";
 import { Chunk } from "./chunk";
+import {
+  mergeSectionGeometries,
+  ownMergeStorage,
+  ScratchMergeStorage,
+} from "./chunk-geometry-merge";
 import { ChunkIdReplacementReport } from "./chunk-id-replacements";
 import {
   CustomChunkShaderMaterial,
@@ -7390,7 +7395,7 @@ export class World<T = any> extends Scene implements NetIntercept {
       const materialToGeometries = new Map<
         string,
         {
-          geometry: BufferGeometry;
+          geo: MeshProtocol["geometries"][number];
           material: CustomChunkShaderMaterial;
           voxel: number;
         }[]
@@ -7398,7 +7403,6 @@ export class World<T = any> extends Scene implements NetIntercept {
 
       for (const geo of meshGeometries) {
         const { voxel, at, faceName } = geo;
-        const geometry = this.makeChunkBufferGeometry(geo, cx, cz);
 
         let material = this.getBlockFaceMaterial(
           voxel,
@@ -7428,7 +7432,7 @@ export class World<T = any> extends Scene implements NetIntercept {
           materialToGeometries.set(matKey, []);
         }
         const arr = materialToGeometries.get(matKey);
-        if (arr) arr.push({ geometry, material, voxel });
+        if (arr) arr.push({ geo, material, voxel });
       }
 
       meshes = [];
@@ -7441,23 +7445,22 @@ export class World<T = any> extends Scene implements NetIntercept {
           ({ voxel: geometryVoxel }) => geometryVoxel === voxel,
         );
 
+        // One part draws from the arrays it arrived in; several are merged
+        // into arrays of their own, which the mesh keeps.
         let finalGeometry: BufferGeometry;
         if (geoMats.length === 1) {
-          finalGeometry = geoMats[0].geometry;
+          finalGeometry = this.makeChunkBufferGeometry(geoMats[0].geo, cx, cz);
         } else {
-          const geos: BufferGeometry[] = [];
-          for (let i = 0; i < geoMats.length; i++) {
-            geos.push(geoMats[i].geometry);
-          }
-          const merged = mergeGeometries(geos, false);
+          const merged = mergeSectionGeometries(
+            geoMats.map(({ geo }) => geo),
+            this.chunkMergeExtras(cx, cz, voxel),
+            ownMergeStorage,
+          );
           if (!merged) {
-            for (let i = 0; i < geos.length; i++) {
-              geos[i].dispose();
-            }
+            console.error(
+              `Chunk section ${cx},${cz} level ${level}: ${materialKey} geometries disagree in format; bucket dropped.`,
+            );
             continue;
-          }
-          for (let i = 0; i < geos.length; i++) {
-            geos[i].dispose();
           }
           finalGeometry = merged;
         }
@@ -7678,18 +7681,17 @@ export class World<T = any> extends Scene implements NetIntercept {
     }
     const arenas = this.ensureRegionArenas(bucket);
 
-    const parts: BufferGeometry[] = [];
-    for (const geo of geometries) {
-      parts.push(this.makeChunkBufferGeometry(geo, cx, cz));
-    }
-
-    const merged =
-      parts.length === 1 ? parts[0] : mergeGeometries(parts, false);
+    // The slot copies the merge at once, so it is written into scratch
+    // arrays every section reuses.
+    const merged = mergeSectionGeometries(
+      geometries,
+      this.chunkMergeExtras(cx, cz, geometries[0].voxel),
+      this.arenaMergeScratch.take,
+    );
     if (!merged) {
       console.error(
-        `Chunk section ${cx},${cz} level ${level}: ${bucket} geometries failed to merge; section dropped from the region arena.`,
+        `Chunk section ${cx},${cz} level ${level}: ${bucket} geometries disagree in format; section dropped from the region arena.`,
       );
-      for (const part of parts) part.dispose();
       arenas.clearSection(cx, cz, level);
       return;
     }
@@ -7713,11 +7715,30 @@ export class World<T = any> extends Scene implements NetIntercept {
       level,
       this.isArenaSectionShown(bucket, chunk, level, chunk.sectionVisibleMask),
     );
+  }
 
-    merged.dispose();
-    for (const part of parts) {
-      if (part !== merged) part.dispose();
-    }
+  /** Scratch arrays the region arena merges write into (see applyArenaSectionGeometry). */
+  private readonly arenaMergeScratch = new ScratchMergeStorage();
+
+  /**
+   * What a merged section geometry carries besides its parts' arrays, as
+   * `makeChunkBufferGeometry` gives one part: the chunk's biome colour
+   * corners, and a sway profile per vertex for a bucket of swaying blocks
+   * (decided by the bucket's first voxel; a bucket holds one kind).
+   */
+  private chunkMergeExtras(cx: number, cz: number, voxel: number) {
+    const isSwaying =
+      !this.customMaterialBlockIds.has(voxel) &&
+      sharedCutoutMaterialKeyFor(this.getBlockById(voxel)) !== null;
+    return {
+      biomeCorners: this.getChunkByCoords(cx, cz)?.biomeTints,
+      chunkSize: this.options.chunkSize,
+      positionUnits: this.chunkPositionUnits,
+      positionBias: POSITION_BLOCK_BIAS,
+      swayProfileOf: isSwaying
+        ? (id: number) => this.swayProfileIndexByVoxel.get(id) ?? 0
+        : undefined,
+    };
   }
 
   get sectionVisibilityStats() {
@@ -8609,16 +8630,15 @@ export class World<T = any> extends Scene implements NetIntercept {
   };
 
   /**
-   * Whether a dirty section should be meshed now: not while a neighbouring
-   * chunk is on its way (asked for, arriving, or loaded and still lighting)
-   * and has been for under `MESH_NEIGHBOUR_WAIT_MS`. A section meshed
+   * Whether a dirty column's sections should be meshed now: not while a
+   * neighbouring chunk is on its way (asked for, arriving, or loaded and
+   * still lighting) and has been for under `MESH_NEIGHBOUR_WAIT_MS`. A section meshed
    * without a neighbour is meshed again when it lands; during a flight that
    * was two dispatches in five, and the second one was the one that showed.
    * A neighbour nobody asked for (past the load radius) or one that is late
    * holds nothing back.
    */
-  private isSectionMeshable = (key: string) => {
-    const { cx, cz } = MeshPipeline.parseKey(key);
+  private isSectionMeshable = (cx: number, cz: number) => {
     const now = performance.now();
     for (let dx = -1; dx <= 1; dx++) {
       for (let dz = -1; dz <= 1; dz++) {
