@@ -111,6 +111,7 @@ import { ChunkIdReplacementReport } from "./chunk-id-replacements";
 import {
   CustomChunkShaderMaterial,
   SEE_THROUGH_ALPHA_TEST,
+  SHARED_CUTOUT_CUBE_MATERIAL_KEY,
   SHARED_CUTOUT_PLANT_MATERIAL_KEY,
   SHARED_OPAQUE_MATERIAL_KEY,
   applyQuantizedPositionDefine,
@@ -309,6 +310,17 @@ const warnedUnloadedUpdateChunks = new Set<string>();
 
 /** Overdue chunk requests one report names before summing up the rest. */
 const MAX_OVERDUE_CHUNKS_NAMED = 8;
+
+/**
+ * The chunk material buckets drawn from region arenas, one multi-draw per
+ * region instead of one draw per section: opaque terrain and the closed
+ * cutout cubes (leaves), both depth-writing and unsorted, so a batch draws
+ * them exactly as their meshes did, shadow casters included.
+ */
+const ARENA_BUCKETS: readonly string[] = [
+  SHARED_OPAQUE_MATERIAL_KEY,
+  SHARED_CUTOUT_CUBE_MATERIAL_KEY,
+];
 
 /** Dirty sections picked, nearest first, for one mesh dispatch window. */
 const MESH_CANDIDATES = 64;
@@ -609,11 +621,28 @@ export class World<T = any> extends Scene implements NetIntercept {
   };
 
   /**
-   * Region buffer arenas batching the shared-opaque bucket, one
-   * `BatchedMesh` per region; `null` until the first opaque section lands or
-   * when {@link WorldClientOptions.regionArenas} disables batching.
+   * Region buffer arenas, one set per bucket in `ARENA_BUCKETS`, each a
+   * `BatchedMesh` per region; a set exists once its first section lands,
+   * and none do when {@link WorldClientOptions.regionArenas} disables
+   * batching.
    */
-  public regionArenas: ChunkRegionArenas | null = null;
+  private readonly arenaSets = new Map<string, ChunkRegionArenas>();
+
+  /** The shared-opaque bucket's region arenas, `null` until one lands. */
+  get regionArenas(): ChunkRegionArenas | null {
+    return this.arenaSets.get(SHARED_OPAQUE_MATERIAL_KEY) ?? null;
+  }
+
+  /** The materials the region arenas draw with, one per batched bucket. */
+  get regionArenaMaterials(): CustomChunkShaderMaterial[] {
+    if (!this.options.regionArenas) return [];
+    const materials: CustomChunkShaderMaterial[] = [];
+    for (const bucket of ARENA_BUCKETS) {
+      const material = this.chunkRenderer.materials.get(bucket);
+      if (material) materials.push(material);
+    }
+    return materials;
+  }
 
   /**
    * Completed regular mesh results waiting to apply under
@@ -1597,8 +1626,8 @@ export class World<T = any> extends Scene implements NetIntercept {
     this.lightJobsCompleteResolvers.splice(0).forEach((resolve) => resolve());
 
     this.chunkPipeline.forEachLoaded((chunk) => chunk.dispose());
-    this.regionArenas?.dispose();
-    this.regionArenas = null;
+    for (const arenas of this.arenaSets.values()) arenas.dispose();
+    this.arenaSets.clear();
     this.sectionReveals.clear();
     this.sectionVisibility?.clear();
     this.borderSwapHold.clear();
@@ -6421,7 +6450,7 @@ export class World<T = any> extends Scene implements NetIntercept {
 
         // Block entities are deliberately not pruned here: the server never
         // re-sends them for a chunk that comes back, so the map keeps them.
-        this.regionArenas?.clearChunk(x, z);
+        for (const arenas of this.arenaSets.values()) arenas.clearChunk(x, z);
         this.sectionVisibility?.removeChunk(x, z);
         this.localLights.handleChunkUnloaded(x, z);
         for (const level of chunk.meshes.keys()) {
@@ -7295,19 +7324,29 @@ export class World<T = any> extends Scene implements NetIntercept {
       }
     }
 
-    const isArenaBucketed = this.options.regionArenas !== null;
-    const meshGeometries = isArenaBucketed
-      ? sharedGeometries.filter((geo) => !this.isArenaGeometry(geo))
-      : sharedGeometries;
-
-    if (isArenaBucketed) {
-      this.applyArenaSectionGeometry(
-        cx,
-        cz,
-        level,
-        sharedGeometries.filter((geo) => this.isArenaGeometry(geo)),
-        heightPerSubChunk,
-      );
+    let meshGeometries = sharedGeometries;
+    if (this.options.regionArenas !== null) {
+      meshGeometries = [];
+      const arenaGeometries = new Map<string, MeshProtocol["geometries"]>();
+      for (const geo of sharedGeometries) {
+        const bucket = this.arenaBucketOf(geo);
+        if (bucket === null) {
+          meshGeometries.push(geo);
+          continue;
+        }
+        const list = arenaGeometries.get(bucket);
+        if (list) list.push(geo);
+        else arenaGeometries.set(bucket, [geo]);
+      }
+      for (const bucket of ARENA_BUCKETS) {
+        this.applyArenaSectionGeometry(
+          bucket,
+          chunk,
+          level,
+          arenaGeometries.get(bucket) ?? [],
+          heightPerSubChunk,
+        );
+      }
     }
 
     if (geometries.length === 0) return;
@@ -7553,29 +7592,29 @@ export class World<T = any> extends Scene implements NetIntercept {
     return this.getBlockByIdSafe(geo.voxel)?.isAnimated === true;
   }
 
-  private isArenaGeometry(geo: MeshProtocol["geometries"][number]) {
-    return (
-      this.getChunkMaterialBucket(
-        geo.voxel,
-        geo.faceName,
-        geo.at && geo.at.length ? geo.at : undefined,
-      ) === SHARED_OPAQUE_MATERIAL_KEY
+  /** The arena bucket a geometry is batched in, or null for a mesh. */
+  private arenaBucketOf(geo: MeshProtocol["geometries"][number]) {
+    const bucket = this.getChunkMaterialBucket(
+      geo.voxel,
+      geo.faceName,
+      geo.at && geo.at.length ? geo.at : undefined,
     );
+    return ARENA_BUCKETS.includes(bucket) ? bucket : null;
   }
 
   private applyArenaSectionGeometry(
-    cx: number,
-    cz: number,
+    bucket: string,
+    chunk: Chunk,
     level: number,
     geometries: MeshProtocol["geometries"],
     heightPerSubChunk: number,
   ) {
-    const arenas = this.ensureRegionArenas();
-
+    const [cx, cz] = chunk.coords;
     if (geometries.length === 0) {
-      arenas.clearSection(cx, cz, level);
+      this.arenaSets.get(bucket)?.clearSection(cx, cz, level);
       return;
     }
+    const arenas = this.ensureRegionArenas(bucket);
 
     const parts: BufferGeometry[] = [];
     for (const geo of geometries) {
@@ -7586,7 +7625,7 @@ export class World<T = any> extends Scene implements NetIntercept {
       parts.length === 1 ? parts[0] : mergeGeometries(parts, false);
     if (!merged) {
       console.error(
-        `Chunk section ${cx},${cz} level ${level}: opaque geometries failed to merge; section dropped from the region arena.`,
+        `Chunk section ${cx},${cz} level ${level}: ${bucket} geometries failed to merge; section dropped from the region arena.`,
       );
       for (const part of parts) part.dispose();
       arenas.clearSection(cx, cz, level);
@@ -7602,6 +7641,16 @@ export class World<T = any> extends Scene implements NetIntercept {
       cx * chunkSize,
       level * heightPerSubChunk,
       cz * chunkSize,
+    );
+    // A slot drawn outside the chunk's group follows the group's last
+    // visibility walk from the frame it lands, not only from its next one:
+    // a section landing in a chunk held for the far layer stays hidden.
+    const mask = chunk.sectionVisibleMask;
+    arenas.setSectionVisible(
+      cx,
+      cz,
+      level,
+      mask === null || ((mask >> level) & 1) === 1,
     );
 
     merged.dispose();
@@ -7642,8 +7691,10 @@ export class World<T = any> extends Scene implements NetIntercept {
       this.sectionReveals.set(key, clamped);
     }
 
-    let isApplied =
-      this.regionArenas?.setSectionReveal(cx, cz, level, clamped) ?? false;
+    let isApplied = false;
+    for (const arenas of this.arenaSets.values()) {
+      if (arenas.setSectionReveal(cx, cz, level, clamped)) isApplied = true;
+    }
     const meshes = this.getChunkByCoords(cx, cz)?.meshes.get(level);
     if (meshes) {
       for (const mesh of meshes) {
@@ -7749,8 +7800,9 @@ export class World<T = any> extends Scene implements NetIntercept {
     };
   }
 
-  private ensureRegionArenas() {
-    if (this.regionArenas) return this.regionArenas;
+  private ensureRegionArenas(bucket: string) {
+    const existing = this.arenaSets.get(bucket);
+    if (existing) return existing;
 
     const arenaOptions = this.options.regionArenas;
     if (!arenaOptions) {
@@ -7760,13 +7812,11 @@ export class World<T = any> extends Scene implements NetIntercept {
     }
 
     const { subChunks } = this.options;
-    this.regionArenas = new ChunkRegionArenas(
+    const arenas = new ChunkRegionArenas(
       arenaOptions,
       arenaOptions.regionSizeInChunks ** 2 * subChunks,
       () => {
-        const material = this.chunkRenderer.materials.get(
-          SHARED_OPAQUE_MATERIAL_KEY,
-        );
+        const material = this.chunkRenderer.materials.get(bucket);
         if (!material) {
           throw new Error(
             "Region arena created before chunk materials loaded.",
@@ -7777,7 +7827,8 @@ export class World<T = any> extends Scene implements NetIntercept {
       this,
       this.chunkPositionUnits,
     );
-    return this.regionArenas;
+    this.arenaSets.set(bucket, arenas);
+    return arenas;
   }
 
   private setupComponents() {
@@ -9438,7 +9489,9 @@ export class World<T = any> extends Scene implements NetIntercept {
         mesh.visible =
           isLevelVisible && (isPlantShown || mesh.userData?.isPlant !== true);
       }
-      this.regionArenas?.setSectionVisible(cx, cz, level, isLevelVisible);
+      for (const arenas of this.arenaSets.values()) {
+        arenas.setSectionVisible(cx, cz, level, isLevelVisible);
+      }
     }
   }
 
@@ -9526,6 +9579,8 @@ export class World<T = any> extends Scene implements NetIntercept {
       // frame it shows and the far layer steps aside.
       if (this.farTerrain.isHeld(cx, cz) && this.isFarColumnPending(cx, cz)) {
         chunk.group.visible = false;
+        // Its arena slots draw outside the group, so they hide with it.
+        this.applySectionVisibility(chunk, 0);
         return;
       }
 
