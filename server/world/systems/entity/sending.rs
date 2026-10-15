@@ -8,7 +8,7 @@ use crate::{
     BackgroundEntitiesSaver, Bookkeeping, ClientFilter, Clients, DirectionComp, DoNotPersistComp,
     ETypeComp, EntityFlag, EntityIDs, EntityOperation, EntityProtocol, IDComp, InteractorComp,
     InterestTransition, KdTree, Message, MessageQueues, MessageType, MetadataComp, MotionSample,
-    Physics, PositionComp, QuantizedMotion, ReplicatedStateBuffer, RigidBodyComp, Stats,
+    OnRequestMetadataClients, Physics, PositionComp, QuantizedMotion, ReplicatedStateBuffer, RigidBodyComp, Stats,
     TargetComp, Vec3, VoxelComp, WorldConfig, METADATA_MAX_AGE_MS,
 };
 
@@ -35,6 +35,7 @@ impl<'a> System<'a> for EntitiesSendingSystem {
         ReadExpect<'a, BackgroundEntitiesSaver>,
         ReadExpect<'a, KdTree>,
         ReadExpect<'a, Clients>,
+        ReadExpect<'a, OnRequestMetadataClients>,
         ReadExpect<'a, WorldConfig>,
         ReadExpect<'a, WorldTimingContext>,
         ReadExpect<'a, Stats>,
@@ -62,6 +63,7 @@ impl<'a> System<'a> for EntitiesSendingSystem {
             bg_saver,
             kdtree,
             clients,
+            on_request_clients,
             config,
             timing,
             stats,
@@ -158,6 +160,11 @@ impl<'a> System<'a> for EntitiesSendingSystem {
         let mut changed_motion: HashMap<String, Vec<u8>> = HashMap::new();
         // Metadata lane: entity id -> non-motion JSON, present when it changed.
         let mut changed_non_motion: HashMap<String, String> = HashMap::new();
+        // The same lane with the world's on-request keys, for the clients
+        // that asked for them; built only while one has.
+        let on_request_keys = &config.on_request_metadata_keys;
+        let is_on_request_wanted = !on_request_clients.0.is_empty();
+        let mut changed_requested_non_motion: HashMap<String, String> = HashMap::new();
 
         for (
             ent,
@@ -218,7 +225,8 @@ impl<'a> System<'a> for EntitiesSendingSystem {
                 }
             }
 
-            let snapshot = metadata.snapshot_for_replication();
+            let snapshot =
+                metadata.snapshot_for_replication(on_request_keys, is_on_request_wanted);
 
             if is_new || snapshot.is_full_updated {
                 changed_metadata_ids.insert(id.0.clone());
@@ -226,6 +234,9 @@ impl<'a> System<'a> for EntitiesSendingSystem {
             if !is_new {
                 if let Some(non_motion) = snapshot.updated_non_motion_json {
                     changed_non_motion.insert(id.0.clone(), non_motion);
+                }
+                if let Some(requested) = snapshot.updated_requested_non_motion_json {
+                    changed_requested_non_motion.insert(id.0.clone(), requested);
                 }
             }
 
@@ -262,6 +273,16 @@ impl<'a> System<'a> for EntitiesSendingSystem {
             };
 
             let is_compact = client.motion_protocol.is_compact();
+            // A client that asked for the on-request keys reads the lane that
+            // carries them (the same lane when the world names none).
+            let non_motion_lane = if is_on_request_wanted
+                && !on_request_keys.is_empty()
+                && on_request_clients.0.contains(client_id)
+            {
+                &changed_requested_non_motion
+            } else {
+                &changed_non_motion
+            };
             let updates = client_updates.entry(client_id.clone()).or_default();
 
             if let Some(tracked) = bookkeeping.interests.tracked_mut(client_id) {
@@ -349,7 +370,7 @@ impl<'a> System<'a> for EntitiesSendingSystem {
                                     updates.staged_bytes += payload.len();
                                     is_staged = true;
                                 }
-                                if let Some(non_motion) = changed_non_motion.get(entity_id) {
+                                if let Some(non_motion) = non_motion_lane.get(entity_id) {
                                     replicated_state.stage_metadata(
                                         client_id,
                                         entity_id,
@@ -364,7 +385,7 @@ impl<'a> System<'a> for EntitiesSendingSystem {
                                     updates.staged_bytes += non_motion.len();
                                     is_staged = true;
                                 }
-                            } else if is_motion_fresh || changed_non_motion.contains_key(entity_id)
+                            } else if is_motion_fresh || non_motion_lane.contains_key(entity_id)
                             {
                                 // Legacy clients receive the full metadata
                                 // map exactly as before the compact path
@@ -653,6 +674,7 @@ mod tests {
             },
         );
         world.insert(clients);
+        world.insert(OnRequestMetadataClients::default());
 
         let mut kdtree = KdTree::new();
         for i in 0..entity_count {

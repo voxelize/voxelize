@@ -215,6 +215,7 @@ impl World {
         let removed = self.clients_mut().remove(id);
         self.entity_ids_mut().remove(id);
         self.write_resource::<SessionIdentities>().remove(id);
+        self.write_resource::<OnRequestMetadataClients>().0.remove(id);
         self.chunk_interest_mut().remove_client(id);
         self.bookkeeping_mut().remove_client(id);
         self.inbound_state.remove_client(id);

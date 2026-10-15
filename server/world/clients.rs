@@ -1,4 +1,4 @@
-use hashbrown::HashMap;
+use hashbrown::{HashMap, HashSet};
 
 use specs::Entity;
 
@@ -25,6 +25,17 @@ pub struct Client {
 }
 
 pub type Clients = HashMap<String, Client>;
+
+/// Method a client calls with `{"on": true}` or `{"on": false}` to receive
+/// the world's on-request entity metadata keys
+/// (`WorldConfig::on_request_metadata_keys`) or stop receiving them.
+pub const ON_REQUEST_METADATA_METHOD: &str = "vox-builtin:on-request-metadata";
+
+/// World resource: the clients receiving the world's on-request entity
+/// metadata keys, by client id (see [`ON_REQUEST_METADATA_METHOD`]). Per
+/// session: a client that rejoins asks again.
+#[derive(Default)]
+pub struct OnRequestMetadataClients(pub HashSet<String>);
 
 /// World resource: the verified identity of every client currently in the
 /// world, keyed by client id. Written before the client entity is created

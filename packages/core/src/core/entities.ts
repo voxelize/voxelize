@@ -193,8 +193,19 @@ const defaultOptions: EntitiesOptions = {
  * @noInheritDoc
  * @category Core
  */
+/**
+ * Method that asks the server for the world's on-request entity metadata
+ * keys (debug views it replicates only on request) or stops them.
+ */
+export const ON_REQUEST_METADATA_METHOD = "vox-builtin:on-request-metadata";
+
 export class Entities extends Group implements NetIntercept {
   public map: Map<string, Entity> = new Map();
+
+  /** Requests for the server (see `setOnRequestMetadata`). */
+  public packets: MessageProtocol[] = [];
+
+  private isOnRequestMetadataWanted = false;
   public types: Map<
     string,
     (new (id: string) => Entity) | ((id: string) => Entity)
@@ -252,6 +263,28 @@ export class Entities extends Group implements NetIntercept {
    * tell how old that view was, however long the message queue held it,
    * and resolve the request against the entity as the client saw it.
    */
+  /**
+   * Receive the world's on-request entity metadata keys, or stop. A world
+   * keeps metadata only a debug view reads (and that changes every tick)
+   * out of every client's updates unless asked; ask while such a view is
+   * shown. Kept across reconnects: a fresh session is asked again.
+   */
+  setOnRequestMetadata = (isWanted: boolean) => {
+    if (isWanted === this.isOnRequestMetadataWanted) return;
+    this.isOnRequestMetadataWanted = isWanted;
+    this.requestOnRequestMetadata();
+  };
+
+  private requestOnRequestMetadata() {
+    this.packets.push({
+      type: "METHOD",
+      method: {
+        name: ON_REQUEST_METADATA_METHOD,
+        payload: JSON.stringify({ on: this.isOnRequestMetadataWanted }),
+      },
+    } as MessageProtocol);
+  }
+
   appliedTick = (id: string): number | undefined => {
     return this.lastAppliedTick.get(id);
   };
@@ -274,6 +307,7 @@ export class Entities extends Group implements NetIntercept {
     // fresh snapshots, so no stale ghost can outlive a reconnect.
     if (message.type === "INIT") {
       this.releaseAllEntities();
+      if (this.isOnRequestMetadataWanted) this.requestOnRequestMetadata();
     }
 
     const { entities } = message;

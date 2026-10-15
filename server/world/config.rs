@@ -248,6 +248,13 @@ pub struct WorldConfig {
     /// not changed, letting clients treat prolonged silence as a lost entity.
     pub entity_keep_alive_interval: u64,
 
+    /// Entity metadata keys replicated only to clients that ask for them
+    /// (the `vox-builtin:on-request-metadata` method): views a game keeps for
+    /// debugging that change every tick. Left in the shared metadata lane,
+    /// one would resend an entity's whole metadata, static keys included, to
+    /// every client every tick. CREATE snapshots still carry them.
+    pub on_request_metadata_keys: Vec<String>,
+
     /// Wall-clock bound (milliseconds) on how stale a pending MOTION update
     /// for a visible entity may get before it is flushed regardless of the
     /// byte budget. This is the perceptual freshness guarantee: every moving
@@ -446,6 +453,7 @@ pub struct WorldConfigBuilder {
     entity_visible_radius: f32,
     entity_release_radius: f32,
     entity_keep_alive_interval: u64,
+    on_request_metadata_keys: Vec<String>,
     entity_motion_max_age_ms: u64,
     entity_flush_base_bytes_per_tick: usize,
     peer_visible_radius: Option<f32>,
@@ -511,6 +519,7 @@ impl WorldConfigBuilder {
             entity_visible_radius: 0.0,
             entity_release_radius: 0.0,
             entity_keep_alive_interval: DEFAULT_ENTITY_KEEP_ALIVE_INTERVAL,
+            on_request_metadata_keys: Vec::new(),
             entity_motion_max_age_ms: DEFAULT_ENTITY_MOTION_MAX_AGE_MS,
             entity_flush_base_bytes_per_tick: DEFAULT_ENTITY_FLUSH_BASE_BYTES_PER_TICK,
             peer_visible_radius: None,
@@ -839,6 +848,13 @@ impl WorldConfigBuilder {
         self
     }
 
+    /// Entity metadata keys replicated only to clients that ask for them;
+    /// see [`WorldConfig::on_request_metadata_keys`].
+    pub fn on_request_metadata_keys(mut self, keys: &[&str]) -> Self {
+        self.on_request_metadata_keys = keys.iter().map(|key| (*key).to_owned()).collect();
+        self
+    }
+
     /// Wall-clock freshness bound (ms) for pending entity motion. Must be
     /// positive.
     pub fn entity_motion_max_age_ms(mut self, entity_motion_max_age_ms: u64) -> Self {
@@ -1035,6 +1051,7 @@ impl WorldConfigBuilder {
             entity_visible_radius,
             entity_release_radius,
             entity_keep_alive_interval: self.entity_keep_alive_interval,
+            on_request_metadata_keys: self.on_request_metadata_keys,
             entity_motion_max_age_ms: self.entity_motion_max_age_ms,
             entity_flush_base_bytes_per_tick: self.entity_flush_base_bytes_per_tick,
             peer_visible_radius: self.peer_visible_radius,

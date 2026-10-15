@@ -20,9 +20,13 @@ const TARGET_POSITION_FIELD: &str = "position";
 pub struct MetadataSnapshot {
     pub full_json: String,
     pub is_full_updated: bool,
-    /// The non-motion subset JSON, present only when it changed since the
-    /// previous snapshot.
+    /// The non-motion subset JSON without the world's on-request keys
+    /// (`WorldConfig::on_request_metadata_keys`), present only when it
+    /// changed since the previous snapshot: what every compact client gets.
     pub updated_non_motion_json: Option<String>,
+    /// The non-motion subset with the on-request keys, present only when
+    /// asked for and changed: what a client that asked for them gets.
+    pub updated_requested_non_motion_json: Option<String>,
 }
 
 /// A list of chunks that the entity is requesting to generate.
@@ -40,6 +44,11 @@ pub struct MetadataComp {
     #[serde(skip_serializing)]
     #[serde(skip_deserializing)]
     last_emitted_non_motion_json: Option<String>,
+
+    /// The last non-motion subset with the on-request keys emitted.
+    #[serde(skip_serializing)]
+    #[serde(skip_deserializing)]
+    last_emitted_requested_non_motion_json: Option<String>,
 }
 
 impl MetadataComp {
@@ -53,6 +62,7 @@ impl MetadataComp {
             map,
             last_emitted_json: None,
             last_emitted_non_motion_json: None,
+            last_emitted_requested_non_motion_json: None,
         }
     }
 
@@ -107,44 +117,65 @@ impl MetadataComp {
         (json_str, updated)
     }
 
-    /// Serialize both replication shapes with change detection: the full map
-    /// and — only when the full map changed at all — the non-motion subset,
-    /// compared against its own cache. The non-motion subset never changes
-    /// without the full map changing (it is a projection of it), so the
-    /// common unchanged case costs a single serialization, as before.
-    pub fn snapshot_for_replication(&mut self) -> MetadataSnapshot {
+    /// Serialize the replication shapes with change detection: the full map
+    /// and — only when the full map changed at all — the non-motion subset
+    /// without `on_request_keys`, compared against its own cache, plus (when
+    /// `is_requested` says a client asked for those keys) the subset with
+    /// them, against another. A projection never changes without the full
+    /// map changing, so the common unchanged case costs one serialization.
+    ///
+    /// Keys a world sends only on request (debug views that change every
+    /// tick) would otherwise dirty the subset every tick and resend all of
+    /// it, static keys included, to every client.
+    pub fn snapshot_for_replication(
+        &mut self,
+        on_request_keys: &[String],
+        is_requested: bool,
+    ) -> MetadataSnapshot {
         let full_json = self.to_string();
         let is_full_updated = self.last_emitted_json.as_deref() != Some(full_json.as_str());
         if is_full_updated {
             self.last_emitted_json = Some(full_json.clone());
         }
 
-        let updated_non_motion_json = if is_full_updated {
-            let non_motion = self.to_non_motion_string();
+        let mut updated_non_motion_json = None;
+        let mut updated_requested_non_motion_json = None;
+        if is_full_updated {
+            let non_motion = self.to_non_motion_string(on_request_keys);
             if self.last_emitted_non_motion_json.as_deref() != Some(non_motion.as_str()) {
                 self.last_emitted_non_motion_json = Some(non_motion.clone());
-                Some(non_motion)
-            } else {
-                None
+                updated_non_motion_json = Some(non_motion);
             }
-        } else {
-            None
-        };
+            if is_requested && !on_request_keys.is_empty() {
+                let requested = self.to_non_motion_string(&[]);
+                if self.last_emitted_requested_non_motion_json.as_deref()
+                    != Some(requested.as_str())
+                {
+                    self.last_emitted_requested_non_motion_json = Some(requested.clone());
+                    updated_requested_non_motion_json = Some(requested);
+                }
+            }
+        }
 
         MetadataSnapshot {
             full_json,
             is_full_updated,
             updated_non_motion_json,
+            updated_requested_non_motion_json,
         }
     }
 
-    /// The metadata map without the motion-lane keys, and with the target's
-    /// high-frequency position field stripped. Serialized through
-    /// `serde_json::Map` (ordered), so the output is deterministic.
-    fn to_non_motion_string(&self) -> String {
+    /// The metadata map without the motion-lane keys and `skipped_keys`,
+    /// and with the target's high-frequency position field stripped.
+    /// Serialized through `serde_json::Map` (ordered), so the output is
+    /// deterministic.
+    fn to_non_motion_string(&self, skipped_keys: &[String]) -> String {
         let mut filtered = serde_json::Map::new();
         for (key, value) in &self.map {
             if MOTION_METADATA_KEYS.contains(&key.as_str()) {
+                continue;
+            }
+            if skipped_keys.iter().any(|skipped| skipped == key) {
                 continue;
             }
             if key == TARGET_METADATA_KEY {
@@ -172,6 +203,7 @@ impl MetadataComp {
     pub fn mark_dirty(&mut self) {
         self.last_emitted_json = None;
         self.last_emitted_non_motion_json = None;
+        self.last_emitted_requested_non_motion_json = None;
     }
 
     /// Is the metadata empty?
@@ -238,7 +270,7 @@ mod tests {
         metadata.set_value("position", json!([1.0, 2.0, 3.0]));
         metadata.set_value("path", json!({ "nodes": [1, 2, 3] }));
 
-        let snapshot = metadata.snapshot_for_replication();
+        let snapshot = metadata.snapshot_for_replication(&[], false);
         assert!(snapshot.is_full_updated);
         let non_motion = snapshot.updated_non_motion_json.unwrap();
         assert!(!non_motion.contains("position"));
@@ -248,13 +280,13 @@ mod tests {
         metadata.set_value("position", json!([4.0, 5.0, 6.0]));
         metadata.set_value("direction", json!([0.0, 1.0, 0.0]));
         metadata.set_value("rigidBody", json!({ "isInFluid": true }));
-        let snapshot = metadata.snapshot_for_replication();
+        let snapshot = metadata.snapshot_for_replication(&[], false);
         assert!(snapshot.is_full_updated);
         assert!(snapshot.updated_non_motion_json.is_none());
 
         // A genuine non-motion change does.
         metadata.set_value("path", json!({ "nodes": [4] }));
-        let snapshot = metadata.snapshot_for_replication();
+        let snapshot = metadata.snapshot_for_replication(&[], false);
         assert!(snapshot.updated_non_motion_json.is_some());
     }
 
@@ -265,7 +297,7 @@ mod tests {
             "target",
             json!({ "targetType": "Players", "position": [1.0, 2.0, 3.0], "id": "abc" }),
         );
-        let snapshot = metadata.snapshot_for_replication();
+        let snapshot = metadata.snapshot_for_replication(&[], false);
         let non_motion = snapshot.updated_non_motion_json.unwrap();
         assert!(non_motion.contains("targetType"));
         assert!(!non_motion.contains("position"));
@@ -276,7 +308,7 @@ mod tests {
             "target",
             json!({ "targetType": "Players", "position": [9.0, 9.0, 9.0], "id": "abc" }),
         );
-        let snapshot = metadata.snapshot_for_replication();
+        let snapshot = metadata.snapshot_for_replication(&[], false);
         assert!(snapshot.updated_non_motion_json.is_none());
 
         // ...but retargeting to another entity is.
@@ -284,7 +316,7 @@ mod tests {
             "target",
             json!({ "targetType": "Players", "position": [9.0, 9.0, 9.0], "id": "xyz" }),
         );
-        let snapshot = metadata.snapshot_for_replication();
+        let snapshot = metadata.snapshot_for_replication(&[], false);
         assert!(snapshot.updated_non_motion_json.is_some());
     }
 
@@ -292,11 +324,52 @@ mod tests {
     fn unchanged_metadata_snapshots_report_no_update() {
         let mut metadata = MetadataComp::new();
         metadata.set_value("text", json!("hello"));
-        metadata.snapshot_for_replication();
+        metadata.snapshot_for_replication(&[], false);
 
         metadata.set_value("text", json!("hello"));
-        let snapshot = metadata.snapshot_for_replication();
+        let snapshot = metadata.snapshot_for_replication(&[], false);
         assert!(!snapshot.is_full_updated);
         assert!(snapshot.updated_non_motion_json.is_none());
+    }
+
+    #[test]
+    fn on_request_keys_change_only_the_requested_subset() {
+        let keys = vec!["debug".to_owned()];
+        let mut metadata = MetadataComp::new();
+        metadata.set_value("health", json!(10));
+        metadata.set_value("debug", json!({ "state": "wander" }));
+
+        let snapshot = metadata.snapshot_for_replication(&keys, true);
+        let plain = snapshot.updated_non_motion_json.unwrap();
+        assert!(plain.contains("health") && !plain.contains("debug"));
+        let requested = snapshot.updated_requested_non_motion_json.unwrap();
+        assert!(requested.contains("health") && requested.contains("debug"));
+
+        // A tick where only the on-request key moved: nothing for a client
+        // that did not ask, the whole subset for one that did.
+        metadata.set_value("debug", json!({ "state": "flee" }));
+        let snapshot = metadata.snapshot_for_replication(&keys, true);
+        assert!(snapshot.updated_non_motion_json.is_none());
+        assert!(snapshot
+            .updated_requested_non_motion_json
+            .unwrap()
+            .contains("flee"));
+
+        // Nobody asking: the requested subset is not even built.
+        metadata.set_value("debug", json!({ "state": "rest" }));
+        let snapshot = metadata.snapshot_for_replication(&keys, false);
+        assert!(snapshot.updated_non_motion_json.is_none());
+        assert!(snapshot.updated_requested_non_motion_json.is_none());
+
+        // Asked again later, it reports what changed while nobody asked.
+        let snapshot = {
+            metadata.set_value("health", json!(9));
+            metadata.snapshot_for_replication(&keys, true)
+        };
+        assert!(snapshot.updated_non_motion_json.is_some());
+        assert!(snapshot
+            .updated_requested_non_motion_json
+            .unwrap()
+            .contains("rest"));
     }
 }

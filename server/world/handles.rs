@@ -82,6 +82,15 @@ impl World {
         self.client_parser = Arc::new(parser);
     }
 
+    /// Entity metadata keys replicated only to clients that ask for them
+    /// (see [`WorldConfig::on_request_metadata_keys`]); for a game that sets
+    /// them where it installs the systems writing those keys, after the
+    /// world's config was built.
+    pub fn set_on_request_metadata_keys(&mut self, keys: &[&str]) {
+        self.write_resource::<WorldConfig>().on_request_metadata_keys =
+            keys.iter().map(|key| (*key).to_owned()).collect();
+    }
+
     pub fn set_method_handle<F: Fn(&mut World, &str, &str) + Send + Sync + 'static>(
         &mut self,
         method: &str,

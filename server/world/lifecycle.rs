@@ -149,6 +149,7 @@ impl World {
         let config = self.config().make_copy();
         *self.write_resource::<Chunks>() = Chunks::new(&config);
         *self.write_resource::<Clients>() = Clients::new();
+        *self.write_resource::<OnRequestMetadataClients>() = OnRequestMetadataClients::default();
         *self.write_resource::<Transports>() = Transports::new();
         *self.write_resource::<EntityIDs>() = EntityIDs::new();
         *self.write_resource::<Bookkeeping>() = Bookkeeping::new();

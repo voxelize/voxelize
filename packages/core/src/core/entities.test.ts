@@ -1,7 +1,7 @@
 import { EntityMotionProtocol, MessageProtocol } from "@voxelize/protocol";
 import { describe, expect, it, vi } from "vitest";
 
-import { Entities, Entity } from "./entities";
+import { Entities, Entity, ON_REQUEST_METADATA_METHOD } from "./entities";
 
 type ProbeData = {
   position: [number, number, number];
@@ -690,5 +690,39 @@ describe("Entities server-frozen entities", () => {
     entities.update();
     expect(probe.frames).toBe(1);
     expect(probe.frozenFrames).toBe(2);
+  });
+});
+
+describe("Entities on-request metadata", () => {
+  const requests = (entities: Entities) =>
+    entities.packets.map((packet) => ({
+      name: packet.method?.name,
+      payload: JSON.parse(packet.method?.payload ?? "null"),
+    }));
+
+  it("asks once per change, and again on a fresh session while wanted", () => {
+    const entities = new Entities();
+    entities.setOnRequestMetadata(false);
+    expect(entities.packets).toHaveLength(0);
+
+    entities.setOnRequestMetadata(true);
+    entities.setOnRequestMetadata(true);
+    expect(requests(entities)).toEqual([
+      { name: ON_REQUEST_METADATA_METHOD, payload: { on: true } },
+    ]);
+
+    // A reconnect is a new server session that has forgotten the ask.
+    entities.packets.length = 0;
+    entities.onMessage({ type: "INIT" } as MessageProtocol);
+    expect(requests(entities)).toEqual([
+      { name: ON_REQUEST_METADATA_METHOD, payload: { on: true } },
+    ]);
+
+    entities.packets.length = 0;
+    entities.setOnRequestMetadata(false);
+    entities.onMessage({ type: "INIT" } as MessageProtocol);
+    expect(requests(entities)).toEqual([
+      { name: ON_REQUEST_METADATA_METHOD, payload: { on: false } },
+    ]);
   });
 });

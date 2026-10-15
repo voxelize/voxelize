@@ -465,6 +465,7 @@ impl World {
         ecs.insert(RandomTickCatchUp::new());
         ecs.insert(Pipeline::new());
         ecs.insert(Clients::new());
+        ecs.insert(OnRequestMetadataClients::default());
         ecs.insert(SessionIdentities::new());
         ecs.insert(MessageQueues::new());
         ecs.insert(Physics::new());
@@ -556,6 +557,31 @@ impl World {
         world.set_method_handle("vox-builtin:chat-history", |world, client_id, payload| {
             world.reply_chat_history(client_id, payload);
         });
+
+        // `ON_REQUEST_METADATA_METHOD`, spelled out so a source scan of
+        // registered method names can read it.
+        world.set_method_handle(
+            "vox-builtin:on-request-metadata",
+            |world, client_id, payload| {
+                let on = serde_json::from_str::<Value>(payload)
+                    .ok()
+                    .and_then(|value| value.get("on").and_then(Value::as_bool));
+                let Some(on) = on else {
+                    world.reject_method(
+                        client_id,
+                        ON_REQUEST_METADATA_METHOD,
+                        "payload must be {\"on\": true} or {\"on\": false}",
+                    );
+                    return;
+                };
+                let mut clients = world.write_resource::<OnRequestMetadataClients>();
+                if on {
+                    clients.0.insert(client_id.to_owned());
+                } else {
+                    clients.0.remove(client_id);
+                }
+            },
+        );
 
         world.set_method_handle("vox-builtin:set-time", |world, _, payload| {
             let payload: BuiltInSetTimeMethodPayload = serde_json::from_str(payload)
