@@ -66,6 +66,12 @@ export class ChunkRegionArenas {
     private getMaterial: () => CustomChunkShaderMaterial,
     private parent: Object3D,
     private positionUnitsPerBlock: number,
+    /**
+     * Told of each region mesh as it joins the scene (`true`) and before it
+     * leaves (`false`), for a host that registers the meshes it draws (the
+     * shadow casters it hides, the see-through surfaces it plans).
+     */
+    private onRegionMesh?: (mesh: BatchedMesh, isAdded: boolean) => void,
   ) {}
 
   setSectionGeometry(
@@ -247,6 +253,7 @@ export class ChunkRegionArenas {
     mesh.matrixAutoUpdate = false;
     mesh.userData.isChunkRegionArena = true;
     this.parent.add(mesh);
+    this.onRegionMesh?.(mesh, true);
 
     const region: RegionArena = {
       mesh,
@@ -267,6 +274,7 @@ export class ChunkRegionArenas {
   }
 
   private disposeRegion(regionKey: string, region: RegionArena) {
+    this.onRegionMesh?.(region.mesh, false);
     this.parent.remove(region.mesh);
     region.mesh.dispose();
     this.regions.delete(regionKey);

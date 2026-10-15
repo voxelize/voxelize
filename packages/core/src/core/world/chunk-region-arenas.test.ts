@@ -1,4 +1,5 @@
 import {
+  type BatchedMesh,
   BufferAttribute,
   BufferGeometry,
   Group,
@@ -24,7 +25,10 @@ const sectionGeometry = (quads: number) => {
   return geometry;
 };
 
-const makeArenas = (parent: Group) =>
+const makeArenas = (
+  parent: Group,
+  onRegionMesh?: (mesh: BatchedMesh, isAdded: boolean) => void,
+) =>
   new ChunkRegionArenas(
     {
       regionSizeInChunks: 4,
@@ -37,6 +41,7 @@ const makeArenas = (parent: Group) =>
     () => new MeshBasicMaterial() as unknown as CustomChunkShaderMaterial,
     parent,
     1,
+    onRegionMesh,
   );
 
 describe("ChunkRegionArenas remesh", () => {
@@ -65,5 +70,33 @@ describe("ChunkRegionArenas remesh", () => {
     arenas.setSectionGeometry(0, 0, 1, sectionGeometry(0), 0, 32, 0);
     expect(arenas.stats.sections).toBe(0);
     expect(parent.children).toHaveLength(0);
+  });
+});
+
+describe("ChunkRegionArenas region meshes", () => {
+  it("names each region mesh to its host once as it joins and once as it leaves", () => {
+    // The host hides a region from the shadow passes or plans its texels
+    // the way it did the section meshes; a region that grows keeps its
+    // place in those sets, and only the last section leaving retires it.
+    const parent = new Group();
+    const events: [BatchedMesh, boolean][] = [];
+    const arenas = makeArenas(parent, (mesh, isAdded) =>
+      events.push([mesh, isAdded]),
+    );
+
+    arenas.setSectionGeometry(0, 0, 0, sectionGeometry(2), 0, 0, 0);
+    arenas.setSectionGeometry(1, 0, 0, sectionGeometry(200), 16, 0, 0);
+    arenas.setSectionGeometry(5, 0, 0, sectionGeometry(2), 80, 0, 0);
+    expect(events.map(([, isAdded]) => isAdded)).toEqual([true, true]);
+    const [[first], [second]] = events;
+    expect(first).not.toBe(second);
+    expect(parent.children).toEqual([first, second]);
+
+    arenas.clearSection(0, 0, 0);
+    expect(events).toHaveLength(2);
+    arenas.clearSection(1, 0, 0);
+    expect(events[2]).toEqual([first, false]);
+    arenas.dispose();
+    expect(events[3]).toEqual([second, false]);
   });
 });

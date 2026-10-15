@@ -313,13 +313,16 @@ const MAX_OVERDUE_CHUNKS_NAMED = 8;
 
 /**
  * The chunk material buckets drawn from region arenas, one multi-draw per
- * region instead of one draw per section: opaque terrain and the closed
- * cutout cubes (leaves), both depth-writing and unsorted, so a batch draws
- * them exactly as their meshes did, shadow casters included.
+ * region instead of one draw per section: opaque terrain, the closed cutout
+ * cubes (leaves) and the plants. All three write depth, so no draw order
+ * matters inside a batch, and a batch draws them as their meshes did:
+ * casters cast through the same depth material, plants stay out of the
+ * shadow passes, and plants beyond the plant radius hide per section.
  */
 const ARENA_BUCKETS: readonly string[] = [
   SHARED_OPAQUE_MATERIAL_KEY,
   SHARED_CUTOUT_CUBE_MATERIAL_KEY,
+  SHARED_CUTOUT_PLANT_MATERIAL_KEY,
 ];
 
 /** Dirty sections picked, nearest first, for one mesh dispatch window. */
@@ -1024,9 +1027,13 @@ export class World<T = any> extends Scene implements NetIntercept {
     } else {
       this.seeThroughBases.set(mesh, material);
       this.seeThroughMeshes.add(mesh);
-      mesh.geometry.addEventListener("dispose", () => {
-        this.seeThroughMeshes.delete(mesh);
-      });
+      // A region arena swaps (and disposes) its geometry as it grows, so
+      // it leaves the set when the arena drops it instead.
+      if (!mesh.userData.isChunkRegionArena) {
+        mesh.geometry.addEventListener("dispose", () => {
+          this.seeThroughMeshes.delete(mesh);
+        });
+      }
       this.planSeeThroughTexels(mesh);
     }
     this.csmRenderer?.addSkipShadowObject(mesh);
@@ -1041,7 +1048,11 @@ export class World<T = any> extends Scene implements NetIntercept {
       mesh.userData.materialBucket as string | undefined,
       base,
     );
-    const plan = texelPlanOf(base, classes, canCutSolidTexels(base));
+    let plan = texelPlanOf(base, classes, canCutSolidTexels(base));
+    // A region arena cannot give the second draw a split needs (its
+    // sections stop joining it, see batchedArenaBuckets); those already in
+    // it draw every texel with their material until they remesh.
+    if (plan === "split" && (mesh as BatchedMesh).isBatchedMesh) plan = "as-is";
     if (plan === mesh.userData.texelPlan) return;
     const layer = split.apply(mesh, base, plan);
     const reveal = (mesh.userData.chunkReveal as { reveal: number } | undefined)
@@ -7327,9 +7338,10 @@ export class World<T = any> extends Scene implements NetIntercept {
     let meshGeometries = sharedGeometries;
     if (this.options.regionArenas !== null) {
       meshGeometries = [];
+      const batched = this.batchedArenaBuckets();
       const arenaGeometries = new Map<string, MeshProtocol["geometries"]>();
       for (const geo of sharedGeometries) {
-        const bucket = this.arenaBucketOf(geo);
+        const bucket = this.arenaBucketOf(geo, batched);
         if (bucket === null) {
           meshGeometries.push(geo);
           continue;
@@ -7593,13 +7605,46 @@ export class World<T = any> extends Scene implements NetIntercept {
   }
 
   /** The arena bucket a geometry is batched in, or null for a mesh. */
-  private arenaBucketOf(geo: MeshProtocol["geometries"][number]) {
+  private arenaBucketOf(
+    geo: MeshProtocol["geometries"][number],
+    batched: readonly string[],
+  ) {
     const bucket = this.getChunkMaterialBucket(
       geo.voxel,
       geo.faceName,
       geo.at && geo.at.length ? geo.at : undefined,
     );
-    return ARENA_BUCKETS.includes(bucket) ? bucket : null;
+    return batched.includes(bucket) ? bucket : null;
+  }
+
+  private batchedBuckets: {
+    generation: number;
+    buckets: readonly string[];
+  } | null = null;
+
+  /**
+   * The arena buckets batched now: all of them, less a see-through bucket
+   * whose textures split into a depth draw and a blended draw (translucent
+   * texels beside solid ones). A batch gives one draw from its buffers, so
+   * such a bucket's sections stay meshes until its textures change back.
+   */
+  private batchedArenaBuckets(): readonly string[] {
+    if (!this.seeThroughTexels) return ARENA_BUCKETS;
+    const cached = this.batchedBuckets;
+    if (cached?.generation === this.blockTextureGeneration) {
+      return cached.buckets;
+    }
+    const buckets = ARENA_BUCKETS.filter((bucket) => {
+      const base = this.chunkRenderer.materials.get(bucket);
+      if (!base?.transparent) return true;
+      const classes = this.seeThroughTexelClassesOf(bucket, base);
+      return texelPlanOf(base, classes, canCutSolidTexels(base)) !== "split";
+    });
+    this.batchedBuckets = {
+      generation: this.blockTextureGeneration,
+      buckets,
+    };
+    return buckets;
   }
 
   private applyArenaSectionGeometry(
@@ -7645,12 +7690,11 @@ export class World<T = any> extends Scene implements NetIntercept {
     // A slot drawn outside the chunk's group follows the group's last
     // visibility walk from the frame it lands, not only from its next one:
     // a section landing in a chunk held for the far layer stays hidden.
-    const mask = chunk.sectionVisibleMask;
     arenas.setSectionVisible(
       cx,
       cz,
       level,
-      mask === null || ((mask >> level) & 1) === 1,
+      this.isArenaSectionShown(bucket, chunk, level, chunk.sectionVisibleMask),
     );
 
     merged.dispose();
@@ -7826,9 +7870,40 @@ export class World<T = any> extends Scene implements NetIntercept {
       },
       this,
       this.chunkPositionUnits,
+      (mesh, isAdded) => this.registerArenaRegionMesh(bucket, mesh, isAdded),
     );
     this.arenaSets.set(bucket, arenas);
     return arenas;
+  }
+
+  /**
+   * A region mesh is drawn as its bucket's section meshes were: a
+   * see-through bucket's like any see-through chunk mesh (its render
+   * order, and its texel plan when blended layers accumulate), and a
+   * bucket that casts no shadow kept out of the shadow passes.
+   */
+  private registerArenaRegionMesh(
+    bucket: string,
+    mesh: BatchedMesh,
+    isAdded: boolean,
+  ) {
+    if (!isAdded) {
+      this.csmRenderer?.removeSkipShadowObject(mesh);
+      this.seeThroughMeshes.delete(mesh);
+      return;
+    }
+    const material = mesh.material as CustomChunkShaderMaterial;
+    mesh.userData.materialBucket = bucket;
+    if (!material.transparent) {
+      this.csmRenderer?.addSkipShadowObject(mesh);
+      return;
+    }
+    if (this.orderIndependent) {
+      this.configureOrderIndependentMesh(mesh, material, false);
+      return;
+    }
+    mesh.renderOrder = transparentChunkRenderOrder(false, material.depthWrite);
+    this.csmRenderer?.addSkipShadowObject(mesh);
   }
 
   private setupComponents() {
@@ -9462,6 +9537,8 @@ export class World<T = any> extends Scene implements NetIntercept {
     if (chunk.plantsShown === wanted) return;
     chunk.plantsShown = wanted;
 
+    const [cx, cz] = chunk.coords;
+    const plants = this.arenaSets.get(SHARED_CUTOUT_PLANT_MATERIAL_KEY);
     for (const [level, meshes] of chunk.meshes) {
       const isLevelVisible =
         chunk.sectionVisibleMask === null ||
@@ -9469,7 +9546,27 @@ export class World<T = any> extends Scene implements NetIntercept {
       for (const mesh of meshes) {
         if (mesh.userData?.isPlant) mesh.visible = wanted && isLevelVisible;
       }
+      plants?.setSectionVisible(cx, cz, level, wanted && isLevelVisible);
     }
+  }
+
+  /**
+   * Whether an arena slot draws: its level passed the chunk's visibility
+   * walk (`mask`, null before the first), and a plant is inside the plant
+   * radius as well.
+   */
+  private isArenaSectionShown(
+    bucket: string,
+    chunk: Chunk,
+    level: number,
+    mask: number | null,
+  ) {
+    const isLevelVisible = mask === null || ((mask >> level) & 1) === 1;
+    return (
+      isLevelVisible &&
+      (bucket !== SHARED_CUTOUT_PLANT_MATERIAL_KEY ||
+        chunk.plantsShown !== false)
+    );
   }
 
   /**
@@ -9489,8 +9586,13 @@ export class World<T = any> extends Scene implements NetIntercept {
         mesh.visible =
           isLevelVisible && (isPlantShown || mesh.userData?.isPlant !== true);
       }
-      for (const arenas of this.arenaSets.values()) {
-        arenas.setSectionVisible(cx, cz, level, isLevelVisible);
+      for (const [bucket, arenas] of this.arenaSets) {
+        arenas.setSectionVisible(
+          cx,
+          cz,
+          level,
+          this.isArenaSectionShown(bucket, chunk, level, sectionMask),
+        );
       }
     }
   }
