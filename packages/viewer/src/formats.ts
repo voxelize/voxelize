@@ -9,6 +9,7 @@
 export const CHUNK_MESH_MAGIC = "VXVM";
 export const FAR_TILE_MAGIC = "VXVF";
 export const FORMAT_VERSION = 1;
+export const FAR_TILE_VERSION = 2;
 
 /** What each column of a chunk shows from straight above. */
 export type ColumnSummary = {
@@ -55,6 +56,14 @@ export type FarTileFile = {
   materials: Uint16Array;
   water: Uint16Array;
   layers: Uint8Array[];
+  /**
+   * The game's far-terrain rasters, where the source serves them: floating
+   * land as (top, bottom) pairs, an RGB tint and a (top, bottom, cover,
+   * kind) crown per sample.
+   */
+  sky: Uint16Array | null;
+  tints: Uint8Array | null;
+  canopy: Uint8Array | null;
 };
 
 class Reader {
@@ -228,9 +237,9 @@ export function decodeFarTile(
   const r = new Reader(buffer, offset, offset + length);
   r.magic(FAR_TILE_MAGIC);
   const version = r.u32();
-  if (version !== FORMAT_VERSION) {
+  if (version !== FAR_TILE_VERSION) {
     throw new Error(
-      `far tile format ${version}, this viewer reads ${FORMAT_VERSION}`,
+      `far tile format ${version}, this viewer reads ${FAR_TILE_VERSION}`,
     );
   }
   const x0 = r.i32();
@@ -238,20 +247,39 @@ export function decodeFarTile(
   const step = r.u32();
   const size = r.u32();
   const layerCount = r.u32();
+  const rasters = r.u32();
   const samples = size * size;
-  const heights = r.array(Uint16Array, samples);
-  r.pad();
-  const materials = r.array(Uint16Array, samples);
-  r.pad();
-  const water = r.array(Uint16Array, samples);
-  r.pad();
-  const layers: Uint8Array[] = [];
-  for (let i = 0; i < layerCount; i++) {
-    const bytes = r.u32();
-    layers.push(r.bytes(bytes));
+  const u16s = (count: number) => {
+    const out = r.array(Uint16Array, count);
     r.pad();
-  }
-  return { x0, z0, step, size, heights, materials, water, layers };
+    return out;
+  };
+  const u8s = (count: number) => {
+    const out = r.bytes(count);
+    r.pad();
+    return out;
+  };
+  const heights = u16s(samples);
+  const materials = u16s(samples);
+  const water = u16s(samples);
+  const sky = rasters & 1 ? u16s(samples * 2) : null;
+  const tints = rasters & 2 ? u8s(samples * 3) : null;
+  const canopy = rasters & 4 ? u8s(samples * 4) : null;
+  const layers: Uint8Array[] = [];
+  for (let i = 0; i < layerCount; i++) layers.push(u8s(r.u32()));
+  return {
+    x0,
+    z0,
+    step,
+    size,
+    heights,
+    materials,
+    water,
+    layers,
+    sky,
+    tints,
+    canopy,
+  };
 }
 
 /**

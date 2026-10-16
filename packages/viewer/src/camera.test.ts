@@ -1,3 +1,4 @@
+import { Vector3 } from "three";
 import { describe, expect, it } from "vitest";
 
 import { CameraRig, orbitNear } from "./camera";
@@ -205,42 +206,222 @@ describe("controls", () => {
   });
 
   describe("a Shift whose keyup never comes", () => {
-    const orbiting = () => {
+    const flying = () => {
       const { el, camera } = rig(() => 80, 0);
-      camera.setPose(orbitPose([0, 80, 0], 200), "orbit");
+      camera.setPose({ eye: [0, 200, 0], look: [0, 170, -60] }, "free");
       return { el, camera };
     };
-    const distanceAfter = (camera: CameraRig, frames: number) => {
+    const heightAfter = (camera: CameraRig, frames: number) => {
       for (let i = 0; i < frames; i++) camera.update(1 / 60);
-      return camera.orbit.distance;
+      return camera.fly.eye[1];
     };
 
     it("stops sinking when Cmd joins it, as Cmd+Shift+3 does", () => {
-      const { el, camera } = orbiting();
+      const { el, camera } = flying();
       fire(el, "keydown", { code: "ShiftLeft", shiftKey: true });
-      const sinking = distanceAfter(camera, 30);
-      expect(sinking).toBeGreaterThan(200);
+      const sinking = heightAfter(camera, 30);
+      expect(sinking).toBeLessThan(200);
       fire(el, "keydown", { code: "MetaLeft", shiftKey: true, metaKey: true });
-      expect(distanceAfter(camera, 60)).toBe(sinking);
+      expect(heightAfter(camera, 60)).toBe(sinking);
     });
 
     it("never starts when Shift is pressed under Cmd", () => {
-      const { el, camera } = orbiting();
+      const { el, camera } = flying();
       fire(el, "keydown", { code: "MetaLeft", metaKey: true });
       fire(el, "keydown", { code: "ShiftLeft", shiftKey: true, metaKey: true });
-      expect(distanceAfter(camera, 60)).toBe(200);
+      expect(heightAfter(camera, 60)).toBe(200);
     });
 
     it("is let go by the next event that says Shift is up", () => {
       for (const type of ["pointermove", "keydown", "wheel"]) {
-        const { el, camera } = orbiting();
+        const { el, camera } = flying();
         fire(el, "keydown", { code: "ShiftLeft", shiftKey: true });
         fire(el, "pointermove", { shiftKey: true });
-        const sinking = distanceAfter(camera, 30);
-        expect(sinking, type).toBeGreaterThan(200);
+        const sinking = heightAfter(camera, 30);
+        expect(sinking, type).toBeLessThan(200);
         fire(el, type, { code: "KeyX", deltaY: 0 });
-        expect(distanceAfter(camera, 60), type).toBe(sinking);
+        expect(heightAfter(camera, 60), type).toBe(sinking);
       }
+    });
+  });
+
+  describe("Shift as a modifier", () => {
+    it("never zooms an orbit; - and = do", () => {
+      const { el, camera } = rig(() => 80, 0);
+      camera.setPose(orbitPose([0, 80, 0], 200), "orbit");
+      fire(el, "keydown", { code: "ShiftLeft", shiftKey: true });
+      for (let i = 0; i < 30; i++) camera.update(1 / 60);
+      expect(camera.orbit.distance).toBe(200);
+      fire(el, "keyup", { code: "ShiftLeft" });
+      fire(el, "keydown", { code: "Minus" });
+      for (let i = 0; i < 30; i++) camera.update(1 / 60);
+      fire(el, "keyup", { code: "Minus" });
+      const out = camera.orbit.distance;
+      expect(out).toBeCloseTo(200 * Math.exp(0.5), 6);
+      fire(el, "keydown", { code: "Equal" });
+      for (let i = 0; i < 30; i++) camera.update(1 / 60);
+      expect(camera.orbit.distance).toBeCloseTo(200, 6);
+    });
+
+    it("stops sinking free flight once it goes with a drag or a scroll", () => {
+      for (const use of ["drag", "scroll"]) {
+        const { el, camera } = rig(() => 80, 0);
+        camera.setPose({ eye: [0, 200, 0], look: [0, 170, -60] }, "free");
+        fire(el, "keydown", { code: "ShiftLeft", shiftKey: true });
+        if (use === "drag") fire(el, "pointerdown", { shiftKey: true });
+        else fire(el, "wheel", { deltaMode: 0, deltaY: 3, shiftKey: true });
+        const y = camera.fly.eye[1];
+        for (let i = 0; i < 30; i++) camera.update(1 / 60);
+        expect(camera.fly.eye[1], use).toBe(y);
+        // Let go and pressed again, it sinks.
+        fire(el, "keyup", { code: "ShiftLeft" });
+        fire(el, "keydown", { code: "ShiftLeft", shiftKey: true });
+        for (let i = 0; i < 30; i++) camera.update(1 / 60);
+        expect(camera.fly.eye[1], use).toBeLessThan(y);
+      }
+    });
+  });
+
+  describe("a trackpad", () => {
+    /** Where `point` lands on the 1280x720 canvas, pixels. */
+    const pixelOf = (camera: CameraRig, point: Vec3) => {
+      const v = new Vector3(...point).project(camera.camera);
+      return [((v.x + 1) / 2) * 1280, ((1 - v.y) / 2) * 720];
+    };
+
+    /** The ground (level at `height`) under canvas pixel (x, y). */
+    const groundUnder = (
+      camera: CameraRig,
+      x: number,
+      y: number,
+      height: number,
+    ): Vec3 => {
+      const ndc = [(x / 1280) * 2 - 1, -(y / 720) * 2 + 1] as const;
+      const origin = new Vector3(ndc[0], ndc[1], -1).unproject(camera.camera);
+      const toward = new Vector3(ndc[0], ndc[1], 1)
+        .unproject(camera.camera)
+        .sub(origin);
+      const t = (height - origin.y) / toward.y;
+      return [origin.x + toward.x * t, height, origin.z + toward.z * t];
+    };
+
+    it("pans the ground under two fingers at once, holding it under them, without zooming", () => {
+      for (const preset of ["orbit", "top", "iso"] as const) {
+        const { el, camera } = rig(() => 80);
+        camera.setPose(orbitPose([0, 80, 0], 200), preset);
+        const pointer = { clientX: 900, clientY: 500 };
+        const held = groundUnder(camera, 900, 500, 80);
+        const distance = camera.orbit.distance;
+        fire(el, "wheel", {
+          deltaMode: 0,
+          deltaX: 30,
+          deltaY: 20.5,
+          ...pointer,
+        });
+        expect(camera.orbit.distance, preset).toBe(distance);
+        // The ground moves with the fingers, against the scroll delta, in
+        // perspective as well as on a map.
+        const [x, y] = pixelOf(camera, held);
+        expect(x, preset).toBeCloseTo(900 - 30, 6);
+        expect(y, preset).toBeCloseTo(500 - 20.5, 6);
+      }
+    });
+
+    it("never leaps when the fingers pan at the horizon", () => {
+      const { el, camera } = rig(() => 80);
+      camera.setPose(orbitPose([0, 80, 0], 200), "orbit");
+      fire(el, "wheel", {
+        deltaMode: 0,
+        deltaX: 0,
+        deltaY: 10,
+        clientX: 640,
+        clientY: 360,
+      });
+      const near = Math.hypot(
+        ...camera.orbit.target.map((v, i) => v - [0, 80, 0][i]),
+      );
+      camera.setPose(orbitPose([0, 80, 0], 200), "orbit");
+      fire(el, "wheel", {
+        deltaMode: 0,
+        deltaX: 0,
+        deltaY: 10,
+        clientX: 640,
+        clientY: 1,
+      });
+      const far = Math.hypot(
+        ...camera.orbit.target.map((v, i) => v - [0, 80, 0][i]),
+      );
+      expect(far).toBeGreaterThan(near);
+      expect(far).toBeLessThanOrEqual(near * 4 + 1e-6);
+    });
+
+    it("holds the ground a drag pan was pressed on under the pointer", () => {
+      for (const preset of ["orbit", "top"] as const) {
+        const { el, camera } = rig(() => 80);
+        camera.setPose(orbitPose([0, 80, 0], 200), preset);
+        const held = groundUnder(camera, 700, 420, 80);
+        const button = preset === "top" ? 0 : 2;
+        fire(el, "pointerdown", { button, clientX: 700, clientY: 420 });
+        fire(el, "pointermove", { button, clientX: 760, clientY: 380 });
+        fire(el, "pointermove", { button, clientX: 820, clientY: 350 });
+        const [x, y] = pixelOf(camera, held);
+        expect(x, preset).toBeCloseTo(820, 6);
+        expect(y, preset).toBeCloseTo(350, 6);
+      }
+    });
+
+    it("keeps a gesture a pan through a momentum tail that looks like a wheel", () => {
+      const { el, camera } = rig(() => 80);
+      camera.setPose(orbitPose([0, 80, 0], 200), "orbit");
+      fire(el, "wheel", { deltaMode: 0, deltaX: 0, deltaY: 2.5 });
+      fire(el, "wheel", { deltaMode: 0, deltaX: 0, deltaY: 4.000244140625 });
+      fire(el, "wheel", { deltaMode: 0, deltaX: 0, deltaY: 100 });
+      for (let i = 0; i < 120; i++) camera.update(1 / 60);
+      expect(camera.orbit.distance).toBe(200);
+    });
+
+    it("zooms a pinch at once, keeping the ground under the pointer on its pixel", () => {
+      for (const preset of ["orbit", "top", "iso"] as const) {
+        const { el, camera } = rig(() => 80);
+        camera.setPose(orbitPose([0, 80, 0], 300), preset);
+        const anchor: Vec3 = [60, 80, -40];
+        const [px, py] = pixelOf(camera, anchor);
+        camera.pickPoint = () => anchor;
+        fire(el, "wheel", {
+          deltaMode: 0,
+          deltaY: -40,
+          ctrlKey: true,
+          clientX: px,
+          clientY: py,
+        });
+        expect(camera.orbit.distance, preset).toBeCloseTo(
+          300 * Math.exp(-0.4),
+          6,
+        );
+        const [qx, qy] = pixelOf(camera, anchor);
+        expect(qx, preset).toBeCloseTo(px, 3);
+        expect(qy, preset).toBeCloseTo(py, 3);
+      }
+    });
+
+    it("eases a mouse wheel's zoom about the pointer too", () => {
+      const { el, camera } = rig(() => 80);
+      camera.setPose(orbitPose([0, 80, 0], 300), "orbit");
+      const anchor: Vec3 = [-50, 80, 30];
+      const [px, py] = pixelOf(camera, anchor);
+      camera.pickPoint = () => anchor;
+      fire(el, "wheel", {
+        deltaMode: 0,
+        deltaY: -4.000244140625 * 30,
+        clientX: px,
+        clientY: py,
+      });
+      expect(camera.orbit.distance).toBe(300);
+      for (let i = 0; i < 120; i++) camera.update(1 / 60);
+      expect(camera.orbit.distance).toBeLessThan(300);
+      const [qx, qy] = pixelOf(camera, anchor);
+      expect(qx).toBeCloseTo(px, 3);
+      expect(qy).toBeCloseTo(py, 3);
     });
   });
 

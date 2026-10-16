@@ -240,6 +240,7 @@ export class LocalLights {
     return {
       uLightGrid: u.lightGrid,
       uLightData: u.lightData,
+      uLightOverflow: u.lightOverflow,
       uLightGridOrigin: u.gridOrigin,
       uLightGridDims: u.gridDims,
       uLightGridCellSize: u.gridCellSize,

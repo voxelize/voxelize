@@ -373,6 +373,34 @@ impl World {
         saved_is_ghost: Option<bool>,
         saved_is_swimming: Option<bool>,
         is_for_transport: bool,
+        known_registry_digest: Option<&str>,
+    ) -> (Message, Vec<String>) {
+        self.generate_timed_init_message(
+            id,
+            saved_position,
+            saved_direction,
+            saved_is_flying,
+            saved_is_ghost,
+            saved_is_swimming,
+            is_for_transport,
+            known_registry_digest,
+            None,
+        )
+    }
+
+    /// [`Self::generate_init_message`], with the join's `serverTiming` as the
+    /// INIT's last key ([`crate::server::INIT_SERVER_TIMING_KEY`]).
+    pub(super) fn generate_timed_init_message(
+        &self,
+        id: &str,
+        saved_position: Option<[f32; 3]>,
+        saved_direction: Option<[f32; 3]>,
+        saved_is_flying: Option<bool>,
+        saved_is_ghost: Option<bool>,
+        saved_is_swimming: Option<bool>,
+        is_for_transport: bool,
+        known_registry_digest: Option<&str>,
+        server_timing: Option<&crate::server::InitServerTiming>,
     ) -> (Message, Vec<String>) {
         let config = (*self.config()).to_owned();
         let mut json = HashMap::new();
@@ -465,29 +493,39 @@ impl World {
         drop(etypes);
         drop(metadatas);
 
-        let blocks = self.init_blocks_json.get_or_init(|| {
-            let started = Instant::now();
-            let serialized = serde_json::to_string(&self.registry().blocks_by_name)
-                .expect("the block registry serializes to JSON");
-            info!(
-                "[{}] serialized {} block definitions for INIT once ({} bytes, {:?}); later joins reuse it",
-                self.name,
-                self.registry().blocks_by_name.len(),
-                serialized.len(),
-                started.elapsed()
+        // The block registry is the bulk of INIT. A client whose JOIN named
+        // this exact registry already holds it: say so instead of sending it.
+        // Everyone else (old clients, transports, a stale or absent digest)
+        // gets it in full, with the digest to name it by next time.
+        let registry = self.init_registry();
+        let payload = if !is_for_transport && registry.is_known_by(known_registry_digest) {
+            json.insert(INIT_REGISTRY_DIGEST_KEY.to_owned(), json!(registry.digest));
+            json.insert(INIT_REGISTRY_CACHED_KEY.to_owned(), json!(true));
+            if let Some(timing) = server_timing {
+                json.insert(
+                    crate::server::INIT_SERVER_TIMING_KEY.to_owned(),
+                    timing.to_value(),
+                );
+            }
+            serde_json::to_string(&json)
+        } else {
+            json.insert(
+                INIT_REGISTRY_LENGTH_KEY.to_owned(),
+                json!(registry.utf16_len),
             );
-            RawValue::from_string(serialized).expect("serde_json output is valid JSON")
-        });
-
-        let payload = InitPayload {
-            blocks,
-            rest: &json,
-        };
+            serde_json::to_string(&InitPayload {
+                blocks: &registry.blocks,
+                registry_digest: &registry.digest,
+                rest: &json,
+                server_timing,
+            })
+        }
+        .expect("the INIT payload serializes");
 
         (
             Message::new(&MessageType::Init)
                 .world_name(&self.name)
-                .json(&serde_json::to_string(&payload).expect("the INIT payload serializes"))
+                .json(&payload)
                 .peers(&peers)
                 .entities(&entities)
                 .build(),
@@ -497,10 +535,19 @@ impl World {
 }
 
 /// The INIT JSON object: the cached, pre-serialized block registry spliced in
-/// next to the per-join fields, without re-parsing or re-walking it.
+/// next to the per-join fields, without re-parsing or re-walking it. Field
+/// order is part of the wire contract: the text always starts `{"blocks":`,
+/// the registry text follows ([`INIT_REGISTRY_LENGTH_KEY`] says how long),
+/// and `,"registryDigest":"<digest>"` comes right after it, so a client can
+/// cut the registry text out and know the cut is exact.
 #[derive(Serialize)]
 struct InitPayload<'a> {
     blocks: &'a RawValue,
+    #[serde(rename = "registryDigest")]
+    registry_digest: &'a str,
     #[serde(flatten)]
     rest: &'a HashMap<String, Value>,
+    /// Last, so its `buildMs` is taken after the registry text is written.
+    #[serde(rename = "serverTiming", skip_serializing_if = "Option::is_none")]
+    server_timing: Option<&'a crate::server::InitServerTiming>,
 }

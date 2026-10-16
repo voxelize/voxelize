@@ -12,7 +12,7 @@ const POSE: RememberedPose = {
   isFlying: true,
   renderRadius: 6,
   sampledAt: 0,
-  join: { documentId: 1, joinGeneration: 1 },
+  join: { documentId: 1, joinSerial: 1, joinGeneration: 1, world: "world-a" },
 };
 
 /**

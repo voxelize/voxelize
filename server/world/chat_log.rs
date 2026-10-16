@@ -927,6 +927,7 @@ mod tests {
                 ClientPreferencesPatch::default(),
                 MotionProtocol::default(),
                 SessionIdentity::anonymous(),
+                None,
             );
         }
 
@@ -958,7 +959,8 @@ mod tests {
         }
 
         fn init_history(world: &World, id: &str) -> serde_json::Value {
-            let (init, _) = world.generate_init_message(id, None, None, None, None, None, false);
+            let (init, _) =
+                world.generate_init_message(id, None, None, None, None, None, false, None);
             let json: serde_json::Value = serde_json::from_str(&init.json).unwrap();
             json[CHAT_HISTORY_INIT_KEY].clone()
         }
@@ -988,7 +990,7 @@ mod tests {
             assert_eq!(history["hasMore"], false);
 
             let (transport_init, _) =
-                world.generate_init_message("t", None, None, None, None, None, true);
+                world.generate_init_message("t", None, None, None, None, None, true, None);
             let transport_json: serde_json::Value =
                 serde_json::from_str(&transport_init.json).unwrap();
             assert!(transport_json.get(CHAT_HISTORY_INIT_KEY).is_none());

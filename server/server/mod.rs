@@ -1,5 +1,6 @@
 mod builder;
 mod health;
+mod join_trace;
 mod lifecycle;
 /// Session lifecycle integration tests: a real `Server` struct routing into a
 /// real `SyncWorld` actor (world thread + ECS), with fake sockets. Covers the
@@ -15,10 +16,16 @@ mod models;
 /// world bounds still finishes instead of leaving `preloading` true forever.
 #[cfg(test)]
 mod preload_tests;
+/// The INIT registry handshake end to end: a JOIN naming the server's
+/// registry digest gets an INIT without the block definitions, any other
+/// JOIN gets them in full, and every world serves one shared copy.
+#[cfg(test)]
+mod registry_cache_tests;
 mod session_auth;
 
 pub use builder::*;
 pub use health::*;
+pub use join_trace::*;
 pub use messages::*;
 pub use session_auth::*;
 
@@ -34,7 +41,7 @@ use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
 use specs::WorldExt;
 use std::sync::{
-    atomic::{AtomicU16, AtomicUsize, Ordering},
+    atomic::{AtomicU16, AtomicU64, AtomicUsize, Ordering},
     Arc,
 };
 use tokio::sync::mpsc;
@@ -44,8 +51,8 @@ use crate::{
     perf,
     world::{
         check_protocol, Chunks, ClientPreferencesPatch, InboundStateBuffer, MethodGuard,
-        MethodIndex, MotionProtocol, Registry, World, PROTOCOL_MISMATCH_CLOSE_CODE,
-        PROTOCOL_VERSION,
+        MethodIndex, MotionProtocol, Registry, SharedInitRegistry, World,
+        PROTOCOL_MISMATCH_CLOSE_CODE, PROTOCOL_VERSION,
     },
     ClientJoinRequest, ClientLeaveRequest, ClientRequest, GetInfo, Preload, Prepare, RtcSenders,
     SyncWorld, Tick, TransportJoinRequest, TransportLeaveRequest,
@@ -74,14 +81,17 @@ use lifecycle::{PoolConfig, PooledSlot, WorldEntry, WorldLifecycleMetrics};
 #[derive(Clone)]
 pub struct WsSender {
     control: mpsc::UnboundedSender<Vec<u8>>,
-    bulk: mpsc::UnboundedSender<Vec<u8>>,
+    bulk: mpsc::UnboundedSender<BulkFrame>,
     control_depth: Arc<AtomicUsize>,
     bulk_depth: Arc<AtomicUsize>,
-    /// When each unwritten bulk message was queued, oldest first. The lane
-    /// is FIFO with one writer, so the front entry is always the message the
-    /// write loop is about to (or just did) write; popping it on completion
-    /// yields how long chunk data waited behind control and inbound traffic.
-    bulk_queued_at: Arc<std::sync::Mutex<std::collections::VecDeque<Instant>>>,
+    /// Control-lane messages queued and written over the session's life. The
+    /// INIT's queue position names the write that delivers it (see
+    /// [`JoinTrace::control_written`]).
+    control_queued: Arc<AtomicU64>,
+    control_written: Arc<AtomicU64>,
+    /// Timing of this session's joins, stamped by the socket loop, the server
+    /// actor and the world as a join passes through each.
+    join_trace: JoinTrace,
     /// Requested WebSocket close code, or `0` for a normal close. Set when the
     /// server refuses a session terminally (e.g. a protocol-version mismatch,
     /// [`PROTOCOL_MISMATCH_CLOSE_CODE`]) so the transport can close with a code
@@ -89,19 +99,34 @@ pub struct WsSender {
     close_code: Arc<AtomicU16>,
 }
 
+/// One message on the bulk lane, stamped with when it was queued.
+///
+/// The stamp rides with the bytes, so the write loop's "waited on the lane"
+/// is always this message's own wait. (It used to be a side queue pushed
+/// after the channel send; a write that finished first popped nothing, the
+/// late push stayed behind, and from then on every message reported the
+/// enqueue time of the one before it: the gap between messages, not a wait.)
+pub struct BulkFrame {
+    pub queued_at: Instant,
+    pub data: Vec<u8>,
+    /// The join (by number) whose first chunk LOAD this is: its write
+    /// completes that join's trace. `None` for every other message.
+    pub completes_join: Option<u32>,
+}
+
 impl WsSender {
     pub fn new(
         control: mpsc::UnboundedSender<Vec<u8>>,
-        bulk: mpsc::UnboundedSender<Vec<u8>>,
+        bulk: mpsc::UnboundedSender<BulkFrame>,
     ) -> Self {
         Self {
             control,
             bulk,
             control_depth: Arc::new(AtomicUsize::new(0)),
             bulk_depth: Arc::new(AtomicUsize::new(0)),
-            bulk_queued_at: Arc::new(std::sync::Mutex::new(
-                std::collections::VecDeque::new(),
-            )),
+            control_queued: Arc::new(AtomicU64::new(0)),
+            control_written: Arc::new(AtomicU64::new(0)),
+            join_trace: JoinTrace::default(),
             close_code: Arc::new(AtomicU16::new(0)),
         }
     }
@@ -119,46 +144,81 @@ impl WsSender {
         (code != 0).then_some(code)
     }
 
+    /// The timing of this session's joins.
+    pub fn join_trace(&self) -> &JoinTrace {
+        &self.join_trace
+    }
+
     /// Send on the control lane (default). Reliable-ordered within the lane.
     pub fn send(&self, data: Vec<u8>) -> Result<(), mpsc::error::SendError<Vec<u8>>> {
+        self.send_control(data).map(|_| ())
+    }
+
+    /// Send on the control lane; returns the message's position in the lane.
+    fn send_control(&self, data: Vec<u8>) -> Result<u64, mpsc::error::SendError<Vec<u8>>> {
         self.control_depth.fetch_add(1, Ordering::Relaxed);
+        let seq = self.control_queued.fetch_add(1, Ordering::Relaxed) + 1;
         if let Err(error) = self.control.send(data) {
             self.control_depth.fetch_sub(1, Ordering::Relaxed);
             return Err(error);
         }
-        Ok(())
+        Ok(seq)
+    }
+
+    /// Send a join's INIT on the control lane, marking its position so the
+    /// write loop can stamp when it is written.
+    pub(crate) fn send_init(&self, data: Vec<u8>) {
+        if let Ok(seq) = self.send_control(data) {
+            self.join_trace.init_queued(seq);
+            // The write loop may have written it already.
+            self.join_trace
+                .control_written(self.control_written.load(Ordering::Relaxed));
+        }
     }
 
     /// Send on the bulk lane (chunk data, voxel updates). Reliable-ordered
     /// within the lane, but drained only when the control lane is empty.
     pub fn send_bulk(&self, data: Vec<u8>) -> Result<(), mpsc::error::SendError<Vec<u8>>> {
+        self.send_bulk_frame(data, None)
+    }
+
+    /// Send join `join`'s first chunk LOAD on the bulk lane (see
+    /// [`JoinTrace::first_load_sent`]).
+    pub(crate) fn send_first_load(
+        &self,
+        data: Vec<u8>,
+        join: u32,
+    ) -> Result<(), mpsc::error::SendError<Vec<u8>>> {
+        self.send_bulk_frame(data, Some(join))
+    }
+
+    fn send_bulk_frame(
+        &self,
+        data: Vec<u8>,
+        completes_join: Option<u32>,
+    ) -> Result<(), mpsc::error::SendError<Vec<u8>>> {
         self.bulk_depth.fetch_add(1, Ordering::Relaxed);
-        let queued_at = Instant::now();
-        if let Err(error) = self.bulk.send(data) {
+        let frame = BulkFrame {
+            queued_at: Instant::now(),
+            data,
+            completes_join,
+        };
+        if let Err(mpsc::error::SendError(frame)) = self.bulk.send(frame) {
             self.bulk_depth.fetch_sub(1, Ordering::Relaxed);
-            return Err(error);
+            return Err(mpsc::error::SendError(frame.data));
         }
-        self.bulk_queued_at
-            .lock()
-            .unwrap_or_else(|poisoned| poisoned.into_inner())
-            .push_back(queued_at);
         Ok(())
     }
 
     pub fn mark_control_written(&self) {
         self.control_depth.fetch_sub(1, Ordering::Relaxed);
+        let written = self.control_written.fetch_add(1, Ordering::Relaxed) + 1;
+        self.join_trace.control_written(written);
     }
 
-    /// Returns how long the message just written had waited on the lane, or
-    /// `None` if the bookkeeping has nothing for it (a send that raced the
-    /// push above, which only costs one unmeasured message).
-    pub fn mark_bulk_written(&self) -> Option<Duration> {
+    /// The write loop finished writing one bulk-lane message.
+    pub fn mark_bulk_written(&self) {
         self.bulk_depth.fetch_sub(1, Ordering::Relaxed);
-        self.bulk_queued_at
-            .lock()
-            .unwrap_or_else(|poisoned| poisoned.into_inner())
-            .pop_front()
-            .map(|queued_at| queued_at.elapsed())
     }
 
     /// Bulk-lane backlog (observability for the chunk-send log).
@@ -176,6 +236,61 @@ impl WsSender {
     /// Total unwritten messages across both lanes (observability).
     pub fn len(&self) -> usize {
         self.control_depth.load(Ordering::Relaxed) + self.bulk_depth.load(Ordering::Relaxed)
+    }
+}
+
+#[cfg(test)]
+mod lane_tests {
+    use super::*;
+
+    /// The write loop can take a message off the bulk lane before
+    /// `send_bulk` has even returned. Each message's wait must still be its
+    /// own: with the stamp kept beside the channel, a writer that won that
+    /// race popped nothing, and every later message reported the gap since
+    /// the one before it (seconds of "waiting" on an idle lane).
+    #[tokio::test]
+    async fn a_writer_that_drains_before_send_returns_still_reads_each_messages_own_wait() {
+        let (control_tx, _control_rx) = mpsc::unbounded_channel();
+        let (bulk_tx, mut bulk_rx) = mpsc::unbounded_channel();
+        let sender = WsSender::new(control_tx, bulk_tx);
+
+        // A writer spinning on the lane, the way an idle socket loop is
+        // parked on it: it drains each message the instant it lands.
+        let writer_sender = sender.clone();
+        let is_done = Arc::new(std::sync::atomic::AtomicBool::new(false));
+        let writer_done = is_done.clone();
+        let writer = tokio::task::spawn_blocking(move || {
+            let mut waits = vec![];
+            loop {
+                match bulk_rx.try_recv() {
+                    Ok(frame) => {
+                        waits.push(frame.queued_at.elapsed());
+                        writer_sender.mark_bulk_written();
+                    }
+                    Err(_) if writer_done.load(Ordering::Relaxed) => return waits,
+                    Err(_) => std::hint::spin_loop(),
+                }
+            }
+        });
+
+        const MESSAGES: usize = 10;
+        const GAP: Duration = Duration::from_millis(100);
+        for _ in 0..MESSAGES {
+            sender.send_bulk(vec![0u8; 16]).unwrap();
+            tokio::time::sleep(GAP).await;
+        }
+        assert_eq!(sender.bulk_len(), 0, "every message was written");
+        is_done.store(true, Ordering::Relaxed);
+
+        let waits = writer.await.unwrap();
+        assert_eq!(waits.len(), MESSAGES);
+        for wait in waits {
+            assert!(
+                wait < GAP / 2,
+                "a message on an idle lane reported waiting {wait:?}, about the {GAP:?} gap \
+                 between sends"
+            );
+        }
     }
 }
 
@@ -199,6 +314,12 @@ pub struct OnJoinRequest {
     /// it, so existing clients are unaffected.
     #[serde(default)]
     protocol: Option<u32>,
+    /// Digest of the block registry the client kept from an earlier INIT
+    /// (that INIT's `registryDigest`). When it names this server's registry,
+    /// the INIT leaves the block definitions out. Absent for clients that
+    /// keep nothing, which get the full INIT as before.
+    #[serde(default)]
+    registry_digest: Option<String>,
 }
 
 #[derive(Serialize, Deserialize)]
@@ -447,6 +568,10 @@ pub struct Server {
     /// Registry of the server.
     pub registry: Registry,
 
+    /// The registry as INIT carries it, serialized once on the first join
+    /// and shared by every world this server adds.
+    init_registry: SharedInitRegistry,
+
     /// Session IDs and senders who haven't connected to a world.
     /// Value: (sender, connection_token)
     pub lost_sessions: HashMap<String, (WsSender, String)>,
@@ -535,6 +660,13 @@ impl Server {
         self.rtc_senders.as_ref()
     }
 
+    /// The server's one copy of the registry text INIT carries (shared by
+    /// every world it adds), for serving it outside a world: the runtime
+    /// builds it at boot and serves it over HTTP.
+    pub(crate) fn shared_init_registry(&self) -> SharedInitRegistry {
+        self.init_registry.clone()
+    }
+
     /// Add a world instance to the server. Different worlds have different configurations, and can hold
     /// their own set of clients within. If the server has already started, the added world will be
     /// started right away.
@@ -544,6 +676,7 @@ impl Server {
         let save_dir = world.config().save_dir.clone();
         let registry = self.registry.clone();
         world.ecs_mut().insert(registry.clone());
+        world.share_init_registry(&self.init_registry);
         world
             .ecs_mut()
             .write_resource::<Chunks>()
@@ -882,6 +1015,7 @@ impl Server {
                     json!({ "clientId": id }),
                 );
                 info!("Replaying JOIN ack for {} in world {}", id, json.world);
+                sender.join_trace().forwarded(id, &json.world);
                 let world = self.worlds.get_mut(&json.world).unwrap();
                 world.do_send(ClientJoinRequest {
                     id: id.to_owned(),
@@ -890,6 +1024,7 @@ impl Server {
                     preferences,
                     motion_protocol,
                     identity,
+                    registry_digest: json.registry_digest,
                 });
                 return None;
             }
@@ -910,6 +1045,7 @@ impl Server {
         }
 
         if let Some((sender, token)) = self.lost_sessions.remove(id) {
+            sender.join_trace().forwarded(id, &json.world);
             let world = self.worlds.get_mut(&json.world).unwrap();
             world.do_send(ClientJoinRequest {
                 id: id.to_owned(),
@@ -918,6 +1054,7 @@ impl Server {
                 preferences,
                 motion_protocol,
                 identity,
+                registry_digest: json.registry_digest,
             });
             self.connections
                 .insert(id.to_owned(), (sender, json.world, token));

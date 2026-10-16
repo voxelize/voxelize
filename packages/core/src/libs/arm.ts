@@ -249,6 +249,13 @@ export class Arm extends THREE.Group {
    */
   private heldMaterials = new WeakMap<THREE.Material, THREE.Material>();
   private ownHeldMaterials = new WeakSet<THREE.Material>();
+  /**
+   * The listener on each source material that frees its held copy when the
+   * source goes, kept so {@link dispose} can take it off again: a source
+   * shared page-wide (item art kept across a world switch) otherwise held
+   * this arm, and the world it reads, for the rest of the page.
+   */
+  private heldMaterialListeners = new Map<THREE.Material, () => void>();
 
   private shadowSelfBounds: THREE.Vector4 | null = null;
   private readonly noShadowSelfBounds = new THREE.Vector4();
@@ -592,11 +599,27 @@ export class Arm extends THREE.Group {
 
     this.heldMaterials.set(material, own);
     this.ownHeldMaterials.add(own);
-    material.addEventListener("dispose", () => {
+    const onSourceDispose = () => {
       this.heldMaterials.delete(material);
+      this.heldMaterialListeners.delete(material);
       own.dispose();
-    });
+    };
+    material.addEventListener("dispose", onSourceDispose);
+    this.heldMaterialListeners.set(material, onSourceDispose);
     return own;
+  };
+
+  /**
+   * Let go of what the arm made for held items: their materials, and the
+   * listeners it put on the materials they were made from.
+   */
+  dispose = () => {
+    for (const [source, onSourceDispose] of this.heldMaterialListeners) {
+      source.removeEventListener("dispose", onSourceDispose);
+      this.heldMaterials.get(source)?.dispose();
+    }
+    this.heldMaterialListeners.clear();
+    this.heldMaterials = new WeakMap();
   };
 
   /** The program key for a held material, kept apart per hook it wraps. */

@@ -638,6 +638,19 @@ export class RigidControls extends EventEmitter implements NetIntercept {
   private unlockCallback: () => void;
 
   /**
+   * Whether Escape is physically down. The browser drops pointer lock on
+   * Escape, so a lock that lands while it is held (Escape closing a UI layer
+   * and asking for the lock back) is lost on the same press.
+   */
+  private isEscapeHeld = false;
+
+  /**
+   * A lock asked for while Escape was held, requested on its release.
+   */
+  private deferredLock: { callback?: () => void; fallback: number } | null =
+    null;
+
+  /**
    * An internal euler for sharing rotation calculations.
    */
   private euler = new Euler(0, 0, 0, "YXZ");
@@ -914,8 +927,16 @@ export class RigidControls extends EventEmitter implements NetIntercept {
     };
     const pointerLockErrorHandler = this.onPointerlockError;
     const documentClickHandler = this.onDocumentClick;
+    const escapeHandler = this.onEscapeKey;
+    const escapeResetHandler = this.onEscapeReset;
+    const view = this.domElement.ownerDocument.defaultView;
 
     this.domElement.addEventListener("mousemove", mouseMoveHandler);
+    // Capture on the window, ahead of any page handler that closes a layer
+    // on this Escape and asks for the lock back.
+    view?.addEventListener("keydown", escapeHandler, true);
+    view?.addEventListener("keyup", escapeHandler, true);
+    view?.addEventListener("blur", escapeResetHandler);
     this.domElement.ownerDocument.addEventListener(
       "pointerlockchange",
       pointerLockChangeHandler,
@@ -937,6 +958,10 @@ export class RigidControls extends EventEmitter implements NetIntercept {
         pointerLockErrorHandler,
       );
       this.domElement.removeEventListener("click", documentClickHandler);
+      view?.removeEventListener("keydown", escapeHandler, true);
+      view?.removeEventListener("keyup", escapeHandler, true);
+      view?.removeEventListener("blur", escapeResetHandler);
+      this.cancelDeferredLock();
     });
 
     const keyMappings = {
@@ -1012,6 +1037,19 @@ export class RigidControls extends EventEmitter implements NetIntercept {
    * @param callback - Callback to be run once done.
    */
   lock = (callback?: () => void) => {
+    // Escape still down: the browser would drop a lock granted now on this
+    // same press, so wait for the key to come up. The fallback covers a
+    // release the page never sees.
+    if (this.isEscapeHeld) {
+      this.cancelDeferredLock();
+      this.deferredLock = {
+        callback,
+        fallback: window.setTimeout(this.flushDeferredLock, 1000),
+      };
+      return;
+    }
+    this.cancelDeferredLock();
+
     // Refused requests (the browser's cooldown right after an exit) also
     // fire `pointerlockerror`, which is where they are reported.
     const request = this.domElement.requestPointerLock() as unknown;
@@ -1023,12 +1061,28 @@ export class RigidControls extends EventEmitter implements NetIntercept {
   };
 
   /**
+   * Take over a pointer lock the document already holds on this element, as
+   * when a page swaps one world's controls for another's on the same canvas
+   * and the lock outlives the swap: no `pointerlockchange` fires for it, so
+   * without this the new controls think they are unlocked. Returns whether
+   * the element holds the lock.
+   */
+  adoptPointerLock = () => {
+    if (this.domElement.ownerDocument.pointerLockElement !== this.domElement) {
+      return false;
+    }
+    if (!this.isLocked) this.onPointerlockChange();
+    return true;
+  };
+
+  /**
    * Unlock the cursor from the game, calling `exitPointerLock` on the HTML document.
    * Needs to be called within a DOM event listener callback!
    *
    * @param callback - Callback to be run once done.
    */
   unlock = (callback?: () => void) => {
+    this.cancelDeferredLock();
     this.domElement.ownerDocument.exitPointerLock();
 
     if (callback) {
@@ -2466,6 +2520,34 @@ export class RigidControls extends EventEmitter implements NetIntercept {
 
       this.isLocked = false;
     }
+  };
+
+  private onEscapeKey = (event: KeyboardEvent) => {
+    if (event.code !== "Escape" && event.key !== "Escape") return;
+    if (event.type === "keydown") {
+      this.isEscapeHeld = true;
+      return;
+    }
+    this.isEscapeHeld = false;
+    this.flushDeferredLock();
+  };
+
+  private onEscapeReset = () => {
+    this.isEscapeHeld = false;
+  };
+
+  private flushDeferredLock = () => {
+    const deferred = this.deferredLock;
+    if (!deferred) return;
+    this.isEscapeHeld = false;
+    this.cancelDeferredLock();
+    this.lock(deferred.callback);
+  };
+
+  private cancelDeferredLock = () => {
+    if (!this.deferredLock) return;
+    window.clearTimeout(this.deferredLock.fallback);
+    this.deferredLock = null;
   };
 
   /**

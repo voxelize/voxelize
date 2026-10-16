@@ -4,6 +4,14 @@ const BONE_TEXTURE_MAX_WIDTH = 2048;
 const IDENTITY_MATRIX_ELEMENTS = [
   1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1,
 ] as const;
+/// The identity's half-float bits, converted once. A pool resets every bone
+/// slot of every instance to it, and converting per slot was the whole cost
+/// of building a many-boned pool: a thousand instances of a two-hundred-bone
+/// variant is three million conversions, ~10 ms of one frame in Chrome.
+const IDENTITY_MATRIX_HALF_FLOATS = Uint16Array.from(
+  IDENTITY_MATRIX_ELEMENTS,
+  (value) => THREE.DataUtils.toHalfFloat(value),
+);
 
 export class BoneTextureManager {
   private texture: THREE.DataTexture;
@@ -30,12 +38,7 @@ export class BoneTextureManager {
 
     const totalPixels = this.width * this.height;
     this.data = new Uint16Array(totalPixels * 4);
-
-    for (let i = 0; i < maxInstances; i++) {
-      for (let b = 0; b < bonesPerInstance; b++) {
-        this.setIdentityMatrix(i, b);
-      }
-    }
+    this.fillIdentity(maxInstances * bonesPerInstance);
 
     this.texture = new THREE.DataTexture(
       this.data,
@@ -60,11 +63,25 @@ export class BoneTextureManager {
     if (pixelEnd > this.dirtyMaxPixel) this.dirtyMaxPixel = pixelEnd;
   }
 
+  /// Identity in the first `boneSlots` bone slots, by doubling copies of one
+  /// slot: the same bytes and dirty range as writing each slot in turn, at
+  /// copy speed.
+  private fillIdentity(boneSlots: number): void {
+    if (boneSlots <= 0) return;
+    const length = boneSlots * 16;
+    this.data.set(IDENTITY_MATRIX_HALF_FLOATS, 0);
+    for (let filled = 16; filled < length; filled *= 2) {
+      this.data.copyWithin(filled, 0, Math.min(filled, length - filled));
+    }
+    this.dirtyMinPixel = Math.min(this.dirtyMinPixel, 0);
+    this.dirtyMaxPixel = Math.max(this.dirtyMaxPixel, boneSlots * 4 - 1);
+  }
+
   private setIdentityMatrix(instanceIndex: number, boneIndex: number): void {
     const pixelOffset = (instanceIndex * this.bonesPerInstance + boneIndex) * 4;
     const dataOffset = pixelOffset * 4;
 
-    this.setMatrixData(dataOffset, IDENTITY_MATRIX_ELEMENTS);
+    this.data.set(IDENTITY_MATRIX_HALF_FLOATS, dataOffset);
     this.markDirty(instanceIndex, boneIndex);
   }
 

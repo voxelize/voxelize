@@ -2,9 +2,10 @@
  * The pin on the terrain and the action wheel around it. There is only
  * ever one: a click drops it there, moving it from wherever it stood (a
  * double-click that follows turns into a flight and puts the pin back);
- * clicking the pin, right-clicking anywhere, or holding the pin or the
- * right button opens the wheel; actions run on the pin, or on the bare
- * ground point when the wheel was opened over terrain.
+ * clicking the pin, right-clicking anywhere, or holding the right button
+ * opens the wheel; actions run on the pin, or on the bare ground point when
+ * the wheel was opened over terrain. A drag that starts on the pin moves
+ * the camera like any other.
  *
  * The pin is a voxel banner in every view's scene, with a card of what
  * the source knows about its column. It lives in the URL (`pin=x,y,z`),
@@ -338,7 +339,7 @@ export class PinLayer {
     this.wheel.close();
   }
 
-  /** Whether the layer takes a press at canvas pixel (x, y), so the camera does not. */
+  /** Whether the layer takes a press at canvas pixel (x, y), so the camera does not: only one that closes an open wheel. */
   claimPress(x: number, y: number, button: number): boolean {
     if (this.wheel.isOpen) {
       this.wheel.close();
@@ -356,11 +357,15 @@ export class PinLayer {
       held: false,
       moved: false,
     };
-    if ((button === 0 && onPin) || button === 2) {
+    // Only the right button opens the wheel on a hold. A left press on the
+    // pin is the camera's like any other: a trackpad finger resting on it
+    // before a drag would otherwise open the wheel, and the drag would
+    // flick Fly or Look and carry the camera back to the pin.
+    if (button === 2) {
       press.timer = setTimeout(() => this.hold(press), this.options.holdMs);
     }
     this.press = press;
-    return onPin && button === 0;
+    return false;
   }
 
   /** True when the press under way turned into a hold, so the camera must let go of it. */

@@ -3,7 +3,8 @@ use super::*;
 impl World {
     /// Add a transport sender to this world.
     pub(crate) fn add_transport(&mut self, id: &str, sender: &WsSender) {
-        let (init_message, _) = self.generate_init_message(id, None, None, None, None, None, true);
+        let (init_message, _) =
+            self.generate_init_message(id, None, None, None, None, None, true, None);
         self.send(sender, &init_message);
         self.write_resource::<Transports>()
             .insert(id.to_owned(), sender.clone());
@@ -30,6 +31,7 @@ impl World {
         preferences: ClientPreferencesPatch,
         motion_protocol: MotionProtocol,
         identity: SessionIdentity,
+        registry_digest: Option<&str>,
     ) {
         let existing_ent = self.clients().get(id).map(|client| client.entity);
         let is_rejoin = existing_ent.is_some();
@@ -86,6 +88,9 @@ impl World {
 
             ent
         };
+        let trace = sender.join_trace();
+        trace.modifier_done();
+        let build_started = Instant::now();
 
         let saved_position = self
             .read_component::<PositionComp>()
@@ -140,7 +145,17 @@ impl World {
         self.write_resource::<ReplicatedStateBuffer>()
             .remove_client(id);
 
-        let (init_message, init_entity_ids) = self.generate_init_message(
+        let registry_cached = self.init_registry().is_known_by(registry_digest);
+        let (world_wait_ms, modifier_ms) = trace.world_stage_ms();
+        let server_timing = crate::server::InitServerTiming {
+            world_wait_ms,
+            modifier_ms,
+            build_started,
+            previous_encode: self
+                .shared_init_registry()
+                .last_init_encode(registry_cached),
+        };
+        let (init_message, init_entity_ids) = self.generate_timed_init_message(
             id,
             saved_position,
             saved_direction,
@@ -148,7 +163,10 @@ impl World {
             saved_is_ghost,
             saved_is_swimming,
             false,
+            registry_digest,
+            Some(&server_timing),
         );
+        trace.init_built(prost::Message::encoded_len(&init_message), registry_cached);
 
         if is_rejoin {
             if let Some(client) = self.clients_mut().get_mut(id) {
@@ -181,7 +199,17 @@ impl World {
 
         // The INIT message is the JOIN acknowledgement: reliable control-plane
         // sent directly on the session's ordered channel, replayed on retries.
-        self.send(sender, &init_message);
+        // Encoded here rather than through `send` so the join trace can tell
+        // encoding (the bulk of a full INIT's time on this thread) apart.
+        let encode_started = Instant::now();
+        let init_bytes = encode_message(&init_message);
+        self.shared_init_registry().record_init_encode(
+            registry_cached,
+            encode_started.elapsed().as_secs_f64() * 1000.0,
+            init_bytes.len(),
+        );
+        trace.init_encoded(init_bytes.len());
+        sender.send_init(init_bytes);
 
         if !is_rejoin {
             let join_message = Message::new(&MessageType::Join).text(id).build();

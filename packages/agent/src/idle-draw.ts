@@ -57,3 +57,27 @@ export function describeDrawInterval(intervalMs: number | null): string {
   const fps = 1000 / intervalMs;
   return `${fps >= 1 ? fps.toFixed(0) : fps.toFixed(1)}fps`;
 }
+
+/**
+ * The page join an idle cap was put on: the document, and the bridge inside
+ * it (`Snapshot.joinSerial`). The cap lives in the frame loop the bridge was
+ * installed with, so a reload, or a world switched in place (same document,
+ * a new world's loop), starts drawing every frame again whatever the daemon
+ * asked of the last one.
+ */
+export type DrawThrottleTarget = {
+  documentId: number | null;
+  joinSerial: number | null;
+};
+
+/** Whether a cap put on `applied` still holds on the page join `current`. */
+export function isDrawCapStillOn(
+  applied: DrawThrottleTarget | null,
+  current: DrawThrottleTarget,
+): boolean {
+  return (
+    applied !== null &&
+    applied.documentId === current.documentId &&
+    applied.joinSerial === current.joinSerial
+  );
+}

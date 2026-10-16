@@ -100,6 +100,7 @@ const makeGrid = (
     maxLightsPerCell: number;
     analyticRadius: number;
     temporalStability: boolean;
+    highResolutionLightsPerCell: number;
   }> = {},
 ) =>
   new LightClusterGrid(registry, {
@@ -113,6 +114,9 @@ const makeGrid = (
     fluidSpecularStrength: 1,
     temporalStability: overrides.temporalStability ?? true,
     slotFadeMs: 320,
+    ...(overrides.highResolutionLightsPerCell !== undefined && {
+      highResolutionLightsPerCell: overrides.highResolutionLightsPerCell,
+    }),
   });
 
 type GridInternals = {
@@ -141,6 +145,14 @@ const cellSlots = (
   }
   return slots;
 };
+
+/** The registry indices a world cell's slot list holds. */
+const cellSlotIndices = (
+  grid: LightClusterGrid,
+  cellX: number,
+  cellY: number,
+  cellZ: number,
+) => cellSlots(grid, cellX, cellY, cellZ).map((slot) => slot.index);
 
 describe("LightSourceRegistry", () => {
   it("issues stable generation-checked handles", () => {
@@ -305,7 +317,7 @@ describe("LightClusterGrid selection", () => {
     expect(stats.gridTextureUploads).toBe(uploads + 1);
   });
 
-  it("drops the lowest-importance light in a full cell, deterministically", () => {
+  it("slots the eight strongest lights of a full cell and overflows the rest, deterministically", () => {
     const registry = new LightSourceRegistry(16);
     // Ten lights stacked on the same spot: one cell, eight slots.
     for (let i = 0; i < 10; i++) {
@@ -318,16 +330,20 @@ describe("LightClusterGrid selection", () => {
     expect(stats.cellsOverflowed).toBeGreaterThan(0);
 
     // The overflow victims must be the two weakest lights: ranks 8 and 9.
+    const slots = cellSlotIndices(grid, 0, 0, 0);
+    expect(slots).toHaveLength(8);
+    expect(slots).not.toContain(8);
+    expect(slots).not.toContain(9);
     const sample = {
       color: [0, 0, 0] as [number, number, number],
       count: 0,
       claim: 0,
       windowFade: 1,
     };
-    // The CPU sample mirrors the fragment gate: only the eight cell-held
-    // lights contribute; the two overflow victims neither tint nor claim.
+    // The CPU sample mirrors the fragment: the eight slots, then the two
+    // victims through the cell's overflow.
     const contributors = grid.sampleIrradiance([4, 4, 4], sample);
-    expect(contributors).toBe(8);
+    expect(contributors).toBe(10);
     expect(sample.claim).toBeGreaterThan(0);
   });
 
@@ -621,10 +637,10 @@ describe("block-light ownership", () => {
     }
   });
 
-  it("claims only the lights the point's cell actually holds (overflow)", () => {
+  it("claims every light that reaches the point, overflow included", () => {
     // Ten equal-position lights, eight cell slots: the shader lights the
-    // fragment from the eight held ranks and keeps the flood look for the
-    // dropped two — the CPU claim must agree or entities darken where
+    // fragment from the eight held ranks and the cell's overflow (the
+    // dropped two) — the CPU claim must agree or entities darken where
     // blocks do not.
     const registry = new LightSourceRegistry(16);
     for (let i = 0; i < 10; i++) {
@@ -636,9 +652,9 @@ describe("block-light ownership", () => {
     const sample = makeSample();
     grid.sampleIrradiance([4, 4, 4], sample);
     const luma = 0.2126 * 1 + 0.7152 * 0.8 + 0.0722 * 0.5;
-    // Held ranks are the eight strongest: intensities 10..3 sum to 52; the
-    // dropped two (2 and 1) would push the total to 55.
-    expect(sample.claim).toBeCloseTo(52 * luma, 4);
+    // Held ranks are the eight strongest (intensities 10..3, 52); the
+    // overflow brings the dropped two (2 and 1), 55 in all.
+    expect(sample.claim).toBeCloseTo(55 * luma, 4);
   });
 
   it("mirrors the shader's flood-remainder curve on the CPU", () => {
@@ -1352,7 +1368,10 @@ describe("temporal stability (lights never pop as the camera moves)", () => {
   it("crossfades the lights a cell sheds when the resolution gate engages", () => {
     const registry = new LightSourceRegistry(16);
     crowdCell(registry);
-    const grid = makeGrid(registry, { maxLightsPerCell: 4 });
+    const grid = makeGrid(registry, {
+      maxLightsPerCell: 4,
+      highResolutionLightsPerCell: 2,
+    });
     const stats = makeStats();
     let now = 0;
     const frame = () => grid.update(4, 4, 4, stats, (now += FRAME_MS));
@@ -1611,7 +1630,10 @@ describe("a dynamic light keeps a slot past the cell cap", () => {
     const registry = new LightSourceRegistry(16);
     for (const [x, y, z] of placed) registry.add(placedTorch(), x, y, z);
     const held = withHeld ? registry.add(heldTorch(), ...HELD) : null;
-    const grid = makeGrid(registry, { maxLightsPerCell: 4 });
+    const grid = makeGrid(registry, {
+      maxLightsPerCell: 4,
+      highResolutionLightsPerCell: 2,
+    });
     grid.setRenderPixels(5_000_000);
     const stats = makeStats();
     let now = 0;
@@ -1678,5 +1700,151 @@ describe("a dynamic light keeps a slot past the cell cap", () => {
     expect(
       cellSlots(alone, 1, 0, 0).filter((slot) => slot.weight === 255),
     ).toHaveLength(2);
+  });
+});
+
+describe("high-resolution buffers", () => {
+  it("keep the tier's lights per cell by default, so no lamp is shed at a cell edge", () => {
+    // Three lamps sharing cells, as on a lit floor: at the old high-res cap
+    // of 2 one of them dropped back to its flood in some cells and drew a
+    // straight line along the cell edge on every Retina screen.
+    const registry = new LightSourceRegistry(16);
+    for (const [x, z] of [
+      [186.5, 2.5],
+      [188.5, 8.5],
+      [190.5, 2.5],
+    ]) {
+      registry.add(pointLight({ range: 12, isStatic: true }), x, 64.5, z);
+    }
+    const grid = makeGrid(registry, { maxLightsPerCell: 4 });
+    grid.setRenderPixels(5_000_000);
+    grid.update(188, 70, 5, makeStats(), 0);
+    expect(grid.isHighResolutionGate).toBe(true);
+    for (const [cellX, cellZ] of [
+      [23, 0],
+      [24, 0],
+      [23, 1],
+      [24, 1],
+    ]) {
+      expect(cellSlots(grid, cellX, 8, cellZ)).toHaveLength(3);
+    }
+  });
+});
+
+describe("a cell's overflow lights what its slots cannot", () => {
+  const FRAME_MS = 16;
+  const sampleAt = (
+    grid: LightClusterGrid,
+    x: number,
+    y: number,
+    z: number,
+  ) => {
+    const sample = {
+      color: [0, 0, 0] as [number, number, number],
+      count: 0,
+      claim: 0,
+      windowFade: 1,
+    };
+    grid.sampleIrradiance([x, y, z], sample);
+    return sample;
+  };
+  const luma = ([r, g, b]: [number, number, number]) =>
+    0.2126 * r + 0.7152 * g + 0.0722 * b;
+
+  it("lights both sides of a cell edge alike when a cell has to drop a lamp", () => {
+    // The floor from the 16 Oct report: three lamps, two slots a cell. The
+    // cell past x=192 slots lamps 1 and 2 and dropped lamp 0, which then
+    // fell back to its flood: a straight line along x=192.
+    const registry = new LightSourceRegistry(8);
+    for (const [x, z] of [
+      [186.5, 2.5],
+      [188.5, 8.5],
+      [190.5, 2.5],
+    ]) {
+      registry.add(pointLight({ range: 12, isStatic: true }), x, 64.5, z);
+    }
+    const grid = makeGrid(registry, { maxLightsPerCell: 2 });
+    grid.update(188, 70, 5, makeStats(), 0);
+    expect(cellSlotIndices(grid, 24, 8, 0)).toHaveLength(2);
+    for (const z of [1.5, 4.5, 7.5]) {
+      const west = sampleAt(grid, 191.999, 64.01, z);
+      const east = sampleAt(grid, 192.001, 64.01, z);
+      expect(luma(east.color)).toBeCloseTo(luma(west.color), 2);
+      expect(east.claim).toBeCloseTo(west.claim, 2);
+    }
+  });
+
+  it("fades a newly placed light in where it overflows instead of popping", () => {
+    const registry = new LightSourceRegistry(8);
+    registry.add(
+      pointLight({ range: 12, isStatic: true, intensity: 3 }),
+      4,
+      4,
+      4,
+    );
+    registry.add(
+      pointLight({ range: 12, isStatic: true, intensity: 3 }),
+      5,
+      4,
+      4,
+    );
+    const grid = makeGrid(registry, { maxLightsPerCell: 2 });
+    let now = 0;
+    const stats = makeStats();
+    grid.update(4, 4, 4, stats, now);
+    for (let n = 0; n < 40; n++) grid.update(4, 4, 4, stats, (now += FRAME_MS));
+    const before = luma(sampleAt(grid, 6, 4, 4).color);
+
+    // Weaker than both, so the cell's two slots stay theirs: the new lamp
+    // only ever lights this cell through the overflow.
+    registry.add(
+      pointLight({ range: 12, isStatic: true, intensity: 1 }),
+      6,
+      4,
+      6,
+    );
+    grid.update(4, 4, 4, stats, (now += FRAME_MS));
+    const added = luma(sampleAt(grid, 6, 4, 4).color) - before;
+    let previous = added;
+    for (let n = 0; n < 40; n++) {
+      grid.update(4, 4, 4, stats, (now += FRAME_MS));
+      const current = luma(sampleAt(grid, 6, 4, 4).color) - before;
+      expect(current).toBeGreaterThanOrEqual(previous - 1e-9);
+      previous = current;
+    }
+    expect(added).toBeLessThan(0.2 * previous);
+    expect(previous).toBeGreaterThan(0);
+  });
+
+  it("hands a light from its slot to the overflow without a dip", () => {
+    const registry = new LightSourceRegistry(8);
+    registry.add(
+      pointLight({ range: 12, isStatic: true, intensity: 2 }),
+      4,
+      4,
+      4,
+    );
+    const grid = makeGrid(registry, { maxLightsPerCell: 1 });
+    let now = 0;
+    const stats = makeStats();
+    grid.update(4, 4, 4, stats, now);
+    for (let n = 0; n < 40; n++) grid.update(4, 4, 4, stats, (now += FRAME_MS));
+    const alone = luma(sampleAt(grid, 6, 4, 4).color);
+
+    // A brighter lamp on the same spot takes the cell's one slot; the first
+    // lamp's slot fades out while the overflow takes it up.
+    registry.add(
+      pointLight({ range: 12, isStatic: true, intensity: 4 }),
+      4,
+      4,
+      4,
+    );
+    for (let n = 0; n < 40; n++) {
+      grid.update(4, 4, 4, stats, (now += FRAME_MS));
+      expect(luma(sampleAt(grid, 6, 4, 4).color)).toBeGreaterThanOrEqual(
+        alone - 1e-6,
+      );
+    }
+    expect(luma(sampleAt(grid, 6, 4, 4).color)).toBeCloseTo(3 * alone, 4);
   });
 });

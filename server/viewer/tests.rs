@@ -313,9 +313,23 @@ fn far_tile_samples_are_row_major_by_z_then_x() {
         materials: vec![2; 9],
         water: vec![0; 9],
         layers: vec![vec![7; 9]],
+        ..FarTile::default()
     };
     let bytes = encode_far_tile(&spec, &tile);
     assert_eq!(&bytes[..4], FAR_TILE_MAGIC);
-    // 28-byte header, three u16 arrays of 9 padded to 20, one layer.
-    assert_eq!(bytes.len(), 28 + 20 * 3 + 4 + 12);
+    // 32-byte header, three u16 arrays of 9 padded to 20, one layer.
+    assert_eq!(bytes.len(), 32 + 20 * 3 + 4 + 12);
+    assert_eq!(u32::from_le_bytes(bytes[28..32].try_into().unwrap()), 0);
+
+    let tile = FarTile {
+        tints: Some(vec![128; 27]),
+        canopy: Some(vec![1; 36]),
+        ..tile
+    };
+    let bytes = encode_far_tile(&spec, &tile);
+    // Tints then canopy, before the layer: 27 bytes padded to 28, then 36.
+    assert_eq!(u32::from_le_bytes(bytes[28..32].try_into().unwrap()), 0b110);
+    assert_eq!(bytes.len(), 32 + 20 * 3 + 28 + 36 + 4 + 12);
+    assert_eq!(bytes[92], 128);
+    assert_eq!(bytes[120], 1);
 }

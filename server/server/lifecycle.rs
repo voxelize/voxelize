@@ -433,6 +433,7 @@ impl Server {
                 None => {
                     let mut world = World::new(&name, &config);
                     world.ecs_mut().insert(self.registry.clone());
+                    world.share_init_registry(&self.init_registry);
                     if let Some(rtc_senders) = &self.rtc_senders {
                         world.ecs_mut().insert(rtc_senders.clone());
                     }

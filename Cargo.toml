@@ -75,7 +75,14 @@ libc = "0.2"
 log = "0.4.21"
 thiserror = "1"
 webrtc = "0.11"
-bytes = "1.5"
+# 1.9 for `Bytes::from_owner`: the registry route serves the shared registry
+# text without copying it.
+bytes = "1.9"
+# The registry route's compressed bodies. A range rather than one major so
+# both lockfiles (this crate's and the game's) keep the version actix-web's
+# own compression already pulled in.
+brotli = ">=7, <9"
+flate2 = "1"
 
 [features]
 default = []

@@ -109,6 +109,8 @@ export type ViewerHost = {
   /** CSS font for labels drawn over the view. */
   labelFont?: string;
   fov?: number;
+  /** Keep the view in the page URL (`pos`, `look`, `preset`) once the camera rests; on by default. */
+  poseInUrl?: boolean;
   chunkLayer?: Partial<ChunkLayerOptions>;
   /** Tunes how the camera follows the ground and flies (`DEFAULT_CAMERA_FEEL`). */
   camera?: Partial<CameraFeel>;
@@ -132,6 +134,9 @@ export type ViewerHost = {
 
 let viewerCount = 0;
 
+/** At most one URL rewrite for the view this often (Safari refuses a hundred in thirty seconds). */
+const POSE_URL_MS = 1000;
+
 type View = {
   ref: SourceRef;
   meta: SourceMeta;
@@ -141,7 +146,10 @@ type View = {
   far: FarLayer;
   overlays: OverlayCompositor;
   sky: Mesh;
+  /** What the view draws into while the camera moves. */
   target: WebGLRenderTarget;
+  /** What it draws into once the camera rests, antialiased; null where the display needs none. */
+  stillTarget: WebGLRenderTarget | null;
   csm: CSMRenderer;
   textures: TextureSummary;
 };
@@ -360,6 +368,9 @@ export class WorldViewer {
 
   private lastFrame = performance.now();
 
+  /** When the camera last moved: a frame this soon after is drawn as motion. */
+  private lastMovedAt = -Infinity;
+
   private fps = 0;
 
   private readonly idleDraw: IdleDrawOptions;
@@ -391,6 +402,11 @@ export class WorldViewer {
 
   private lastNotify = 0;
 
+  private poseWrittenAt = -Infinity;
+
+  /** The view last written to the URL. */
+  private poseInUrl = "";
+
   constructor(
     private readonly container: HTMLElement,
     private readonly host: ViewerHost = {},
@@ -409,9 +425,10 @@ export class WorldViewer {
       "pointermove",
       "pointerup",
       "wheel",
+      "gesturechange",
       "keydown",
       "keyup",
-    ] as const) {
+    ]) {
       this.canvas.addEventListener(type, wake, {
         capture: true,
         passive: true,
@@ -479,11 +496,11 @@ export class WorldViewer {
     };
     this.rig.claimPointer = (e) => {
       const p = local(e);
-      const claimed = this.pins.claimPress(p.x, p.y, e.button);
-      // A held pin opens the wheel under the pointer; capture keeps the
-      // flick reporting to the canvas while the pointer crosses the wheel.
-      if (claimed) this.canvas.setPointerCapture(e.pointerId);
-      return claimed;
+      return this.pins.claimPress(p.x, p.y, e.button);
+    };
+    this.rig.pickPoint = (clientX, clientY) => {
+      const rect = this.canvas.getBoundingClientRect();
+      return this.pickGround(clientX - rect.left, clientY - rect.top, true);
     };
     this.rig.claimKey = (e) => this.pins.key(e);
     this.canvas.addEventListener("pointerup", (e) => {
@@ -575,9 +592,39 @@ export class WorldViewer {
         this.lastDrawAt = now;
         this.tick();
       }
+      this.persistPose(now);
       requestAnimationFrame(loop);
     };
     requestAnimationFrame(loop);
+  }
+
+  /**
+   * Keeps the view in the page URL (`pos`, `look`, `preset`) once the
+   * camera rests, so a reload or a Back and Forward lands where it was
+   * rather than on the view the page opened with.
+   */
+  private persistPose(now: number) {
+    if (
+      this.host.poseInUrl === false ||
+      typeof history === "undefined" ||
+      !this.views.a ||
+      this.rig.isActive() ||
+      now - this.poseWrittenAt < POSE_URL_MS
+    )
+      return;
+    const pose = this.rig.pose();
+    const vec = (v: Vec3) => v.map((n) => n.toFixed(1)).join(",");
+    const key = `${vec(pose.eye)}|${vec(pose.look)}|${this.rig.preset}`;
+    if (key === this.poseInUrl) return;
+    this.poseInUrl = key;
+    this.poseWrittenAt = now;
+    const url = new URL(window.location.href);
+    url.searchParams.set("pos", vec(pose.eye));
+    url.searchParams.set("look", vec(pose.look));
+    url.searchParams.set("preset", this.rig.preset);
+    url.searchParams.delete("bookmark");
+    if (url.href !== window.location.href)
+      history.replaceState(history.state, "", url);
   }
 
   /** Nothing has wanted live frames for `afterMs`: no input, change, camera motion, loading or waiter. */
@@ -614,19 +661,22 @@ export class WorldViewer {
 
   async setSources(a: SourceRef, b: SourceRef | null = null) {
     const make = async (ref: SourceRef | null, current: View | null) => {
-      if (!ref) {
-        if (current) this.disposeView(current);
-        return null;
-      }
+      if (!ref) return null;
       if (current && current.ref.id === ref.id) return current;
-      if (current) this.disposeView(current);
       return this.makeView(ref);
     };
     const [va, vb] = await Promise.all([
       make(a, this.views.a),
       make(b, this.views.b),
     ]);
+    // The views being replaced keep drawing while their successors load
+    // (seconds of texture setup), so they are disposed only once nothing
+    // draws them: a disposed far layer's batch throws in the next frame.
+    const replaced = [this.views.a, this.views.b];
     this.views = { a: va, b: vb };
+    for (const view of replaced) {
+      if (view && view !== va && view !== vb) this.disposeView(view);
+    }
     this.pins.attach(
       [va, vb]
         .filter((v): v is View => v !== null)
@@ -691,7 +741,7 @@ export class WorldViewer {
     const far = new FarLayer(
       `${base}/far`,
       materials,
-      meta.far?.kind === "classes" ? "classes" : "blocks",
+      meta.far,
       this.host.farPalette?.(meta) ?? {
         water: "#4a86ad",
         skyTop: "#78a85a",
@@ -700,6 +750,9 @@ export class WorldViewer {
       () => (colors ??= materials.topColors()),
       this.host.waterSurface?.(meta) ?? -4096,
     );
+    // Every face the far materials name is read off the atlas now, behind
+    // the load, rather than in the frame the layer first draws.
+    await far.terrain.warmLooks();
     scene.add(far.terrain);
     const sky = new Mesh(
       new SphereGeometry(9000, 32, 16),
@@ -735,7 +788,12 @@ export class WorldViewer {
       new FarTileClient(`${base}/far`),
       `${base}/annotations`,
     );
-    const target = this.makeTarget(1, 1);
+    const target = this.makeTarget(1, 1, 0);
+    // At two device pixels a CSS pixel the display's density smooths
+    // edges; at one, a resting view gets 4x MSAA. Moving, no view does: 4x
+    // took a pan from about 90 fps to 37, and 2x to 60.
+    const stillTarget =
+      this.renderer.getPixelRatio() >= 2 ? null : this.makeTarget(1, 1, 4);
     const csm = new CSMRenderer({
       maxShadowDistance: 256,
       shadowMapSize: 2048,
@@ -744,6 +802,13 @@ export class WorldViewer {
     csm.addNeverCaster(far.terrain);
     csm.addNeverCaster(sky);
     chunks.setShadowCasters(csm);
+    await chunks.warm(this.renderer, this.rig.camera, target, scene);
+    // The rest of the scene (the far layer, the sky) links now too, not in
+    // its first frame.
+    this.renderer.setRenderTarget(target);
+    const linked = this.renderer.compileAsync(scene, this.rig.camera);
+    this.renderer.setRenderTarget(null);
+    await linked;
     return {
       ref,
       meta,
@@ -754,16 +819,17 @@ export class WorldViewer {
       overlays,
       sky,
       target,
+      stillTarget,
       csm,
       textures,
     };
   }
 
-  private makeTarget(width: number, height: number) {
+  private makeTarget(width: number, height: number, samples: number) {
     const target = new WebGLRenderTarget(width, height, {
       type: HalfFloatType,
       depthTexture: new DepthTexture(width, height),
-      samples: 4,
+      samples,
     });
     return target;
   }
@@ -773,6 +839,7 @@ export class WorldViewer {
     view.far.dispose();
     view.overlays.dispose();
     view.target.dispose();
+    view.stillTarget?.dispose();
     view.csm.dispose();
   }
 
@@ -868,9 +935,11 @@ export class WorldViewer {
 
   /**
    * The ground point under canvas pixel (px, py), in either half of a side
-   * by side split, or null where the ray meets nothing loaded.
+   * by side split, or null where the ray meets nothing loaded: the top of
+   * the column the ray meets, or with `onRay` the point it meets it at (on
+   * a cliff's face, say), which stays on that pixel.
    */
-  pickGround(px: number, py: number): Vec3 | null {
+  pickGround(px: number, py: number, onRay = false): Vec3 | null {
     const width = this.canvas.clientWidth;
     const height = this.canvas.clientHeight;
     const split = this.options.split === "side" && this.views.b;
@@ -905,6 +974,7 @@ export class WorldViewer {
           else lo = mid;
         }
         const p = at(hi);
+        if (onRay) return [p.x, p.y, p.z];
         return [p.x, this.surfaceAt(p.x, p.z) ?? p.y, p.z];
       }
       last = t;
@@ -1067,13 +1137,18 @@ export class WorldViewer {
     const split = this.options.split === "side" && this.views.b;
     const viewWidth = split ? Math.floor(width / 2) : width;
     for (const view of [this.views.a, this.views.b]) {
-      view?.target.setSize(
-        Math.floor(viewWidth * ratio),
-        Math.floor(height * ratio),
-      );
-      if (view?.target.depthTexture) {
-        view.target.depthTexture.image.width = Math.floor(viewWidth * ratio);
-        view.target.depthTexture.image.height = Math.floor(height * ratio);
+      for (const target of [view?.target, view?.stillTarget]) {
+        if (!target) continue;
+        target.setSize(
+          Math.floor(viewWidth * ratio),
+          Math.floor(height * ratio),
+        );
+        if (target.depthTexture) {
+          target.depthTexture.image.width = Math.floor(viewWidth * ratio);
+          target.depthTexture.image.height = Math.floor(height * ratio);
+        }
+        // Allocated now rather than by the first frame that draws into it.
+        this.renderer.initRenderTarget(target);
       }
     }
     this.rig.resize(viewWidth, height);
@@ -1106,6 +1181,8 @@ export class WorldViewer {
     }
     this.frame += 1;
     this.rig.update(dt);
+    if (this.rig.isActive()) this.lastMovedAt = now;
+    const isStill = now - this.lastMovedAt > 120;
 
     const focus = this.rig.focus();
     const span = this.rig.span();
@@ -1173,15 +1250,16 @@ export class WorldViewer {
         lighting.shadowStrength.value = 0;
       }
 
-      this.renderer.setRenderTarget(view.target);
+      const target = (isStill && view.stillTarget) || view.target;
+      this.renderer.setRenderTarget(target);
       this.renderer.setClearColor(new Color(0, 0, 0), 1);
       this.renderer.clear();
       this.renderer.render(view.scene, viewCamera);
 
       const key = index === 0 ? "A" : "B";
       const uniforms = this.composite.uniforms;
-      uniforms[`tColor${key}`].value = view.target.texture;
-      uniforms[`tDepth${key}`].value = view.target.depthTexture;
+      uniforms[`tColor${key}`].value = target.texture;
+      uniforms[`tDepth${key}`].value = target.depthTexture;
       (uniforms[`uInverse${key}`].value as Matrix4).multiplyMatrices(
         viewCamera.matrixWorld,
         viewCamera.projectionMatrixInverse,

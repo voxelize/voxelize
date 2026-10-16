@@ -15,6 +15,7 @@ import {
   type CaptureCaveat,
   type CommandDispatch,
   type ConnectionSnapshot,
+  type Snapshot,
 } from "./bridge";
 import { DEFAULT_IDLE_TTL_MS } from "./browser-lifecycle";
 import { ensureCaptureDir } from "./capture-dir";
@@ -23,6 +24,7 @@ import {
   parseCaptureViewportQuery,
 } from "./capture-viewport";
 import type { ClientUpdateMode } from "./client-updates";
+import { composeWorldSwitchUrl } from "./client-url";
 import {
   DEFAULT_FILL_LANDING,
   FillLandingError,
@@ -38,9 +40,12 @@ import { CappedFrameRateError } from "./frame-rate-guard";
 import {
   describeDrawInterval,
   idleDrawIntervalFor,
+  isDrawCapStillOn,
   resolveIdleDrawAfterMs,
+  type DrawThrottleTarget,
 } from "./idle-draw";
 import { MethodOutcomeError, assertMethodRan } from "./method-outcome";
+import { PageUnavailableError } from "./page-availability";
 import {
   createAgentPerfTraceId,
   isAgentPerfLogging,
@@ -48,10 +53,14 @@ import {
 } from "./perf";
 import {
   EMPTY_POSE_INTENT,
+  carriedPoseIntent,
+  describeJoinChange,
   describePose,
+  isMidWorldSwitch,
   isNewJoin,
   isPoseSuperseded,
   mergePoseIntent,
+  poseRestoreSkipReason,
   rememberPose,
   resolvePoseRestore,
   type JoinIdentity,
@@ -155,8 +164,9 @@ export type DaemonStatus = {
   pose: DaemonPoseStatus;
 };
 
-/** Why a page document loaded: the daemon asked for it, or the page did. */
-export type DocumentCause = "launch" | "reset" | "reload" | "page";
+/** Why a page document loaded: the daemon asked for it, or the page did.
+ * `world` is a world switch the daemon made by navigating (`POST /world`). */
+export type DocumentCause = "launch" | "reset" | "reload" | "world" | "page";
 
 export type DaemonClientStatus = {
   /** `hold`: dev-server hot updates are held back; `live`: they apply. */
@@ -180,6 +190,31 @@ export type DaemonPoseStatus = {
   intent: PoseIntent;
   restoreCount: number;
   lastRestore: PoseRestoreRecord | null;
+};
+
+/** What `POST /world` answers. */
+export type WorldSwitchResult = {
+  ok: boolean;
+  /** How the switch was made: in place by the page's host, or by navigation. */
+  mode: "soft" | "hard";
+  world: string;
+  from: string;
+  /**
+   * The world the session is listed under as the call answers (`/meta`'s
+   * world): `world` after a switch that landed, and whichever world the
+   * page reports after one that did not.
+   */
+  sessionWorld: string;
+  /** From the request to the page standing in the world with chunks in. */
+  hopMs: number;
+  /** A new page document loaded (always true for a hard switch). */
+  documentChanged: boolean;
+  joinSerial: number | null;
+  joinGeneration: number | null;
+  chunksLoaded: number | null;
+  /** Why a soft switch was asked for and a hard one made, when it was. */
+  note?: string;
+  error?: string;
 };
 
 export type DaemonMetaResponse = {
@@ -253,6 +288,9 @@ const STALLED_PAGE_RESET_AFTER_MS = 180_000;
 const WAIT_DEFAULT_TIMEOUT_MS = 30_000;
 const WAIT_MAX_TIMEOUT_MS = 300_000;
 const WAIT_DEFAULT_POLL_MS = 250;
+/** How often `POST /world` looks for the page standing in the new world. */
+const WORLD_ARRIVAL_POLL_MS = 250;
+const WORLD_NAME_PATTERN = /^[A-Za-z0-9_-]+$/;
 const WAIT_MIN_POLL_MS = 50;
 const WAIT_DEFAULT_RADIUS = 32;
 const WAIT_LAST_SEEN_LIMIT = 5;
@@ -470,9 +508,10 @@ export class AgentDaemon {
   private idleDrawTimer: NodeJS.Timeout | null = null;
   private isDrawThrottled = false;
   private drawIntervalMs: number | null = null;
-  // The page document the cap was put on: a reload or page reset starts a
-  // document drawing every frame, whatever the daemon last asked of the old.
-  private drawThrottleDocumentId: number | null = null;
+  // The page join the cap was put on: a reload, page reset or world switch
+  // in place starts a frame loop drawing every frame, whatever the daemon
+  // last asked of the old one.
+  private drawThrottleTarget: DrawThrottleTarget | null = null;
   private drawThrottleChange: Promise<void> | null = null;
 
   private pageWatchTimer: NodeJS.Timeout | null = null;
@@ -483,7 +522,7 @@ export class AgentDaemon {
     documentId: null,
     documentLoadedAt: null,
     title: null,
-    documentsByCause: { launch: 0, reset: 0, reload: 0, page: 0 },
+    documentsByCause: { launch: 0, reset: 0, reload: 0, world: 0, page: 0 },
     updatesBehind: 0,
     lastHeldUpdateAt: null,
     lastHeldUpdateTypes: [],
@@ -564,11 +603,23 @@ export class AgentDaemon {
     this.idleDrawTimer.unref();
   }
 
+  /** The page join a cap put on now would land on. */
+  private currentDrawTarget(): DrawThrottleTarget {
+    return {
+      documentId: this.clientStatus.documentId,
+      joinSerial: this.freshness.lastConnection?.joinSerial ?? null,
+    };
+  }
+
   private async idleDrawTick(): Promise<void> {
     if (
       this.isDrawThrottled &&
-      this.drawThrottleDocumentId !== this.clientStatus.documentId
+      !isDrawCapStillOn(this.drawThrottleTarget, this.currentDrawTarget())
     ) {
+      // The page's loop is drawing every frame again; cap it afresh.
+      console.log(
+        `[agent-daemon] ${new Date().toISOString()} new page join (document or bridge changed): the idle draw cap is re-applied`,
+      );
       this.isDrawThrottled = false;
       this.drawIntervalMs = null;
     }
@@ -608,7 +659,7 @@ export class AgentDaemon {
         }
         this.isDrawThrottled = status.intervalMs !== null;
         this.drawIntervalMs = status.intervalMs;
-        this.drawThrottleDocumentId = this.clientStatus.documentId;
+        this.drawThrottleTarget = this.currentDrawTarget();
         console.log(
           this.isDrawThrottled
             ? `[agent-daemon] idle for ${Math.round(this.idleMs() / 1000)}s: drawing every ${status.intervalMs}ms (${describeDrawInterval(status.intervalMs)}) until the next command`
@@ -658,7 +709,7 @@ export class AgentDaemon {
     }
     this.isDrawThrottled = false;
     this.drawIntervalMs = null;
-    this.drawThrottleDocumentId = this.clientStatus.documentId;
+    this.drawThrottleTarget = this.currentDrawTarget();
     console.log(
       `[agent-daemon] frame-rate: lifted a ${status.intervalMs}ms draw cap the page ${
         wasRecorded
@@ -903,7 +954,9 @@ export class AgentDaemon {
   private currentJoin(snapshot: ConnectionSnapshot | null): JoinIdentity {
     return {
       documentId: this.clientStatus.documentId,
+      joinSerial: snapshot?.joinSerial ?? null,
       joinGeneration: snapshot?.joinGeneration ?? null,
+      world: snapshot?.world ?? null,
     };
   }
 
@@ -923,12 +976,37 @@ export class AgentDaemon {
       }
       const join: JoinIdentity = {
         documentId: sample.documentId,
-        joinGeneration: snapshot.joinGeneration ?? null,
+        joinSerial: sample.joinSerial ?? snapshot.joinSerial ?? null,
+        joinGeneration:
+          sample.joinGeneration ?? snapshot.joinGeneration ?? null,
+        world: sample.world ?? snapshot.world ?? null,
       };
+      this.agent.observeWorld(join.world);
+      // The old world's bridge answering after the address moved on: its
+      // pose is the old world's, so it is not taken for the new one.
+      if (this.pose && isMidWorldSwitch(this.pose, join)) return;
       if (this.pose && isNewJoin(this.pose, join)) {
         const detectedAt = Date.now();
         const previous = this.pose;
-        if (!this.isPoseRestoreEnabled || this.isNextRestoreSkipped) {
+        const skipReason = poseRestoreSkipReason(previous, join);
+        if (skipReason !== null) {
+          console.log(
+            `[agent-daemon] ${new Date().toISOString()} rejoined (${describeJoinChange(previous.join, join)}): ${skipReason}`,
+          );
+          this.isNextRestoreSkipped = false;
+          // Nor its fly and view radius: a later rejoin in the new world
+          // would replay them there.
+          this.poseIntent = carriedPoseIntent(
+            this.poseIntent,
+            previous.join,
+            join,
+          );
+          this.appendEvent("pose-restore-skipped", {
+            reason: skipReason,
+            from: previous.join,
+            to: join,
+          });
+        } else if (!this.isPoseRestoreEnabled || this.isNextRestoreSkipped) {
           console.log(
             `[agent-daemon] ${new Date().toISOString()} rejoined; not restoring the pose (${
               this.isNextRestoreSkipped
@@ -948,7 +1026,7 @@ export class AgentDaemon {
       }
       this.pose = rememberPose(
         sample,
-        { documentId: sample.documentId, joinGeneration: join.joinGeneration },
+        { ...join, documentId: sample.documentId },
         this.poseIntent,
         Date.now(),
       );
@@ -994,7 +1072,10 @@ export class AgentDaemon {
         isSameJoin: async () => {
           const connection = this.freshness.lastConnection;
           if (this.freshness.isStale || connection === null) return false;
-          if ((connection.joinGeneration ?? null) !== to.joinGeneration) {
+          if (
+            (connection.joinGeneration ?? null) !== to.joinGeneration ||
+            (connection.joinSerial ?? null) !== to.joinSerial
+          ) {
             return false;
           }
           const sample = await this.agent.poseSample().catch(() => null);
@@ -1024,9 +1105,7 @@ export class AgentDaemon {
     console.log(
       `[agent-daemon] ${new Date().toISOString()} ${
         record.error === null ? "restored pose" : "pose restore incomplete"
-      } after rejoin (join generation ${pose.join.joinGeneration} -> ${to.joinGeneration}${
-        pose.join.documentId !== to.documentId ? ", new page document" : ""
-      }): ${describePose(pose)}, remembered ${age}s before${
+      } after rejoin (${describeJoinChange(pose.join, to)}): ${describePose(pose)}, remembered ${age}s before${
         waits.length > 0 ? ` (${waits.join("; ")})` : ""
       }${record.error ? ` — ${record.error}` : ""}`,
     );
@@ -1038,6 +1117,159 @@ export class AgentDaemon {
       isFlying: pose.isFlying,
       renderRadius: pose.renderRadius,
     });
+  }
+
+  /**
+   * Move this tab to another world and wait until it stands there. Recovery
+   * holds off throughout: the page goes away on purpose, and a reset in the
+   * middle would reload the world being left.
+   */
+  private async switchWorld(
+    world: string,
+    requested: "soft" | "hard",
+  ): Promise<WorldSwitchResult> {
+    const startedAt = Date.now();
+    await this.pageWatchTick();
+    const from = {
+      world: this.agent.worldName,
+      url: this.agent.pageUrl(),
+      documentId: this.clientStatus.documentId,
+      joinSerial: this.freshness.lastConnection?.joinSerial ?? null,
+    };
+    let mode: "soft" | "hard" = "hard";
+    let note: string | undefined;
+    const result = (
+      fields: Partial<WorldSwitchResult> & { ok: boolean },
+    ): WorldSwitchResult => ({
+      mode,
+      world,
+      from: from.world,
+      sessionWorld: this.agent.worldName,
+      hopMs: Date.now() - startedAt,
+      documentChanged: this.clientStatus.documentId !== from.documentId,
+      joinSerial: null,
+      joinGeneration: null,
+      chunksLoaded: null,
+      ...(note !== undefined ? { note } : {}),
+      ...fields,
+    });
+    console.log(
+      `[agent-daemon] ${new Date().toISOString()} world switch ${from.world} -> ${world} requested (${requested})`,
+    );
+    const wasRecoveryInFlight = this.isRecoveryInFlight;
+    this.isRecoveryInFlight = true;
+    try {
+      if (requested === "soft") {
+        try {
+          if (await this.agent.switchWorldInPage(world)) {
+            mode = "soft";
+          } else {
+            note =
+              "the page did not switch in place (it has no in-page world switch, or it declined or failed: see the page log); opened the world's page instead";
+          }
+        } catch (error) {
+          note = `the in-page world switch failed (${
+            error instanceof Error ? error.message : String(error)
+          }); opened the world's page instead`;
+        }
+      }
+      if (mode === "hard") {
+        this.expectedNavigation = { cause: "world", at: Date.now() };
+        try {
+          await this.agent.navigateTo(composeWorldSwitchUrl(from.url, world));
+        } catch (error) {
+          // The world's page cannot load (the client answered an error, or
+          // nothing loaded within the retry budget): stand back in the world
+          // being left rather than on an error page. A load still going on
+          // timeouts alone does not throw here (navigateTo waits for it).
+          if (
+            !(error instanceof PageUnavailableError) ||
+            !from.url.startsWith("http")
+          ) {
+            throw error;
+          }
+          this.expectedNavigation = { cause: "world", at: Date.now() };
+          const isBack = await this.agent.navigateTo(from.url).then(
+            () => true,
+            () => false,
+          );
+          return result({
+            ok: false,
+            error: `${error.message}; ${
+              isBack
+                ? `went back to ${from.world}`
+                : `could not go back to ${from.world} either`
+            }`,
+          });
+        }
+      }
+      const deadline = Date.now() + resolveReadyTimeoutMs().timeoutMs;
+      let last: Snapshot | null = null;
+      while (Date.now() < deadline) {
+        await this.pageWatchTick();
+        await this.watchConnectionTick();
+        last = await this.agent.snapshot().catch(() => null);
+        const isNewJoin =
+          this.clientStatus.documentId !== from.documentId ||
+          (last?.joinSerial ?? null) !== from.joinSerial;
+        if (
+          last !== null &&
+          isNewJoin &&
+          last.world === world &&
+          last.isReady === true &&
+          last.chunks.loaded > 0
+        ) {
+          this.agent.observeWorld(last.world);
+          const arrived = result({
+            ok: true,
+            joinSerial: last.joinSerial ?? null,
+            joinGeneration:
+              this.freshness.lastConnection?.joinGeneration ?? null,
+            chunksLoaded: last.chunks.loaded,
+          });
+          // The new join is taken in (the old world's fly and view radius
+          // dropped) before the switch answers, so a command sent right
+          // after it is remembered as the new world's.
+          if (this.poseSync) await this.poseSync;
+          const connection = this.freshness.lastConnection;
+          if (!this.freshness.isStale && connection) {
+            await this.syncPose(connection);
+          }
+          console.log(
+            `[agent-daemon] ${new Date().toISOString()} world switch ${from.world} -> ${world} (${mode}${
+              arrived.documentChanged ? ", new page document" : ", same page"
+            }): standing there after ${(arrived.hopMs / 1000).toFixed(2)}s with ${last.chunks.loaded} chunk(s)${
+              note ? `; ${note}` : ""
+            }`,
+          );
+          this.appendEvent("world-switch", arrived);
+          return arrived;
+        }
+        await new Promise((resolve) =>
+          setTimeout(resolve, WORLD_ARRIVAL_POLL_MS),
+        );
+      }
+      return result({
+        ok: false,
+        chunksLoaded: last?.chunks.loaded ?? null,
+        error: `the page did not stand in ${world} within ${Math.round(
+          (Date.now() - startedAt) / 1000,
+        )}s (last: ${
+          last
+            ? `world=${last.world} ready=${last.isReady} chunks=${last.chunks.loaded} bridge=${last.joinSerial ?? "?"}`
+            : "no bridge answered"
+        })`,
+      });
+    } catch (error) {
+      return result({
+        ok: false,
+        error: error instanceof Error ? error.message : String(error),
+      });
+    } finally {
+      if (!wasRecoveryInFlight) this.isRecoveryInFlight = false;
+      this.pageStalledSinceAt = null;
+      if (this.freshness.isStale) this.freshness.staleSinceAt = Date.now();
+    }
   }
 
   /** A command that moves the agent: remember where it ended up at once. */
@@ -1093,6 +1325,7 @@ export class AgentDaemon {
       }
     }
     this.updateFreshness(snapshot, failureMessage);
+    if (snapshot) this.agent.observeWorld(snapshot.world);
     if (this.freshness.isStale) {
       await this.maybeRecoverConnection(snapshot);
     } else if (snapshot) {
@@ -1898,6 +2131,25 @@ export class AgentDaemon {
                 "reloaded, but the world did not rejoin before the bridge wait ran out",
             }),
       };
+    });
+
+    // Another world in this tab: in place when the page's host can switch
+    // worlds itself (`AgentBridge.switchWorld`, mode `soft`, the default),
+    // otherwise (or with mode `hard`) by opening that world's page. Answers
+    // once the page stands in the world, its join finished and chunks in.
+    const worldBodySchema = z.object({
+      world: z.string().regex(WORLD_NAME_PATTERN),
+      mode: z.enum(["soft", "hard"]).optional(),
+    });
+    this.server.post("/world", async (req, reply) => {
+      const parsed = worldBodySchema.safeParse(req.body ?? null);
+      if (!parsed.success) {
+        reply.code(400);
+        return { ok: false, error: parsed.error.flatten() };
+      }
+      // Like /reload, a switch that did not land answers 200 with ok false
+      // and says why: the session is still there, in whichever world.
+      return this.switchWorld(parsed.data.world, parsed.data.mode ?? "soft");
     });
 
     const freezeBodySchema = z.object({

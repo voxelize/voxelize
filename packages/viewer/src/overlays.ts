@@ -11,6 +11,7 @@
  * The engine ships the generic ones; a host adds its own `raster`
  * overlays for the layers its source names.
  */
+import type { FarTerrainDescriptor } from "@voxelize/core";
 import {
   DataTexture,
   FloatType,
@@ -33,6 +34,22 @@ export type LayerInfo = {
   bits: boolean;
 };
 
+/**
+ * What a source's far tiles' `materials` mean: block ids, or classes it
+ * names, painted from the blocks `terrain` says each is made of (a game
+ * server's far-terrain descriptor) or else from a colour per class.
+ */
+export type FarMeta =
+  | { kind: "blocks" }
+  | {
+      kind: "classes";
+      names: string[];
+      terrain?: Pick<
+        FarTerrainDescriptor,
+        "materials" | "skyMaterial" | "seabedMaterial" | "trees"
+      >;
+    };
+
 export type SourceMeta = {
   protocol: number;
   name: string;
@@ -43,7 +60,7 @@ export type SourceMeta = {
   maxLightLevel: number;
   seed: number;
   waterLevel: number;
-  far: { kind: "blocks" } | { kind: "classes"; names: string[] } | null;
+  far: FarMeta | null;
   layers: LayerInfo[];
   chunkBounds: [number, number, number, number] | null;
   info: Record<string, unknown> | null;
@@ -313,9 +330,14 @@ export class OverlayCompositor {
       this.wantsHeights = heights;
       this.rect = { x0, z0, res };
       this.generation += 1;
-      this.data.fill(0);
-      this.heights.fill(0);
-      this.dirty = true;
+      // With nothing on, the composite reads neither texture: clearing and
+      // re-uploading them (4 MB each) every time a pan crossed a cell held
+      // the frame for 25-35 ms.
+      if (rasters.length || heights || annotations) {
+        this.data.fill(0);
+        this.heights.fill(0);
+        this.dirty = true;
+      }
       if (rasters.length || heights) this.fill(this.generation);
       if (annotations) this.loadAnnotations(this.generation);
     }

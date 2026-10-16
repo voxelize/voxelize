@@ -139,6 +139,7 @@ impl ServerBuilder {
             identities: HashMap::default(),
 
             registry,
+            init_registry: Default::default(),
 
             started: false,
 

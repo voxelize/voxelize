@@ -44,4 +44,13 @@ export interface NetIntercept {
    * to be free; this is where a sender learns when it truly left.
    */
   onPacketsSent?: (packets: MessageProtocol[]) => void;
+
+  /**
+   * True while this intercept is waiting on what arrives next and nothing
+   * it draws could be stalled by handling it at once (a world waiting on
+   * its spawn window). The network then decodes each packet on its own
+   * thread the moment it arrives instead of in a decode worker on its next
+   * sync tick. Polled per packet, so it must be cheap.
+   */
+  wantsMessagesOnArrival?: () => boolean;
 }

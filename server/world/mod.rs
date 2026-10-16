@@ -10,6 +10,7 @@ mod events;
 mod far_terrain;
 mod fixed_step;
 mod generators;
+mod init_registry;
 mod interests;
 pub mod items;
 mod lag_comp;
@@ -48,7 +49,7 @@ use specs::{
 };
 use std::path::PathBuf;
 use std::sync::Arc;
-use std::sync::{Mutex, OnceLock, RwLock};
+use std::sync::{Mutex, RwLock};
 use std::{
     fs::{self, File},
     time::{Duration, Instant},
@@ -78,6 +79,7 @@ pub use events::*;
 pub use far_terrain::*;
 pub use fixed_step::*;
 pub use generators::*;
+pub use init_registry::*;
 pub use interests::*;
 pub use items::*;
 pub use lag_comp::*;
@@ -218,13 +220,14 @@ pub struct World {
     extra_init_data: HashMap<String, serde_json::Value>,
 
     /// The block registry exactly as the INIT packet carries it, serialized
-    /// once per world on its first join. The registry is fixed when the server
-    /// is built (`ServerBuilder::registry`) and cloned into every world, so the
-    /// string cannot go stale; before this, every join re-walked every block
+    /// once on the first join and shared by every world of the server (see
+    /// [`SharedInitRegistry`]). The registry is fixed when the server is built
+    /// (`ServerBuilder::registry`) and cloned into every world, so the string
+    /// cannot go stale; before this, every join re-walked every block
     /// definition into a `Value` tree and back into text - megabytes of
     /// allocation on the world thread, per player, for an answer that never
     /// changes.
-    init_blocks_json: OnceLock<Box<RawValue>>,
+    init_registry: SharedInitRegistry,
 
     items: Option<ItemRegistry>,
 
@@ -344,6 +347,9 @@ pub(crate) struct ClientJoinRequest {
     /// Verified session identity, published to the world's
     /// `SessionIdentities` resource before the client entity is built.
     pub identity: SessionIdentity,
+    /// Digest of the block registry the client already holds, from its
+    /// JOIN. An INIT answering a matching digest leaves the registry out.
+    pub registry_digest: Option<String>,
 }
 
 #[derive(ActixMessage)]
@@ -520,7 +526,7 @@ impl World {
             transport_handle: None,
             command_handle: None,
             extra_init_data: HashMap::default(),
-            init_blocks_json: OnceLock::new(),
+            init_registry: SharedInitRegistry::default(),
             items: None,
             addr: None,
             server_addr: None,

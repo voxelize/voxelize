@@ -20,6 +20,7 @@ import {
   LocalLights,
   makeChunkMaterialKey,
   makeOwnFaceTexture,
+  positionUnitsPerBlock,
   Registry,
   setOwnFaceTexture,
   SHADER_LIGHTING_CHUNK_SHADERS,
@@ -183,10 +184,15 @@ export class ViewerMaterials {
   }
 
   /**
-   * Builds every chunk material and the atlas. Chunk geometry reaches the
-   * viewer in block-space floats (it is merged across sections), so the
-   * fixed-point position define is taken back off.
+   * Fixed-point position scale of the viewer's quantized chunk geometry.
+   * A chunk reaches the viewer merged across its sections, so the scale
+   * spans the whole world height rather than one section as a game's does.
    */
+  get positionUnits() {
+    return positionUnitsPerBlock({ ...this.options, subChunks: 1 });
+  }
+
+  /** Builds every chunk material and the atlas. */
   async build() {
     await loadChunkMaterials(this);
     for (const material of this.chunkRenderer.materials.values()) {
@@ -205,12 +211,6 @@ export class ViewerMaterials {
         ).value;
         if (value?.isDataTexture && value.version === 0)
           value.needsUpdate = true;
-      }
-      if (material.defines?.POSITION_UNITS_PER_BLOCK !== undefined) {
-        const defines = { ...material.defines };
-        delete defines.POSITION_UNITS_PER_BLOCK;
-        material.defines = defines;
-        material.needsUpdate = true;
       }
       if (!this.atlas && material.map instanceof AtlasTexture) {
         this.atlas = material.map;
@@ -536,7 +536,27 @@ export class ViewerMaterials {
   }
 
   /** Material keys for the mesh worker: per block, and per own-texture face. */
+  /**
+   * What the mesh workers need: the material each block (or own-texture
+   * face) draws with, and which materials take quantized geometry (the
+   * engine's rule: all but the sorted see-through ones), at the viewer's
+   * scale, which every such material's sway math is set to here.
+   */
   keyTables() {
+    const units = this.positionUnits;
+    const quantized: string[] = [];
+    for (const [key, material] of this.chunkRenderer.materials) {
+      if (material.defines?.POSITION_UNITS_PER_BLOCK === undefined) continue;
+      quantized.push(key);
+      const define = units.toFixed(1);
+      if (material.defines.POSITION_UNITS_PER_BLOCK !== define) {
+        material.defines = {
+          ...material.defines,
+          POSITION_UNITS_PER_BLOCK: define,
+        };
+        material.needsUpdate = true;
+      }
+    }
     const blockKeys: Record<number, string> = {};
     const faceKeys: Record<string, string> = {};
     for (const block of this.registry.blocksById.values()) {
@@ -551,7 +571,7 @@ export class ViewerMaterials {
         }
       }
     }
-    return { blockKeys, faceKeys };
+    return { blockKeys, faceKeys, quantized, positionUnits: units };
   }
 
   /**

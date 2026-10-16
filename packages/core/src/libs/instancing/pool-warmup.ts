@@ -16,6 +16,11 @@ export interface WarmablePool {
   /// Every variant the roster drain will visit for this pool, adults and
   /// babies counted separately when the family has them.
   warmableVariantCount(): number;
+  /// The cache key of the variant the next `warmNextVariant` would bake, or
+  /// null when it has nothing left. Lets a drain whose bakes wait on work
+  /// done elsewhere (a texture painted off the main thread) ask whether the
+  /// next unit is ready before paying for it.
+  peekNextVariantKey?(): string | null;
 }
 
 export function warmableRosterCount<TType extends string>(
@@ -53,6 +58,20 @@ export function warmNextRosterEntry<TType extends string>(
   return false;
 }
 
+/// The entry `warmNextRosterEntry` would bake next, without baking it: the
+/// same walk, so the two can never disagree about order.
+export function peekNextRosterEntry<TType extends string>(
+  types: readonly TType[],
+  hasBabies: boolean,
+  isWarm: (type: TType, baby: boolean) => boolean,
+): { type: TType; baby: boolean } | null {
+  let next: { type: TType; baby: boolean } | null = null;
+  warmNextRosterEntry(types, hasBabies, isWarm, (type, baby) => {
+    next = { type, baby };
+  });
+  return next;
+}
+
 /// The kind of one-time construction the load phase was supposed to have
 /// finished: a pool variant, a texture, a mesh. Each kind is a different
 /// subsystem's fallback path, and each is a dropped frame when it fires while
@@ -67,16 +86,42 @@ export interface LazyWorkEntry {
   isAfterInteractive: boolean;
 }
 
-let isPlayInteractive = false;
+let playInteractive = false;
 const lazyWork: LazyWorkEntry[] = [];
+const playInteractiveListeners = new Set<() => void>();
+
+/// Whether the player has control yet. Before that the world is loading and
+/// work may cost time; after it, any one-time work is a dropped frame.
+export function isPlayInteractive(): boolean {
+  return playInteractive;
+}
+
+/// Calls `listener` each time play goes from loading to interactive: once
+/// per join, and again after a world reload resets the flag
+/// (`resetLazyWorkLedger`). Listeners outlive that reset. Returns the
+/// unsubscribe.
+export function onPlayInteractive(listener: () => void): () => void {
+  playInteractiveListeners.add(listener);
+  return () => {
+    playInteractiveListeners.delete(listener);
+  };
+}
 
 export function markPlayInteractive(): void {
-  isPlayInteractive = true;
+  if (playInteractive) return;
+  playInteractive = true;
+  for (const listener of [...playInteractiveListeners]) {
+    try {
+      listener();
+    } catch (error) {
+      console.error("[instancing] a play-interactive listener threw", error);
+    }
+  }
 }
 
 export function noteLazyWork(kind: LazyWorkKind, label: string): void {
-  lazyWork.push({ kind, label, isAfterInteractive: isPlayInteractive });
-  if (isPlayInteractive) {
+  lazyWork.push({ kind, label, isAfterInteractive: playInteractive });
+  if (playInteractive) {
     console.warn(
       `[instancing] ${kind} ${label} was built on demand after warmup: ` +
         "this costs a frame during play and means the warm phase missed it",
@@ -97,10 +142,11 @@ export function readLazyWorkAfterInteractive(): readonly LazyWorkEntry[] {
   return lazyWork.filter((entry) => entry.isAfterInteractive);
 }
 
-/// Test seam: the ledger and the interactive flag are module state that
-/// outlives a single world, which is what makes them useful in the client
-/// and useless in a test suite that runs several scenarios in one process.
+/// Back to the loading state: the ledger and the interactive flag are module
+/// state that outlives a single world, so a world loaded in the same page
+/// (and a test suite running several scenarios in one process) starts here.
+/// Play-interactive listeners stay subscribed.
 export function resetLazyWorkLedger(): void {
-  isPlayInteractive = false;
+  playInteractive = false;
   lazyWork.length = 0;
 }

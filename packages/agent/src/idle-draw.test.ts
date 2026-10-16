@@ -5,6 +5,7 @@ import {
   IDLE_DRAW_INTERVAL_MS,
   describeDrawInterval,
   idleDrawIntervalFor,
+  isDrawCapStillOn,
   resolveIdleDeepAfterMs,
   resolveIdleDrawAfterMs,
 } from "./idle-draw";
@@ -54,5 +55,40 @@ describe("idle draw knobs", () => {
     expect(describeDrawInterval(null)).toBe("every frame");
     expect(describeDrawInterval(500)).toBe("2fps");
     expect(describeDrawInterval(5_000)).toBe("0.2fps");
+  });
+});
+
+describe("isDrawCapStillOn", () => {
+  const capped = { documentId: 100, joinSerial: 1 };
+
+  it("holds on the join it was put on", () => {
+    expect(isDrawCapStillOn(capped, { documentId: 100, joinSerial: 1 })).toBe(
+      true,
+    );
+  });
+
+  it("is gone after a reload: a new document draws every frame", () => {
+    expect(isDrawCapStillOn(capped, { documentId: 200, joinSerial: 1 })).toBe(
+      false,
+    );
+  });
+
+  it("is gone after a world switch in the same page: the new world's loop draws every frame", () => {
+    expect(isDrawCapStillOn(capped, { documentId: 100, joinSerial: 2 })).toBe(
+      false,
+    );
+  });
+
+  it("was never on before a cap is put on", () => {
+    expect(isDrawCapStillOn(null, { documentId: 100, joinSerial: 1 })).toBe(
+      false,
+    );
+  });
+
+  it("keys on the document alone for hosts without a bridge serial", () => {
+    const legacy = { documentId: 100, joinSerial: null };
+    expect(
+      isDrawCapStillOn(legacy, { documentId: 100, joinSerial: null }),
+    ).toBe(true);
   });
 });

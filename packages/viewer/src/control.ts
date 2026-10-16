@@ -55,8 +55,8 @@ export type ViewerControl = {
     options?: FlightOptions,
   ): Promise<FlightResult>;
   cancelFlight(): ViewerState;
-  /** The ground point under canvas pixel (x, y), as a double-click there would fly to; null for sky. */
-  pick(x: number, y: number): Vec3 | null;
+  /** The ground point under canvas pixel (x, y), as a double-click there would fly to; null for sky. `onRay` gives where the ray meets it rather than the top of that column. */
+  pick(x: number, y: number, onRay?: boolean): Vec3 | null;
   /** Drops the pin as a click there does, moving it from wherever it stood; a null y takes the ground. Resolves with what the source knows of the column. */
   dropPin(x: number, y: number | null, z: number): Promise<Pin>;
   /** The pin, or null when there is none. */
@@ -180,7 +180,7 @@ export function installControl(
       viewer.cancelFlight();
       return viewer.state();
     },
-    pick: (x, y) => viewer.pickGround(x, y),
+    pick: (x, y, onRay) => viewer.pickGround(x, y, onRay),
     dropPin(x, y, z) {
       const height = y ?? viewer.surfaceAt(x, z);
       if (height === null) {

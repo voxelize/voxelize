@@ -18,12 +18,16 @@ const position = new Vector3();
 const tempColor = new Color();
 const waterTransmittance = new Color();
 const underwaterFill = new Color();
+// The analytic lights' hue, written by queryLocalLights and read by
+// composeEntityLight through the sample below.
+const lightHueScratch: [number, number, number] = [0, 0, 0];
 const lightSample: EntityLightSample = {
   sunExposure: 0,
   floodR: 0,
   floodG: 0,
   floodB: 0,
   floodRemainder: 1,
+  lightHue: lightHueScratch,
   clusterR: 0,
   clusterG: 0,
   clusterB: 0,
@@ -39,6 +43,7 @@ const localLightSample = {
   color: [0, 0, 0] as [number, number, number],
   count: 0,
   claim: 0,
+  lightHue: lightHueScratch,
   windowFade: 1,
 };
 const localLightQueryOptions = { floodMask: 1, timeMs: 0 };
@@ -54,6 +59,56 @@ type MaterialOwner = {
 };
 
 const isMesh = (object: Object3D): object is Mesh => object instanceof Mesh;
+
+type CompileHook = Material["onBeforeCompile"];
+
+/**
+ * Every light hook an effect put on a material, to the hook it wrapped
+ * (undefined: the material had none of its own). The hook is made here, at
+ * module level, so it closes over its light uniform and the wrapped hook
+ * and never over the effect: a material that outlives its effect (art
+ * shared page-wide, kept across a world switch) must not keep that effect,
+ * and its world, alive. The next effect to meet such a material wraps what
+ * the old hook wrapped, instead of skipping it as already set up and
+ * leaving it on the dead effect's frozen light.
+ */
+const lightEffectHooks = new WeakMap<CompileHook, CompileHook | undefined>();
+
+const makeLightEffectHook = (
+  base: CompileHook | undefined,
+  lightUniform: { value: Color },
+): CompileHook => {
+  const hook: CompileHook = (shader, renderer) => {
+    if (base) {
+      base(shader, renderer);
+    }
+
+    shader.uniforms.lightEffect = lightUniform;
+    shader.vertexShader = shader.vertexShader.replace(
+      "void main() {",
+      `
+          uniform vec3 lightEffect;
+          void main() {
+          `,
+    );
+    shader.fragmentShader = shader.fragmentShader.replace(
+      "void main() {",
+      `
+          uniform vec3 lightEffect;
+          void main() {
+          `,
+    );
+    shader.fragmentShader = shader.fragmentShader.replace(
+      "#include <color_fragment>",
+      `
+          #include <color_fragment>
+          diffuseColor.rgb *= lightEffect;
+          `,
+    );
+  };
+  lightEffectHooks.set(hook, base);
+  return hook;
+};
 
 const isWithin = (object: Object3D, ancestor: Object3D) => {
   for (let node: Object3D | null = object; node; node = node.parent) {
@@ -275,6 +330,17 @@ export class LightShined {
   };
 
   /**
+   * Let go of every shined object: their subtree listeners, the light
+   * uniforms and the copies made for them. Materials it set up that outlive
+   * it keep a hook that holds nothing of the effect, and the next effect to
+   * meet them lights them again.
+   */
+  dispose = () => {
+    for (const obj of [...this.list]) this.remove(obj);
+    this.positionOverrides.clear();
+  };
+
+  /**
    * Update the light shined effect. This fetches the light level at the position of
    * each object and recursively updates the brightness of the object.
    *
@@ -302,56 +368,37 @@ export class LightShined {
   };
 
   private setupMaterial = (root: Object3D, material: Material) => {
+    // Set up by an earlier effect (a world since switched away from): it is
+    // this effect's to light now, from the hook the earlier one wrapped.
+    const earlierHook = lightEffectHooks.has(material.onBeforeCompile)
+      ? material.onBeforeCompile
+      : null;
     if (
       ThreeUtils.isShaderMaterial(material) ||
-      material.userData.lightEffectSetup ||
+      (material.userData.lightEffectSetup && earlierHook === null) ||
       material.userData.heldObjectLighting === true ||
       isSelfIlluminated(material)
     )
       return;
 
     const lightUniform = { value: new Color(1, 1, 1) };
-    const oldOnBeforeCompile = material.onBeforeCompile;
+    const baseOnBeforeCompile =
+      earlierHook !== null
+        ? lightEffectHooks.get(earlierHook)
+        : Object.prototype.hasOwnProperty.call(material, "onBeforeCompile")
+          ? material.onBeforeCompile
+          : undefined;
     this.materialOwners.set(material, {
       root,
       lightUniform,
-      baseOnBeforeCompile: Object.prototype.hasOwnProperty.call(
-        material,
-        "onBeforeCompile",
-      )
-        ? oldOnBeforeCompile
-        : undefined,
+      baseOnBeforeCompile,
       copyOf: null,
     });
     this.trackRootMaterial(root, material);
-    material.onBeforeCompile = (shader, renderer) => {
-      if (oldOnBeforeCompile) {
-        oldOnBeforeCompile(shader, renderer);
-      }
-
-      shader.uniforms.lightEffect = lightUniform;
-      shader.vertexShader = shader.vertexShader.replace(
-        "void main() {",
-        `
-          uniform vec3 lightEffect;
-          void main() {
-          `,
-      );
-      shader.fragmentShader = shader.fragmentShader.replace(
-        "void main() {",
-        `
-          uniform vec3 lightEffect;
-          void main() {
-          `,
-      );
-      shader.fragmentShader = shader.fragmentShader.replace(
-        "#include <color_fragment>",
-        `
-          #include <color_fragment>
-          diffuseColor.rgb *= lightEffect;
-          `,
-      );
-    };
+    material.onBeforeCompile = makeLightEffectHook(
+      baseOnBeforeCompile,
+      lightUniform,
+    );
     material.needsUpdate = true;
     if (!root.userData.lightUniforms) {
       root.userData.lightUniforms = [];

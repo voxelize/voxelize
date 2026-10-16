@@ -1,11 +1,11 @@
 use hashbrown::{HashMap, HashSet};
 use log::{debug, log_enabled, Level};
-use specs::{Join, ReadExpect, ReadStorage, System, WriteExpect, WriteStorage};
+use specs::{Join, LendJoin, ReadExpect, ReadStorage, System, WriteExpect, WriteStorage};
 
 use crate::{
-    ChunkInterests, ChunkProtocol, ChunkRequestsComp, ChunkStatus, Chunks, ClientFilter, IDComp,
-    LogRateLimiter, Mesher, Message, MessageQueues, MessageType, Pipeline, Stats, Vec2,
-    WorldConfig,
+    AddrComp, ChunkInterests, ChunkProtocol, ChunkRequestsComp, ChunkStatus, Chunks, ClientFilter,
+    IDComp, JoinTrace, LogRateLimiter, Mesher, Message, MessageQueues, MessageType, Pipeline,
+    RequestOutcome, Stats, Vec2, WorldConfig,
 };
 
 pub struct ChunkRequestsSystem;
@@ -21,6 +21,7 @@ impl<'a> System<'a> for ChunkRequestsSystem {
         WriteExpect<'a, MessageQueues>,
         ReadStorage<'a, IDComp>,
         WriteStorage<'a, ChunkRequestsComp>,
+        ReadStorage<'a, AddrComp>,
     );
 
     fn run(&mut self, data: Self::SystemData) {
@@ -34,16 +35,30 @@ impl<'a> System<'a> for ChunkRequestsSystem {
             mut queue,
             ids,
             mut requests,
+            addrs,
         ) = data;
 
         let max_response_per_tick = config.max_response_per_tick;
 
         let mut to_send: HashMap<String, HashSet<Vec2<i32>>> = HashMap::new();
+        // Joins in flight, by client: their LOADs are counted below.
+        let mut join_traces: HashMap<String, JoinTrace> = HashMap::new();
 
-        for (id, requests) in (&ids, &mut requests).join() {
+        for (id, requests, addr) in (&ids, &mut requests, addrs.maybe()).join() {
             let mut to_add_back_to_requested = HashSet::new();
             let mut deferred_ready = 0usize;
             let mut sent_to_pipeline = 0usize;
+            // A join in flight records what each dispatch did with each of
+            // its requested chunks, until its spawn window is served.
+            let join_trace = addr
+                .map(|addr| addr.0.join_trace())
+                .filter(|trace| trace.is_active() && !requests.requests.is_empty());
+            let mut outcomes: Vec<(Vec2<i32>, RequestOutcome)> = Vec::new();
+            let mut record = |coords: &Vec2<i32>, outcome: RequestOutcome| {
+                if join_trace.is_some() {
+                    outcomes.push((coords.clone(), outcome));
+                }
+            };
 
             for coords in requests.requests.drain(..) {
                 // A new observer activates dormant terrain before either LOAD
@@ -57,22 +72,26 @@ impl<'a> System<'a> for ChunkRequestsSystem {
                         .blocks_delivery(&coords, stats.dispatch_count())
                     {
                         interests.add(&id.0, &coords);
+                        record(&coords, RequestOutcome::Held);
                         to_add_back_to_requested.insert(coords);
                         continue;
                     }
                     let clients_to_send = to_send.entry(id.0.clone()).or_default();
 
                     if clients_to_send.len() >= max_response_per_tick {
+                        record(&coords, RequestOutcome::OverBudget);
                         to_add_back_to_requested.insert(coords);
                         deferred_ready += 1;
                         continue;
                     }
 
+                    record(&coords, RequestOutcome::Served);
                     clients_to_send.insert(coords.clone());
                     interests.add(&id.0, &coords);
                     continue;
                 }
 
+                record(&coords, RequestOutcome::Unready);
                 sent_to_pipeline += 1;
                 interests.add(&id.0, &coords);
 
@@ -144,6 +163,10 @@ impl<'a> System<'a> for ChunkRequestsSystem {
             }
 
             requests.requests.extend(to_add_back_to_requested);
+            if let Some(trace) = join_trace {
+                trace.chunk_requests(&requests.center, &outcomes);
+                join_traces.insert(id.0.clone(), trace.clone());
+            }
         }
 
         for (id, coords) in to_send {
@@ -157,6 +180,9 @@ impl<'a> System<'a> for ChunkRequestsSystem {
                 })
                 .collect();
 
+            if let Some(trace) = join_traces.get(&id) {
+                trace.load_queued(chunks.iter().map(|chunk| Vec2(chunk.x, chunk.z)));
+            }
             let message = Message::new(&MessageType::Load).chunks(&chunks).build();
             queue.push((message, ClientFilter::Direct(id)));
         }

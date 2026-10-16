@@ -26,6 +26,7 @@ import {
 
 import { WorkerPool } from "../../libs/worker-pool";
 
+import { type Block, facesAt } from "./block";
 import { FarBatch, type FarBatchSlot } from "./far-terrain-batch";
 import {
   DEFAULT_FAR_LOD,
@@ -65,6 +66,7 @@ import {
   farTileId,
   FarTileKey,
   farTileSpan,
+  meanLinearRgb,
   pendingChunksWithin,
 } from "./far-terrain-tiles";
 import { bindSkyGlowUniforms, type SkyGlowUniforms } from "./sky";
@@ -320,6 +322,56 @@ const DEFAULT_OPTIONS: FarTerrainOptions = {
   buildBudgetMs: 0.6,
   seamBand: 0,
 };
+
+/**
+ * What a block's upward (`top`) or sideways (`side`) face looks like from
+ * far away, for `FarTerrainOptions.faceLook`: the texels the chunks paint
+ * it with (read off the atlas its chunk material samples), their mean in
+ * linear RGB, and whether it takes the regional tint. Null while its
+ * texture is not painted yet. A block the registry lacks, or a face whose
+ * material is not an atlas, answers grey and says so: the far layer still
+ * draws. A game's world and the world viewer both read faces through it.
+ */
+export function readFarFaceLook(
+  block: Block | undefined,
+  blockId: number,
+  side: FarFaceSide,
+  stage: number,
+  materialOf: (block: Block, faceName: string) => { map?: unknown } | undefined,
+): FarFaceLook | null {
+  const grey: FarFaceLook = { color: [0.5, 0.5, 0.5], isTinted: false };
+  if (!block || block.faces.length === 0) {
+    console.warn(
+      `[far-terrain] block ${blockId} has no faces; its far colour is grey`,
+    );
+    return grey;
+  }
+  const wanted: [number, number, number] =
+    side === "top" ? [0, 1, 0] : [1, 0, 0];
+  const faces = facesAt(block, stage);
+  const face =
+    faces.find(
+      ({ dir }) =>
+        dir[0] === wanted[0] && dir[1] === wanted[1] && dir[2] === wanted[2],
+    ) ?? faces[0];
+  const atlas = materialOf(block, face.name)?.map;
+  if (!(atlas instanceof AtlasTexture)) {
+    console.warn(
+      `[far-terrain] ${block.name}'s ${face.name} face has no atlas; its far colour is grey`,
+    );
+    return grey;
+  }
+  const pixels = atlas.readRangePixels(face.range);
+  if (!pixels) return null;
+  const color = meanLinearRgb(pixels);
+  if (!color) return null;
+  return {
+    color,
+    isTinted: (face.stageTintMask ?? 0) !== 0,
+    pixels,
+    size: Math.round(Math.sqrt(pixels.length / 4)),
+  };
+}
 
 /** Counters a harness can read to prove the budget. */
 export type FarTerrainStats = {

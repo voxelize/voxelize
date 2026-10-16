@@ -270,7 +270,7 @@ impl ViewerSource for SavedChunks {
             heights: vec![0; samples],
             materials: vec![0; samples],
             water: vec![0; samples],
-            layers: vec![],
+            ..FarTile::default()
         };
         for i in 0..samples {
             let (x, z) = spec.column(i);

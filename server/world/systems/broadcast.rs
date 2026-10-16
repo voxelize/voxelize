@@ -255,6 +255,7 @@ impl<'a> System<'a> for BroadcastSystem {
                 let chunk_count = message.chunks.len();
                 let queued_at = Instant::now();
                 let data = encode_message(&message);
+                let encoded_at = Instant::now();
                 let encoded = EncodedMessage {
                     data,
                     msg_type,
@@ -262,7 +263,8 @@ impl<'a> System<'a> for BroadcastSystem {
                     perf: outbound_perf,
                     chunk_count,
                     queued_at,
-                    encode_ms: queued_at.elapsed().as_secs_f32() * 1000.0,
+                    encode_ms: (encoded_at - queued_at).as_secs_f32() * 1000.0,
+                    encoded_at,
                 };
                 (encoded, filter)
             })
@@ -329,7 +331,23 @@ impl<'a> System<'a> for BroadcastSystem {
                             );
                         }
                     }
-                    send_lane_routed(client, encoded.msg_type, encoded.data.clone());
+                    // A join in flight is timed to its first LOAD's socket write.
+                    let first_load_of_join = if encoded.msg_type == MessageType::Load as i32 {
+                        client.sender.join_trace().first_load_sent(
+                            world_name,
+                            encoded.queued_at,
+                            encoded.encoded_at,
+                            encoded.chunk_count,
+                            encoded.data.len(),
+                        )
+                    } else {
+                        None
+                    };
+                    if let Some(join) = first_load_of_join {
+                        let _ = client.sender.send_first_load(encoded.data.clone(), join);
+                    } else {
+                        send_lane_routed(client, encoded.msg_type, encoded.data.clone());
+                    }
                     if is_entity_lifecycle {
                         *lifecycle_bytes_by_client.entry(id.clone()).or_default() +=
                             encoded.data.len();

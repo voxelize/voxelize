@@ -31,10 +31,13 @@ import {
 
 /**
  * The depth weight of a blended fragment, by its distance from the camera
- * in blocks: `scale / (ε + (d / nearDistance)³ + (d / farDistance)⁶)`,
- * clamped to `[min, max]`. A layer twice as far as another weighs an eighth
- * of it out to `farDistance`, past which the weight falls off faster; the
- * clamp keeps the half-float sums in range.
+ * in blocks: `scale / (1 + d / nearDistance + (d / farDistance)⁶)`,
+ * clamped to `[min, max]`. Layers within `nearDistance` weigh about the
+ * same, and past it a layer twice as far weighs about half, so the alpha
+ * in the weight (more opaque layers count more) decides most of a mix, as
+ * compositing back to front would: a clear pane at the camera does not wash
+ * out the coloured glass behind it. Past `farDistance` the weight falls off
+ * fast; the clamp keeps the half-float sums in range.
  */
 export type OrderIndependentWeights = {
   scale: number;
@@ -65,7 +68,7 @@ export const defaultOrderIndependentTransparencyOptions: OrderIndependentTranspa
     solidTexelAlpha: 0.99,
     weights: {
       scale: 10,
-      nearDistance: 10,
+      nearDistance: 4,
       farDistance: 200,
       min: 0.01,
       max: 1000,
@@ -204,8 +207,8 @@ void main() {
   if (oitAlpha <= 0.0) discard;
   float oitDistance = oitDistanceAt(gl_FragCoord.z);
   float oitDepthWeight = clamp(
-    uOitWeight.x / (1e-5
-      + pow(oitDistance / uOitWeight.y, 3.0)
+    uOitWeight.x / (1.0
+      + oitDistance / uOitWeight.y
       + pow(oitDistance / uOitWeight.z, 6.0)),
     uOitWeightRange.x,
     uOitWeightRange.y

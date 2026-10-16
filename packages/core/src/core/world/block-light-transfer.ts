@@ -143,6 +143,13 @@ export const BLOCK_LIGHT_TUNING = {
    */
   hueRamp: { value: 1 },
   /**
+   * 1: a flood channel that has run out takes its share from the hue of the
+   * analytic lights around it (`blockLightCurveRGB`'s `fill`), so a lamp's
+   * pool ends amber; 0: it stays dark and the pool's last blocks go red
+   * (legacy).
+   */
+  hueFill: { value: 1 },
+  /**
    * 1: the voxel light blends bilinearly across each quad (quad-light.ts);
    * 0: per triangle (legacy), which creased along the quad diagonal and
    * cut a light's reach into triangles.
@@ -177,6 +184,8 @@ export type BlockLightTuningFlags = {
   adaptation?: boolean;
   /** A channel's hue share fades in over its first level (false: snaps on). */
   hueRamp?: boolean;
+  /** A run-out channel borrows the analytic lights' hue (false: goes dark). */
+  hueFill?: boolean;
   /** Bilinear voxel light across each quad (false: per triangle). */
   bilinear?: boolean;
 };
@@ -208,6 +217,8 @@ export function setBlockLightTuning(flags: BlockLightTuningFlags): void {
       : 0;
   if (flags.hueRamp !== undefined)
     BLOCK_LIGHT_TUNING.hueRamp.value = flags.hueRamp ? 1 : 0;
+  if (flags.hueFill !== undefined)
+    BLOCK_LIGHT_TUNING.hueFill.value = flags.hueFill ? 1 : 0;
   if (flags.bilinear !== undefined)
     BLOCK_LIGHT_TUNING.bilinear.value = flags.bilinear ? 1 : 0;
   const curve = BLOCK_LIGHT_TUNING.curve.value;
@@ -239,14 +250,26 @@ export const geometricBlockLightCurve = (level: number) => {
 /**
  * The active curve for a flood colour (levels 0..1 per channel), as the
  * chunk fragment evaluates it: brightness from the brightest channel,
- * hue from the level gaps (see `hueLevels`; channels at 0 stay 0).
- * Writes `out`.
+ * hue from the level gaps (see `hueLevels`). Writes `out`.
+ *
+ * A channel that has run out (level 0) while the brightest one is still
+ * lit has lost its gap, and with it its share: a lamp's blue ends seven
+ * levels before its red, its green three, so the last blocks of its pool
+ * went orange and then pure red. `fill` hands those channels a share back:
+ * the colour of the analytic lights around the point (their channel
+ * ratios, so a lamp's amber), weighted by how much of that colour lies on
+ * the flood's own brightest channel and capped by the most the dead channel
+ * could still hold (its gap is at least the peak). Channels still lit keep
+ * their own gap's share exactly, and a channel the fill also lacks stays
+ * dark, so a pure red light stays red. No fill (no analytic light near, the
+ * off tier): channels at 0 stay 0, as before.
  */
 export function blockLightCurveRGB(
   r: number,
   g: number,
   b: number,
   out: [number, number, number],
+  fill?: readonly [number, number, number],
 ): [number, number, number] {
   const hueLevels = BLOCK_LIGHT_TUNING.hueLevels.value;
   if (!(hueLevels > 0)) {
@@ -260,21 +283,43 @@ export function blockLightCurveRGB(
   const curve = BLOCK_LIGHT_TUNING.curve.value;
   const ramp = BLOCK_LIGHT_TUNING.hueRamp.value;
   const rampSpan = Math.max(Math.min(clamp01(peak), HUE_RAMP_LEVEL), 1e-6);
+  const fillPeak = fill ? Math.max(fill[0], fill[1], fill[2]) : 0;
+  // How much of the fill lies on the flood's own brightest channel: 1 when
+  // the flood came from the light the fill is (a lamp's red under a lamp),
+  // 0 when the fill is another colour that only reaches here through a
+  // wall (a red light lends a green flood nothing).
+  const fillOnPeak = fill
+    ? Math.max(
+        r >= peak ? fill[0] : 0,
+        g >= peak ? fill[1] : 0,
+        b >= peak ? fill[2] : 0,
+      )
+    : 0;
+  const fillScale =
+    fillPeak > 0
+      ? (Math.max(fillOnPeak, 0) / (fillPeak * fillPeak)) *
+        BLOCK_LIGHT_TUNING.hueFill.value
+      : 0;
   // A channel's share of the peak, faded in over its first level (see
   // `hueRamp`): the legacy share snapped from 0 to its full value at any
-  // trace of the channel.
-  const hue = (level: number) =>
-    level > 0
-      ? clamp01(1 - (15 * (clamp01(peak) - clamp01(level))) / hueLevels) *
-        (1 + (Math.min(clamp01(level) / rampSpan, 1) - 1) * ramp)
-      : 0;
-  const mixed = (level: number) => {
-    const legacy = legacyBlockLightCurve(level);
-    return legacy + (bright * hue(level) - legacy) * curve;
+  // trace of the channel. Below that first level the share fades to the
+  // fill's instead of to nothing.
+  const hue = (level: number, fillChannel: number) => {
+    const gapShare = clamp01(
+      1 - (15 * (clamp01(peak) - clamp01(level))) / hueLevels,
+    );
+    const lit =
+      level > 0 ? 1 + (Math.min(clamp01(level) / rampSpan, 1) - 1) * ramp : 0;
+    const fillShare = Math.min(Math.max(fillChannel, 0) * fillScale, gapShare);
+    return fillShare + (gapShare - fillShare) * lit;
   };
-  out[0] = mixed(r);
-  out[1] = mixed(g);
-  out[2] = mixed(b);
+  const mixed = (level: number, fillChannel: number) => {
+    const legacy = legacyBlockLightCurve(level);
+    return legacy + (bright * hue(level, fillChannel) - legacy) * curve;
+  };
+  out[0] = mixed(r, fill ? fill[0] : 0);
+  out[1] = mixed(g, fill ? fill[1] : 0);
+  out[2] = mixed(b, fill ? fill[2] : 0);
   return out;
 }
 
@@ -456,12 +501,16 @@ uniform float uBlockLightWarmFloor;
 uniform float uBlockLightHueLevels;
 uniform float uBlockLightMountFade;
 uniform float uBlockLightHueRamp;
+uniform float uBlockLightHueFill;
 uniform float uBlockLightBilinear;
 `;
 
 /** GLSL twins of the TS functions above; declared before the local lights. */
 export const BLOCK_LIGHT_TRANSFER_GLSL = `
-vec3 blockLightCurve(vec3 blLevel) {
+// blFill: the colour of the analytic lights around the fragment (zero when
+// there are none). A channel that has run out takes its share from it, capped by
+// what its gap still allows; see blockLightCurveRGB.
+vec3 blockLightCurveFilled(vec3 blLevel, vec3 blFill) {
   vec3 blX = clamp(blLevel, 0.0, 1.0);
   vec3 blLegacy = blX * blX * (3.0 - 2.0 * blX);
   vec3 blGeometric = max(exp2(${LOG2_RATIO.toFixed(6)} * (1.0 - blX)) - ${TAIL.toFixed(
@@ -471,18 +520,28 @@ vec3 blockLightCurve(vec3 blLevel) {
     // Brightness from the brightest channel, hue from the level gaps. A
     // channel's share fades in over its first level (uBlockLightHueRamp):
     // snapped on at any trace of it, the share drew a hard edge wherever a
-    // lit corner met a dark one.
+    // lit corner met a dark one. Below that level it fades to the fill's.
     float blPeak = max(max(blX.r, blX.g), blX.b);
     float blBright = max(max(blGeometric.r, blGeometric.g), blGeometric.b);
-    vec3 blHue = clamp(1.0 - 15.0 * (blPeak - blX) / uBlockLightHueLevels, 0.0, 1.0)
-      * mix(
-        step(vec3(1e-4), blX),
-        min(blX / max(min(blPeak, ${HUE_RAMP_LEVEL.toFixed(6)}), 1e-6), 1.0),
-        uBlockLightHueRamp
-      );
-    blGeometric = blBright * blHue;
+    vec3 blGapShare = clamp(1.0 - 15.0 * (blPeak - blX) / uBlockLightHueLevels, 0.0, 1.0);
+    vec3 blLit = mix(
+      step(vec3(1e-4), blX),
+      min(blX / max(min(blPeak, ${HUE_RAMP_LEVEL.toFixed(6)}), 1e-6), 1.0),
+      uBlockLightHueRamp
+    );
+    float blFillPeak = max(max(blFill.r, blFill.g), blFill.b);
+    vec3 blOnPeak = step(vec3(blPeak), blX) * blFill;
+    float blFillScale = blFillPeak > 0.0
+      ? max(max(max(blOnPeak.r, blOnPeak.g), blOnPeak.b), 0.0) / (blFillPeak * blFillPeak)
+        * uBlockLightHueFill
+      : 0.0;
+    vec3 blFillShare = min(max(blFill, 0.0) * blFillScale, blGapShare);
+    blGeometric = blBright * mix(blFillShare, blGapShare, blLit);
   }
   return mix(blLegacy, blGeometric, uBlockLightCurve);
+}
+vec3 blockLightCurve(vec3 blLevel) {
+  return blockLightCurveFilled(blLevel, vec3(0.0));
 }
 float blockLightCurve1(float blLevel) {
   return blockLightCurve(vec3(blLevel)).x;

@@ -775,7 +775,7 @@ mod tests {
         let mut replies = Vec::new();
         while replies.len() < 2 && Instant::now() < deadline {
             match bulk_rx.try_recv() {
-                Ok(bytes) => replies.push(bytes),
+                Ok(frame) => replies.push(frame.data),
                 Err(_) => std::thread::sleep(Duration::from_millis(5)),
             }
         }

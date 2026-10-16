@@ -99,7 +99,6 @@ import {
   BlockUpdate,
   BlockUpdateWithSource,
   everyFaceOf,
-  facesAt,
   PY_ROTATION,
 } from "./block";
 import { BlockAnimations } from "./block-animations";
@@ -145,12 +144,11 @@ import { CSMRenderer, ENTITY_SHADOW_DISTANCE } from "./csm-renderer";
 import { worldDefinitionSignature } from "./definition-signature";
 import { displayCopyMaterialOptions } from "./display-copy-material";
 import { computePoolCasterBounds } from "./dynamic-caster-bounds";
-import { FarTerrain, FAR_TERRAIN_METHOD } from "./far-terrain";
+import { FarTerrain, FAR_TERRAIN_METHOD, readFarFaceLook } from "./far-terrain";
 import {
   FarFaceLook,
   FarFaceSide,
   isChunkColumnPending,
-  meanLinearRgb,
 } from "./far-terrain-tiles";
 import { computeFogRange, type WorldFogRange } from "./fog-range";
 import { forwardDraws } from "./forward-draws";
@@ -189,6 +187,7 @@ import {
 } from "./pipelines";
 import { computeQuadLightTwist } from "./quad-light";
 import { Registry } from "./registry";
+import { SceneDepthCopy } from "./scene-depth-copy";
 import {
   CONNECTIVITY_FULL,
   isEyeInOpaqueVoxel,
@@ -348,6 +347,18 @@ const MESH_DISPATCH_WINDOW_MS = 16;
 const MESH_REFILL_FRAME_MS = 25;
 /** How long a section waits for a neighbouring chunk already on its way. */
 const MESH_NEIGHBOUR_WAIT_MS = 1_000;
+/**
+ * How long an initialized world handles packets on arrival while it waits on
+ * its spawn window (see `World.wantsMessagesOnArrival`).
+ */
+const SPAWN_WINDOW_WAIT_MS = 15_000;
+/**
+ * Chunks around the player that make up a joining world's spawn window: the
+ * 3x3 the join waits on. (Taking the ring its meshes wait on as well moved
+ * that work into the frames that paint the sky, which then gated the reveal
+ * later, not sooner.)
+ */
+const SPAWN_WINDOW_RADIUS = 1;
 
 /** Main-thread time a frame gives every voxel box being built, together: a
  * felled giant baking several boxes at once still costs one budget. */
@@ -814,6 +825,7 @@ export class World<T = any> extends Scene implements NetIntercept {
   /** The copy the water refracts when the frame drawn before it is copied. */
   private refractionCapture!: FramebufferTexture;
   private waterDepth!: WaterDepthPass;
+  private sceneDepthCopy!: SceneDepthCopy;
 
   /**
    * The blended layers' accumulation, when
@@ -889,7 +901,27 @@ export class World<T = any> extends Scene implements NetIntercept {
     });
   }
 
+  /**
+   * The frame's depth for the tank windows, while water held by one is in
+   * view (`SceneDepthCopy`). Call with the scene's target bound, before the
+   * water draws.
+   */
+  private captureSceneDepth(
+    renderer: WebGLRenderer,
+    target: WebGLRenderTarget | null,
+  ) {
+    if (this.chunkRenderer.uniforms.waterExitReady.value < 0.5) {
+      this.sceneDepthCopy.skip();
+      return;
+    }
+    this.sceneDepthCopy.capture(renderer, target);
+  }
+
   private captureWaterRefraction(renderer: WebGLRenderer) {
+    this.captureSceneDepth(
+      renderer,
+      renderer.getRenderTarget() as WebGLRenderTarget | null,
+    );
     const {
       cameraSubmersion,
       sceneColor,
@@ -1257,6 +1289,23 @@ export class World<T = any> extends Scene implements NetIntercept {
    * Whether or not this world is connected to the server and initialized with data from the server.
    */
   public isInitialized = false;
+
+  /**
+   * Whether the block registry, its chunk materials and the worker
+   * registries are in place: from {@link initialize}, or earlier from
+   * {@link preloadRegistry}. Texture and material work (the `apply*` and
+   * `customize*` calls) needs only this, not the server's INIT.
+   */
+  public isRegistryLoaded = false;
+
+  /** What {@link preloadRegistry} loaded ahead of the INIT: the digest the
+   * server names the registry by, the blocks object itself, and the section
+   * extent the chunk materials were quantized for. */
+  private preloadedRegistry: {
+    digest: string;
+    blocks: Record<string, unknown>;
+    positionUnits: number;
+  } | null = null;
 
   private definitionSignature: string | null = null;
 
@@ -1654,6 +1703,16 @@ export class World<T = any> extends Scene implements NetIntercept {
     this.clouds.dispose();
     this.csmRenderer?.dispose();
     this.localLights.dispose();
+    // The passes and targets this world made for itself. Each one's
+    // textures and buffers stay on the GPU until disposed, whatever the
+    // renderer does later: three's renderer.dispose frees no texture.
+    this.farTerrain.dispose();
+    this.orderIndependent?.dispose();
+    this.sceneDepthCopy.dispose();
+    this.waterDepth.dispose();
+    this.refractionCapture.dispose();
+    this.chunkRenderer.uniforms.waterNormalMap.value?.dispose();
+    this.sky.dispose();
 
     if (this.cleanupDeltasInterval !== null) {
       clearInterval(this.cleanupDeltasInterval);
@@ -1673,8 +1732,14 @@ export class World<T = any> extends Scene implements NetIntercept {
     this.sectionReveals.clear();
     this.sectionVisibility?.clear();
     this.borderSwapHold.clear();
+    // The unknown-texture checker is one page-wide texture every untextured
+    // surface shares (`AtlasTexture.makeUnknownTexture`): the next world
+    // would only re-upload it.
+    const sharedUnknown = AtlasTexture["sharedUnknownTexture"];
     this.chunkRenderer.materials.forEach((material) => {
-      material.map?.dispose();
+      if (material.map && material.map !== sharedUnknown) {
+        material.map.dispose();
+      }
       material.dispose();
     });
     this.chunkRenderer.materials.clear();
@@ -2618,7 +2683,7 @@ export class World<T = any> extends Scene implements NetIntercept {
     faceNames: string | string[],
     source: string | Color | HTMLImageElement | Texture,
   ) {
-    this.checkIsInitialized("apply block texture", false);
+    this.checkIsRegistryLoaded("apply block texture");
 
     const block = this.getBlockOf(idOrName);
 
@@ -3021,7 +3086,7 @@ export class World<T = any> extends Scene implements NetIntercept {
     groupName: string,
     source: string | Color | HTMLImageElement | Texture,
   ) {
-    this.checkIsInitialized("apply texture group", false);
+    this.checkIsRegistryLoaded("apply texture group");
 
     const facesInGroup: { blockId: number; face: Block["faces"][0] }[] = [];
 
@@ -3116,7 +3181,7 @@ export class World<T = any> extends Scene implements NetIntercept {
     keyframes: [number, string | Color | HTMLImageElement][],
     fadeFrames = 0,
   ) {
-    this.checkIsInitialized("apply block animation", false);
+    this.checkIsRegistryLoaded("apply block animation");
 
     const block = this.getBlockOf(idOrName);
 
@@ -3187,7 +3252,7 @@ export class World<T = any> extends Scene implements NetIntercept {
     source: string,
     interval = 66.666667,
   ) {
-    this.checkIsInitialized("apply GIF animation", false);
+    this.checkIsRegistryLoaded("apply GIF animation");
 
     if (!source.endsWith(".gif")) {
       console.warn(
@@ -3223,7 +3288,7 @@ export class World<T = any> extends Scene implements NetIntercept {
           y: number;
         },
   ) {
-    this.checkIsInitialized("apply resolution", false);
+    this.checkIsRegistryLoaded("apply resolution");
 
     const block = this.getBlockOf(idOrName);
 
@@ -3940,7 +4005,7 @@ export class World<T = any> extends Scene implements NetIntercept {
     faceName?: string,
     voxel?: Coords3,
   ) {
-    this.checkIsInitialized("get material", false);
+    this.checkIsRegistryLoaded("get material");
 
     const block = this.getBlockOf(idOrName);
 
@@ -3993,53 +4058,19 @@ export class World<T = any> extends Scene implements NetIntercept {
     );
   }
 
-  /**
-   * What a block's upward (`top`) or sideways (`side`) face looks like from
-   * far away, for the far-terrain layer: the texels the chunks paint it
-   * with, their mean in linear RGB, and whether it takes the regional tint.
-   * Null while its texture is not painted yet. A block the registry lacks,
-   * or a face whose material is not an atlas, answers grey and says so: the
-   * far layer still draws.
-   */
+  /** A block face from afar, as the chunks paint it (`readFarFaceLook`). */
   private farTerrainFaceLook(
     blockId: number,
     side: FarFaceSide,
     stage = 0,
   ): FarFaceLook | null {
-    const grey: FarFaceLook = { color: [0.5, 0.5, 0.5], isTinted: false };
-    const block = this.getBlockByIdSafe(blockId);
-    if (!block || block.faces.length === 0) {
-      console.warn(
-        `[far-terrain] block ${blockId} has no faces; its far colour is grey`,
-      );
-      return grey;
-    }
-    const wanted: [number, number, number] =
-      side === "top" ? [0, 1, 0] : [1, 0, 0];
-    const faces = facesAt(block, stage);
-    const face =
-      faces.find(
-        ({ dir }) =>
-          dir[0] === wanted[0] && dir[1] === wanted[1] && dir[2] === wanted[2],
-      ) ?? faces[0];
-    const material = this.getBlockFaceMaterial(block.id, face.name);
-    const atlas = material?.map;
-    if (!(atlas instanceof AtlasTexture)) {
-      console.warn(
-        `[far-terrain] ${block.name}'s ${face.name} face has no atlas; its far colour is grey`,
-      );
-      return grey;
-    }
-    const pixels = atlas.readRangePixels(face.range);
-    if (!pixels) return null;
-    const color = meanLinearRgb(pixels);
-    if (!color) return null;
-    return {
-      color,
-      isTinted: (face.stageTintMask ?? 0) !== 0,
-      pixels,
-      size: Math.round(Math.sqrt(pixels.length / 4)),
-    };
+    return readFarFaceLook(
+      this.getBlockByIdSafe(blockId),
+      blockId,
+      side,
+      stage,
+      (block, faceName) => this.getBlockFaceMaterial(block.id, faceName),
+    );
   }
 
   /**
@@ -4073,7 +4104,7 @@ export class World<T = any> extends Scene implements NetIntercept {
     sharedAtlas: { canvas: HTMLCanvasElement; countPerSide: number } | null;
     textures: TextureInfo[];
   } {
-    this.checkIsInitialized("get texture info", false);
+    this.checkIsRegistryLoaded("get texture info");
 
     const textures: TextureInfo[] = [];
 
@@ -5004,7 +5035,7 @@ export class World<T = any> extends Scene implements NetIntercept {
       cached: boolean;
     }> = {},
   ) => {
-    this.checkIsInitialized("make block mesh", false);
+    this.checkIsRegistryLoaded("make block mesh");
 
     if (!idOrName) {
       return null;
@@ -5220,7 +5251,7 @@ export class World<T = any> extends Scene implements NetIntercept {
       isCrossShaded: boolean;
     }> = {},
   ) => {
-    this.checkIsInitialized("set block sway", false);
+    this.checkIsRegistryLoaded("set block sway");
 
     const block = this.getBlockOf(idOrName);
     const { speed, amplitude, scale, rooted, yScale, isCrossShaded } = {
@@ -5283,7 +5314,7 @@ export class World<T = any> extends Scene implements NetIntercept {
       uniforms: {},
     },
   ) => {
-    this.checkIsInitialized("customize material shaders", false);
+    this.checkIsRegistryLoaded("customize material shaders");
 
     const {
       vertexShader = SHADER_LIGHTING_CHUNK_SHADERS.vertex,
@@ -5359,7 +5390,7 @@ export class World<T = any> extends Scene implements NetIntercept {
     idOrName: number | string,
     fn: Block["dynamicFn"],
   ) => {
-    this.checkIsInitialized("customize block dynamic", false);
+    this.checkIsRegistryLoaded("customize block dynamic");
 
     const block = this.getBlockOf(idOrName);
 
@@ -5373,38 +5404,112 @@ export class World<T = any> extends Scene implements NetIntercept {
   };
 
   /**
-   * Initialize the world with the data received from the server. This includes populating
-   * the registry, setting the options, and creating the texture atlas.
+   * Load the server's block registry ahead of its INIT: the blocks, their
+   * chunk materials and texture atlas, and the mesh and light workers'
+   * registries. Everything that only paints or customizes blocks (the
+   * `apply*` and `customize*` calls, block meshes) can then start while the
+   * join is still on the wire, instead of after it.
+   *
+   * `blocks` must be the registry exactly as the server sent it under
+   * `digest` (the network's parsed copy of the registry it holds, which the
+   * INIT that leaves the registry out is completed with), and is mutated as
+   * {@link initialize} would. `sectionExtent` is the chunk shape the world
+   * expects (the last INIT's, say); the materials' vertex quantization
+   * follows it and is corrected at {@link initialize} if the INIT disagrees.
+   * {@link initialize} then keeps all of it when its INIT names the same
+   * registry, and refuses to mix registries when it names another: it emits
+   * `world-definition-changed` and throws.
    */
-  async initialize() {
-    if (this.isInitialized) {
-      console.warn("World has already been isInitialized.");
-      return;
+  preloadRegistry(
+    blocks: Record<string, unknown>,
+    digest: string,
+    sectionExtent?: { chunkSize: number; maxHeight: number; subChunks: number },
+  ): Promise<void> {
+    this.checkIsInitialized("preload the block registry");
+    if (this.isRegistryLoaded || this.registryPreload) {
+      throw new Error("The block registry has already been loaded.");
     }
+    // Held for initialize, which must never load a second registry over one
+    // still loading: it waits for this, then claims it.
+    this.registryPreload = (async () => {
+      if (sectionExtent) {
+        const { chunkSize, maxHeight, subChunks } = sectionExtent;
+        this.options = { ...this.options, chunkSize, maxHeight, subChunks };
+      }
+      this.chunkPositionUnits = positionUnitsPerBlock(this.options);
+      this.loadBlockRegistry(blocks);
+      await loadChunkMaterials(this);
+      this.postRegistryToWorkers();
+      this.preloadedRegistry = {
+        digest,
+        blocks,
+        positionUnits: this.chunkPositionUnits,
+      };
+      this.isRegistryLoaded = true;
+    })();
+    return this.registryPreload;
+  }
 
-    if (this.initialData === null) {
-      throw new Error(
-        "World has not received any initialization data from the server.",
-      );
+  /** A {@link preloadRegistry} in progress or done. */
+  private registryPreload: Promise<void> | null = null;
+
+  /** The digest of the registry {@link preloadRegistry} loaded, if any. */
+  get preloadedRegistryDigest(): string | null {
+    return this.preloadedRegistry?.digest ?? null;
+  }
+
+  /**
+   * The preloaded registry, when the INIT carries the same one: the very
+   * objects, or the registry its digest names. Null when nothing was
+   * preloaded. A preloaded registry the INIT does not name cannot be mixed
+   * with its chunks: that is a definition change.
+   */
+  private claimPreloadedRegistry(
+    blocks: unknown,
+    extra: Record<string, unknown>,
+  ) {
+    const preloaded = this.preloadedRegistry;
+    if (!preloaded) return null;
+    this.preloadedRegistry = null;
+    if (
+      blocks === preloaded.blocks ||
+      extra.registryDigest === preloaded.digest
+    ) {
+      return preloaded;
     }
+    const next =
+      typeof extra.registryDigest === "string"
+        ? extra.registryDigest
+        : "(none)";
+    this.emitChunkEvent("world-definition-changed", {
+      previous: `registry:${preloaded.digest}`,
+      next: `registry:${next}`,
+    });
+    throw new Error(
+      `The INIT names block registry ${next}, not the ${preloaded.digest} preloaded`,
+    );
+  }
 
-    const { blocks, items, options, stats, ...extra } = this.initialData;
-    this.extraInitData = extra;
-
-    // The far layer draws only for a world that samples it; the fog range
-    // follows (it reaches the far layer's edge when there is one).
-    this.farTerrain.configure(options?.farTerrain ?? null);
-    this.applyBaseFogRange();
-
-    this._time = stats.time;
-    this._day = stats.day ?? 0;
-
-    // Loading the items registry
-    if (items && Array.isArray(items)) {
-      this.items.initialize(items as ItemDef[]);
+  /** Re-quantize the preloaded chunk materials when the INIT's chunk shape
+   * turned out to differ from the one they were made for. */
+  private requantizePreloadedMaterials(positionUnits: number) {
+    if (positionUnits === this.chunkPositionUnits) return;
+    for (const material of this.chunkRenderer.materials.values()) {
+      if (material.defines?.POSITION_UNITS_PER_BLOCK === undefined) continue;
+      applyQuantizedPositionDefine(material, this.chunkPositionUnits);
+      material.needsUpdate = true;
     }
+  }
 
-    // Loading the block registry
+  private postRegistryToWorkers() {
+    const registryData = this.registry.serialize();
+    this.meshWorkerPool.postMessage({ type: "init", registryData });
+    this.urgentMeshWorkerPool.postMessage({ type: "init", registryData });
+    this.lightWorkerPool.postMessage({ type: "init", registryData });
+  }
+
+  /** Normalize the server's block definitions and index them by id and name. */
+  private loadBlockRegistry(blocks: Record<string, any>) {
     Object.keys(blocks).forEach((name) => {
       const block = blocks[name];
       const { id, aabbs, isDynamic } = block;
@@ -5478,6 +5583,47 @@ export class World<T = any> extends Scene implements NetIntercept {
       this.registry.nameMap.set(lowerName, id);
       this.registry.idMap.set(id, lowerName);
     });
+  }
+
+  /**
+   * Initialize the world with the data received from the server. This includes populating
+   * the registry, setting the options, and creating the texture atlas.
+   */
+  async initialize() {
+    if (this.isInitialized) {
+      console.warn("World has already been isInitialized.");
+      return;
+    }
+
+    if (this.initialData === null) {
+      throw new Error(
+        "World has not received any initialization data from the server.",
+      );
+    }
+
+    // A failed preload left nothing claimable: the INIT's registry loads below.
+    await this.registryPreload?.catch(() => {});
+
+    const { blocks, items, options, stats, ...extra } = this.initialData;
+    this.extraInitData = extra;
+
+    // The far layer draws only for a world that samples it; the fog range
+    // follows (it reaches the far layer's edge when there is one).
+    this.farTerrain.configure(options?.farTerrain ?? null);
+    this.applyBaseFogRange();
+
+    this._time = stats.time;
+    this._day = stats.day ?? 0;
+
+    // Loading the items registry
+    if (items && Array.isArray(items)) {
+      this.items.initialize(items as ItemDef[]);
+    }
+
+    // Loading the block registry, unless it was preloaded from the very
+    // registry this INIT names (see preloadRegistry).
+    const preloaded = this.claimPreloadedRegistry(blocks, extra);
+    if (!preloaded) this.loadBlockRegistry(blocks);
 
     // Loading the options
     this.options = {
@@ -5512,14 +5658,15 @@ export class World<T = any> extends Scene implements NetIntercept {
 
     this.physics.options = this.options;
 
-    await loadChunkMaterials(this);
-
-    const registryData = this.registry.serialize();
-    this.meshWorkerPool.postMessage({ type: "init", registryData });
-    this.urgentMeshWorkerPool.postMessage({ type: "init", registryData });
-    this.lightWorkerPool.postMessage({ type: "init", registryData });
+    if (preloaded) {
+      this.requantizePreloadedMaterials(preloaded.positionUnits);
+    } else {
+      await loadChunkMaterials(this);
+      this.postRegistryToWorkers();
+    }
 
     this.isInitialized = true;
+    this.isRegistryLoaded = true;
     this.renderRadius = this.options.defaultRenderRadius;
 
     if (this.initialEntities) {
@@ -5623,6 +5770,88 @@ export class World<T = any> extends Scene implements NetIntercept {
   }
 
   /**
+   * Set once the chunks around the player have all loaded the first time,
+   * or once waiting on them has run past `SPAWN_WINDOW_WAIT_MS`.
+   */
+  private hasSpawnWindow = false;
+
+  /** When the initialized world first asked after its spawn window. */
+  private spawnWindowSince: number | null = null;
+
+  /**
+   * The spawn window's chunks, as offsets from the player's chunk: the ones
+   * within `SPAWN_WINDOW_RADIUS` this world will ask for at its render
+   * radius.
+   */
+  private spawnWindowOffsets(): Coords2[] {
+    const radiusSquared = this.renderRadius * this.renderRadius;
+    const offsets: Coords2[] = [];
+    for (let dx = -SPAWN_WINDOW_RADIUS; dx <= SPAWN_WINDOW_RADIUS; dx++) {
+      for (let dz = -SPAWN_WINDOW_RADIUS; dz <= SPAWN_WINDOW_RADIUS; dz++) {
+        if (dx * dx + dz * dz <= radiusSquared) offsets.push([dx, dz]);
+      }
+    }
+    return offsets;
+  }
+
+  /**
+   * Whether this world is still waiting on its spawn window
+   * (`spawnWindowOffsets`): from initialization until those chunks have all
+   * loaded once. Nothing is drawn yet that handling a chunk at once could
+   * stall, and the join waits on exactly these, so meanwhile the network
+   * decodes each packet as it arrives
+   * ({@link NetIntercept.wantsMessagesOnArrival}) and a LOAD is applied as
+   * it lands ({@link applySpawnWindowOnArrival}) instead of each waiting for
+   * its own free turn of a main thread busy with loading work.
+   *
+   * @hidden
+   */
+  wantsMessagesOnArrival = (): boolean => {
+    if (this.hasSpawnWindow || !this.isInitialized) return false;
+    // A window chunk that never comes must not keep every later packet on
+    // this thread: past the wait the join has given up on it too.
+    const now = performance.now();
+    this.spawnWindowSince ??= now;
+    if (now - this.spawnWindowSince > SPAWN_WINDOW_WAIT_MS) {
+      this.hasSpawnWindow = true;
+      return false;
+    }
+    const [cx, cz] = this.centerChunk;
+    for (const [dx, dz] of this.spawnWindowOffsets()) {
+      if (!this.isWithinWorld(cx + dx, cz + dz)) continue;
+      if (!this.getChunkByCoords(cx + dx, cz + dz)?.isReady) return true;
+    }
+    this.hasSpawnWindow = true;
+    return false;
+  };
+
+  /**
+   * Apply the spawn window's chunks that have landed now, not on the next
+   * update, which during a join can be a long loading task away, and hand
+   * their meshes to the workers now rather than on the next frame.
+   * `processChunks` takes the nearest first, a few a pass, so these passes
+   * cover the window (and at most a pass's worth of farther chunks).
+   */
+  private applySpawnWindowOnArrival() {
+    const [cx, cz] = this.centerChunk;
+    const names = this.spawnWindowOffsets().map(([dx, dz]) =>
+      ChunkUtils.getChunkName([cx + dx, cz + dz]),
+    );
+    const processing = this.chunkPipeline.getInStage("processing");
+    const perPass = Math.max(1, this.options.maxProcessesPerUpdate);
+    const maxPasses = Math.ceil(names.length / perPass);
+    let passes = 0;
+    for (
+      ;
+      passes < maxPasses && names.some((name) => processing.has(name));
+      passes++
+    ) {
+      this.processChunks(this.centerChunk);
+    }
+    if (passes > 0) this.processDirtyChunks();
+  }
+
+  /**
    * Stamps the moment each chunk request left for the server: `requestChunks`
    * queues the LOAD packet, but the socket only sees it on the next flush the
    * main thread gets to, and a slow chunk window has to be able to tell that
@@ -5684,7 +5913,10 @@ export class World<T = any> extends Scene implements NetIntercept {
       case "INIT": {
         const { json, entities } = message;
 
-        const signature = worldDefinitionSignature(json);
+        const signature = worldDefinitionSignature(
+          json,
+          this.isInitialized ? this.definitionSignature : null,
+        );
         if (this.isInitialized && this.definitionSignature !== signature) {
           // Existing worker registries and texture atlases cannot interpret
           // a new block schema. Do not mix old local meshes with new voxels.
@@ -5758,6 +5990,7 @@ export class World<T = any> extends Scene implements NetIntercept {
             message.perfArrivedAt,
           );
         });
+        if (this.wantsMessagesOnArrival()) this.applySpawnWindowOnArrival();
 
         break;
       }
@@ -7999,7 +8232,10 @@ export class World<T = any> extends Scene implements NetIntercept {
         weights: { ...defaults.weights, ...orderIndependent.weights },
       };
       this.orderIndependent = new OrderIndependentTransparency(this, options, {
-        onOpen: (_renderer, target) => this.pointWaterRefractionAt(target),
+        onOpen: (renderer, target) => {
+          this.captureSceneDepth(renderer, target);
+          this.pointWaterRefractionAt(target);
+        },
         // Water refracts what lies beyond it: glass, particles and farther
         // water behind its nearest face join the scene it reads before it
         // draws.
@@ -8019,6 +8255,7 @@ export class World<T = any> extends Scene implements NetIntercept {
         },
       );
     }
+    this.sceneDepthCopy = new SceneDepthCopy(this.chunkRenderer.uniforms);
     // A full-float chunk mesh stands at its section's corner.
     this.waterDepth = new WaterDepthPass(
       this.chunkRenderer.uniforms,
@@ -9965,6 +10202,15 @@ export class World<T = any> extends Scene implements NetIntercept {
     }
 
     this.scheduleDirtyChunkProcessing();
+  }
+
+  /**
+   * Texture and material work needs the block registry and its materials,
+   * which {@link preloadRegistry} can put in place before the INIT.
+   */
+  private checkIsRegistryLoaded(action: string) {
+    if (this.isRegistryLoaded) return;
+    this.checkIsInitialized(action, false);
   }
 
   /**

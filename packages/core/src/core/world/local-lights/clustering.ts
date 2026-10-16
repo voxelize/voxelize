@@ -61,6 +61,15 @@ const SLOT_WEIGHT_SCALE = 255;
  */
 const DATA_TEXELS_PER_LIGHT = 6;
 
+/**
+ * Overflow slots per cell: the lights that reach a cell past its slots, lit
+ * by the shader the way a slot is (one function) minus the shadow map. Laid
+ * out like the grid's slots (row + 1, share byte), so a tier's slot cap
+ * never decides whether a lamp lights a cell — only whether it casts a
+ * shadow there. Mirrored by `localLightOverflowSlot` in shader.ts.
+ */
+export const OVERFLOW_SLOTS_PER_CELL = 16;
+
 /** Shader-facing flag bits packed into texel 1's `w` (mirrored in shader.ts). */
 export const PACKED_FLAG_MASKED = 1;
 export const PACKED_FLAG_FLICKER = 2;
@@ -133,6 +142,8 @@ export class LightClusterGrid {
   readonly uniforms = {
     lightGrid: { value: null as DataTexture | null },
     lightData: { value: null as DataTexture | null },
+    /** Per cell, the lights past its slots (`writeCellOverflow`). */
+    lightOverflow: { value: null as DataTexture | null },
     gridOrigin: { value: new Vector3() },
     gridCellSize: { value: 8 },
     gridDims: { value: new Vector3() },
@@ -179,6 +190,8 @@ export class LightClusterGrid {
   private readonly cellCount: number;
   private readonly gridTexture: DataTexture;
   private readonly dataTexture: DataTexture;
+  private readonly overflowTexture: DataTexture;
+  private readonly overflowData: Uint16Array;
   private readonly gridData: Uint16Array;
   private readonly lightData: Float32Array;
 
@@ -194,6 +207,19 @@ export class LightClusterGrid {
   private readonly selectedGenerations: Uint16Array;
   /** Pass stamp per registry slot: the light joined the selection then. */
   private readonly entryStamps: Uint32Array;
+  /**
+   * When each light joined the selection, while it still fades in: its
+   * share of a cell's overflow ramps up with the same curve its
+   * slots do, so a light entering the selection never pops in where it
+   * overflows. `enteringLights` lists the ones still ramping.
+   */
+  private readonly entryTimes: Float64Array;
+  private readonly isEntering: Uint8Array;
+  private readonly enteringLights: Int32Array;
+  private enteringCount = 0;
+  private nowMs = 0;
+  /** Cells the last pass offered lights to (`touchedCells[0..n)`). */
+  private lastTouchedCount = 0;
   /** Packed row per registry slot for the current pass; -1 unpacked. */
   private readonly rowOf: Int16Array;
   /** Where each light stood when last packed, to tell motion from rivalry. */
@@ -226,6 +252,25 @@ export class LightClusterGrid {
   private readonly visitedCells: Int32Array;
   private readonly occupiedCells: Int32Array;
   private occupiedCount = 0;
+  /**
+   * Every light offered to each cell this pass, slot or not: a linked list
+   * per cell (`offerHead`, valid while the cell's stamp is this pass's),
+   * so the overflow can be merged after the slots are settled.
+   */
+  private readonly offerHead: Int32Array;
+  private offerLight = new Int32Array(1 << 14);
+  private offerNext = new Int32Array(1 << 14);
+  private offerImportance = new Float32Array(1 << 14);
+  private offerCount = 0;
+  /** Cells whose overflow slots hold anything right now. */
+  private readonly overflowCells: Int32Array;
+  private readonly hasOverflow: Uint8Array;
+  private overflowCount = 0;
+  private isOverflowDirty = false;
+  // One cell's overflow candidates, before the strongest are kept.
+  private overflowRows = new Int32Array(64);
+  private overflowShares = new Float32Array(64);
+  private overflowRanks = new Float32Array(64);
   private readonly activeCells: Int32Array;
   private readonly isCellActive: Uint8Array;
   private activeCount = 0;
@@ -317,9 +362,26 @@ export class LightClusterGrid {
     this.dataTexture.generateMipmaps = false;
     this.dataTexture.flipY = false;
 
+    const overflowWidth = GRID_CELLS_PER_ROW * OVERFLOW_SLOTS_PER_CELL;
+    this.overflowData = new Uint16Array(overflowWidth * gridHeight);
+    this.overflowTexture = new DataTexture(
+      this.overflowData,
+      overflowWidth,
+      gridHeight,
+      RedIntegerFormat,
+      UnsignedShortType,
+    );
+    this.overflowTexture.internalFormat = "R16UI";
+    this.overflowTexture.minFilter = NearestFilter;
+    this.overflowTexture.magFilter = NearestFilter;
+    this.overflowTexture.generateMipmaps = false;
+    this.overflowTexture.flipY = false;
+    this.overflowTexture.unpackAlignment = 2;
+
     const cellSize = settings.gridCellSize;
     this.uniforms.lightGrid.value = this.gridTexture;
     this.uniforms.lightData.value = this.dataTexture;
+    this.uniforms.lightOverflow.value = this.overflowTexture;
     this.uniforms.gridCellSize.value = cellSize;
     this.uniforms.gridDims.value.set(...this.gridDims);
     // The window's low edge sits `dim >> 1` cells below the camera cell and
@@ -345,6 +407,9 @@ export class LightClusterGrid {
     this.sortedScores = new Float64Array(MAX_CLUSTERED_LIGHTS);
     this.selectedGenerations = new Uint16Array(registry.capacity);
     this.entryStamps = new Uint32Array(registry.capacity);
+    this.entryTimes = new Float64Array(registry.capacity);
+    this.isEntering = new Uint8Array(registry.capacity);
+    this.enteringLights = new Int32Array(registry.capacity);
     this.rowOf = new Int16Array(registry.capacity).fill(-1);
     this.packedPositions = new Float32Array(registry.capacity * 3);
 
@@ -367,6 +432,9 @@ export class LightClusterGrid {
     this.occupiedCells = new Int32Array(this.cellCount);
     this.activeCells = new Int32Array(this.cellCount);
     this.isCellActive = new Uint8Array(this.cellCount);
+    this.offerHead = new Int32Array(this.cellCount).fill(-1);
+    this.overflowCells = new Int32Array(this.cellCount);
+    this.hasOverflow = new Uint8Array(this.cellCount);
   }
 
   setTierCaps(caps: {
@@ -460,11 +528,13 @@ export class LightClusterGrid {
   markTexturesDirty() {
     this.gridTexture.needsUpdate = true;
     this.dataTexture.needsUpdate = true;
+    this.overflowTexture.needsUpdate = true;
   }
 
   dispose() {
     this.gridTexture.dispose();
     this.dataTexture.dispose();
+    this.overflowTexture.dispose();
   }
 
   /**
@@ -478,6 +548,7 @@ export class LightClusterGrid {
     stats: LocalLightStats,
     nowMs = performance.now(),
   ) {
+    this.nowMs = nowMs;
     const cellSize = this.uniforms.gridCellSize.value;
     const center = this.uniforms.gridCenter.value;
     center.x = cameraX;
@@ -549,6 +620,7 @@ export class LightClusterGrid {
     }
 
     if (this.activeCount > 0) this.stepFades(fadeStepMs, stats, isDirty);
+    if (this.enteringCount > 0) this.stepEntries(isDirty);
   }
 
   /**
@@ -591,6 +663,9 @@ export class LightClusterGrid {
     } = this.registry;
     let contributors = 0;
     let claim = 0;
+    let hueR = 0;
+    let hueG = 0;
+    let hueB = 0;
 
     // Cell membership, mirroring localLightCell + the fixed slot list in
     // the shader. -1 = outside the window: nothing lights or claims here.
@@ -601,6 +676,7 @@ export class LightClusterGrid {
     const relY = (y - origin.y) / cellSize;
     const relZ = (z - origin.z) / cellSize;
     let gridBase = -1;
+    let cell = -1;
     if (
       relX >= 0 &&
       relY >= 0 &&
@@ -610,19 +686,32 @@ export class LightClusterGrid {
       relZ < dimZ
     ) {
       const offset = this.uniforms.gridStorageOffset.value;
-      gridBase = this.gridBaseOf(
+      cell =
         (wrapCell(relZ, offset.z, dimZ) * dimY +
           wrapCell(relY, offset.y, dimY)) *
           dimX +
-          wrapCell(relX, offset.x, dimX),
-      );
+        wrapCell(relX, offset.x, dimX);
+      gridBase = this.gridBaseOf(cell);
     }
     const windowFade = this.windowFadeAt(x, y, z, relX, relY, relZ);
     const gridData = this.gridData;
-    for (let s = 0; gridBase >= 0 && s < MAX_LIGHTS_PER_CELL; s++) {
-      const slot = gridData[gridBase + s];
+    const overflowData = this.overflowData;
+    const overflowBase = cell >= 0 ? this.overflowBaseOf(cell) : -1;
+    // The cell's slots, then its overflow, through one body: the shader
+    // lights both with localLightResponse (only slots add a shadow map,
+    // which the CPU stands in for with the flood mask either way).
+    const listEnd = MAX_LIGHTS_PER_CELL + OVERFLOW_SLOTS_PER_CELL;
+    for (let s = 0; gridBase >= 0 && s < listEnd; s++) {
+      const isOverflow = s >= MAX_LIGHTS_PER_CELL;
+      const slot = isOverflow
+        ? overflowData[overflowBase + s - MAX_LIGHTS_PER_CELL]
+        : gridData[gridBase + s];
       const row = slot & SLOT_ROW_MASK;
-      if (row === 0) break;
+      if (row === 0) {
+        if (isOverflow) break;
+        s = MAX_LIGHTS_PER_CELL - 1;
+        continue;
+      }
       const slotWeight = (slot >> SLOT_WEIGHT_SHIFT) / SLOT_WEIGHT_SCALE;
       const i = this.packedIndices[row - 1];
 
@@ -651,6 +740,11 @@ export class LightClusterGrid {
       const dz = oz - z;
       const range = ranges[i];
       const d2 = dx * dx + dy * dy + dz * dz;
+      // The shader's llLightHue: no range cutoff, inverse square distance.
+      const hueWeight = (slotWeight * intensities[i] * shares[i]) / (1 + d2);
+      hueR += colors[i * 3] * hueWeight;
+      hueG += colors[i * 3 + 1] * hueWeight;
+      hueB += colors[i * 3 + 2] * hueWeight;
       if (d2 >= range * range) continue;
       const dist = Math.sqrt(Math.max(d2, 1e-6));
       // Masked lights window by their flood's L1 diamond, like the shader.
@@ -734,6 +828,11 @@ export class LightClusterGrid {
     outColor[2] *= windowFade;
     out.count = contributors;
     out.claim = claim;
+    if (out.lightHue) {
+      out.lightHue[0] = hueR;
+      out.lightHue[1] = hueG;
+      out.lightHue[2] = hueB;
+    }
     out.windowFade = windowFade;
     return contributors;
   }
@@ -816,6 +915,9 @@ export class LightClusterGrid {
     this.occupiedCount = 0;
     this.gridData.fill(0);
     this.gridTexture.needsUpdate = true;
+    this.clearOverflow();
+    this.overflowTexture.needsUpdate = true;
+    this.isOverflowDirty = false;
     this.isResetPending = true;
   }
 
@@ -1027,6 +1129,14 @@ export class LightClusterGrid {
       if (selectedGenerations[i] !== this.registry.generationAt(i)) {
         churn++;
         this.entryStamps[i] = this.passStamp;
+        // After a reset every cell starts at full weight, and so does this.
+        if (this.isStable && !this.isResetPending) {
+          this.entryTimes[i] = this.nowMs;
+          if (this.isEntering[i] === 0) {
+            this.isEntering[i] = 1;
+            this.enteringLights[this.enteringCount++] = i;
+          }
+        }
       }
     }
     let previousCount = 0;
@@ -1111,6 +1221,7 @@ export class LightClusterGrid {
     const reservedImportances = this.reservedImportances;
     let touchedCount = 0;
     let overflowed = 0;
+    this.offerCount = 0;
 
     // 1. Desired membership: each selected light offers itself to every
     // cell it reaches, and each cell keeps its `slotCap` most important
@@ -1195,11 +1306,13 @@ export class LightClusterGrid {
               cellStamps[cell] = stamp;
               desiredCounts[cell] = 0;
               reservedLights[cell] = -1;
+              this.offerHead[cell] = -1;
               this.touchedCells[touchedCount++] = cell;
             }
             const importance = isStable
               ? energy * localLightFalloff(windowDist, range, d2)
               : legacyImportance;
+            this.recordOffer(cell, i, importance);
             overflowed += this.offerToCell(cell, i, importance, slotCap);
             if (isDynamic) {
               const held = reservedLights[cell];
@@ -1219,6 +1332,7 @@ export class LightClusterGrid {
     }
 
     if (slotCap > 0) overflowed -= this.reserveDynamicSlots(touchedCount);
+    this.lastTouchedCount = touchedCount;
 
     // 2. Reconcile every cell touched this pass or holding slots from the
     // last one against its desired membership.
@@ -1288,9 +1402,18 @@ export class LightClusterGrid {
     }
     this.packedCount = packedCount;
 
-    // 4. Grid texels for every visited cell (cleared cells write zeros).
+    // 4. Grid texels for every visited cell (cleared cells write zeros),
+    // and each one's overflow: every light that reaches it past its slots.
+    // Cells with overflow last pass and not visited now lost all their
+    // lights.
+    this.clearOverflow();
     for (let v = 0; v < visitedCount; v++) {
       this.writeCellSlots(this.visitedCells[v]);
+      this.writeCellOverflow(this.visitedCells[v]);
+    }
+    if (this.isOverflowDirty) {
+      this.overflowTexture.needsUpdate = true;
+      this.isOverflowDirty = false;
     }
 
     // 5. Light records.
@@ -1589,6 +1712,8 @@ export class LightClusterGrid {
       }
       this.cellSlotCounts[cell] = kept;
       this.writeCellSlots(cell);
+      // What a slot's fade hands back, the cell's overflow takes up.
+      this.writeCellOverflow(cell);
       let isFading = false;
       for (let k = 0; k < kept; k++) {
         if (this.slotWeights[base + k] !== this.slotTargets[base + k]) {
@@ -1606,5 +1731,198 @@ export class LightClusterGrid {
     stats.fadingSlots = fadingSlots;
     this.gridTexture.needsUpdate = true;
     if (!hasUploaded) stats.gridTextureUploads++;
+    if (this.isOverflowDirty) {
+      this.overflowTexture.needsUpdate = true;
+      this.isOverflowDirty = false;
+    }
+  }
+
+  private recordOffer(cell: number, i: number, importance: number) {
+    if (this.offerCount === this.offerLight.length) {
+      const light = new Int32Array(this.offerCount * 2);
+      const next = new Int32Array(this.offerCount * 2);
+      const ranked = new Float32Array(this.offerCount * 2);
+      light.set(this.offerLight);
+      next.set(this.offerNext);
+      ranked.set(this.offerImportance);
+      this.offerLight = light;
+      this.offerNext = next;
+      this.offerImportance = ranked;
+    }
+    const entry = this.offerCount++;
+    this.offerLight[entry] = i;
+    this.offerNext[entry] = this.offerHead[cell];
+    this.offerImportance[entry] = importance;
+    this.offerHead[cell] = entry;
+  }
+
+  /** How far light `i` has faded in since it joined the selection, eased. */
+  private presenceOf(i: number): number {
+    if (this.isEntering[i] === 0) return 1;
+    const t = Math.min(
+      Math.max((this.nowMs - this.entryTimes[i]) / this.slotFadeMs, 0),
+      1,
+    );
+    return this.encodeWeight(t) / SLOT_WEIGHT_SCALE;
+  }
+
+  /**
+   * While lights are still fading into the selection, their share of each
+   * cell's overflow grows every frame: rebuild the overflow of the cells the
+   * last pass offered lights to, then retire the lights whose fade is done.
+   */
+  private stepEntries(hasPacked: boolean) {
+    if (!hasPacked) {
+      for (let t = 0; t < this.lastTouchedCount; t++) {
+        this.writeCellOverflow(this.touchedCells[t]);
+      }
+      if (this.isOverflowDirty) {
+        this.overflowTexture.needsUpdate = true;
+        this.isOverflowDirty = false;
+      }
+    }
+    let k = 0;
+    while (k < this.enteringCount) {
+      const i = this.enteringLights[k];
+      if (this.nowMs - this.entryTimes[i] >= this.slotFadeMs) {
+        this.isEntering[i] = 0;
+        this.enteringLights[k] = this.enteringLights[--this.enteringCount];
+      } else {
+        k++;
+      }
+    }
+  }
+
+  /** The eased weight a cell's slot list gives light `i`, 0 when absent. */
+  private slotWeightOf(cell: number, i: number): number {
+    const base = cell * MAX_LIGHTS_PER_CELL;
+    const handle = this.registry.handleAt(i);
+    const count = this.cellSlotCounts[cell];
+    for (let k = 0; k < count; k++) {
+      if (this.slotHandles[base + k] === handle) {
+        return (
+          this.encodeWeight(this.slotWeights[base + k]) / SLOT_WEIGHT_SCALE
+        );
+      }
+    }
+    return 0;
+  }
+
+  /**
+   * The cell's overflow list: every light offered to it this pass, each by
+   * the share its slot leaves (all of it without a slot, `1 - w` while a
+   * slot fades, ramping in with a light new to the selection), strongest
+   * first when more than `OVERFLOW_SLOTS_PER_CELL` want in. The shader
+   * lights these exactly like slots, minus the shadow map, so a lamp a full
+   * cell cannot slot still lights it the way it lights the next cell: no
+   * line along the cell edge.
+   */
+  private writeCellOverflow(cell: number) {
+    let count = 0;
+    const hasOffers = this.cellStamps[cell] === this.passStamp;
+    for (
+      let e = hasOffers ? this.offerHead[cell] : -1;
+      e >= 0;
+      e = this.offerNext[e]
+    ) {
+      const i = this.offerLight[e];
+      const share = this.presenceOf(i) - this.slotWeightOf(cell, i);
+      const shareByte = Math.round(share * SLOT_WEIGHT_SCALE);
+      if (shareByte <= 0) continue;
+      const row = this.rowOf[i];
+      if (row < 0) continue;
+      if (count === this.overflowRows.length) {
+        const rows = new Int32Array(count * 2);
+        const shares = new Float32Array(count * 2);
+        const ranks = new Float32Array(count * 2);
+        rows.set(this.overflowRows);
+        shares.set(this.overflowShares);
+        ranks.set(this.overflowRanks);
+        this.overflowRows = rows;
+        this.overflowShares = shares;
+        this.overflowRanks = ranks;
+      }
+      this.overflowRows[count] = row;
+      this.overflowShares[count] = shareByte;
+      this.overflowRanks[count] = this.offerImportance[e] * share;
+      count++;
+    }
+
+    const base = this.overflowBaseOf(cell);
+    const data = this.overflowData;
+    if (count === 0) {
+      if (this.hasOverflow[cell] === 1) {
+        data.fill(0, base, base + OVERFLOW_SLOTS_PER_CELL);
+        this.hasOverflow[cell] = 0;
+        this.isOverflowDirty = true;
+      }
+      return;
+    }
+    // Strongest first (ties to the lower row, so the order never depends
+    // on the camera); only the list's tail is ever cut.
+    const kept = Math.min(count, OVERFLOW_SLOTS_PER_CELL);
+    for (let k = 0; k < kept; k++) {
+      let best = k;
+      for (let m = k + 1; m < count; m++) {
+        const rank = this.overflowRanks[m];
+        const bestRank = this.overflowRanks[best];
+        if (
+          rank > bestRank ||
+          (rank === bestRank && this.overflowRows[m] < this.overflowRows[best])
+        ) {
+          best = m;
+        }
+      }
+      if (best !== k) {
+        const row = this.overflowRows[k];
+        const share = this.overflowShares[k];
+        const rank = this.overflowRanks[k];
+        this.overflowRows[k] = this.overflowRows[best];
+        this.overflowShares[k] = this.overflowShares[best];
+        this.overflowRanks[k] = this.overflowRanks[best];
+        this.overflowRows[best] = row;
+        this.overflowShares[best] = share;
+        this.overflowRanks[best] = rank;
+      }
+      data[base + k] =
+        (this.overflowRows[k] + 1) |
+        (this.overflowShares[k] << SLOT_WEIGHT_SHIFT);
+    }
+    data.fill(0, base + kept, base + OVERFLOW_SLOTS_PER_CELL);
+    if (this.hasOverflow[cell] === 0) {
+      this.hasOverflow[cell] = 1;
+      this.overflowCells[this.overflowCount++] = cell;
+    }
+    this.isOverflowDirty = true;
+  }
+
+  /** Empties every cell's overflow (the next pass rebuilds them). */
+  private clearOverflow() {
+    for (let k = 0; k < this.overflowCount; k++) {
+      const cell = this.overflowCells[k];
+      if (this.hasOverflow[cell] === 0) continue;
+      const base = this.overflowBaseOf(cell);
+      this.overflowData.fill(0, base, base + OVERFLOW_SLOTS_PER_CELL);
+      this.hasOverflow[cell] = 0;
+      this.isOverflowDirty = true;
+    }
+    this.overflowCount = 0;
+  }
+
+  private overflowBaseOf(cell: number): number {
+    return (
+      (cell >> 5) * (GRID_CELLS_PER_ROW * OVERFLOW_SLOTS_PER_CELL) +
+      (cell & 31) * OVERFLOW_SLOTS_PER_CELL
+    );
+  }
+
+  /** Masked by the flood (`PACKED_FLAG_MASKED`), as `writeShadowTexels` packs it. */
+  private isMaskedLight(i: number): boolean {
+    const flags = this.registry.flags[i];
+    return (
+      (flags & LIGHT_FLAG_MASKED) !== 0 ||
+      ((flags & LIGHT_FLAG_SHADOW_REQUEST) !== 0 &&
+        (flags & LIGHT_FLAG_STATIC) !== 0)
+    );
   }
 }

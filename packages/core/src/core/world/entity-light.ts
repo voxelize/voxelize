@@ -30,6 +30,13 @@ export type EntityLightSample = {
    */
   floodRemainder: number;
   /**
+   * Colour of the analytic lights around the point
+   * (`LocalLightSample.lightHue`): the flood borrows it for the channels it
+   * has run out of, like the chunk fragment. Absent or zero leaves the
+   * flood's own hue.
+   */
+  lightHue?: readonly [number, number, number];
+  /**
    * Clustered local-light irradiance at the point (`queryLocalLights`),
    * before any diffuse response. Unbounded: a lit floor's proxy carries the
    * intensity of several emitters.
@@ -191,12 +198,14 @@ export function composeEntityLight(s: EntityLightSample, out: Color): Color {
       dtB +
     s.underwaterFill.b;
 
-  // `vec3 smoothTorch = blockLightCurve(cpuTorchLight);`
+  // `vec3 smoothTorch = blockLightCurve(cpuTorchLight);`, or
+  // `blockLightCurveFilled(cpuTorchLight, llLightHue)` near analytic lights.
   const [smoothR, smoothG, smoothB] = blockLightCurveRGB(
     s.floodR,
     s.floodG,
     s.floodB,
     curveScratch,
+    s.lightHue,
   );
 
   // Daylight washes analytic block light and hands the washed share back to

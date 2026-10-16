@@ -510,7 +510,7 @@ impl<S: ViewerSource + 'static> ChunkWorker<S> {
                         std::fs::create_dir_all(dir)
                             .map_err(|e| format!("{}: {e}", dir.display()))?;
                     }
-                    let tmp = path.with_extension(format!("tmp{}", std::process::id()));
+                    let tmp = super::format::temp_path(&path);
                     std::fs::write(&tmp, &bytes)
                         .and_then(|_| std::fs::rename(&tmp, &path))
                         .map_err(|e| format!("{}: {e}", path.display()))?;
@@ -710,7 +710,7 @@ pub fn serve_viewer<S: ViewerSource + 'static>(
                                 let Some(tile) = source.far_tile(spec) else {
                                     return json!({ "spec": spec, "error": "this source has no far layer" });
                                 };
-                                let tmp = path.with_extension(format!("tmp{}", std::process::id()));
+                                let tmp = super::format::temp_path(&path);
                                 let bytes = encode_far_tile(spec, &tile);
                                 if let Err(e) = std::fs::write(&tmp, &bytes)
                                     .and_then(|_| std::fs::rename(&tmp, &path))

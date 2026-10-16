@@ -247,7 +247,7 @@ impl ViewerSource for PipelineSource {
         }
         let entry = self.generate(cx, cz);
         if let Some(path) = &path {
-            let tmp = path.with_extension(format!("tmp{}", std::process::id()));
+            let tmp = super::format::temp_path(path);
             let written = std::fs::write(&tmp, Self::encode(&entry))
                 .and_then(|_| std::fs::rename(&tmp, path));
             if let Err(e) = written {

@@ -98,6 +98,7 @@ impl Handler<ClientJoinRequest> for SyncWorld {
     type Result = ();
 
     fn handle(&mut self, msg: ClientJoinRequest, _: &mut SyncContext<Self>) {
+        msg.sender.join_trace().world_dequeued();
         let _mailbox = MailboxTimer::start();
         self.0.write().unwrap().add_client(
             &msg.id,
@@ -106,6 +107,7 @@ impl Handler<ClientJoinRequest> for SyncWorld {
             msg.preferences,
             msg.motion_protocol,
             msg.identity,
+            msg.registry_digest.as_deref(),
         );
     }
 }

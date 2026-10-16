@@ -383,6 +383,7 @@ export function makeChunkShaderMaterial(
     uBlockLightHueLevels: BLOCK_LIGHT_TUNING.hueLevels,
     uBlockLightMountFade: BLOCK_LIGHT_TUNING.mountFade,
     uBlockLightHueRamp: BLOCK_LIGHT_TUNING.hueRamp,
+    uBlockLightHueFill: BLOCK_LIGHT_TUNING.hueFill,
     uBlockLightBilinear: BLOCK_LIGHT_TUNING.bilinear,
     uSkyTopColor: world.chunkRenderer.shaderLightingUniforms.skyTopColor,
     uSkyMiddleColor: world.chunkRenderer.shaderLightingUniforms.skyMiddleColor,
@@ -435,6 +436,12 @@ export function makeChunkShaderMaterial(
       uWaterDepthState: chunksUniforms.waterDepthState,
       uWaterDepthViewport: chunksUniforms.waterDepthViewport,
       uWaterDepthClip: chunksUniforms.waterDepthClip,
+      uWaterExitDepth: chunksUniforms.waterExitDepth,
+      uWaterExitReady: chunksUniforms.waterExitReady,
+      uSceneDepth: chunksUniforms.sceneDepth,
+      uSceneDepthReady: chunksUniforms.sceneDepthReady,
+      // Both depths are drawn with the camera the pass reads its planes from.
+      uPaneDepthClip: chunksUniforms.waterDepthClip,
       // Per material: only a pane's two forks take a side.
       uWaterDepthSide: { value: WATER_DEPTH_SIDE_OFF },
       uWaterRefractionStrength: chunksUniforms.waterRefractionStrength,

@@ -513,7 +513,7 @@ export class ViewerServer {
       ? `<link rel="stylesheet" href="/page.css?v=${Date.now()}">`
       : "";
     return `<!doctype html><html><head><meta charset="utf-8"><title>${page.title ?? "World viewer"}</title>${css}
-<style>html,body{margin:0;height:100%;background:#0b0d10;overflow:hidden}#viewer{position:absolute;inset:0}</style>${page.head ?? ""}</head>
+<style>html,body{margin:0;height:100%;background:#0b0d10;overflow:hidden;overscroll-behavior:none}#viewer{position:absolute;inset:0}</style>${page.head ?? ""}</head>
 <body><div id="viewer"></div><script type="module" src="/app.js?v=${Date.now()}"></script></body></html>`;
   }
 

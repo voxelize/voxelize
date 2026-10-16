@@ -276,6 +276,9 @@ export class Sky extends CanvasBox {
 
   private textureBloomMaterials = new WeakSet<MeshBasicMaterial>();
 
+  /** The gradient dome (`createSkyShading`), the sky's own ShaderMaterial. */
+  private shading: Mesh<DodecahedronGeometry, ShaderMaterial> | null = null;
+
   /**
    * Create a new sky instance.
    *
@@ -579,7 +582,22 @@ export class Sky extends CanvasBox {
 
     // We use attach here so that the sky shading is not affected by the box's rotation.
     this.attach(shadingMesh);
+    this.shading = shadingMesh;
   };
+
+  /**
+   * Frees the box's layers (geometry, face canvases and materials, atlas)
+   * and the gradient dome's geometry and shader. Call once the sky has left
+   * the scene for good.
+   */
+  dispose() {
+    super.dispose();
+    if (this.shading) {
+      this.shading.geometry.dispose();
+      this.shading.material.dispose();
+      this.shading = null;
+    }
+  }
 
   private applyTextureBloomToMaterials = () => {
     this.boxLayers.forEach((layer) => {

@@ -1,7 +1,7 @@
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 
-use crate::{Chunk, Registry, VoxelUpdate, WorldConfig};
+use crate::{Chunk, FarTerrainMaterial, FarTerrainTree, Registry, VoxelUpdate, WorldConfig};
 
 /// One chunk as a source hands it over: its voxels once its own generation
 /// (or load) has finished, and the writes it aimed outside itself. The
@@ -43,9 +43,29 @@ impl FarTileSpec {
 pub enum FarMaterials {
     /// Block ids; the viewer colours each by its block's top texture.
     Blocks,
-    /// Classes the source defines; the host gives the viewer a colour per
-    /// class, in this order.
-    Classes { names: Vec<String> },
+    /// Classes the source defines, in this order: painted from the blocks
+    /// `terrain` names for each, as a game client paints its horizon, or
+    /// without it from a colour per class the host gives the viewer.
+    Classes {
+        names: Vec<String>,
+        #[serde(skip_serializing_if = "Option::is_none")]
+        terrain: Option<FarClassTerrain>,
+    },
+}
+
+/// The far-terrain descriptor's look, as a game server sends it: what each
+/// class is made of, which class floating land and the sea floor wear, and
+/// the tree species a tile's canopy samples name.
+#[derive(Clone, Debug, Default, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct FarClassTerrain {
+    pub materials: Vec<FarTerrainMaterial>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub sky_material: Option<u8>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub seabed_material: Option<u8>,
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    pub trees: Vec<FarTerrainTree>,
 }
 
 /// Element type of an extra far-tile raster.
@@ -81,6 +101,7 @@ pub struct LayerInfo {
 }
 
 /// A coarse heightfield tile's samples.
+#[derive(Default)]
 pub struct FarTile {
     /// Top face y of each sample's surface; 0 where there is nothing.
     pub heights: Vec<u16>,
@@ -91,6 +112,12 @@ pub struct FarTile {
     /// One little-endian buffer per `LayerInfo`, in `describe().layers`
     /// order, `samples * type.bytes()` long.
     pub layers: Vec<Vec<u8>>,
+    /// The game's far-terrain rasters (`FarTerrainTile`), for a source whose
+    /// classes carry `terrain`: floating land as `(top, bottom)` pairs, an
+    /// RGB tint and a `(top, bottom, cover, kind)` crown per sample.
+    pub sky: Option<Vec<u16>>,
+    pub tints: Option<Vec<u8>>,
+    pub canopy: Option<Vec<u8>>,
 }
 
 /// A labelled place or footprint a source can point out (a structure, a

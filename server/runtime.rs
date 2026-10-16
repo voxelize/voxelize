@@ -23,6 +23,7 @@ use actix_files::{Files, NamedFile};
 use actix_web::{
     body::MessageBody,
     dev::{ServiceFactory, ServiceRequest, ServiceResponse},
+    guard,
     web::{self, Query},
     App, Error, HttpRequest, HttpResponse, HttpServer, Result,
 };
@@ -33,10 +34,14 @@ use log::{debug, info, log_enabled, warn, Level};
 use serde_json::json;
 use tokio::sync::mpsc;
 
+mod registry_routes;
+pub use registry_routes::*;
+
 use crate::{
-    authenticate_session, decode_message, encode_message, ClientMessage, Connect, Disconnect,
-    Health, Info, LogRateLimiter, Message, MessageType, RunPreload, Server, SessionAuth,
-    SessionAuthenticator, SessionIdentity, SetStarted, WsSender, PROTOCOL_MISMATCH_REASON,
+    authenticate_session, decode_message, encode_message, BulkFrame, ClientMessage, Connect,
+    Disconnect, Health, Info, LogRateLimiter, Message, MessageType, RunPreload, Server,
+    SessionAuth, SessionAuthenticator, SessionIdentity, SetStarted, WsSender, JOIN_TRACE_DEADLINE,
+    PROTOCOL_MISMATCH_REASON,
 };
 
 /// How long to wait for the server actor to ack a client message before
@@ -248,6 +253,7 @@ pub struct VoxelizeHandle {
     session_authenticator: Option<SessionAuthenticator>,
     serve: String,
     session_policy: WsSessionPolicy,
+    registry: Option<RegistryEndpoint>,
 }
 
 impl VoxelizeHandle {
@@ -262,7 +268,21 @@ impl VoxelizeHandle {
             session_authenticator: None,
             serve: String::new(),
             session_policy: WsSessionPolicy::default(),
+            registry: None,
         }
+    }
+
+    /// Serve this block registry on `/registry/blocks.json` and
+    /// `/registry/blocks.<digest>.json` ([`registry_blocks_route`]).
+    /// [`Voxelize::bind_with`] installs the server's own.
+    pub fn with_registry(mut self, registry: RegistryEndpoint) -> Self {
+        self.registry = Some(registry);
+        self
+    }
+
+    /// The block registry this handle serves over HTTP, if any.
+    pub fn registry(&self) -> Option<&RegistryEndpoint> {
+        self.registry.as_ref()
     }
 
     /// Require this secret on `/ws/` connections.
@@ -339,6 +359,9 @@ impl VoxelizeHandle {
     /// - `GET /ws/` — canonical WebSocket session ([`ws_route`])
     /// - `GET /info` — server info snapshot ([`info_route`])
     /// - `GET /health` — readiness/liveness probe ([`health_route`])
+    /// - `GET /registry/blocks.json` and `GET /registry/blocks.<digest>.json`
+    ///   — the block registry INIT carries ([`registry_blocks_route`]; 404
+    ///   unless the handle has one, see [`VoxelizeHandle::with_registry`])
     /// - static files (when a serve folder is set), installed as the app's
     ///   *default service*: they only handle requests no route matched, so
     ///   they can never shadow engine or adapter routes
@@ -363,7 +386,19 @@ impl VoxelizeHandle {
                 .route("/", web::get().to(serve_index))
                 .route("/ws/", web::get().to(ws_route))
                 .route("/info", web::get().to(info_route))
-                .route("/health", web::get().to(health_route));
+                .route("/health", web::get().to(health_route))
+                .route(
+                    REGISTRY_BLOCKS_PATH,
+                    web::route()
+                        .guard(guard::Any(guard::Get()).or(guard::Head()))
+                        .to(registry_blocks_route),
+                )
+                .route(
+                    REGISTRY_BLOCKS_BY_DIGEST_PATH,
+                    web::route()
+                        .guard(guard::Any(guard::Get()).or(guard::Head()))
+                        .to(registry_blocks_by_digest_route),
+                );
 
             if handle.serve.is_empty() {
                 info!("No static client folder configured (WS/API only)");
@@ -438,6 +473,7 @@ pub async fn ws_route(
     handle: web::Data<VoxelizeHandle>,
     options: Query<HashMap<String, String>>,
 ) -> Result<HttpResponse, Error> {
+    let upgraded_at = std::time::Instant::now();
     let is_transport = options.contains_key("is_transport");
 
     if let Some(secret) = handle.expected_secret(is_transport) {
@@ -483,13 +519,14 @@ pub async fn ws_route(
         .aggregate_continuations()
         .max_continuation_size(16 * 1024 * 1024);
 
-    actix_web::rt::spawn(run_ws_session(
+    actix_web::rt::spawn(drive_ws_session(
         identity,
         is_transport,
         session,
         stream,
         handle.server.clone(),
         handle.session_policy,
+        upgraded_at,
     ));
 
     Ok(response)
@@ -521,6 +558,29 @@ pub async fn run_ws_session(
     server: Addr<Server>,
     policy: WsSessionPolicy,
 ) {
+    drive_ws_session(
+        identity,
+        is_transport,
+        session,
+        stream,
+        server,
+        policy,
+        std::time::Instant::now(),
+    )
+    .await
+}
+
+/// [`run_ws_session`] for a socket upgraded at `upgraded_at`, the first stamp
+/// of the session's join trace (see [`crate::JoinTrace`]).
+async fn drive_ws_session(
+    identity: SessionIdentity,
+    is_transport: bool,
+    mut session: actix_ws::Session,
+    mut stream: impl StreamExt<Item = Result<AggregatedMessage, actix_ws::ProtocolError>> + Unpin,
+    server: Addr<Server>,
+    policy: WsSessionPolicy,
+    upgraded_at: std::time::Instant,
+) {
     if let Err(error) = policy.validate() {
         log::error!("[WS] Refusing session with invalid policy: {}", error);
         let _ = session.close(None).await;
@@ -531,7 +591,7 @@ pub async fn run_ws_session(
     // world data (chunks, voxel updates), so a client streaming megabytes of
     // chunks still receives JOIN/LEAVE and live state promptly.
     let (control_tx, mut control_rx) = mpsc::unbounded_channel::<Vec<u8>>();
-    let (bulk_tx, mut bulk_rx) = mpsc::unbounded_channel::<Vec<u8>>();
+    let (bulk_tx, mut bulk_rx) = mpsc::unbounded_channel::<BulkFrame>();
     let tx = WsSender::new(control_tx, bulk_tx);
 
     let (session_id, connection_token) = match server
@@ -549,9 +609,15 @@ pub async fn run_ws_session(
             return;
         }
     };
+    tx.join_trace().session_registered(upgraded_at);
 
     let mut heartbeat = tokio::time::interval(policy.heartbeat_interval);
     let mut last_seen = std::time::Instant::now();
+    // Reports a traced join that never got its first LOAD written; re-armed
+    // by every JOIN read.
+    let join_trace_deadline = tokio::time::sleep(JOIN_TRACE_DEADLINE);
+    tokio::pin!(join_trace_deadline);
+    let mut is_join_trace_armed = false;
 
     loop {
         // `biased` gives the control lane strict priority over the bulk lane:
@@ -572,6 +638,10 @@ pub async fn run_ws_session(
                         break;
                     }
                 }
+            }
+            () = &mut join_trace_deadline, if is_join_trace_armed => {
+                is_join_trace_armed = false;
+                tx.join_trace().expire();
             }
             _ = heartbeat.tick() => {
                 if last_seen.elapsed() > policy.client_timeout {
@@ -603,6 +673,14 @@ pub async fn run_ws_session(
                                 continue;
                             }
                         };
+                        let is_join = message.r#type == MessageType::Join as i32;
+                        if is_join {
+                            tx.join_trace().begin(last_seen);
+                            let deadline =
+                                tokio::time::Instant::from_std(last_seen) + JOIN_TRACE_DEADLINE;
+                            join_trace_deadline.as_mut().reset(deadline);
+                            is_join_trace_armed = true;
+                        }
 
                         // Await the ack to the same in-flight send: a slow ack
                         // must not drop the session, and no further frames are
@@ -634,7 +712,11 @@ pub async fn run_ws_session(
                                 let _ = session.binary(error_response).await;
                                 break;
                             }
-                            AckOutcome::Acked(Ok(None)) => {}
+                            AckOutcome::Acked(Ok(None)) => {
+                                if is_join {
+                                    tx.join_trace().acked();
+                                }
+                            }
                             AckOutcome::Acked(Err(e)) => {
                                 warn!("[WS] Actor mailbox error: {:?}", e);
                                 break;
@@ -662,16 +744,20 @@ pub async fn run_ws_session(
                     None => break,
                 }
             }
-            Some(msg) = bulk_rx.recv() => {
-                let bytes = msg.len();
+            Some(frame) = bulk_rx.recv() => {
+                let BulkFrame { queued_at, data, completes_join } = frame;
+                let bytes = data.len();
                 let write_started = std::time::Instant::now();
-                match tokio::time::timeout(policy.write_timeout, session.binary(msg)).await {
+                // The stamp rode in with the message: this is its own wait.
+                let waited_ms =
+                    write_started.saturating_duration_since(queued_at).as_secs_f32() * 1000.0;
+                match tokio::time::timeout(policy.write_timeout, session.binary(data)).await {
                     Ok(Ok(())) => {
+                        tx.mark_bulk_written();
+                        if let Some(join) = completes_join {
+                            tx.join_trace().first_load_written(join);
+                        }
                         let write_ms = write_started.elapsed().as_secs_f32() * 1000.0;
-                        let waited_ms = tx
-                            .mark_bulk_written()
-                            .map(|waited| waited.as_secs_f32() * 1000.0 - write_ms)
-                            .unwrap_or(f32::NAN);
                         // Chunk data is what rides this lane, and it is what a
                         // join waits on: say how long it sat behind control and
                         // inbound traffic before the socket even saw it.
@@ -708,6 +794,7 @@ pub async fn run_ws_session(
         }
     }
 
+    tx.join_trace().session_ended();
     server.do_send(Disconnect {
         id: session_id,
         token: connection_token,
@@ -901,6 +988,12 @@ impl Voxelize {
             }
         }
 
+        // The block registry INIT carries, serialized once and compressed off
+        // the actor threads now, at boot, so neither the first join nor the
+        // first `/registry/blocks.json` pays for it.
+        let registry = RegistryEndpoint::new(server.shared_init_registry());
+        registry.prepare_in_background(server.registry.clone());
+
         // Start the Server actor first so /info and /health can reach it.
         // Leave `started=false` until RunPreload completes (SetStarted).
         let server_addr = server.start();
@@ -909,7 +1002,8 @@ impl Voxelize {
             .with_secret(secret)
             .with_transport_secret(transport_secret)
             .with_session_authenticator(session_authenticator)
-            .with_serve(&serve);
+            .with_serve(&serve)
+            .with_registry(registry);
         handle.session_policy = session_policy;
         let factory_handle = handle.clone();
 

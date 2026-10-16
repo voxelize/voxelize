@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 
 import { WorkerPool, WorkerPoolJob } from "./worker-pool";
 
@@ -282,5 +282,26 @@ describe("WorkerPool worker reuse", () => {
 
     expect(new Set(names)).toEqual(new Set(["echo-0"]));
     pool.terminate();
+  });
+});
+
+describe("WorkerPool.terminate", () => {
+  it("clears the watchdog of every job in flight, so nothing outlives the pool", () => {
+    vi.useFakeTimers();
+    try {
+      const pool = new WorkerPool(SilentWorker, { maxWorker: 2 });
+      const results: JobResult[] = [];
+      pool.addJob(makeJob(0, results, { timeoutMs: 1000 }));
+      pool.addJob(makeJob(1, results, { timeoutMs: 1000 }));
+      expect(vi.getTimerCount()).toBe(2);
+
+      pool.terminate();
+
+      expect(vi.getTimerCount()).toBe(0);
+      vi.advanceTimersByTime(5000);
+      expect(results).toEqual([]);
+    } finally {
+      vi.useRealTimers();
+    }
   });
 });

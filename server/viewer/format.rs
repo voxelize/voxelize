@@ -23,12 +23,15 @@
 //!   f32 uvs[2n], i32 lights[n] (the mesher's packed light words), u32 indices
 //! ```
 //!
-//! Far tile (`VXVF`):
+//! Far tile (`VXVF`, its own version):
 //!
 //! ```text
 //! "VXVF" u32 version
-//! i32 x0, i32 z0, u32 step, u32 size, u32 layer count
+//! i32 x0, i32 z0, u32 step, u32 size, u32 layer count,
+//! u32 rasters (bit 0 sky, bit 1 tints, bit 2 canopy)
 //! u16 heights[size^2], u16 materials[size^2], u16 water[size^2], each padded to four
+//! the rasters present, in bit order, each padded to four:
+//!   u16 sky[2 size^2] (top, bottom), u8 tints[3 size^2], u8 canopy[4 size^2]
 //! per layer: u32 byte length, bytes padded to four
 //! ```
 use voxelize_mesher::GeometryProtocol;
@@ -37,9 +40,21 @@ use crate::{BlockUtils, Chunk, Registry, Vec3, VoxelAccess};
 
 use super::source::{FarTile, FarTileSpec};
 
+/// Where `path` is written before it is renamed into place: unique per
+/// process and per write, since pool threads may build the same file at
+/// once (a far tile the far layer and an overlay both asked for), and a
+/// rename of a temporary another thread already moved fails.
+pub(super) fn temp_path(path: &std::path::Path) -> std::path::PathBuf {
+    use std::sync::atomic::{AtomicU64, Ordering};
+    static WRITES: AtomicU64 = AtomicU64::new(0);
+    let write = WRITES.fetch_add(1, Ordering::Relaxed);
+    path.with_extension(format!("tmp{}-{write}", std::process::id()))
+}
+
 pub const CHUNK_MESH_MAGIC: &[u8; 4] = b"VXVM";
 pub const FAR_TILE_MAGIC: &[u8; 4] = b"VXVF";
 pub const FORMAT_VERSION: u32 = 1;
+pub const FAR_TILE_VERSION: u32 = 2;
 
 /// Per-block flags the column summary reads, indexed by block id.
 pub struct BlockClasses {
@@ -234,18 +249,42 @@ pub fn encode_far_tile(spec: &FarTileSpec, tile: &FarTile) -> Vec<u8> {
     let samples = spec.samples();
     let mut out = Vec::with_capacity(samples * 8 + 64);
     out.extend_from_slice(FAR_TILE_MAGIC);
-    u32s(&mut out, &[FORMAT_VERSION]);
+    u32s(&mut out, &[FAR_TILE_VERSION]);
     out.extend_from_slice(&spec.x0.to_le_bytes());
     out.extend_from_slice(&spec.z0.to_le_bytes());
+    let rasters = tile.sky.is_some() as u32
+        | (tile.tints.is_some() as u32) << 1
+        | (tile.canopy.is_some() as u32) << 2;
     u32s(
         &mut out,
-        &[spec.step as u32, spec.size as u32, tile.layers.len() as u32],
+        &[
+            spec.step as u32,
+            spec.size as u32,
+            tile.layers.len() as u32,
+            rasters,
+        ],
     );
-    for list in [&tile.heights, &tile.materials, &tile.water] {
-        for i in 0..samples {
+    let u16s = |out: &mut Vec<u8>, list: &[u16], count: usize| {
+        for i in 0..count {
             out.extend_from_slice(&list.get(i).copied().unwrap_or(0).to_le_bytes());
         }
-        pad(&mut out);
+        pad(out);
+    };
+    let u8s = |out: &mut Vec<u8>, list: &[u8], count: usize| {
+        out.extend((0..count).map(|i| list.get(i).copied().unwrap_or(0)));
+        pad(out);
+    };
+    for list in [&tile.heights, &tile.materials, &tile.water] {
+        u16s(&mut out, list, samples);
+    }
+    if let Some(sky) = &tile.sky {
+        u16s(&mut out, sky, samples * 2);
+    }
+    if let Some(tints) = &tile.tints {
+        u8s(&mut out, tints, samples * 3);
+    }
+    if let Some(canopy) = &tile.canopy {
+        u8s(&mut out, canopy, samples * 4);
     }
     for layer in &tile.layers {
         u32s(&mut out, &[layer.len() as u32]);

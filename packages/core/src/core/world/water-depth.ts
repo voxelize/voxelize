@@ -1,4 +1,6 @@
 import {
+  BackSide,
+  type BufferGeometry,
   type Camera,
   DepthTexture,
   DoubleSide,
@@ -44,12 +46,36 @@ export type WaterDepthUniforms = {
   waterDepthViewport: { value: Vector2 };
   /** The camera's near and far planes, to compare depths as distances. */
   waterDepthClip: { value: Vector2 };
+  /**
+   * Behind each pixel, the nearest place the water held by a window ends:
+   * its back faces (the far wall, the surface from below) near every
+   * section of water with a pane face in view. Read by the window's own
+   * fragments for the run of water they show.
+   */
+  waterExitDepth: { value: Texture | null };
+  waterExitReady: { value: number };
 };
 
 /** Where a chunk mesh's section sits, in sections. */
 export type SectionCoords = [cx: number, level: number, cz: number];
 
 const DEPTH_ONLY_FRAGMENT = "void main() {}";
+
+/**
+ * Bits 18 and 19 of the packed light attribute together: a fluid face
+ * pressed against a see-through solid (`FLUID_PANE_BIT` in the mesher).
+ */
+const FLUID_PANE_BITS = (1 << 18) | (1 << 19);
+
+/** Whether a water mesh has a face against a window. */
+export function holdsPaneFaces(geometry: BufferGeometry): boolean {
+  const lights = geometry.getAttribute("light")?.array;
+  if (!lights) return false;
+  for (let i = 0; i < lights.length; i++) {
+    if ((lights[i] & FLUID_PANE_BITS) === FLUID_PANE_BITS) return true;
+  }
+  return false;
+}
 
 function sectionKey(cx: number, level: number, cz: number) {
   return `${cx},${level},${cz}`;
@@ -124,11 +150,17 @@ export class WaterDepthPass {
   private readonly water = new Map<string, Map<Mesh, Mesh>>();
   private readonly panes = new Map<Mesh, Pane>();
   private readonly depthMaterials = new WeakMap<Material, ShaderMaterial>();
+  private readonly exitMaterials = new WeakMap<Material, ShaderMaterial>();
+  /** Per section, how many of its water meshes have a face against a window. */
+  private readonly windowed = new Map<string, number>();
+  /** Every section around a windowed one; rebuilt when `windowed` changes. */
+  private exitSections: Set<string> | null = null;
   private readonly forks = new WeakMap<
     Material,
     { behind: CustomChunkShaderMaterial; front: CustomChunkShaderMaterial }
   >();
   private target: WebGLRenderTarget | null = null;
+  private exitTarget: WebGLRenderTarget | null = null;
   private drawnCamera: Camera | null = null;
   private readonly drawnView = new Matrix4();
   private readonly drawnProjection = new Matrix4();
@@ -150,10 +182,12 @@ export class WaterDepthPass {
   addWater(mesh: Mesh) {
     const [cx, level, cz] = this.sectionOf(mesh);
     const key = sectionKey(cx, level, cz);
-    const standIn = new Mesh(
-      mesh.geometry,
-      this.depthMaterialFor(mesh.material as ShaderMaterial),
-    );
+    const water = mesh.material as ShaderMaterial;
+    const standIn = new Mesh(mesh.geometry, this.depthMaterialFor(water));
+    standIn.userData = {
+      depthMaterial: standIn.material,
+      exitMaterial: this.exitMaterialFor(water),
+    };
     standIn.matrixAutoUpdate = false;
     standIn.matrixWorldAutoUpdate = false;
     standIn.visible = false;
@@ -166,11 +200,26 @@ export class WaterDepthPass {
     }
     section.set(mesh, standIn);
 
+    const isWindowed = holdsPaneFaces(mesh.geometry);
+    if (isWindowed) {
+      this.windowed.set(key, (this.windowed.get(key) ?? 0) + 1);
+      this.exitSections = null;
+    }
+
     mesh.geometry.addEventListener("dispose", () => {
       this.scene.remove(standIn);
       const current = this.water.get(key);
       current?.delete(mesh);
       if (current?.size === 0) this.water.delete(key);
+      if (isWindowed) {
+        const left = (this.windowed.get(key) ?? 1) - 1;
+        if (left > 0) {
+          this.windowed.set(key, left);
+        } else {
+          this.windowed.delete(key);
+          this.exitSections = null;
+        }
+      }
     });
   }
 
@@ -249,6 +298,7 @@ export class WaterDepthPass {
     for (const standIn of this.shown) standIn.visible = false;
     this.shown = [];
     this.checkedFrame = -1;
+    this.uniforms.waterExitReady.value = 0;
 
     if (!(camera as PerspectiveCamera).isPerspectiveCamera) {
       this.drawnCamera = null;
@@ -301,6 +351,7 @@ export class WaterDepthPass {
     renderer.state.buffers.depth.setMask(true);
     renderer.clear(false, true, false);
     renderer.render(this.scene, camera);
+    this.renderExit(renderer, camera, size);
     renderer.autoClear = previousAutoClear;
     renderer.setRenderTarget(previousTarget);
 
@@ -309,9 +360,62 @@ export class WaterDepthPass {
     state.value = WATER_DEPTH_DRAWN;
   }
 
+  /**
+   * Where the water held by the windows in view ends behind each pixel: the
+   * nearest back face of the water around every section with a pane face.
+   * A ray in through a window leaves through one of them (the far wall,
+   * the surface from below) unless something in the tank stops it first,
+   * which the frame's own depth answers. Water with no window near draws
+   * nothing here, so an open sea costs no second pass.
+   */
+  private renderExit(renderer: WebGLRenderer, camera: Camera, size: Vector2) {
+    if (this.windowed.size === 0) return;
+    if (!this.exitSections) {
+      this.exitSections = new Set();
+      for (const key of this.windowed.keys()) {
+        const [cx, level, cz] = key.split(",").map(Number);
+        for (const around of sectionsAround([cx, level, cz])) {
+          this.exitSections.add(around);
+        }
+      }
+    }
+    for (const standIn of this.shown) standIn.visible = false;
+    const exits: Mesh[] = [];
+    for (const key of this.exitSections) {
+      const section = this.water.get(key);
+      if (!section) continue;
+      for (const [mesh, standIn] of section) {
+        if (!isShown(mesh) || !this.frustum.intersectsObject(mesh)) continue;
+        standIn.matrixWorld.copy(mesh.matrixWorld);
+        standIn.material = standIn.userData.exitMaterial as Material;
+        standIn.visible = true;
+        exits.push(standIn);
+      }
+    }
+    if (exits.length > 0) {
+      const target = this.exitTargetOfSize(
+        Math.floor(size.x),
+        Math.floor(size.y),
+      );
+      renderer.setRenderTarget(target);
+      renderer.state.buffers.depth.setMask(true);
+      renderer.clear(false, true, false);
+      renderer.render(this.scene, camera);
+      this.uniforms.waterExitDepth.value = target.depthTexture;
+      this.uniforms.waterExitReady.value = 1;
+    }
+    for (const standIn of exits) {
+      standIn.material = standIn.userData.depthMaterial as Material;
+      standIn.visible = false;
+    }
+    for (const standIn of this.shown) standIn.visible = true;
+  }
+
   dispose() {
     this.target?.dispose();
     this.target = null;
+    this.exitTarget?.dispose();
+    this.exitTarget = null;
   }
 
   private checkRender(renderer: WebGLRenderer, camera: Camera) {
@@ -323,6 +427,7 @@ export class WaterDepthPass {
       !camera.projectionMatrix.equals(this.drawnProjection)
     ) {
       state.value = WATER_DEPTH_UNKNOWN;
+      this.uniforms.waterExitReady.value = 0;
       return;
     }
     const target = renderer.getRenderTarget();
@@ -338,19 +443,17 @@ export class WaterDepthPass {
       return this.target;
     }
     this.target?.dispose();
-    const depthTexture = new DepthTexture(width, height, FloatType);
-    depthTexture.minFilter = NearestFilter;
-    depthTexture.magFilter = NearestFilter;
-    this.target = new WebGLRenderTarget(width, height, {
-      format: RedFormat,
-      type: UnsignedByteType,
-      depthBuffer: true,
-      depthTexture,
-      generateMipmaps: false,
-      minFilter: NearestFilter,
-      magFilter: NearestFilter,
-    });
+    this.target = makeDepthTarget(width, height);
     return this.target;
+  }
+
+  private exitTargetOfSize(width: number, height: number) {
+    if (this.exitTarget?.width === width && this.exitTarget.height === height) {
+      return this.exitTarget;
+    }
+    this.exitTarget?.dispose();
+    this.exitTarget = makeDepthTarget(width, height);
+    return this.exitTarget;
   }
 
   /**
@@ -380,6 +483,21 @@ export class WaterDepthPass {
     return depth;
   }
 
+  /** {@link depthMaterialFor}, drawing only the water's back faces. */
+  private exitMaterialFor(water: ShaderMaterial) {
+    const cached = this.exitMaterials.get(water);
+    if (cached) return cached;
+    const exit = this.depthMaterialFor(water).clone();
+    exit.uniforms = water.uniforms;
+    exit.side = BackSide;
+    (exit as unknown as CustomChunkShaderMaterial).map = (
+      water as CustomChunkShaderMaterial
+    ).map;
+    Object.assign(exit.defaultAttributeValues, water.defaultAttributeValues);
+    this.exitMaterials.set(water, exit);
+    return exit;
+  }
+
   private forksOf(material: CustomChunkShaderMaterial) {
     let forks = this.forks.get(material);
     if (!forks) {
@@ -394,4 +512,19 @@ export class WaterDepthPass {
     }
     return forks;
   }
+}
+
+function makeDepthTarget(width: number, height: number) {
+  const depthTexture = new DepthTexture(width, height, FloatType);
+  depthTexture.minFilter = NearestFilter;
+  depthTexture.magFilter = NearestFilter;
+  return new WebGLRenderTarget(width, height, {
+    format: RedFormat,
+    type: UnsignedByteType,
+    depthBuffer: true,
+    depthTexture,
+    generateMipmaps: false,
+    minFilter: NearestFilter,
+    magFilter: NearestFilter,
+  });
 }

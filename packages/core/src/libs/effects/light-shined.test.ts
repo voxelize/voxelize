@@ -470,3 +470,68 @@ describe("LightShined detached subtrees", () => {
     expect(counter.raycasts).toBe(5);
   });
 });
+
+describe("LightShined across worlds", () => {
+  const compile = (material: Material) => {
+    const shader = {
+      uniforms: {} as Record<string, unknown>,
+      vertexShader: "void main() {}",
+      fragmentShader: "void main() {\n#include <color_fragment>\n}",
+    };
+    material.onBeforeCompile(shader as never, {} as never);
+    return shader;
+  };
+
+  it("lights art shared page-wide again in the next world, from its own hook", () => {
+    // Item art outlives a world switched away from in place: the next
+    // world's effect lights it with its own uniform, wrapping the art's own
+    // hook once, not the dead effect's wrapper.
+    const material = new MeshBasicMaterial();
+    const calls: string[] = [];
+    material.onBeforeCompile = () => {
+      calls.push("own");
+    };
+    const first = new LightShined(makeWorld().world);
+    const firstRoot = new Object3D();
+    firstRoot.add(new Mesh(new BoxGeometry(), material));
+    first.add(firstRoot);
+    first.dispose();
+
+    const second = new LightShined(makeWorld().world);
+    const secondRoot = new Object3D();
+    secondRoot.add(new Mesh(new BoxGeometry(), material));
+    second.add(secondRoot);
+
+    const shader = compile(material);
+    expect(calls).toEqual(["own"]);
+    expect(shader.uniforms.lightEffect).toBe(
+      (secondRoot.userData.lightUniforms as { value: Color }[])[0],
+    );
+    expect(shader.fragmentShader.match(/uniform vec3 lightEffect/g)).toHaveLength(
+      1,
+    );
+  });
+
+  it("still skips a material another system lights itself", () => {
+    const material = new MeshBasicMaterial();
+    material.userData.lightEffectSetup = true;
+    const shined = new LightShined(makeWorld().world);
+    const root = new Object3D();
+    root.add(new Mesh(new BoxGeometry(), material));
+    shined.add(root);
+    expect(root.userData.lightUniforms).toBeUndefined();
+  });
+
+  it("lets go of every shined object on dispose", () => {
+    const shined = new LightShined(makeWorld().world);
+    const root = new Object3D();
+    const mesh = new Mesh(new BoxGeometry(), new MeshBasicMaterial());
+    root.add(mesh);
+    shined.add(root);
+    shined.dispose();
+    // No longer hooked: a child added later is not set up.
+    const late = new Mesh(new BoxGeometry(), new MeshBasicMaterial());
+    root.add(late);
+    expect(late.material.userData.lightEffectSetup).toBeUndefined();
+  });
+});

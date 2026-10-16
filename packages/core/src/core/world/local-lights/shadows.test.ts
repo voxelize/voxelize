@@ -1428,11 +1428,14 @@ describe("holder occlusion composition (top-down leak regression)", () => {
     // ceiling-mounted lamp pours full unoccluded light through the roof
     // above it: the giant colored top-down patches. Composing keeps the
     // mask as the conservative floor and lets the maps refine it.
-    expect(LOCAL_LIGHTS_FUNCTIONS).toMatch(
-      /llOcclusion \*= localLightShadow\(/,
-    );
+    // The response a slot lights with already carries the mask
+    // (localLightResponse); the slot loop multiplies the atlas onto it.
+    expect(LOCAL_LIGHTS_FUNCTIONS).toMatch(/llLit \*= localLightShadow\(/);
     expect(LOCAL_LIGHTS_FUNCTIONS).not.toMatch(
-      /llOcclusion = localLightShadow\(/,
+      /(llOcclusion|llLit) = localLightShadow\(/,
+    );
+    expect(LOCAL_LIGHTS_FUNCTIONS).toMatch(
+      /return llT1\.rgb \* \([^)]*llOcclusion/,
     );
     // The masked bit must gate holders too (set for static shadow
     // requesters), or the composition has no mask to stand on.

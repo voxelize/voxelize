@@ -27,6 +27,8 @@ pub struct EncodedMessage {
     /// round trip a chunk load pays on top of its pipeline.
     pub queued_at: Instant,
     pub encode_ms: f32,
+    /// When encoding finished (a join's trace stamps its first LOAD's).
+    pub encoded_at: Instant,
 }
 
 /// The RELIABLE ORDERED EVENTS channel of the state replication split (see
@@ -162,6 +164,7 @@ impl EncodedMessageQueue {
                     let chunk_count = message.chunks.len();
                     let started = Instant::now();
                     let data = encode_message(&message);
+                    let encoded_at = Instant::now();
                     let encoded = EncodedMessage {
                         data,
                         msg_type,
@@ -169,7 +172,8 @@ impl EncodedMessageQueue {
                         perf: outbound_perf,
                         chunk_count,
                         queued_at,
-                        encode_ms: started.elapsed().as_secs_f32() * 1000.0,
+                        encode_ms: (encoded_at - started).as_secs_f32() * 1000.0,
+                        encoded_at,
                     };
                     (encoded, filter)
                 })
@@ -239,6 +243,7 @@ mod tests {
             chunk_count: tag,
             queued_at: Instant::now(),
             encode_ms: 0.0,
+            encoded_at: Instant::now(),
         }
     }
 

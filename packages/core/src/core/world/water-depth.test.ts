@@ -1,5 +1,8 @@
 import {
+  BackSide,
   BoxGeometry,
+  BufferAttribute,
+  DoubleSide,
   Mesh,
   PerspectiveCamera,
   Scene,
@@ -23,6 +26,7 @@ import {
   WATER_DEPTH_UNKNOWN,
 } from "./shaders";
 import {
+  holdsPaneFaces,
   paneDrawCounts,
   sectionsAround,
   WaterDepthPass,
@@ -36,6 +40,8 @@ const uniforms = (): WaterDepthUniforms => ({
   waterDepthState: { value: WATER_DEPTH_UNKNOWN },
   waterDepthViewport: { value: new Vector2(1, 1) },
   waterDepthClip: { value: new Vector2(0.1, 1000) },
+  waterExitDepth: { value: null },
+  waterExitReady: { value: 0 },
 });
 
 const chunkMaterial = (vertexShader = "void main() {}") => {
@@ -72,10 +78,27 @@ const passOver = (state = uniforms()) =>
     Math.round(mesh.position.z / SECTION.width),
   ]);
 
-/** Just what the pass asks of a renderer, counting the renders it makes. */
+const FLUID_BIT = 1 << 18;
+const FLUID_PANE_BIT = 1 << 19;
+
+/** Gives every vertex of `mesh` the packed light `light`. */
+const lit = (mesh: Mesh, light: number) => {
+  const count = mesh.geometry.getAttribute("position").count;
+  mesh.geometry.setAttribute(
+    "light",
+    new BufferAttribute(new Int32Array(count).fill(light), 1),
+  );
+  return mesh;
+};
+
+/**
+ * Just what the pass asks of a renderer, counting the renders it makes and
+ * the faces each one drew of the stand-ins it showed.
+ */
 const fakeRenderer = () => {
   const renderer = {
     renders: 0,
+    sides: [] as number[][],
     autoClear: true,
     info: { render: { frame: 0 } },
     state: { buffers: { depth: { setMask: () => {} } } },
@@ -83,9 +106,14 @@ const fakeRenderer = () => {
     setRenderTarget: () => {},
     clear: () => {},
     getDrawingBufferSize: (target: Vector2) => target.set(64, 32),
-    render: () => {
+    render: (scene: Scene) => {
       renderer.renders++;
       renderer.info.render.frame++;
+      renderer.sides.push(
+        scene.children
+          .filter((child) => child.visible)
+          .map((child) => ((child as Mesh).material as ShaderMaterial).side),
+      );
     },
   };
   return renderer;
@@ -230,6 +258,94 @@ describe("WaterDepthPass", () => {
     pass.render(renderer as unknown as WebGLRenderer, cameraOver(16, 100, -20));
     expect(state.waterDepthState.value).toBe(WATER_DEPTH_DRY);
     expect(renderer.renders).toBe(0);
+  });
+});
+
+describe("where the water held by a window ends", () => {
+  it("tells a water mesh with a face against a window by its packed light", () => {
+    const scene = new Scene();
+    expect(
+      holdsPaneFaces(
+        lit(sectionMesh(scene, 0, 0, 0), FLUID_BIT | FLUID_PANE_BIT).geometry,
+      ),
+    ).toBe(true);
+    // Open water, and the greedy flag that shares the pane's bit on solids.
+    expect(
+      holdsPaneFaces(lit(sectionMesh(scene, 0, 0, 0), FLUID_BIT).geometry),
+    ).toBe(false);
+    expect(
+      holdsPaneFaces(lit(sectionMesh(scene, 0, 0, 0), FLUID_PANE_BIT).geometry),
+    ).toBe(false);
+    expect(holdsPaneFaces(sectionMesh(scene, 0, 0, 0).geometry)).toBe(false);
+  });
+
+  it("draws the back faces of the water around a window after the nearest water", () => {
+    const scene = new Scene();
+    const state = uniforms();
+    const pass = passOver(state);
+    pass.addPane(sectionMesh(scene, 0, 1, 0));
+    pass.addWater(lit(sectionMesh(scene, 1, 1, 0), FLUID_BIT | FLUID_PANE_BIT));
+    // Its neighbour holds the same tank's surface, with no window of its own.
+    pass.addWater(lit(sectionMesh(scene, 2, 1, 0), FLUID_BIT));
+    const renderer = fakeRenderer();
+
+    pass.render(renderer as unknown as WebGLRenderer, cameraOver(16, 100, -20));
+    expect(renderer.renders).toBe(2);
+    // The nearest water is the water by the glass pane; the exit is every
+    // section around the window's water, the surface next door included.
+    expect(renderer.sides[0]).toEqual([DoubleSide]);
+    expect(renderer.sides[1]).toEqual([BackSide, BackSide]);
+    expect(state.waterExitReady.value).toBe(1);
+    expect(state.waterExitDepth.value).not.toBeNull();
+    expect(state.waterExitDepth.value).not.toBe(state.waterDepth.value);
+
+    // The stand-ins are back to the nearest-water draw for the next frame.
+    pass.render(renderer as unknown as WebGLRenderer, cameraOver(16, 100, -20));
+    expect(renderer.sides[2]).toEqual([DoubleSide]);
+  });
+
+  it("draws no exit for water without a window, or once the window's water is gone", () => {
+    const scene = new Scene();
+    const state = uniforms();
+    const pass = passOver(state);
+    pass.addPane(sectionMesh(scene, 0, 1, 0));
+    pass.addWater(lit(sectionMesh(scene, 1, 1, 0), FLUID_BIT));
+    const windowed = lit(
+      sectionMesh(scene, 0, 1, 1),
+      FLUID_BIT | FLUID_PANE_BIT,
+    );
+    pass.addWater(windowed);
+    const renderer = fakeRenderer();
+    const camera = cameraOver(16, 100, -20);
+    pass.render(renderer as unknown as WebGLRenderer, camera);
+    expect(state.waterExitReady.value).toBe(1);
+
+    windowed.geometry.dispose();
+    renderer.renders = 0;
+    pass.render(renderer as unknown as WebGLRenderer, camera);
+    expect(renderer.renders).toBe(1);
+    expect(state.waterDepthState.value).toBe(WATER_DEPTH_DRAWN);
+    expect(state.waterExitReady.value).toBe(0);
+  });
+
+  it("forgets the exit for a camera it was not drawn for", () => {
+    const scene = new Scene();
+    const state = uniforms();
+    const pass = passOver(state);
+    const pane = sectionMesh(scene, 0, 1, 0);
+    const lifted = pass.addPane(pane);
+    pass.addWater(lit(sectionMesh(scene, 1, 1, 0), FLUID_BIT | FLUID_PANE_BIT));
+    const renderer = fakeRenderer();
+    pass.render(renderer as unknown as WebGLRenderer, cameraOver(16, 100, -20));
+    expect(state.waterExitReady.value).toBe(1);
+
+    pass.prepareDraw(
+      renderer as unknown as WebGLRenderer,
+      cameraOver(16, 100, -20),
+      pane,
+      lifted,
+    );
+    expect(state.waterExitReady.value).toBe(0);
   });
 });
 

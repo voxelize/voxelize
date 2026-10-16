@@ -114,6 +114,14 @@ export class WorkerPool {
   private available: number[] = [];
 
   /**
+   * How to drop each job a worker is running now, for {@link terminate}:
+   * its watchdog is a timer, and a timer left armed past the pool's end
+   * kept the job's caller (and everything it closes over) alive until it
+   * fired.
+   */
+  private inFlight = new Set<() => void>();
+
+  /**
    * Whether each slot's worker has finished starting (see
    * {@link WorkerPoolOptions.readyMessageType}); one still starting is in
    * neither `available` nor flight.
@@ -229,6 +237,11 @@ export class WorkerPool {
   terminate = () => {
     const activeWorkers = this.workingCount;
 
+    // In-flight jobs end with their workers: never answered, their watchdog
+    // timers cleared, so nothing of the pool's owner stays reachable.
+    for (const drop of this.inFlight) drop();
+    this.inFlight.clear();
+
     for (const worker of this.workers) {
       worker.terminate();
     }
@@ -263,7 +276,17 @@ export class WorkerPool {
       let isSettled = false;
       let watchdog: ReturnType<typeof setTimeout> | null = null;
 
+      const drop = () => {
+        isSettled = true;
+        if (watchdog !== null) clearTimeout(watchdog);
+        watchdog = null;
+        worker.removeEventListener("message", workerCallback);
+        worker.removeEventListener("error", workerError);
+        worker.removeEventListener("messageerror", workerError);
+      };
+
       const cleanup = () => {
+        this.inFlight.delete(drop);
         WorkerPool.WORKING_COUNT--;
         if (watchdog !== null) clearTimeout(watchdog);
         worker.removeEventListener("message", workerCallback);
@@ -325,6 +348,7 @@ export class WorkerPool {
         }, timeoutMs);
       }
 
+      this.inFlight.add(drop);
       worker.addEventListener("message", workerCallback);
       worker.addEventListener("error", workerError);
       worker.addEventListener("messageerror", workerError);

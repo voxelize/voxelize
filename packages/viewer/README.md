@@ -71,13 +71,23 @@ alike.
 
 ## Camera
 
-Drag to orbit, right-drag (or Shift-drag) to pan, wheel to zoom, WASD to
-move, Space and Shift to rise and sink, Q and E to turn a quarter. In the
-free preset WASD keeps the camera's height (`levelFlight`; off flies along
-the view). A key pressed with Cmd or Ctrl is a shortcut, never a move, and
-it lets go of whatever was held; a Shift whose keyup never arrives (macOS
-keeps it for its screenshot chord) is let go by the next input event that
-says Shift is up.
+Drag to orbit, right-drag (or Shift- or Space-drag) to pan, WASD to move,
+Q and E to turn a quarter. The wheel reads as a design tool's does
+(`src/scroll.ts`): two fingers on a trackpad pan the ground under them, a
+pinch or Cmd/Ctrl with a scroll zooms about the ground under the pointer,
+at once and following the fingers, and a mouse's notched wheel zooms about
+the pointer too, eased. A gesture keeps the device it started as, so a
+trackpad's momentum never turns into a zoom. An orbit zooms on - and =;
+free flight rises and sinks on Space and Shift, and keeps the camera's
+height under WASD (`levelFlight`; off flies along the view). Shift that
+goes with a drag or a scroll is a modifier until let go, never a move. A
+key pressed with Cmd or Ctrl is a shortcut, never a move, and it lets go of
+whatever was held; a Shift whose keyup never arrives (macOS keeps it for
+its screenshot chord) is let go by the next input event that says Shift is
+up. Wheel events are always the canvas's, so a sideways swipe never goes
+Back to an older page, and the view rides in the page URL (`pos`, `look`,
+`preset`, rewritten once the camera rests; `poseInUrl: false` turns it
+off), so a reload lands where it was.
 
 The camera's height only changes because of something the user did. Once
 he pans, the look point follows the ground under it, read as the median of
@@ -119,10 +129,10 @@ shader's own daylight) with a card of what the source knows about the
 column (block, height, and whatever the host's `pins.describe` reads from
 its query). There is only ever one: the next click moves it. A
 double-click that follows flies there instead and puts the pin back where
-it stood; a drag still orbits.
+it stood; a drag still orbits, from the pin too.
 
-Click the pin, right-click anywhere, or hold the pin or the right button
-to open the action wheel at the cursor: a ring of 16x16 pixel icons round
+Click the pin, right-click anywhere, or hold the right button (over the
+pin or the ground) to open the action wheel at the cursor: a ring of 16x16 pixel icons round
 a centre, a label under it. Opened by a click it waits for a click, a key
 (each action's letter, or 1 to 8) or Esc; opened by a hold it follows the
 flick and fires the highlighted action on release. Everything in it moves

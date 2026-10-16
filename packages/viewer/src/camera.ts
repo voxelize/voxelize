@@ -13,7 +13,7 @@
  * the view away (data that arrived late). All easing is critically damped
  * and solved per elapsed second, so it is the same at any frame rate.
  */
-import { OrthographicCamera, PerspectiveCamera } from "three";
+import { OrthographicCamera, PerspectiveCamera, Vector3 } from "three";
 
 import {
   Flight,
@@ -37,6 +37,7 @@ import {
   TOP_PITCH,
   type Vec3,
 } from "./pose";
+import { WheelReader } from "./scroll";
 import { dampTo, isSettled, median } from "./smoothing";
 
 export type FlyState = { eye: Vec3; yaw: number; pitch: number };
@@ -107,6 +108,19 @@ type ActiveFlight =
     };
 
 const MIN_PITCH = -1.45;
+/** Orbit distance bounds, blocks (an orthographic frame's height). */
+const MIN_DISTANCE = 6;
+const MAX_DISTANCE = 20000;
+/** A wheel gesture picks the ground under the pointer once: while its events keep coming this close together, at this pixel. */
+const ANCHOR_REUSE_MS = 300;
+const ANCHOR_REUSE_PX = 4;
+/** A held-ground pan goes at most this many times as far as it would at the look point. */
+const GRAB_REACH = 4;
+/** Fingers count as holding the ground until their wheel events pause this long, ms. */
+const HOLD_RELEASE_MS = 150;
+
+const clampDistance = (d: number) =>
+  Math.max(MIN_DISTANCE, Math.min(MAX_DISTANCE, d));
 const ORTHO_DEPTH = 6000;
 /**
  * The perspective camera's near plane, blocks: close up for a walking
@@ -170,6 +184,9 @@ export class CameraRig {
   /** Lets the page take a key (an open menu's shortcut) before it moves the camera. */
   claimKey: (event: KeyboardEvent) => boolean = () => false;
 
+  /** Where the ray through a client pixel meets the ground: a zoom keeps it on that pixel and a pan holds it there; null where nothing is loaded. */
+  pickPoint: (clientX: number, clientY: number) => Vec3 | null = () => null;
+
   private keys = new Set<string>();
 
   private drag: {
@@ -177,9 +194,14 @@ export class CameraRig {
     y: number;
     button: number;
     shift: boolean;
+    /** A pan holds the ground point it was pressed on, on its own height, under the pointer. */
+    grab: Vec3 | null;
   } | null = null;
 
   private aspect = 1;
+
+  /** One view's size, CSS pixels: half the canvas in a side-by-side split. */
+  private view: [number, number] = [1, 1];
 
   private cleanup: (() => void)[] = [];
 
@@ -193,6 +215,30 @@ export class CameraRig {
 
   /** Rate of change of the log of the distance, per second. */
   private zoomVelocity = 0;
+
+  /** The ground point an easing wheel zoom keeps under the pointer, or null to zoom about the look point. */
+  private zoomAnchor: Vec3 | null = null;
+
+  /** The ground last picked under the pointer for a wheel gesture: what for, where (client pixels) and when. */
+  private anchorPick: {
+    kind: "zoom" | "pan";
+    x: number;
+    y: number;
+    at: number;
+    point: Vec3 | null;
+  } | null = null;
+
+  /** Trackpad pans and pinches, or a mouse wheel's zoom. */
+  private wheel = new WheelReader();
+
+  /** Safari's pinch: the scale its last gesture event reported, null between pinches. */
+  private gestureScale: number | null = null;
+
+  /** Shift went with a drag or a scroll, so it is a modifier until let go, never a move. */
+  private shiftModifier = false;
+
+  /** When a wheel pan last moved the view, ms. */
+  private wheelPanAt = -Infinity;
 
   /** Blocks the orbit eye is raised to clear the ground beneath it. */
   private lift = 0;
@@ -424,6 +470,7 @@ export class CameraRig {
 
   resize(width: number, height: number) {
     this.aspect = width / Math.max(1, height);
+    this.view = [Math.max(1, width), Math.max(1, height)];
     this.sync();
   }
 
@@ -471,6 +518,7 @@ export class CameraRig {
     this.heightVelocity = 0;
     this.zoomGoal = null;
     this.zoomVelocity = 0;
+    this.zoomAnchor = null;
     this.lift = 0;
     this.liftVelocity = 0;
     this.liftGoal = 0;
@@ -496,6 +544,7 @@ export class CameraRig {
     this.heightVelocity = 0;
     this.zoomGoal = null;
     this.zoomVelocity = 0;
+    this.zoomAnchor = null;
     return new Promise((resolve) => {
       this.flight = {
         kind: "orbit",
@@ -558,13 +607,26 @@ export class CameraRig {
     let forward = 0;
     let right = 0;
     let up = 0;
+    let zoom = 0;
     if (this.keys.has("KeyW")) forward += 1;
     if (this.keys.has("KeyS")) forward -= 1;
     if (this.keys.has("KeyD")) right += 1;
     if (this.keys.has("KeyA")) right -= 1;
-    if (this.keys.has("Space")) up += 1;
-    if (this.keys.has("ShiftLeft") || this.keys.has("ShiftRight")) up -= 1;
-    if (!forward && !right && !up) return false;
+    // Rising and sinking are free flight's; an orbit zooms on - and =, so
+    // Shift stays a modifier there. Shift that went with a drag or a scroll
+    // never sinks.
+    if (this.preset === "free") {
+      if (this.keys.has("Space")) up += 1;
+      if (
+        !this.shiftModifier &&
+        (this.keys.has("ShiftLeft") || this.keys.has("ShiftRight"))
+      )
+        up -= 1;
+    } else {
+      if (this.keys.has("Equal") || this.keys.has("NumpadAdd")) zoom -= 1;
+      if (this.keys.has("Minus") || this.keys.has("NumpadSubtract")) zoom += 1;
+    }
+    if (!forward && !right && !up && !zoom) return false;
     if (this.preset === "free") {
       const yaw = this.fly.yaw;
       const d = this.levelFlight
@@ -575,11 +637,14 @@ export class CameraRig {
       e[1] += (d[1] * forward + up) * step;
       e[2] += (d[2] * forward - Math.sin(yaw) * right) * step;
     } else {
-      this.panGround(right * step, forward * step);
-      if (up) {
+      if (forward || right) this.panGround(right * step, forward * step);
+      if (zoom) {
         this.zoomGoal = null;
         this.zoomVelocity = 0;
-        this.orbit.distance = Math.max(8, this.orbit.distance * (1 - up * dt));
+        this.zoomAnchor = null;
+        this.orbit.distance = clampDistance(
+          this.orbit.distance * Math.exp(zoom * dt),
+        );
       }
     }
     this.moved = true;
@@ -590,8 +655,14 @@ export class CameraRig {
   private settle(dt: number): boolean {
     let moved = false;
     if (this.preset !== "free" && !this.flight) {
-      if (this.following) this.retarget();
-      if (this.heightGoal !== null) {
+      // The look point eases onto the ground once the pointer or the
+      // fingers let go of it: moving it under them would slide the ground
+      // they hold out from beneath them.
+      const holding =
+        !!this.drag?.grab ||
+        performance.now() - this.wheelPanAt < HOLD_RELEASE_MS;
+      if (this.following && !holding) this.retarget();
+      if (this.heightGoal !== null && !holding) {
         const t = this.orbit.target;
         const spring = dampTo(
           { value: t[1], velocity: this.heightVelocity },
@@ -616,12 +687,13 @@ export class CameraRig {
           this.smoothing * this.feel.zoomShare,
           dt,
         );
-        this.orbit.distance = Math.exp(spring.value);
+        this.zoomOrbit(Math.exp(spring.value), this.zoomAnchor);
         this.zoomVelocity = spring.velocity;
         if (isSettled(spring, goal, SETTLE_TOLERANCE / 100)) {
-          this.orbit.distance = this.zoomGoal;
+          this.zoomOrbit(this.zoomGoal, this.zoomAnchor);
           this.zoomGoal = null;
           this.zoomVelocity = 0;
+          this.zoomAnchor = null;
         }
         moved = true;
       }
@@ -712,6 +784,159 @@ export class CameraRig {
     this.following = true;
   }
 
+  /** Blocks across one pixel at the look point. */
+  private blocksPerPixel() {
+    const tall = Math.max(1, this.element.clientHeight);
+    return this.projection === "orthographic"
+      ? this.orbit.distance / tall
+      : (2 *
+          this.orbit.distance *
+          Math.tan((this.perspective.fov * Math.PI) / 360)) /
+          tall;
+  }
+
+  /** Moves the view so the ground under the pointer follows it by (dx, dy) CSS pixels. */
+  private panPixels(dx: number, dy: number) {
+    const el = this.element;
+    if (this.preset === "free") {
+      // Truck and pedestal across the screen, at the scale of the view.
+      const perPixel = this.span() / Math.max(1, el.clientWidth);
+      const { yaw, pitch } = this.fly;
+      const right: Vec3 = [Math.cos(yaw), 0, -Math.sin(yaw)];
+      const up: Vec3 = [
+        Math.sin(yaw) * Math.sin(pitch),
+        Math.cos(pitch),
+        Math.cos(yaw) * Math.sin(pitch),
+      ];
+      const e = this.fly.eye;
+      for (let i = 0; i < 3; i++)
+        e[i] += (-right[i] * dx + up[i] * dy) * perPixel;
+      this.moved = true;
+      return;
+    }
+    const perPixel = this.blocksPerPixel();
+    const lean =
+      this.projection === "orthographic"
+        ? 1 / Math.max(0.2, Math.sin(this.orbit.pitch))
+        : 1;
+    this.panGround(-dx * perPixel, dy * perPixel * lean);
+  }
+
+  /**
+   * Zooms by `factor` (the view distance's multiplier) about `anchor`, which
+   * keeps its pixel, or about the look point; eased when `eased` (a mouse
+   * wheel's notches), at once for a trackpad, whose own motion is smooth.
+   * Flying free, the eye moves toward or away from the anchor.
+   */
+  private zoomBy(factor: number, anchor: Vec3 | null, eased: boolean) {
+    if (this.preset === "free") {
+      const e = this.fly.eye;
+      const p = anchor ?? this.focus();
+      const away = length(sub(e, p));
+      const k = Math.max(factor, 2 / Math.max(2, away));
+      for (let i = 0; i < 3; i++) e[i] = p[i] + (e[i] - p[i]) * k;
+    } else if (eased && this.smoothing > 0) {
+      this.zoomGoal = clampDistance(
+        (this.zoomGoal ?? this.orbit.distance) * factor,
+      );
+      this.zoomAnchor = anchor;
+      return;
+    } else {
+      this.zoomGoal = null;
+      this.zoomVelocity = 0;
+      this.zoomAnchor = null;
+      this.zoomOrbit(clampDistance(this.orbit.distance * factor), anchor);
+    }
+    this.moved = true;
+    this.sync();
+    this.onChange();
+  }
+
+  /**
+   * Sets the orbit distance, scaling the look point about `anchor` by the
+   * same ratio: the whole view scales about the anchor, so it stays on its
+   * pixel, in either projection.
+   */
+  private zoomOrbit(distance: number, anchor: Vec3 | null) {
+    const k = distance / this.orbit.distance;
+    this.orbit.distance = distance;
+    if (!anchor) return;
+    const t = this.orbit.target;
+    for (let i = 0; i < 3; i++) t[i] = anchor[i] + (t[i] - anchor[i]) * k;
+    // The look point left the ground along the pointer's line; holding it
+    // there keeps the anchor still, and the next pan sets it back down.
+    this.following = false;
+    this.heightGoal = null;
+    this.heightVelocity = 0;
+  }
+
+  /**
+   * The ground under the pointer, picked once per gesture: a zoom scales
+   * about it, a pan slides the ground on its height.
+   */
+  private anchorAt(
+    e: { clientX: number; clientY: number },
+    kind: "zoom" | "pan",
+  ): Vec3 | null {
+    const now = performance.now();
+    const last = this.anchorPick;
+    if (
+      last?.kind === kind &&
+      now - last.at < ANCHOR_REUSE_MS &&
+      Math.hypot(e.clientX - last.x, e.clientY - last.y) < ANCHOR_REUSE_PX
+    ) {
+      last.at = now;
+      return last.point;
+    }
+    const point = this.pickPoint(e.clientX, e.clientY);
+    this.anchorPick = { kind, x: e.clientX, y: e.clientY, at: now, point };
+    return point;
+  }
+
+  /** Where the ray through client pixel (x, y) meets the level plane at `height`; null where it never does. */
+  private hitLevel(x: number, y: number, height: number): Vec3 | null {
+    const rect = this.element.getBoundingClientRect?.() ?? { left: 0, top: 0 };
+    const [width, tall] = this.view;
+    // A side-by-side split draws the same camera in each half.
+    const px = (x - rect.left) % width;
+    const ndcX = (px / width) * 2 - 1;
+    const ndcY = -((y - rect.top) / tall) * 2 + 1;
+    const camera = this.camera;
+    const origin = new Vector3(ndcX, ndcY, -1).unproject(camera);
+    const direction = new Vector3(ndcX, ndcY, 1).unproject(camera).sub(origin);
+    if (Math.abs(direction.y) < 1e-9) return null;
+    const t = (height - origin.y) / direction.y;
+    if (t <= 0) return null;
+    return [origin.x + direction.x * t, height, origin.z + direction.z * t];
+  }
+
+  /**
+   * Slides the orbit across the ground so that `point` lands under client
+   * pixel (x, y): the ground stays held under the pointer, as a map's does,
+   * in perspective as well as on a map, `pixels` being how far the
+   * pointer or the fingers moved. False when that pixel looks above the
+   * point's height (the sky), for the caller to pan by scale instead.
+   */
+  private grabTo(point: Vec3, x: number, y: number, pixels: number): boolean {
+    const hit = this.hitLevel(x, y, point[1]);
+    if (!hit) return false;
+    let dx = point[0] - hit[0];
+    let dz = point[2] - hit[2];
+    // Near the horizon a pixel spans a long way: a step goes at most a few
+    // times as far as the same pixels would carry the look point.
+    const most = GRAB_REACH * pixels * this.blocksPerPixel();
+    const step = Math.hypot(dx, dz);
+    if (step > most) {
+      dx *= most / step;
+      dz *= most / step;
+    }
+    this.orbit.target[0] += dx;
+    this.orbit.target[2] += dz;
+    this.moved = true;
+    this.following = true;
+    return true;
+  }
+
   /** Changes this small are tile refinement, not terrain, when the camera rests. */
   private restBand() {
     return Math.max(
@@ -784,19 +1009,35 @@ export class CameraRig {
       if (e.shiftKey) return;
       this.keys.delete("ShiftLeft");
       this.keys.delete("ShiftRight");
+      this.shiftModifier = false;
     };
     on(el, "contextmenu", (e) => e.preventDefault());
     on(el, "pointerdown", (e) => {
       syncShift(e);
+      if (e.shiftKey) this.shiftModifier = true;
+      this.anchorPick = null;
       this.cancelFlight();
       if (this.claimPointer(e)) return;
       el.setPointerCapture(e.pointerId);
       el.focus();
+      const pans =
+        this.preset === "top" ||
+        e.button === 1 ||
+        e.button === 2 ||
+        e.shiftKey ||
+        this.keys.has("Space");
+      let grab: Vec3 | null = null;
+      if (pans && this.preset !== "free") {
+        const ground = this.pickPoint(e.clientX, e.clientY);
+        grab =
+          ground ?? this.hitLevel(e.clientX, e.clientY, this.orbit.target[1]);
+      }
       this.drag = {
         x: e.clientX,
         y: e.clientY,
         button: e.button,
         shift: e.shiftKey,
+        grab,
       };
     });
     on(el, "pointerup", (e) => {
@@ -806,13 +1047,18 @@ export class CameraRig {
     on(el, "pointermove", (e) => {
       syncShift(e);
       if (!this.drag) return;
+      if (e.shiftKey) this.shiftModifier = true;
       const dx = e.clientX - this.drag.x;
       const dy = e.clientY - this.drag.y;
       this.drag.x = e.clientX;
       this.drag.y = e.clientY;
       if (!dx && !dy) return;
+      // Space held turns a drag into a pan, as in a design tool.
       const isPan =
-        this.drag.button === 2 || this.drag.button === 1 || this.drag.shift;
+        this.drag.button === 2 ||
+        this.drag.button === 1 ||
+        this.drag.shift ||
+        this.keys.has("Space");
       if (this.preset === "free") {
         this.fly.yaw -= dx * 0.004;
         this.fly.pitch = Math.max(
@@ -820,18 +1066,12 @@ export class CameraRig {
           Math.min(1.45, this.fly.pitch - dy * 0.004),
         );
       } else if (isPan || this.preset === "top") {
-        const unitsPerPixel =
-          this.projection === "orthographic"
-            ? this.orbit.distance / Math.max(1, el.clientHeight)
-            : (2 *
-                this.orbit.distance *
-                Math.tan((this.perspective.fov * Math.PI) / 360)) /
-              Math.max(1, el.clientHeight);
-        const lean =
-          this.projection === "orthographic"
-            ? 1 / Math.max(0.2, Math.sin(this.orbit.pitch))
-            : 1;
-        this.panGround(-dx * unitsPerPixel, dy * unitsPerPixel * lean);
+        const grab = this.drag.grab;
+        if (
+          !grab ||
+          !this.grabTo(grab, e.clientX, e.clientY, Math.hypot(dx, dy))
+        )
+          this.panPixels(dx, dy);
       } else {
         this.orbit.yaw -= dx * 0.005;
         if (this.preset !== "iso") {
@@ -849,35 +1089,84 @@ export class CameraRig {
       el,
       "wheel",
       (e) => {
+        // Also keeps a sideways swipe from going Back to an older page.
         e.preventDefault();
         syncShift(e);
+        if (e.shiftKey) this.shiftModifier = true;
+        // Safari sends its pinch as gesture events below, not Ctrl+wheel.
+        if (this.gestureScale !== null) return;
+        const gesture = this.wheel.read(e, performance.now());
+        if (!gesture) return;
         this.cancelFlight();
-        if (this.preset === "free") {
+        if (gesture.kind === "pan") {
+          // The ground under the pointer follows the fingers: whatever is
+          // under it now, on the height first picked there this gesture.
+          this.wheelPanAt = performance.now();
+          const ground =
+            this.preset === "free" ? null : this.anchorAt(e, "pan");
+          const height = ground?.[1] ?? this.orbit.target[1];
+          const under =
+            this.preset === "free"
+              ? null
+              : this.hitLevel(e.clientX, e.clientY, height);
+          if (
+            !under ||
+            !this.grabTo(
+              under,
+              e.clientX + gesture.dx,
+              e.clientY + gesture.dy,
+              Math.hypot(gesture.dx, gesture.dy),
+            )
+          )
+            this.panPixels(gesture.dx, gesture.dy);
+          this.sync();
+          this.onChange();
+          return;
+        }
+        // A plain mouse wheel sets the speed of free flight.
+        if (this.preset === "free" && !e.ctrlKey && !e.metaKey) {
+          if (gesture.device !== "mouse") return;
           this.flySpeed = Math.max(
             4,
             Math.min(2000, this.flySpeed * Math.exp(-e.deltaY * 0.002)),
           );
           return;
         }
-        const next = Math.max(
-          6,
-          Math.min(
-            20000,
-            (this.zoomGoal ?? this.orbit.distance) *
-              Math.exp(e.deltaY * 0.0015),
-          ),
+        this.zoomBy(
+          gesture.factor,
+          this.anchorAt(e, "zoom"),
+          gesture.device === "mouse",
         );
-        if (this.smoothing > 0) {
-          this.zoomGoal = next;
-          return;
-        }
-        this.orbit.distance = next;
-        this.moved = true;
-        this.sync();
-        this.onChange();
       },
       { passive: false },
     );
+    // Safari's pinch: gesture events carry the scale since the pinch began.
+    const onGesture = (
+      type: "gesturestart" | "gesturechange" | "gestureend",
+      handle: (
+        e: Event & { scale: number; clientX: number; clientY: number },
+      ) => void,
+    ) => {
+      const listener = (event: Event) => {
+        event.preventDefault();
+        handle(event as Parameters<typeof handle>[0]);
+      };
+      el.addEventListener(type, listener);
+      this.cleanup.push(() => el.removeEventListener(type, listener));
+    };
+    onGesture("gesturestart", () => {
+      this.cancelFlight();
+      this.gestureScale = 1;
+    });
+    onGesture("gesturechange", (e) => {
+      if (this.gestureScale === null || !(e.scale > 0)) return;
+      const factor = this.gestureScale / e.scale;
+      this.gestureScale = e.scale;
+      this.zoomBy(factor, this.anchorAt(e, "zoom"), false);
+    });
+    onGesture("gestureend", () => {
+      this.gestureScale = null;
+    });
     on(el, "keydown", (e) => {
       syncShift(e);
       // A chord with Cmd or Ctrl is the browser's or the system's shortcut,
@@ -888,6 +1177,7 @@ export class CameraRig {
         return;
       }
       if (this.claimKey(e)) return;
+      this.anchorPick = null;
       this.cancelFlight();
       if (e.code === "KeyQ" || e.code === "KeyE") {
         const turn = (e.code === "KeyQ" ? 1 : -1) * (Math.PI / 2);
@@ -902,9 +1192,14 @@ export class CameraRig {
     });
     on(el, "keyup", (e) => {
       this.keys.delete(e.code);
+      if (e.code === "ShiftLeft" || e.code === "ShiftRight")
+        this.shiftModifier = false;
       syncShift(e);
     });
-    on(el, "blur", () => this.keys.clear());
+    on(el, "blur", () => {
+      this.keys.clear();
+      this.shiftModifier = false;
+    });
   }
 }
 

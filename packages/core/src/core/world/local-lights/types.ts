@@ -131,7 +131,13 @@ export interface LocalLightsOptions {
   /**
    * Drawing-buffer pixels at and above which a cell keeps at most
    * `highResolutionLightsPerCell` steady lights: the per-fragment loop is
-   * paid per pixel, so large buffers trade light count for frame time.
+   * paid per pixel, so large buffers can trade light count for frame time.
+   * The default cap is every slot (`MAX_LIGHTS_PER_CELL`), so a tier keeps
+   * its own per-cell count at any resolution. A cell that drops a lamp
+   * hands it back to its flood, which is dimmer and flat, so a lower cap
+   * draws a straight line along the cell edge wherever three lamps share a
+   * cell: at 2, every retina screen saw it on "high" (16 Oct). Frame time
+   * at 2560x1440 over a three-lamp floor: 6.0 ms at 2, 6.1 ms at 4.
    */
   highResolutionPixels: number;
   highResolutionLightsPerCell: number;
@@ -189,7 +195,7 @@ export const defaultLocalLightsOptions: LocalLightsOptions = {
   fadingRowReserve: 32,
   windowFadeBlocks: 16,
   highResolutionPixels: 2_100_000,
-  highResolutionLightsPerCell: 2,
+  highResolutionLightsPerCell: 8,
   highResolutionHysteresis: 0.15,
   qualityTier: "high",
   fluidSpecularStrength: 1,
@@ -250,7 +256,10 @@ export const LIGHT_QUALITY_TIERS: Record<
   },
   high: {
     maxClusteredLights: 192,
-    maxLightsPerCell: 4,
+    // Every slot: a cell past its cap drops its weakest lamps to their
+    // flood, a straight line along the cell edge. Measured 16 Oct at
+    // 2560x1440 over 100 lamps: 2 -> 8 per cell cost 0.1-0.2 ms a frame.
+    maxLightsPerCell: 8,
     analyticRadius: 64,
     fluidSpecularStrength: 1,
     blockLightOwnership: 1,
@@ -375,6 +384,14 @@ export interface LocalLightSample {
    * analytic lights is never lit by both models.
    */
   claim: number;
+  /**
+   * Colour of the cell's lights at the point, written when present: each
+   * light's colour by inverse square distance, with no range cutoff. The
+   * flood term borrows it for the channels it has run out of
+   * (`blockLightCurveRGB`'s `fill`), mirroring the chunk shader's
+   * `llLightHue`.
+   */
+  lightHue?: [number, number, number];
   /**
    * Window-rim fade at the point (1 deep inside the grid window, 0 at and
    * beyond its edge) — the crossfade weight between the owned composition

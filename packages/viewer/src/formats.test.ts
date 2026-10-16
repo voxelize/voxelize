@@ -114,18 +114,20 @@ describe("formats", () => {
     }
   });
 
-  it("reads a far tile and its extra layers", () => {
+  it("reads a far tile, the game's rasters and its extra layers", () => {
     const size = 2;
     const bytes: number[] = [];
     const u32 = (v: number) =>
       bytes.push(v & 255, (v >> 8) & 255, (v >> 16) & 255, (v >>> 24) & 255);
     bytes.push(..."VXVF".split("").map((c) => c.charCodeAt(0)));
-    u32(1);
+    u32(2);
     u32(-16 >>> 0);
     u32(32);
     u32(4);
     u32(size);
     u32(1);
+    // Tints and canopy, no floating land.
+    u32(0b110);
     for (const list of [
       [90, 91, 92, 93],
       [2, 2, 3, 3],
@@ -133,12 +135,19 @@ describe("formats", () => {
     ]) {
       for (const v of list) bytes.push(v & 255, v >> 8);
     }
+    for (let i = 0; i < 12; i++) bytes.push(128 + i);
+    for (let i = 0; i < 16; i++) bytes.push(i);
     u32(4);
     bytes.push(7, 8, 9, 10);
     const tile = decodeFarTile(new Uint8Array(bytes).buffer);
     expect([tile.x0, tile.z0, tile.step, tile.size]).toEqual([-16, 32, 4, 2]);
     expect(Array.from(tile.heights)).toEqual([90, 91, 92, 93]);
     expect(Array.from(tile.water)).toEqual([0, 87, 0, 0]);
+    expect(tile.sky).toBeNull();
+    expect(Array.from(tile.tints ?? [])).toEqual(
+      Array.from({ length: 12 }, (_, i) => 128 + i),
+    );
+    expect(Array.from(tile.canopy ?? []).slice(-2)).toEqual([14, 15]);
     expect(Array.from(tile.layers[0])).toEqual([7, 8, 9, 10]);
   });
 });

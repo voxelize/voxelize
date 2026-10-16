@@ -81,9 +81,11 @@ import { composeClientUrl } from "./client-url";
 import { assertUncappedWindow } from "./frame-rate-guard";
 import { AgentHealth, AgentWorldHealth, evaluateAgentHealth } from "./health";
 import {
+  DEFAULT_NAVIGATION_RETRY_MS,
   PageUnavailableError,
   openPage,
   resolveNavigationRetryMs,
+  type PageUnavailable,
 } from "./page-availability";
 import {
   createAgentPerfTraceId,
@@ -359,10 +361,24 @@ function containerExtension(mimeType: string): string {
   return subtype;
 }
 
+/**
+ * A give-up on navigation timeouts alone: nothing answered with a status
+ * and nothing refused the load, so the browser is still loading the page.
+ */
+function isStillLoading(report: PageUnavailable): boolean {
+  return (
+    report.isTransient &&
+    report.status === null &&
+    /timeout/i.test(report.error ?? "")
+  );
+}
+
 export class Agent {
   private browser: Browser;
   private page: Page;
   private targetUrl = "";
+  /** The launch's page-load retry budget, kept for later navigations. */
+  private navigationRetryMs = DEFAULT_NAVIGATION_RETRY_MS;
   /** Read once: a session holds or follows hot updates for its whole life. */
   readonly clientUpdateMode: ClientUpdateMode = resolveClientUpdateMode();
   /**
@@ -407,12 +423,15 @@ export class Agent {
   );
   public readyPromise: Promise<void>;
 
+  /** The world the page is on now; see `worldName`. */
+  private currentWorld: string;
+
   private constructor(
     browser: Browser,
     page: Page,
     readyPromise: Promise<void>,
     pidFile: string,
-    public readonly worldName: string,
+    worldName: string,
     /** In-game display name (`agentName` query param the client joined with). */
     public readonly name: string,
   ) {
@@ -420,6 +439,39 @@ export class Agent {
     this.page = page;
     this.readyPromise = readyPromise;
     this.pidFile = pidFile;
+    this.currentWorld = worldName;
+  }
+
+  /**
+   * The world the page is on now: the one it launched in until the page
+   * reports another (`observeWorld`, fed by the daemon's connection watch),
+   * so a session moved to another world says so everywhere it is listed.
+   */
+  get worldName(): string {
+    return this.currentWorld;
+  }
+
+  /**
+   * The page says which world it is on. A change also moves the URL a page
+   * reset reopens to the page's own, so a reset after a world switch
+   * reloads the world the agent is in, not the one it launched in. Returns
+   * whether the world changed.
+   */
+  observeWorld(world: string | null | undefined): boolean {
+    if (!world || world === this.currentWorld) return false;
+    const from = this.currentWorld;
+    this.currentWorld = world;
+    const url = this.page.url();
+    if (/^https?:/.test(url)) this.targetUrl = url;
+    console.log(
+      `[voxelize-agent] world ${from} -> ${world}; a page reset now reopens ${this.targetUrl}`,
+    );
+    return true;
+  }
+
+  /** The address the page is showing. */
+  pageUrl(): string {
+    return this.page.url();
   }
 
   static async launch(options: AgentLaunchOptions): Promise<Agent> {
@@ -609,6 +661,7 @@ export class Agent {
       isArmVisible: process.env.AGENT_ARM_VISIBLE === "true",
     });
     agent.targetUrl = targetUrl;
+    agent.navigationRetryMs = navigationRetryMs;
 
     await agent.openClientPage(targetUrl, navigationRetryMs);
 
@@ -626,17 +679,7 @@ export class Agent {
    */
   private async openClientPage(url: string, retryMs: number): Promise<void> {
     try {
-      await openPage(
-        async () => {
-          const response = await this.page.goto(url, {
-            waitUntil: "domcontentloaded",
-          });
-          return response === null
-            ? null
-            : { status: response.status(), statusText: response.statusText() };
-        },
-        { url, retryMs },
-      );
+      await this.loadPage(url, retryMs);
     } catch (error) {
       if (error instanceof PageUnavailableError) {
         const pid = this.browserPid();
@@ -647,6 +690,26 @@ export class Agent {
       }
       throw error;
     }
+  }
+
+  /**
+   * Navigate this tab to `url` under page-availability's rule: a load that
+   * may pass on its own (a navigation timeout while a dev server compiles
+   * the route, a 5xx, a refused connection) is tried again within
+   * `retryMs`; one that cannot throws PageUnavailableError.
+   */
+  private async loadPage(url: string, retryMs: number): Promise<void> {
+    await openPage(
+      async () => {
+        const response = await this.page.goto(url, {
+          waitUntil: "domcontentloaded",
+        });
+        return response === null
+          ? null
+          : { status: response.status(), statusText: response.statusText() };
+      },
+      { url, retryMs },
+    );
   }
 
   private trackReadyPromise(ready: Promise<void>): void {
@@ -903,18 +966,76 @@ export class Agent {
     );
   }
 
-  /** Position, facing, and the document they were read from, in one call. */
+  /**
+   * Position, facing, and the join they were read from (document, bridge,
+   * world), in one call.
+   */
   async poseSample(): Promise<PoseSample> {
     return this.withPageTimeout("poseSample", this.defaultPageTimeoutMs, () =>
       this.page.evaluate(() => {
         const bridge = window.__agentRequired__();
         const facing = bridge.facing();
+        const connection = bridge.connection();
         return {
           position: bridge.position(),
           facing: { yaw: facing.yaw, pitch: facing.pitch },
           documentId: performance.timeOrigin,
+          joinSerial: connection.joinSerial ?? null,
+          joinGeneration: connection.joinGeneration ?? null,
+          // A host whose connection does not name its world still names it
+          // in the snapshot (the costlier read, so only then).
+          world: connection.world ?? bridge.snapshot().world ?? null,
         };
       }),
+    );
+  }
+
+  /**
+   * Open another page in this tab (a world switch by navigation) and wait
+   * for its bridge. The load is retried the way the launch's is (the same
+   * budget); a page the client answers with an error status, or that cannot
+   * load at all, throws PageUnavailableError without waiting out the bridge
+   * timeout. Unlike the launch's, a page that cannot load leaves the browser
+   * up: the session is still standing in some world.
+   */
+  async navigateTo(
+    url: string,
+    waitReadyTimeoutMs = resolveReadyTimeoutMs().timeoutMs,
+  ): Promise<void> {
+    try {
+      await this.loadPage(url, this.navigationRetryMs);
+    } catch (error) {
+      // Out of retries on navigation timeouts alone (a dev server still
+      // compiling the route): the last load is still going, so its bridge
+      // is waited for like any other instead of failing a page that lands.
+      if (
+        !(error instanceof PageUnavailableError) ||
+        !isStillLoading(error.report)
+      ) {
+        throw error;
+      }
+      console.log(
+        `[voxelize-agent] ${error.message}; the last load is still going, so its bridge is waited for anyway`,
+      );
+    }
+    this.targetUrl = url;
+    const ready = Agent.waitForBridge(this.page, waitReadyTimeoutMs);
+    this.trackReadyPromise(ready);
+    await ready;
+  }
+
+  /**
+   * Ask the page's host to switch worlds in place (`AgentBridge.switchWorld`),
+   * awaiting its answer. False when the bridge has no in-page switch, or the
+   * host declined or could not (a host may log why to the page console).
+   */
+  async switchWorldInPage(world: string): Promise<boolean> {
+    return this.withPageTimeout("switchWorld", this.defaultPageTimeoutMs, () =>
+      this.page.evaluate(async (name) => {
+        const bridge = window.__agent__;
+        if (!bridge || typeof bridge.switchWorld !== "function") return false;
+        return Boolean(await bridge.switchWorld(name));
+      }, world),
     );
   }
 
@@ -2384,49 +2505,50 @@ export class Agent {
       },
     );
 
+    // Subscribes to every bridge the page installs, not just its first: a
+    // host that switches worlds in place installs a new bridge in the same
+    // document. The last one is held weakly, so a bridge the host took down
+    // is never kept alive (with its whole world) by this watcher.
     await this.page.evaluateOnNewDocument(() => {
-      const waitForAgent = () =>
-        new Promise<void>((resolve) => {
-          const check = () => {
-            if (window.__agent__) {
-              resolve();
-              return;
-            }
-            setTimeout(check, 50);
-          };
-          check();
-        });
-
-      waitForAgent().then(() => {
-        const w = window as unknown as {
-          __agent__: {
-            on: (ev: string, cb: (d: unknown) => void) => void;
-          };
-          __agentPushChat__?: (m: unknown) => void;
-          __agentPushEvent__?: (name: string, payload: unknown) => void;
-        };
-
+      type EventBridge = {
+        on: (ev: string, cb: (d: unknown) => void) => void;
+      };
+      const w = window as unknown as {
+        __agent__?: EventBridge;
+        __agentPushChat__?: (m: unknown) => void;
+        __agentPushEvent__?: (name: string, payload: unknown) => void;
+      };
+      const forwardedEvents = [
+        "chunk-loaded",
+        "chunk-unloaded",
+        "entity-spawned",
+        "entity-despawned",
+        "test-result",
+        "test-start",
+        "tick",
+      ];
+      const subscribe = (bridge: EventBridge) => {
         const pushChat = w.__agentPushChat__;
         if (pushChat) {
-          w.__agent__.on("chat", (msg) => pushChat(msg));
+          bridge.on("chat", (msg) => pushChat(msg));
         }
-
-        const forwardedEvents = [
-          "chunk-loaded",
-          "chunk-unloaded",
-          "entity-spawned",
-          "entity-despawned",
-          "test-result",
-          "test-start",
-          "tick",
-        ];
         const pushEvent = w.__agentPushEvent__;
         if (pushEvent) {
           for (const name of forwardedEvents) {
-            w.__agent__.on(name, (data) => pushEvent(name, data));
+            bridge.on(name, (data) => pushEvent(name, data));
           }
         }
-      });
+      };
+      let subscribed: WeakRef<EventBridge> | null = null;
+      const check = () => {
+        const bridge = w.__agent__;
+        if (bridge && bridge !== subscribed?.deref()) {
+          subscribed = new WeakRef(bridge);
+          subscribe(bridge);
+        }
+        setTimeout(check, bridge ? 250 : 50);
+      };
+      check();
     });
   }
 

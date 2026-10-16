@@ -21,6 +21,7 @@ import {
   undersideTransmission,
   WATER_DOWNWELLING_EXTINCTION_GLSL,
   WATER_OPTICS,
+  WATER_PANE_EXTINCTION_GLSL,
   WATER_SURFACE_NORMAL_LAYERS_GLSL,
   WATER_VIEW_EXTINCTION_GLSL,
   WaterOptics,
@@ -336,6 +337,76 @@ describe("air-side vertical water faces", () => {
     expect(fluidBranch).toContain(
       "if (uCameraSubmersion >= 0.5 && sideWaterFace > 0.5 && vIsFluidPane < 0.5",
     );
+  });
+});
+
+describe("the water behind a tank window", () => {
+  it("fogs a window's run harder than a diver's view, and bounds the run", () => {
+    expect(WATER_OPTICS.paneViewExtinctionScale).toBeGreaterThan(
+      WATER_OPTICS.viewExtinctionScale,
+    );
+    expect(WATER_OPTICS.paneViewExtinctionScale).toBeLessThanOrEqual(1);
+    expect(WATER_OPTICS.paneFallbackPathBlocks).toBeGreaterThan(0);
+    expect(WATER_OPTICS.paneMaxPathBlocks).toBeGreaterThan(
+      WATER_OPTICS.paneFallbackPathBlocks,
+    );
+    // A fish a block behind the glass keeps most of its colour; the far
+    // wall of a dozen-block tank has lost most of its red.
+    const red = (blocks: number) =>
+      Math.exp(
+        -WATER_OPTICS.downwellingExtinction.red *
+          WATER_OPTICS.paneViewExtinctionScale *
+          blocks,
+      );
+    expect(red(1)).toBeGreaterThan(0.85);
+    expect(red(12)).toBeLessThan(0.5);
+  });
+
+  it("measures the run from the window to the first thing behind it, never past the water's end", () => {
+    const { fragment } = SHADER_LIGHTING_FLUID_CHUNK_SHADERS;
+    const fluidBranch = fragment.slice(
+      fragment.indexOf("if (vIsFluid > 0.5) {"),
+    );
+    expect(fluidBranch).toContain(
+      "paneEndZ = min(paneEndZ, paneDepthDistance(texture2D(uWaterExitDepth, paneUv).r));",
+    );
+    expect(fluidBranch).toContain(
+      "paneEndZ = min(paneEndZ, paneDepthDistance(texture2D(uSceneDepth, paneUv).r));",
+    );
+    expect(fluidBranch).toContain(
+      `paneTransmit = exp(-${WATER_PANE_EXTINCTION_GLSL} * paneRun);`,
+    );
+    // Only a window seen from the air measures a run.
+    expect(fluidBranch).toContain("if (airSideFace > 0.001) {");
+  });
+
+  it("shows the captured scene at the end of the run, covering what it replaces", () => {
+    const { fragment } = SHADER_LIGHTING_FLUID_CHUNK_SHADERS;
+    expect(fragment).toContain(
+      "refractedScene * paneTransmit + paneScatter * (1.0 - paneTransmit),",
+    );
+    expect(fragment).toContain(
+      "mix(max(diffuseColor.a, paneFog), 1.0, refractionLive),",
+    );
+  });
+
+  it("declares the run's inputs once in every chunk fragment", () => {
+    for (const { fragment } of [
+      SHADER_LIGHTING_CHUNK_SHADERS,
+      SHADER_LIGHTING_CROSS_CHUNK_SHADERS,
+      SHADER_LIGHTING_FLUID_CHUNK_SHADERS,
+      SHADER_LIGHTING_SEE_THROUGH_CHUNK_SHADERS,
+    ]) {
+      for (const declaration of [
+        "uniform sampler2D uSceneDepth;",
+        "uniform float uSceneDepthReady;",
+        "uniform sampler2D uWaterExitDepth;",
+        "uniform float uWaterExitReady;",
+        "uniform vec2 uPaneDepthClip;",
+      ]) {
+        expect(fragment.split(declaration)).toHaveLength(2);
+      }
+    }
   });
 });
 

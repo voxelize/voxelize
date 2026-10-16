@@ -39,7 +39,7 @@ the transparent list, as the world's sort bands it (`OrderIndependentTransparenc
 
 ### limits
 
-- layers that overlap blend by depth weight, not exactly: the nearer one dominates (a layer twice as far weighs an eighth), so glass in front of water takes more of the colour than it would composited back to front. the curve is `weights` in the options.
+- layers that overlap blend by weight, not exactly. the depth weight is gentle (flat within `nearDistance`, about half for a layer twice as far past it), so alpha decides most of a mix: a clear pane at the camera leaves the stained glass behind it coloured, and of two equally opaque panes the nearer takes a little less of the colour than it would composited back to front. a steep curve (the old cubic one) let a pale pane inches away wash out every colour behind it. the curve is `weights` in the options.
 - additive light draws after the composite: a spark behind a pane is not tinted by it.
 - what lies behind the nearest water face blends among itself by weight before the water bends it, and the refraction it reads is one composite deep.
 - an MSAA scene target, a logarithmic or reversed depth buffer, and a canvas target cannot accumulate.

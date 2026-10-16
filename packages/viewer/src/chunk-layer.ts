@@ -1,19 +1,34 @@
 /**
  * The meshed chunks around the focus for one source: which are wanted,
  * which are on their way (workers fetch and build them off the main
- * thread), and which become meshes this frame. Turning arrays into GPU
- * buffers is the only main-thread work, and it is spent under a byte budget
- * per frame so a burst of arrivals never lands as one long frame.
+ * thread), and which land this frame. Copying arrays into GPU buffers is
+ * the only main-thread work, and it is spent under a byte budget per frame
+ * so a burst of arrivals never lands as one long frame.
+ *
+ * Each material's chunks live in one section pool (section-pool.ts), so
+ * the material draws as a multi-draw per page per pass (the main view and
+ * each shadow cascade) instead of one draw per chunk: thousands of draws a
+ * frame, each with its own uniform uploads, were nearly all of the
+ * viewer's frame time.
  */
-import { SHARED_OPAQUE_MATERIAL_KEY, type CSMRenderer } from "@voxelize/core";
+import {
+  POSITION_BLOCK_BIAS,
+  SHARED_OPAQUE_MATERIAL_KEY,
+  type CSMRenderer,
+} from "@voxelize/core";
 import {
   Box3,
   BufferAttribute,
   BufferGeometry,
+  type Camera,
   Group,
-  Mesh,
+  Matrix4,
+  Quaternion,
+  Scene,
   Sphere,
   Vector3,
+  type WebGLRenderer,
+  type WebGLRenderTarget,
 } from "three";
 
 import { chunkKey, chunksAround } from "./lod";
@@ -25,16 +40,38 @@ import type {
   MeshWorkerLoad,
   MeshWorkerResult,
 } from "./mesh-worker";
+import { PoolPage, SectionPool, type SectionSlot } from "./section-pool";
+
+/** Bytes a chunk's geometry of one material copies into its pool. */
+const groupBytes = (g: MeshGroup) =>
+  g.positions.byteLength +
+  g.uvs.byteLength +
+  g.lights.byteLength +
+  g.indices.byteLength +
+  g.normals.byteLength +
+  g.lightTwist.byteLength +
+  g.biomeTint.byteLength;
 
 export type ChunkLayerOptions = {
   workerUrl: string;
   workers: number;
   batchSize: number;
   maxInFlight: number;
-  /** Bytes of vertex data turned into meshes per frame. */
+  /**
+   * Bytes copied into the pools per frame: geometry, and any pool page
+   * made, which three uploads whole.
+   */
   uploadBytesPerFrame: number;
   /** Rings kept past the wanted radius before a chunk is let go. */
   keepRings: number;
+  /**
+   * The fewest vertices a pool page holds: the shared opaque material's
+   * (nearly every vertex), and every other material's (a block with its own
+   * texture may cover a few faces in all). A page holds more where its
+   * sections are big.
+   */
+  pageVertices: number;
+  otherPageVertices: number;
 };
 
 export const DEFAULT_CHUNK_LAYER_OPTIONS: ChunkLayerOptions = {
@@ -42,17 +79,34 @@ export const DEFAULT_CHUNK_LAYER_OPTIONS: ChunkLayerOptions = {
   workers: 2,
   batchSize: 12,
   maxInFlight: 4,
-  uploadBytesPerFrame: 8 * 1024 * 1024,
+  // Keeps pace with the backend (about 200 chunks a second) at 60 fps; 8 MB
+  // let a pan's arrivals swamp the GPU under load (64 fps against 105).
+  uploadBytesPerFrame: 3 * 1024 * 1024,
   keepRings: 3,
+  pageVertices: 1 << 19,
+  otherPageVertices: 1 << 12,
 };
 
 type Resident = {
   cx: number;
   cz: number;
-  meshes: Mesh[];
+  /** The chunk's sections, by the pool they sit in. */
+  sections: { pool: SectionPool; slot: SectionSlot }[];
   summary: MeshedChunk["summary"];
   vertices: number;
 };
+
+/** One material's pool, whose group carries its draw order and visibility. */
+type MaterialPool = {
+  pool: SectionPool;
+  /** A material that never shades the ground below it (water, glass). */
+  skipsShadow: boolean;
+};
+
+const matrix = new Matrix4();
+const offset = new Vector3();
+const scale = new Vector3();
+const noRotation = new Quaternion();
 
 export type ChunkLayerStats = {
   wanted: number;
@@ -67,12 +121,18 @@ export type ChunkLayerStats = {
   vertices: number;
   lastBatchMs: number;
   peakUploadMs: number;
+  /** Materials with a pool, the pool pages (one multi-draw each a pass) and their sections. */
+  materials: number;
+  pages: number;
+  sections: number;
+  /** Vertices the pages hold, in use or not. */
+  capacity: number;
 };
 
-/** The slice of the sun's shadow maps a chunk layer reports its meshes to. */
+/** The slice of the sun's shadow maps a chunk layer reports its pools to. */
 export type ChunkShadowCasters = Pick<
   CSMRenderer,
-  "addSkipShadowObject" | "removeSkipShadowObject"
+  "addNeverCaster" | "removeNeverCaster"
 >;
 
 export class ChunkLayer {
@@ -91,12 +151,20 @@ export class ChunkLayer {
     vertices: 0,
     lastBatchMs: 0,
     peakUploadMs: 0,
+    materials: 0,
+    pages: 0,
+    sections: 0,
+    capacity: 0,
   };
 
   /** Bumps whenever the set of meshed chunks changes. */
   generation = 0;
 
   private resident = new Map<string, Resident>();
+
+  private pools = new Map<string, MaterialPool>();
+
+  private readonly positionUnits: number;
 
   private pending = new Set<string>();
 
@@ -129,7 +197,9 @@ export class ChunkLayer {
     this.options = { ...DEFAULT_CHUNK_LAYER_OPTIONS, ...options };
     this.group.name = "viewer-chunks";
     this.group.matrixAutoUpdate = false;
-    const init: MeshWorkerInit = { type: "init", ...materials.keyTables() };
+    const tables = materials.keyTables();
+    this.positionUnits = tables.positionUnits;
+    const init: MeshWorkerInit = { type: "init", ...tables };
     for (let i = 0; i < this.options.workers; i++) {
       const worker = new Worker(this.options.workerUrl);
       worker.onmessage = (event: MessageEvent<MeshWorkerResult>) =>
@@ -140,19 +210,108 @@ export class ChunkLayer {
   }
 
   /**
-   * Report every mesh, now and as they stream, to the sun's shadow maps. A
-   * depth pass draws every visible mesh whatever its `castShadow`, so a mesh
-   * whose material skips shadows (water, glass) has to be on their list or
-   * it shades the ground beneath it.
+   * Keep the pool of every material that skips shadows (water, glass) out
+   * of the sun's shadow maps, now and as they are made. A depth pass draws
+   * every visible mesh whatever its `castShadow`, so without this they
+   * would shade the ground beneath them.
    */
   setShadowCasters(casters: ChunkShadowCasters | null) {
-    for (const r of this.resident.values()) {
-      for (const mesh of r.meshes) {
-        this.shadowCasters?.removeSkipShadowObject(mesh);
-        casters?.addSkipShadowObject(mesh);
-      }
+    for (const { pool, skipsShadow } of this.pools.values()) {
+      if (!skipsShadow) continue;
+      this.shadowCasters?.removeNeverCaster(pool.group);
+      casters?.addNeverCaster(pool.group);
     }
     this.shadowCasters = casters;
+  }
+
+  /** The pools' pages and slots, summed over materials. */
+  get poolStats() {
+    const out = {
+      materials: this.pools.size,
+      pages: 0,
+      slots: 0,
+      freeSlots: 0,
+      capacity: 0,
+      reserved: 0,
+    };
+    for (const { pool } of this.pools.values()) {
+      const s = pool.stats;
+      out.pages += s.pages;
+      out.slots += s.slots;
+      out.freeSlots += s.freeSlots;
+      out.capacity += s.capacity;
+      out.reserved += s.reserved;
+    }
+    return out;
+  }
+
+  /**
+   * Links every chunk material's batched program for drawing into `target`
+   * under `scene`'s fog and lights, before the first chunk lands: linked on
+   * first use instead, each held a frame of a pan for 10-55 ms. Resolves
+   * once the programs are ready (in parallel where the browser can).
+   */
+  async warm(
+    renderer: WebGLRenderer,
+    camera: Camera,
+    target: WebGLRenderTarget,
+    scene: Scene,
+  ) {
+    const holder = new Scene();
+    const pages: PoolPage[] = [];
+    for (const material of new Set(
+      this.materials.chunkRenderer.materials.values(),
+    )) {
+      const quantized =
+        material.defines?.POSITION_UNITS_PER_BLOCK !== undefined;
+      const geometry = new BufferGeometry();
+      geometry.setAttribute(
+        "position",
+        new BufferAttribute(
+          quantized ? new Uint16Array(9) : new Float32Array(9),
+          3,
+        ),
+      );
+      geometry.setAttribute(
+        "uv",
+        new BufferAttribute(
+          quantized ? new Uint16Array(6) : new Float32Array(6),
+          2,
+          quantized,
+        ),
+      );
+      geometry.setAttribute("light", new BufferAttribute(new Int32Array(3), 1));
+      geometry.setAttribute(
+        "lightTwist",
+        new BufferAttribute(new Uint8Array(12), 4),
+      );
+      geometry.setAttribute(
+        "biomeTint",
+        new BufferAttribute(new Uint8Array(9), 3, true),
+      );
+      geometry.setAttribute(
+        "normal",
+        new BufferAttribute(
+          quantized ? new Int8Array(9) : new Float32Array(9),
+          3,
+          quantized,
+        ),
+      );
+      geometry.setIndex(new BufferAttribute(new Uint32Array([0, 1, 2]), 1));
+      const page = new PoolPage(1, 3, 3, material);
+      page.addInstance(page.addGeometry(geometry));
+      holder.add(page);
+      pages.push(page);
+    }
+    const previous = renderer.getRenderTarget();
+    renderer.setRenderTarget(target);
+    const ready = renderer.compileAsync(holder, camera, scene);
+    renderer.setRenderTarget(previous);
+    try {
+      await ready;
+    } finally {
+      for (const page of pages) page.dispose();
+    }
   }
 
   /** Sets what is wanted around (x, z) and spends this frame's budget. */
@@ -168,6 +327,11 @@ export class ChunkLayer {
     this.stats.resident = this.resident.size;
     this.stats.pending = this.pending.size;
     this.stats.queued = this.queue.length;
+    const pools = this.poolStats;
+    this.stats.materials = pools.materials;
+    this.stats.pages = pools.pages;
+    this.stats.sections = pools.slots;
+    this.stats.capacity = pools.capacity;
   }
 
   /** Every wanted chunk is meshed (or known empty) and nothing is in flight. */
@@ -177,16 +341,19 @@ export class ChunkLayer {
   }
 
   setVisibility(visibility: { water: boolean; plants: boolean }) {
-    this.visibility = visibility;
-    for (const r of this.resident.values()) {
-      for (const mesh of r.meshes)
-        mesh.visible = this.isVisible(mesh.userData.material);
-    }
+    if (
+      visibility.water === this.visibility.water &&
+      visibility.plants === this.visibility.plants
+    )
+      return;
+    this.visibility = { ...visibility };
+    for (const [material, { pool }] of this.pools)
+      pool.group.visible = this.isVisible(material);
   }
 
   forEachMeshed(callback: (cx: number, cz: number) => void) {
     for (const r of this.resident.values()) {
-      if (r.meshes.length) callback(r.cx, r.cz);
+      if (r.sections.length) callback(r.cx, r.cz);
     }
   }
 
@@ -222,7 +389,12 @@ export class ChunkLayer {
 
   dispose() {
     for (const worker of this.workers) worker.terminate();
-    for (const r of this.resident.values()) this.release(r);
+    for (const { pool, skipsShadow } of this.pools.values()) {
+      if (skipsShadow) this.shadowCasters?.removeNeverCaster(pool.group);
+      pool.dispose();
+      this.group.remove(pool.group);
+    }
+    this.pools.clear();
     this.resident.clear();
   }
 
@@ -288,12 +460,16 @@ export class ChunkLayer {
       if (!this.wantedKeys.has(key)) continue;
       const old = this.resident.get(key);
       if (old) this.release(old);
-      const meshes = chunk.groups.map((g) => this.mesh(chunk, g));
-      for (const g of chunk.groups) bytes += g.positions.byteLength * 2;
+      const sections = chunk.groups.map((g) => {
+        bytes += groupBytes(g);
+        return this.place(chunk, g);
+      });
+      // A page made this frame is uploaded whole: it spends the budget too.
+      for (const { pool } of this.pools.values()) bytes += pool.takeMadeBytes();
       this.resident.set(key, {
         cx: chunk.cx,
         cz: chunk.cz,
-        meshes,
+        sections,
         summary: chunk.summary,
         vertices: chunk.vertices,
       });
@@ -307,66 +483,88 @@ export class ChunkLayer {
     );
   }
 
-  private mesh(chunk: MeshedChunk, g: MeshGroup): Mesh {
+  /** Copies one chunk's geometry of a material into its material's pool. */
+  private place(chunk: MeshedChunk, g: MeshGroup) {
     const geometry = new BufferGeometry();
     geometry.setAttribute("position", new BufferAttribute(g.positions, 3));
-    geometry.setAttribute("uv", new BufferAttribute(g.uvs, 2));
+    geometry.setAttribute("uv", new BufferAttribute(g.uvs, 2, g.quantized));
     geometry.setAttribute("light", new BufferAttribute(g.lights, 1));
     geometry.setAttribute("lightTwist", new BufferAttribute(g.lightTwist, 4));
     geometry.setAttribute(
       "biomeTint",
       new BufferAttribute(g.biomeTint, 3, true),
     );
-    geometry.setAttribute("normal", new BufferAttribute(g.normals, 3));
+    geometry.setAttribute(
+      "normal",
+      new BufferAttribute(g.normals, 3, g.quantized),
+    );
     geometry.setIndex(new BufferAttribute(g.indices, 1));
-    let minY = Infinity;
-    let maxY = -Infinity;
-    for (let i = 1; i < g.positions.length; i += 3) {
-      const y = g.positions[i];
-      if (y < minY) minY = y;
-      if (y > maxY) maxY = y;
+    // The pool culls each section by its geometry's bounds, in the units
+    // its positions are stored in; the section's matrix maps them to the
+    // world (and dequantizes, as the game's arenas do).
+    const size = chunk.chunkSize;
+    const box = new Box3(
+      new Vector3(-1, g.minY - 1, -1),
+      new Vector3(size + 1, g.maxY + 1, size + 1),
+    );
+    const x = chunk.cx * size;
+    const z = chunk.cz * size;
+    if (g.quantized) {
+      const units = this.positionUnits;
+      box.min.addScalar(POSITION_BLOCK_BIAS).multiplyScalar(units);
+      box.max.addScalar(POSITION_BLOCK_BIAS).multiplyScalar(units);
+      matrix.compose(
+        offset.set(
+          x - POSITION_BLOCK_BIAS,
+          -POSITION_BLOCK_BIAS,
+          z - POSITION_BLOCK_BIAS,
+        ),
+        noRotation,
+        scale.setScalar(1 / units),
+      );
+    } else {
+      matrix.makeTranslation(x, 0, z);
     }
-    geometry.boundingBox = new Box3(
-      new Vector3(-1, minY - 1, -1),
-      new Vector3(chunk.chunkSize + 1, maxY + 1, chunk.chunkSize + 1),
-    );
-    geometry.boundingSphere = geometry.boundingBox.getBoundingSphere(
-      new Sphere(),
-    );
+    geometry.boundingBox = box;
+    geometry.boundingSphere = box.getBoundingSphere(new Sphere());
+    const { pool } = this.poolFor(g.material);
+    return { pool, slot: pool.add(geometry, matrix) };
+  }
+
+  private poolFor(key: string): MaterialPool {
+    const existing = this.pools.get(key);
+    if (existing) return existing;
     const material =
-      this.materials.materialFor(g.material) ??
+      this.materials.materialFor(key) ??
       this.materials.materialFor(SHARED_OPAQUE_MATERIAL_KEY);
     if (!material) {
       throw new Error(
-        `no material ${g.material} and no shared opaque material to fall back on`,
+        `no material ${key} and no shared opaque material to fall back on`,
       );
     }
-    const mesh = new Mesh(geometry, material);
-    mesh.userData.material = g.material;
-    mesh.position.set(
-      chunk.cx * chunk.chunkSize,
-      0,
-      chunk.cz * chunk.chunkSize,
+    const pool = new SectionPool(
+      material,
+      key === SHARED_OPAQUE_MATERIAL_KEY
+        ? this.options.pageVertices
+        : this.options.otherPageVertices,
+      material.transparent,
     );
-    mesh.matrixAutoUpdate = false;
-    mesh.updateMatrix();
-    mesh.castShadow = !material.userData.skipShadow;
-    mesh.receiveShadow = true;
-    if (material.transparent && !material.depthWrite) mesh.renderOrder = 2;
-    else if (material.transparent) mesh.renderOrder = 1;
-    mesh.visible = this.isVisible(g.material);
-    this.group.add(mesh);
-    mesh.updateMatrixWorld();
-    this.shadowCasters?.addSkipShadowObject(mesh);
-    return mesh;
+    pool.group.name = `viewer-chunks-${key}`;
+    // A group's render order sorts everything under it, as a mesh's did.
+    if (material.transparent && !material.depthWrite)
+      pool.group.renderOrder = 2;
+    else if (material.transparent) pool.group.renderOrder = 1;
+    pool.group.visible = this.isVisible(key);
+    this.group.add(pool.group);
+    const skipsShadow = material.userData.skipShadow === true;
+    if (skipsShadow) this.shadowCasters?.addNeverCaster(pool.group);
+    const entry: MaterialPool = { pool, skipsShadow };
+    this.pools.set(key, entry);
+    return entry;
   }
 
   private release(r: Resident) {
-    for (const mesh of r.meshes) {
-      this.shadowCasters?.removeSkipShadowObject(mesh);
-      this.group.remove(mesh);
-      mesh.geometry.dispose();
-    }
+    for (const { pool, slot } of r.sections) pool.remove(slot);
     this.stats.vertices -= r.vertices;
   }
 

@@ -4,11 +4,18 @@
  * render with (every level into one block-space geometry), and derive the
  * attributes the chunk shader reads beside position, uv and light — flat
  * normals, the quad light twist and the biome tint — with the engine's own
- * helpers. The main thread only wraps the arrays in buffers.
+ * helpers. A material that takes quantized geometry gets the engine's
+ * compact vertex (u16 positions and uvs, i8 normals), about half the bytes
+ * to upload. The main thread only copies the arrays into its buffers.
  */
 import { biomeTintAttribute } from "../../core/src/core/world/biome-tint";
 import { computeNormalsFromBuffers } from "../../core/src/core/world/chunk-normals";
 import { computeQuadLightTwist } from "../../core/src/core/world/quad-light";
+import {
+  quantizeNormals,
+  quantizePositions,
+  quantizeUvs,
+} from "../../core/src/core/world/vertex-quantization";
 
 import { decodeBundle, decodeChunkMesh, type MeshGeometry } from "./formats";
 
@@ -18,6 +25,9 @@ export type MeshWorkerInit = {
   blockKeys: Record<number, string>;
   /** Material key of an own-texture face, keyed `${id}:${face}`. */
   faceKeys: Record<string, string>;
+  /** Materials that take quantized geometry, and its scale. */
+  quantized: string[];
+  positionUnits: number;
 };
 
 export type MeshWorkerLoad = {
@@ -29,13 +39,18 @@ export type MeshWorkerLoad = {
 
 export type MeshGroup = {
   material: string;
-  positions: Float32Array;
-  uvs: Float32Array;
+  /** Positions in fixed point (`positionUnits` per block, biased), uvs and normals normalized. */
+  quantized: boolean;
+  positions: Float32Array | Uint16Array;
+  uvs: Float32Array | Uint16Array;
   lights: Int32Array;
   indices: Uint32Array;
-  normals: Float32Array;
+  normals: Float32Array | Int8Array;
   lightTwist: Uint8Array;
   biomeTint: Uint8Array;
+  /** Lowest and highest block-space y, for culling. */
+  minY: number;
+  maxY: number;
 };
 
 export type MeshedChunk = {
@@ -67,6 +82,8 @@ export type MeshWorkerResult =
 
 let blockKeys: Record<number, string> = {};
 let faceKeys: Record<string, string> = {};
+let quantized = new Set<string>();
+let positionUnits = 1;
 
 function materialOf(geometry: MeshGeometry): string {
   if (geometry.faceName) {
@@ -119,15 +136,28 @@ function merge(
     tints ?? undefined,
     chunkSize,
   ).array as Uint8Array;
+  let minY = Infinity;
+  let maxY = -Infinity;
+  for (let k = 1; k < positions.length; k += 3) {
+    const y = positions[k];
+    if (y < minY) minY = y;
+    if (y > maxY) maxY = y;
+  }
+  const isQuantized = quantized.has(material);
   return {
     material,
-    positions,
-    uvs,
+    quantized: isQuantized,
+    positions: isQuantized
+      ? quantizePositions(positions, positionUnits)
+      : positions,
+    uvs: isQuantized ? quantizeUvs(uvs) : uvs,
     lights,
     indices,
-    normals,
+    normals: isQuantized ? quantizeNormals(normals) : normals,
     lightTwist,
     biomeTint,
+    minY,
+    maxY,
   };
 }
 
@@ -254,6 +284,8 @@ scope.onmessage = (event: MessageEvent<MeshWorkerInit | MeshWorkerLoad>) => {
   if (message.type === "init") {
     blockKeys = message.blockKeys;
     faceKeys = message.faceKeys;
+    quantized = new Set(message.quantized);
+    positionUnits = message.positionUnits;
     return;
   }
   load(message).then(

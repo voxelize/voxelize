@@ -178,6 +178,15 @@ export class ChunkRenderer {
     waterDepthState: { value: number };
     waterDepthViewport: { value: Vector2 };
     waterDepthClip: { value: Vector2 };
+    /**
+     * Behind each pixel, the nearest place the water near the panes ends
+     * (`WaterDepthPass`), and the frame's own depth as the water starts to
+     * draw: the two ends of the run of water a tank window shows.
+     */
+    waterExitDepth: { value: Texture | null };
+    waterExitReady: { value: number };
+    sceneDepth: { value: Texture | null };
+    sceneDepthReady: { value: number };
     waterRefractionStrength: { value: number };
     waterNormalMap: { value: DataTexture };
     cameraSubmersion: { value: number };
@@ -243,6 +252,10 @@ export class ChunkRenderer {
     waterDepthState: { value: 0 },
     waterDepthViewport: { value: new Vector2(1, 1) },
     waterDepthClip: { value: new Vector2(0.1, 1000) },
+    waterExitDepth: { value: null },
+    waterExitReady: { value: 0 },
+    sceneDepth: { value: null },
+    sceneDepthReady: { value: 0 },
     waterRefractionStrength: { value: 0.08 },
     // Baked once per world, at construction: measured 20-30ms of CPU, in
     // the load phase, shared by every fluid material.

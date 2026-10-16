@@ -41,11 +41,12 @@ pub use backend::{
 pub use capture::{capture_world, CapturedWorld};
 pub use format::{
     encode_chunk_mesh, encode_far_tile, summarize, BlockClasses, ColumnTop, LevelGeometry,
-    CHUNK_MESH_MAGIC, FAR_TILE_MAGIC, FORMAT_VERSION,
+    CHUNK_MESH_MAGIC, FAR_TILE_MAGIC, FAR_TILE_VERSION, FORMAT_VERSION,
 };
 pub use pipeline::PipelineSource;
 pub use saved::SavedChunks;
 pub use source::{
-    Annotation, FarMaterials, FarTile, FarTileSpec, LayerInfo, LayerType, SourceChunk,
+    Annotation, FarClassTerrain, FarMaterials, FarTile, FarTileSpec, LayerInfo, LayerType,
+    SourceChunk,
     SourceDescription, ViewerSource,
 };

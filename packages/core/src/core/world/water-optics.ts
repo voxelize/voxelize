@@ -587,6 +587,31 @@ export const WATER_OPTICS = Object.freeze({
   airSideFaceGlossScale: 0.0,
   airSideFaceTintMix: 0.85,
 
+  /**
+   * What a tank window shows is the water behind it. The eye's ray crosses
+   * the pane and runs through the tank to the first thing in it — a fish,
+   * the floor, the back wall — or out of the water through the surface or
+   * the far wall; along that run the water absorbs and in-scatters as the
+   * fog does around a diver. Without it a tank of any size read as a dry
+   * room with fish hanging in the air: the pane was a thin tinted sheet and
+   * the floor through it looked like the floor through a door.
+   *
+   * Extinction per block along that run, per channel, relative to the
+   * downwelling extinction. Stronger than the diver's view fog
+   * (`viewExtinctionScale`), whose clarity is tuned for swimming through
+   * open water: from outside, a tank has to read as water at a glance,
+   * with the far wall gone blue and a fish near the glass still crisp.
+   */
+  paneViewExtinctionScale: 0.7,
+  /**
+   * The run assumed where the frame has nothing to measure it with (no
+   * glass in view to draw the water's exit for — a Barrier tank — or no
+   * scene depth on this target): a fixed few blocks of water.
+   */
+  paneFallbackPathBlocks: 3,
+  /** Longest run a pane fogs over; past it the water is all scatter. */
+  paneMaxPathBlocks: 48,
+
   /** Max blocks scanned upward when measuring a water column's surface. */
   maxSurfaceScanBlocks: 96,
 
@@ -728,6 +753,13 @@ export const WATER_VIEW_EXTINCTION: WaterChannelCoefficients =
     WATER_OPTICS.viewExtinctionScale,
   );
 
+/** Extinction along the run of water seen through a tank window. */
+export const WATER_PANE_EXTINCTION: WaterChannelCoefficients =
+  scaleCoefficients(
+    WATER_OPTICS.downwellingExtinction,
+    WATER_OPTICS.paneViewExtinctionScale,
+  );
+
 function coefficientsToGlslVec3(
   coefficients: WaterChannelCoefficients,
 ): string {
@@ -748,6 +780,10 @@ export const WATER_DOWNWELLING_EXTINCTION_GLSL = coefficientsToGlslVec3(
 
 export const WATER_VIEW_EXTINCTION_GLSL = coefficientsToGlslVec3(
   WATER_VIEW_EXTINCTION,
+);
+
+export const WATER_PANE_EXTINCTION_GLSL = coefficientsToGlslVec3(
+  WATER_PANE_EXTINCTION,
 );
 
 export const WATER_SURFACE_SCATTER_GLSL = colorToGlslVec3(

@@ -49,6 +49,7 @@ import {
   WATER_DOWNWELLING_EXTINCTION_GLSL,
   WATER_CAUSTIC_WEB_GLSL,
   WATER_OPTICS,
+  WATER_PANE_EXTINCTION_GLSL,
   WATER_SURFACE_NORMAL_LAYERS_GLSL,
   WATER_SURFACE_SCATTER_GLSL,
 } from "./water-optics";
@@ -94,6 +95,7 @@ const LOCAL_LIGHTS_OWNERSHIP_FRAGMENT = `
 // below is an IEEE identity at remainder 1 and clusterLight 0. Sunlight is
 // composed separately and never touched by either model.
 float llFloodRemainder = 1.0;
+vec3 llLightHue = vec3(0.0);
 // The stable layer sizes each cell's list on the CPU from the real drawing
 // buffer (every packed slot is meant to be read). The legacy frame gates here
 // on uSceneTextureSize, which only water frames write.
@@ -109,8 +111,17 @@ vec3 clusterLight = localLightSurface(
       ? ${CHUNK_RENDER_QUALITY.highResolutionLocalLightsPerCell}
       : ${MAX_LIGHTS_PER_CELL}),
   1,
-  llFloodRemainder
+  llFloodRemainder,
+  llLightHue
 );
+// Where the cell holds analytic lights, the flood keeps their hue in the
+// channels it has run out of, so a lamp's pool ends amber instead of in a
+// red rim (blockLightCurveFilled). Elsewhere the curve computed above
+// stands unchanged.
+if (max(max(llLightHue.r, llLightHue.g), llLightHue.b) > 0.0) {
+  smoothTorch = blockLightCurveFilled(cpuTorchLight, llLightHue)
+    * mix(1.0, uBlockLightCeilingWeight, max(-vWorldNormal.y, 0.0));
+}
 
 // Daylight washes analytic block light. The legacy flood term is screened
 // against the sun and vanishes into a fully sunlit fragment; the cluster
@@ -684,6 +695,21 @@ uniform sampler2D uSceneColor;
 uniform vec2 uSceneTextureSize;
 uniform float uWaterRefractionReady;
 uniform float uWaterRefractionStrength;
+// The run of water behind a tank window (WATER_OPTICS.paneViewExtinctionScale):
+// the frame's depth as the water starts to draw, the nearest place behind
+// each pixel where the water ends (WaterDepthPass), whether this frame has
+// each, and the clip planes both were drawn with.
+uniform sampler2D uSceneDepth;
+uniform float uSceneDepthReady;
+uniform sampler2D uWaterExitDepth;
+uniform float uWaterExitReady;
+uniform vec2 uPaneDepthClip;
+
+float paneDepthDistance(float depth) {
+  float near = uPaneDepthClip.x;
+  float far = uPaneDepthClip.y;
+  return near * far / (far - depth * (far - near));
+}
 
 uniform vec3 uSkyTopColor;
 uniform vec3 uSkyMiddleColor;
@@ -1201,6 +1227,36 @@ if (vIsFluid > 0.5) {
 
   float distToCamera = length(cameraPosition - wPos);
 
+  // The water a tank window looks into: from this pane to the first thing
+  // behind it in the frame (a fish, the floor, the back wall), but never
+  // past where the water ends — up through the surface or out through the
+  // far wall. Both are depths along the view axis; the ray through this
+  // pixel is longer than its view depth by the same factor everywhere on
+  // it. Without either measurement the run is a fixed few blocks.
+  vec3 paneTransmit = vec3(1.0);
+  if (airSideFace > 0.001) {
+    float paneRun = ${WATER_OPTICS.paneFallbackPathBlocks.toFixed(4)};
+    if (uWaterExitReady > 0.5 || uSceneDepthReady > 0.5) {
+      vec2 paneUv = gl_FragCoord.xy / max(uSceneTextureSize, vec2(1.0));
+      float paneZ = paneDepthDistance(gl_FragCoord.z);
+      float paneEndZ = uPaneDepthClip.y;
+      if (uWaterExitReady > 0.5) {
+        paneEndZ = min(paneEndZ, paneDepthDistance(texture2D(uWaterExitDepth, paneUv).r));
+      }
+      if (uSceneDepthReady > 0.5) {
+        paneEndZ = min(paneEndZ, paneDepthDistance(texture2D(uSceneDepth, paneUv).r));
+      }
+      paneRun = max(paneEndZ - paneZ, 0.0) * distToCamera / max(paneZ, 1e-3);
+      // Without the frame's depth nothing ends the run at the floor or at a
+      // fish, only where the water does: keep it to the fixed few blocks.
+      if (uSceneDepthReady < 0.5) {
+        paneRun = min(paneRun, ${WATER_OPTICS.paneFallbackPathBlocks.toFixed(4)});
+      }
+    }
+    paneRun = min(paneRun, ${WATER_OPTICS.paneMaxPathBlocks.toFixed(4)});
+    paneTransmit = exp(-${WATER_PANE_EXTINCTION_GLSL} * paneRun);
+  }
+
   // Distance bands from WATER_OPTICS for the near-water cues (crests,
   // caustics, flow, the tight glint) and the far handover of grazing
   // reflectivity. The ripple normal itself needs no band: the slope map's
@@ -1459,6 +1515,15 @@ ${LOCAL_LIGHTS_SPECULAR_FRAGMENT}
     uWaterTint,
     airSideWeight * ${WATER_OPTICS.airSideFaceTintMix.toFixed(4)}
   );
+  // What the run behind a window scatters toward the eye: the diver's fog
+  // colour, lit the way the tint is, so a tank in a dark hall does not glow
+  // with daylight.
+  vec3 paneScatter = uUnderwaterAmbient * mix(
+    max(clamp(totalLight, 0.0, 1.0), vec3(${WATER_OPTICS.enclosedTintFloor.toFixed(4)})),
+    vec3(1.0),
+    skyOpen
+  );
+  float paneFog = 1.0 - dot(paneTransmit, vec3(1.0 / 3.0));
 
   float streakStrength = sideWaterFace * uWaterStreakStrength * airSideGloss;
   if (streakStrength > 0.001) {
@@ -1555,6 +1620,16 @@ ${LOCAL_LIGHTS_SPECULAR_FRAGMENT}
     ${WATER_OPTICS.airSideFaceAlphaScale.toFixed(4)},
     airSideWeight
   );
+  // A window shows the water behind it. With the capture live it draws
+  // that view itself (the refraction branch below fogs the captured scene
+  // over the run), so it covers what it replaces; where the run is short
+  // the fogged scene is the scene, and the window stays clear. Without the
+  // capture the run's fog is a layer over the scene.
+  diffuseColor.a = mix(
+    diffuseColor.a,
+    mix(max(diffuseColor.a, paneFog), 1.0, refractionLive),
+    airSideFace
+  );
   // Seen from inside, a side face that is not a pane is either the way out
   // of the water (which transmits nearly everything near normal incidence)
   // or the wall the mesher draws along a chunk whose neighbour is not
@@ -1594,12 +1669,20 @@ ${LOCAL_LIGHTS_SPECULAR_FRAGMENT}
     // The sample is the floor lit through the column: absorbed on the way
     // down and back, wet, and lensed by the surface above it.
     vec3 refractedScene = texture2D(uSceneColor, refractedUv).rgb * floorShade;
+    // Through a window, the scene lies at the end of its run of water.
+    refractedScene = mix(
+      refractedScene,
+      refractedScene * paneTransmit + paneScatter * (1.0 - paneTransmit),
+      airSideFace
+    );
     float tintAmount = 0.12 + fresnel * 0.28 + surfaceRipple * 0.08 + thicknessScatter;
     waterColor = mix(refractedScene, waterColor, tintAmount);
   } else {
     // No floor to shade: the caustics land on the surface layer instead,
     // where they still read as light moving through water.
     waterColor *= 1.0 + ${WATER_OPTICS.causticStrength.toFixed(4)} * 0.5 * caustic;
+    // A window's layer is the run's own scatter.
+    waterColor = mix(waterColor, paneScatter, airSideFace * smoothstep(0.0, 0.3, paneFog));
   }
 
   // The four-block floor tint cap is for shallow refraction, not ocean

@@ -47,38 +47,47 @@ export class WebRTCConnection {
       this.handleMessage(event.data as ArrayBuffer);
     };
 
-    const offer = await this.pc.createOffer();
-    await this.pc.setLocalDescription(offer);
+    // A handshake that fails (the offer refused or unreachable) must not
+    // leave the peer connection open: an open one keeps its channel and the
+    // channel's handlers alive, and through `onMessage` the whole network
+    // and world that made it, for the rest of the page.
+    try {
+      const offer = await this.pc.createOffer();
+      await this.pc.setLocalDescription(offer);
 
-    const headers: Record<string, string> = {
-      "Content-Type": "application/json",
-    };
+      const headers: Record<string, string> = {
+        "Content-Type": "application/json",
+      };
 
-    const baseUrl = new URL(serverUrl);
-    baseUrl.protocol = baseUrl.protocol.replace(/^ws/, "http");
+      const baseUrl = new URL(serverUrl);
+      baseUrl.protocol = baseUrl.protocol.replace(/^ws/, "http");
 
-    const offerUrl = new URL("/rtc/offer", baseUrl);
+      const offerUrl = new URL("/rtc/offer", baseUrl);
 
-    const response = await fetch(offerUrl.toString(), {
-      method: "POST",
-      headers,
-      body: JSON.stringify({
-        sdp: offer.sdp,
-        client_id: clientId,
-        ...(ticket ? { ticket } : {}),
-      }),
-    });
+      const response = await fetch(offerUrl.toString(), {
+        method: "POST",
+        headers,
+        body: JSON.stringify({
+          sdp: offer.sdp,
+          client_id: clientId,
+          ...(ticket ? { ticket } : {}),
+        }),
+      });
 
-    if (!response.ok) {
-      throw new Error(`RTC offer failed: ${response.status}`);
+      if (!response.ok) {
+        throw new Error(`RTC offer failed: ${response.status}`);
+      }
+
+      const { sdp: answerSdp } = await response.json();
+
+      await this.pc.setRemoteDescription({
+        type: "answer",
+        sdp: answerSdp,
+      });
+    } catch (error) {
+      this.close();
+      throw error;
     }
-
-    const { sdp: answerSdp } = await response.json();
-
-    await this.pc.setRemoteDescription({
-      type: "answer",
-      sdp: answerSdp,
-    });
   }
 
   close(): void {

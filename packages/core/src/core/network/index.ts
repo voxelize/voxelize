@@ -17,8 +17,20 @@ import {
 } from "../perf";
 
 import { NetIntercept } from "./intercept";
+import {
+  CachedRegistry,
+  createRegistryBackend,
+  INIT_REGISTRY_CACHED_KEY,
+  INIT_REGISTRY_DIGEST_KEY,
+  isRegistryEntry,
+  ParsedRegistry,
+  readRegistryInWorker,
+  RegistryStore,
+  resolveInitRegistry,
+  withDigestHint,
+} from "./registry-cache";
 import { WebRTCConnection } from "./webrtc";
-import { finishRawJson } from "./workers/decode-utils";
+import { decodeMessage, finishRawJson } from "./workers/decode-utils";
 import DecodeWorker from "./workers/decode-worker.ts?worker&inline";
 
 export * from "./intercept";
@@ -105,6 +117,25 @@ export type NetworkOptions = {
    * in silence.
    */
   maxPendingCommandPackets: number;
+
+  /**
+   * Keep the server's block registry (the bulk of every INIT) in Cache
+   * Storage or IndexedDB between joins and page loads. A JOIN then names the
+   * registry kept and the server leaves it out of the INIT while it still
+   * matches; see `./registry-cache`. Servers that do not know the handshake
+   * ignore it, and a client without a kept registry gets the full INIT.
+   */
+  cacheRegistry: boolean;
+
+  /**
+   * Milliseconds an INIT that left the registry out may wait for the kept
+   * copy to finish loading from storage. The JOIN itself never waits: it
+   * names the registry storage says it keeps, and the read (started when the
+   * network is created, or with a later JOIN) has normally landed by the
+   * time the INIT does. Past this the client joins again, on a fresh socket
+   * and without a digest, and gets the full registry.
+   */
+  registryCacheWaitMs: number;
 };
 
 const defaultOptions: NetworkOptions = {
@@ -118,7 +149,13 @@ const defaultOptions: NetworkOptions = {
   maxPacketsPerDecodeJob: 64,
   decodeJobTimeoutMs: 10000,
   maxDecodeAttempts: 3,
+  cacheRegistry: true,
+  registryCacheWaitMs: 3000,
 };
+
+/** A registry read the priority worker has not answered by then (it died or
+ * hung) counts as nothing kept. */
+const REGISTRY_WORKER_READ_TIMEOUT_MS = 10000;
 
 /** Packet drops are reported at most this often, with the count since the
  * last report: a stalled page can overflow the queue on every packet. */
@@ -292,6 +329,53 @@ export class Network {
 
   private useWebRTC = false;
 
+  /**
+   * The registry text in hand for the INIT a JOIN is waiting on (read back
+   * from storage, or cut from a full INIT). Dropped once that INIT is handled:
+   * storage keeps the text, and holding megabytes for the page's lifetime
+   * would only serve a rejoin, which reads it back in milliseconds.
+   */
+  private registry: CachedRegistry | null = null;
+
+  private registryStore: RegistryStore | null = null;
+
+  /** The read of the kept registry from storage, while it is in flight. */
+  private registryRead: Promise<void> | null = null;
+
+  /** The digest of the registry storage keeps, as far as this page knows
+   * (its synchronous hint at first, then what this page wrote or read). */
+  private keptRegistryDigest: string | null = null;
+
+  /** Bumped by every write or clear of the kept registry this page issues;
+   * a read begun before one no longer says what storage holds. */
+  private registryStoreChanges = 0;
+
+  /** Bumped by every JOIN sent; an INIT held for the registry read is
+   * dropped if another JOIN went out meanwhile. */
+  private joinAttemptCount = 0;
+
+  /** An INIT that left the registry out, held while the kept copy loads. */
+  private initAwaitingRegistry: MessageProtocol | null = null;
+
+  /** Set when an INIT left out a registry this client did not hold and the
+   * JOIN was sent again without a digest; a second such INIT fails the join. */
+  private hasRefetchedRegistry = false;
+
+  /** The held registry parsed ahead of its INIT ({@link parseHeldRegistry}),
+   * kept for that one INIT: whatever was built from it early is what the
+   * INIT then carries. */
+  private parsedRegistry: ParsedRegistry | null = null;
+
+  /** The digest the JOIN in flight named, if any. */
+  private joinNamedDigest: string | null = null;
+
+  /** Whether the registry in hand was offered ({@link offerRegistry}) rather
+   * than read back from storage. */
+  private isRegistryOffered = false;
+
+  /** Woken whenever a registry comes into hand (storage read or offer). */
+  private registryHeldWaiters = new Set<() => void>();
+
   constructor(options: Partial<NetworkOptions> = {}) {
     this.options = {
       ...defaultOptions,
@@ -309,6 +393,7 @@ export class Network {
     if (typeof window !== "undefined") {
       this.ensureDecodeWorkers();
       this.startSyncInterval();
+      if (this.options.cacheRegistry) this.openRegistryStore();
     }
 
     const MAX = 10000;
@@ -358,6 +443,21 @@ export class Network {
       this.socket.searchParams.set("client_id", this.clientInfo.id);
     }
 
+    // The connection being replaced stops being read now, before the ticket
+    // is awaited: everything it would deliver meanwhile belongs to the
+    // session being dropped, and a rejoin has already cleared what it queued.
+    if (this.ws) {
+      this.ws.onclose = null;
+      this.ws.onmessage = null;
+      this.ws.onerror = null;
+      this.ws.close();
+    }
+
+    if (this.rtc) {
+      this.rtc.close();
+      this.rtc = null;
+    }
+
     // Fresh on every connect: an expired ticket is a refused socket, and a
     // reconnect after a long session is exactly when it would have expired.
     let ticket: string | null = options.ticket ?? null;
@@ -375,18 +475,6 @@ export class Network {
     this.sessionTicket = ticket;
     if (ticket) {
       this.socket.searchParams.set("ticket", ticket);
-    }
-
-    if (this.ws) {
-      this.ws.onclose = null;
-      this.ws.onmessage = null;
-      this.ws.onerror = null;
-      this.ws.close();
-    }
-
-    if (this.rtc) {
-      this.rtc.close();
-      this.rtc = null;
     }
 
     return new Promise<Network>((resolve) => {
@@ -448,6 +536,7 @@ export class Network {
           return;
         }
 
+        if (this.deliverOnArrival(arrayBuffer)) return;
         this.enqueuePacket(arrayBuffer);
       };
       ws.onclose = (event) => {
@@ -496,6 +585,79 @@ export class Network {
         this.lastPacketDropReportAt = now;
       }
     }
+  };
+
+  /**
+   * While a registered intercept cannot do without what is arriving (a
+   * world waiting on its spawn window, see
+   * {@link NetIntercept.wantsMessagesOnArrival}), packets are decoded and
+   * handed on here, the moment they arrive, instead of waiting for the next
+   * sync tick and a decode worker's reply. On a main thread busy with long
+   * loading tasks each of those two hops waits for its own free turn, which
+   * put ~300 ms between a window's bytes arriving and the world seeing them.
+   * Packets still queued for the workers go first, in order; nothing goes
+   * while a worker job is out, so order is kept. A packet that fails to
+   * decode here goes the usual way.
+   */
+  private deliverOnArrival = (buffer: ArrayBuffer): boolean =>
+    this.drainOnArrival() && this.decodeAndDeliver(buffer, performance.now());
+
+  /**
+   * Decode and hand on every queued packet on this thread, in order. False
+   * when nobody asks for it, a worker job is out, or a packet would not
+   * decode (it and the ones behind it are left to the workers).
+   */
+  private drainOnArrival = (): boolean => {
+    if (
+      !this.connected ||
+      this.waitingForInit ||
+      this.nextDecodeSequence !== this.nextDeliverySequence ||
+      !this.intercepts.some((intercept) =>
+        intercept.wantsMessagesOnArrival?.(),
+      )
+    ) {
+      return false;
+    }
+    while (this.packetQueue.length > 0) {
+      if (!this.connected) return false;
+      const queued = this.packetQueue[0];
+      const arrivedAt = this.packetArrivedAt.get(queued) ?? performance.now();
+      if (!this.decodeAndDeliver(queued, arrivedAt)) return false;
+      this.packetQueue.shift();
+    }
+    return true;
+  };
+
+  private decodeAndDeliver = (
+    buffer: ArrayBuffer,
+    arrivedAt: number,
+  ): boolean => {
+    let message: MessageProtocol;
+    try {
+      message = decodeMessage(
+        new Uint8Array(buffer),
+        [],
+      ) as unknown as MessageProtocol;
+    } catch (error) {
+      console.error(
+        "[NETWORK] Decoding a packet on arrival failed; handing it to the decode workers",
+        error,
+      );
+      return false;
+    }
+    if (isPerfLogging()) {
+      annotateIncomingMessages([message], [buffer.byteLength]);
+    }
+    message.perfArrivedAt = arrivedAt;
+    try {
+      this.onMessage(message);
+    } catch (error) {
+      console.error(
+        `[NETWORK] Handling an inbound ${String(message.type)} message threw; continuing with the next one`,
+        error,
+      );
+    }
+    return true;
   };
 
   private maybeReconnect = () => {
@@ -564,6 +726,9 @@ export class Network {
     this.waitingForInit = true;
     this.initPacketReceived = false;
     this.joinStartTime = performance.now();
+    this.joinAttemptCount += 1;
+    const registryDigest = this.namedRegistryDigest();
+    this.joinNamedDigest = registryDigest;
 
     const isSent = this.send({
       type: "JOIN",
@@ -582,6 +747,9 @@ export class Network {
           typeof this.clientInfo.metadata.preferences === "object"
             ? this.clientInfo.metadata.preferences
             : {},
+        // The block registry this client already holds; the server leaves
+        // it out of the INIT when it is still current.
+        ...(registryDigest ? { registryDigest } : {}),
       },
     });
     this.joinSocket = isSent ? this.ws : null;
@@ -657,6 +825,8 @@ export class Network {
     if (this.waitingForInit) {
       return;
     }
+
+    if (this.drainOnArrival()) return;
 
     const pool = this.pool;
     if (!pool) return;
@@ -835,6 +1005,14 @@ export class Network {
     this.waitingForInit = false;
     this.initPacketReceived = false;
     this.packetQueue = [];
+    // A join still waiting for its INIT never gets one now: settle it, or
+    // whoever awaits it (a torn-down mount's start) waits forever. A
+    // microtask late, so a caller that disconnects on a server ERROR and
+    // then rejects with the server's own text still names the real reason.
+    const joinReject = this.joinReject;
+    if (joinReject) {
+      queueMicrotask(() => joinReject("network closed before INIT"));
+    }
     this.joinResolve = null;
     this.joinReject = null;
     this.serverURL = null;
@@ -947,6 +1125,8 @@ export class Network {
 
   private onMessage = (message: MessageProtocol) => {
     const { type } = message;
+    const initText =
+      type === "INIT" && typeof message.json === "string" ? message.json : null;
     // Oversized `json` (the INIT block registry) crosses the worker boundary
     // as a string and is parsed exactly once, here.
     finishRawJson(message as unknown as Record<string, unknown>);
@@ -962,6 +1142,8 @@ export class Network {
     }
 
     if (type === "INIT") {
+      if (!this.completeInitRegistry(message, initText)) return;
+
       const { id } = message.json;
 
       if (id) {
@@ -1003,6 +1185,331 @@ export class Network {
         });
       }
     }
+  };
+
+  /**
+   * Make an INIT whole before any intercept reads it: put a registry the
+   * server left out back in, and keep a registry it sent. Returns false when
+   * the INIT is not to be handled now: it waits for the kept registry to
+   * finish loading, or it left out a registry this client does not hold and
+   * the JOIN has been sent again without a digest (once).
+   */
+  private completeInitRegistry = (
+    message: MessageProtocol,
+    initText: string | null,
+  ): boolean => {
+    const json = message.json as Record<string, unknown> | undefined;
+    if (!json || typeof json !== "object") return true;
+
+    const read = this.registryRead;
+    if (this.initAwaitingRegistry === message) {
+      this.initAwaitingRegistry = null;
+    } else if (
+      read &&
+      json[INIT_REGISTRY_CACHED_KEY] === true &&
+      this.registry?.digest !== json[INIT_REGISTRY_DIGEST_KEY]
+    ) {
+      this.awaitKeptRegistry(message, read);
+      return false;
+    }
+
+    const resolution = resolveInitRegistry(
+      json,
+      initText,
+      this.registry,
+      this.parsedRegistry,
+    );
+    // Parsed for this INIT only: its objects are now the INIT's, and whoever
+    // initializes from them mutates them.
+    this.parsedRegistry = null;
+    if (resolution.kind === "missing") {
+      // Joining again must not name it again. A read still landing may yet
+      // bring back a good copy, so only a settled miss forgets the store.
+      this.keptRegistryDigest = null;
+      if (this.registryRead) this.registry = null;
+      else this.forgetRegistry();
+      if (this.hasRefetchedRegistry) {
+        const reason = `INIT for ${this.world} left out block registry ${resolution.digest} twice, and this client holds none`;
+        console.error(`[NETWORK] ${reason}`);
+        const joinReject = this.joinReject;
+        this.disconnectReason = reason;
+        this.disconnect();
+        joinReject?.(reason);
+        return false;
+      }
+      console.error(
+        `[NETWORK] INIT for ${this.world} left out block registry ${resolution.digest}, ` +
+          "which this client does not hold; joining again for the full registry",
+      );
+      this.hasRefetchedRegistry = true;
+      this.rejoinOnFreshSocket();
+      return false;
+    }
+
+    this.hasRefetchedRegistry = false;
+    // The text has served this INIT; storage keeps it for the next one.
+    const digest = json[INIT_REGISTRY_DIGEST_KEY];
+    const held = this.registry;
+    const wasOffered = this.isRegistryOffered;
+    const isHeldCurrent = !!held && held.digest === digest;
+    // An offered registry was never in storage, so it says nothing of it.
+    const wasKept = isHeldCurrent && !wasOffered;
+    this.registry = null;
+    this.isRegistryOffered = false;
+    if (wasKept) this.keptRegistryDigest = digest as string;
+    // An offered registry this INIT confirmed is the server's current one:
+    // storage keeps it as it keeps one cut from a full INIT, so a rejoin (a
+    // reconnect) and the next page load name it too. Not when storage
+    // already says it holds this digest.
+    const keep =
+      resolution.keep ??
+      (isHeldCurrent && wasOffered && this.keptRegistryDigest !== digest
+        ? held
+        : null);
+    const store = this.registryStore;
+    if (keep && store) {
+      const entry = keep;
+      this.registryStoreChanges += 1;
+      // Off the INIT's own path; the write clones the text once.
+      setTimeout(() => {
+        void store.write(entry).then((isKept) => {
+          if (isKept) this.keptRegistryDigest = entry.digest;
+        });
+      }, 0);
+    }
+    return true;
+  };
+
+  /**
+   * The registry digest a JOIN names: the text in hand, or the one storage
+   * keeps, read back now (if it is not already being read) so an INIT that
+   * leaves it out can wait for it. Null when neither is there.
+   */
+  private namedRegistryDigest = (): string | null => {
+    if (this.registry) return this.registry.digest;
+    if (!this.keptRegistryDigest || !this.registryStore) return null;
+    if (!this.registryRead) this.readKeptRegistry();
+    return this.keptRegistryDigest;
+  };
+
+  /**
+   * Hand the network a block registry from elsewhere (an HTTP fetch made
+   * while the page loaded, say) for the next JOIN to name, exactly as a
+   * registry read back from storage is. The digest must be the one the
+   * server gave with that text; the network never computes one.
+   *
+   * Taken only while it can still serve a JOIN: before one is sent, it
+   * replaces whatever storage had brought back (a fetch answers for the
+   * server's registry now, storage for an earlier one); with a JOIN in
+   * flight, only the registry that JOIN named. Returns whether the network
+   * now holds this registry.
+   */
+  offerRegistry = (entry: CachedRegistry | null | undefined): boolean => {
+    if (!isRegistryEntry(entry)) return false;
+    if (this.registry?.digest === entry.digest) return true;
+    if (this.joined && !this.waitingForInit) return false;
+    if (this.waitingForInit && this.joinNamedDigest !== entry.digest) {
+      return false;
+    }
+    this.registry = { digest: entry.digest, blocks: entry.blocks };
+    this.isRegistryOffered = true;
+    if (this.parsedRegistry?.digest !== entry.digest) {
+      this.parsedRegistry = null;
+    }
+    this.wakeRegistryHeldWaiters();
+    return true;
+  };
+
+  /**
+   * The registry this client holds for its next INIT, parsed now, once,
+   * instead of when that INIT arrives. An INIT that leaves the registry out
+   * is then completed with these very objects, so anything built from them
+   * ahead of it (the world loading its blocks early) is built from what the
+   * INIT carries. Null while no registry is held, or when its text does not
+   * parse. Call it before the INIT lands; the objects belong to that INIT.
+   */
+  parseHeldRegistry = (): ParsedRegistry | null => {
+    const held = this.registry;
+    if (!held) return null;
+    if (this.parsedRegistry?.digest === held.digest) return this.parsedRegistry;
+    let blocks: unknown;
+    try {
+      blocks = JSON.parse(held.blocks);
+    } catch {
+      return null;
+    }
+    if (!blocks || typeof blocks !== "object" || Array.isArray(blocks)) {
+      return null;
+    }
+    this.parsedRegistry = {
+      digest: held.digest,
+      blocks: blocks as Record<string, unknown>,
+    };
+    return this.parsedRegistry;
+  };
+
+  /**
+   * Resolves with the registry this client holds once it holds one (read
+   * back from storage or offered), or null after `timeoutMs`. Never rejects.
+   */
+  whenRegistryHeld = (timeoutMs: number): Promise<CachedRegistry | null> => {
+    if (this.registry) return Promise.resolve(this.registry);
+    return new Promise((resolve) => {
+      const wake = () => {
+        clearTimeout(timer);
+        this.registryHeldWaiters.delete(wake);
+        resolve(this.registry);
+      };
+      const timer = setTimeout(wake, Math.max(0, timeoutMs));
+      this.registryHeldWaiters.add(wake);
+    });
+  };
+
+  private wakeRegistryHeldWaiters = () => {
+    for (const wake of [...this.registryHeldWaiters]) wake();
+  };
+
+  /**
+   * Join again on a new socket. The server counts this session as joined
+   * from its INIT on and streams the world behind it, so a JOIN repeated on
+   * the same socket would have its INIT arrive behind that stream, where
+   * nothing waiting for an INIT ever looks. A new socket starts a clean
+   * session, and its open handler sends the JOIN.
+   */
+  private rejoinOnFreshSocket = () => {
+    if (!this.serverURL || !this.connectionOptions) {
+      this.sendJoinRequest();
+      return;
+    }
+    // Nothing of the session being dropped may reach the new one. What it
+    // queued is cleared; its decodes still running are dropped when they
+    // land (the same reset `terminateDecodeWorkers` makes); and `connect`
+    // detaches its socket synchronously, before awaiting a ticket.
+    this.decodeEpoch += 1;
+    this.nextDeliverySequence = this.nextDecodeSequence;
+    this.decodedAhead.clear();
+    this.packetQueue = [];
+    this.initPacketReceived = false;
+    this.joinSocket = null;
+    void this.connect(this.serverURL, this.connectionOptions);
+  };
+
+  /**
+   * Hold an INIT that left out the registry still loading from storage until
+   * the read lands (bounded), then handle it. Everything behind it stays
+   * queued meanwhile, exactly as while the INIT itself was in flight.
+   */
+  private awaitKeptRegistry = (
+    message: MessageProtocol,
+    read: Promise<void>,
+  ) => {
+    this.initAwaitingRegistry = message;
+    const heldAt = performance.now();
+    const attempt = this.joinAttemptCount;
+    const epoch = this.decodeEpoch;
+    const wanted = (message.json as Record<string, unknown>)[
+      INIT_REGISTRY_DIGEST_KEY
+    ];
+    // An offer of the very registry left out serves it as well as the read.
+    let stopOfferWait: () => void = () => {};
+    const offered = new Promise<void>((resolve) => {
+      const wake = () => {
+        if (this.registry?.digest !== wanted) return;
+        this.registryHeldWaiters.delete(wake);
+        resolve();
+      };
+      stopOfferWait = () => this.registryHeldWaiters.delete(wake);
+      this.registryHeldWaiters.add(wake);
+    });
+    void Promise.race([
+      read,
+      offered,
+      new Promise((resolve) =>
+        setTimeout(resolve, this.options.registryCacheWaitMs),
+      ),
+    ]).then(() => {
+      stopOfferWait();
+      if (this.initAwaitingRegistry !== message) return;
+      if (
+        !this.connected ||
+        !this.waitingForInit ||
+        attempt !== this.joinAttemptCount ||
+        epoch !== this.decodeEpoch
+      ) {
+        // Torn down, or a newer JOIN is out and its own INIT will come.
+        this.initAwaitingRegistry = null;
+        return;
+      }
+      console.log(
+        `[NETWORK] INIT waited ${Math.round(performance.now() - heldAt)}ms ` +
+          `for the kept block registry (${this.registry ? "ready" : "not ready"})`,
+      );
+      this.onMessage(message);
+    });
+  };
+
+  /**
+   * Open the registry store and, when it says it keeps a registry, start
+   * reading it back right away: the first JOIN will name it.
+   */
+  private openRegistryStore = () => {
+    const backend = createRegistryBackend();
+    if (!backend) return;
+    this.registryStore = withDigestHint({
+      ...backend,
+      // Through the priority decode worker, idle until the INIT: the page's
+      // main thread is at its busiest while the game starts, and a read
+      // there waits behind that work at every step.
+      read: () => {
+        const worker = this.priorityWorker;
+        return worker
+          ? readRegistryInWorker(worker, REGISTRY_WORKER_READ_TIMEOUT_MS)
+          : backend.read();
+      },
+    });
+    this.keptRegistryDigest = this.registryStore.peekDigest();
+    if (this.keptRegistryDigest) this.readKeptRegistry();
+  };
+
+  /** Read the kept registry back from storage, without holding anything up. */
+  private readKeptRegistry = () => {
+    const store = this.registryStore;
+    if (!store) return;
+    const startedAt = performance.now();
+    const changes = this.registryStoreChanges;
+    const read = store
+      .read()
+      .then((kept) => {
+        // What the read found is what a later JOIN may name: nothing when
+        // storage holds nothing (cleared, evicted, or no answer in time),
+        // the other registry when it holds another. A write or clear issued
+        // since says more than this read does.
+        if (changes === this.registryStoreChanges) {
+          this.keptRegistryDigest = kept?.digest ?? null;
+        }
+        // Kept only while there is a JOIN for it to serve.
+        if (!kept || this.registry) return;
+        if (this.joined && !this.waitingForInit) return;
+        this.registry = kept;
+        this.isRegistryOffered = false;
+        this.wakeRegistryHeldWaiters();
+        console.log(
+          `[NETWORK] Kept block registry ${kept.digest} ready in ` +
+            `${Math.round(performance.now() - startedAt)}ms ` +
+            `(${Math.round(kept.blocks.length / 1024)} KB)`,
+        );
+      })
+      .finally(() => {
+        if (this.registryRead === read) this.registryRead = null;
+      });
+    this.registryRead = read;
+  };
+
+  private forgetRegistry = () => {
+    this.registry = null;
+    this.registryStoreChanges += 1;
+    const store = this.registryStore;
+    if (store) void store.clear();
   };
 
   private static encodeSync(message: Record<string, unknown>) {
@@ -1067,7 +1574,12 @@ export class Network {
     };
     const handler = (e: MessageEvent) => {
       if (isSettled) return;
+      // Decoded messages always come as an array; anything else is the
+      // worker answering another request (a registry read).
+      if (!Array.isArray(e.data)) return;
       settle();
+      // A packet of a session dropped since (rejoined on a fresh socket).
+      if (epoch !== this.decodeEpoch) return;
 
       if (!this.connected) {
         // Never discard a possible INIT: the join handshake would wedge with

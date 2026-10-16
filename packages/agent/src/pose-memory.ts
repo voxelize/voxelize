@@ -5,9 +5,12 @@
  * in-page reconnect) comes back wherever the server spawns it, and the
  * staging a capture depended on is gone. The daemon samples the live pose
  * while the world is fresh and, the first time it sees a new join, puts the
- * last one back. A join is new when the page document changed or the
- * client's join generation moved, so even a reload fast enough to never
- * look stale is caught.
+ * last one back. A join is new when the page document changed, the host
+ * installed a new bridge in the same page (a world switched in place), the
+ * client's join generation moved, or the world changed, so even a reload
+ * fast enough to never look stale is caught. A pose is only ever put back
+ * in the world it was taken in: a join in another world keeps wherever that
+ * world placed the agent.
  *
  * Position and facing are read from the page; flying and the view radius
  * cannot be, so they are remembered from the commands that set them.
@@ -20,13 +23,26 @@ export type PoseVec3 = { x: number; y: number; z: number };
 export type JoinIdentity = {
   /** `performance.timeOrigin` of the page document. */
   documentId: number | null;
+  /**
+   * Which bridge in the document (`Snapshot.joinSerial`): a world switched
+   * in place keeps the document and starts a fresh network, whose join
+   * generation starts over, so only this tells its join from the last one.
+   * Null on hosts that do not report it.
+   */
+  joinSerial: number | null;
   joinGeneration: number | null;
+  /** `Snapshot.world`; null when the host does not say. */
+  world: string | null;
 };
 
 export type PoseSample = {
   position: PoseVec3;
   facing: { yaw: number; pitch: number };
   documentId: number | null;
+  /** Read in the same page call as the position, when the host reports them. */
+  joinSerial?: number | null;
+  joinGeneration?: number | null;
+  world?: string | null;
 };
 
 export type PoseIntent = {
@@ -61,14 +77,83 @@ export const EMPTY_POSE_INTENT: PoseIntent = {
   renderRadius: null,
 };
 
+function isWorldChanged(from: JoinIdentity, to: JoinIdentity): boolean {
+  return from.world !== null && to.world !== null && from.world !== to.world;
+}
+
 export function isNewJoin(
   pose: RememberedPose,
   current: JoinIdentity,
 ): boolean {
   return (
     pose.join.documentId !== current.documentId ||
-    pose.join.joinGeneration !== current.joinGeneration
+    pose.join.joinSerial !== current.joinSerial ||
+    pose.join.joinGeneration !== current.joinGeneration ||
+    isWorldChanged(pose.join, current)
   );
+}
+
+/**
+ * The page names another world while the same bridge still answers: a world
+ * switch in place has started (the address changed first) and the old
+ * world's bridge has not been taken down yet. Its pose belongs to neither
+ * join, so it is neither remembered nor put back.
+ */
+export function isMidWorldSwitch(
+  pose: RememberedPose,
+  current: JoinIdentity,
+): boolean {
+  return (
+    pose.join.documentId === current.documentId &&
+    pose.join.joinSerial === current.joinSerial &&
+    pose.join.joinGeneration === current.joinGeneration &&
+    isWorldChanged(pose.join, current)
+  );
+}
+
+/**
+ * Why a remembered pose must not be put back on the join `to`, or null when
+ * it may be: a pose taken in one world means nothing in another.
+ */
+export function poseRestoreSkipReason(
+  pose: RememberedPose,
+  to: JoinIdentity,
+): string | null {
+  if (!isWorldChanged(pose.join, to)) return null;
+  return `world changed ${pose.join.world}->${to.world}; not restoring the pose`;
+}
+
+/**
+ * The flying and view-radius intent to keep across the join `from -> to`:
+ * all of it within one world, none into another. Those were asked of the
+ * world being left; the new one starts as its page sets it up, and a later
+ * rejoin there must not replay them.
+ */
+export function carriedPoseIntent(
+  intent: PoseIntent,
+  from: JoinIdentity,
+  to: JoinIdentity,
+): PoseIntent {
+  return isWorldChanged(from, to) ? EMPTY_POSE_INTENT : intent;
+}
+
+/** `from -> to` for the log: what moved between two joins. */
+export function describeJoinChange(
+  from: JoinIdentity,
+  to: JoinIdentity,
+): string {
+  const parts = [
+    `join generation ${from.joinGeneration} -> ${to.joinGeneration}`,
+  ];
+  if (from.documentId !== to.documentId) parts.push("new page document");
+  else if (from.joinSerial !== to.joinSerial) {
+    parts.push(
+      `bridge ${from.joinSerial} -> ${to.joinSerial} in the same page`,
+    );
+  }
+  if (isWorldChanged(from, to))
+    parts.push(`world ${from.world} -> ${to.world}`);
+  return parts.join(", ");
 }
 
 export function rememberPose(

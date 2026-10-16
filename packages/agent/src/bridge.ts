@@ -147,7 +147,19 @@ export type Snapshot = {
   activeSlot?: number;
   position: Vec3;
   facing: YawPitch;
+  /**
+   * The world the page is on now. A host that names worlds by URL reports
+   * its path's last segment (`worldFromPath` in client-url.ts), the segment
+   * the daemon opens a world by, so `POST /world` can see it arrive.
+   */
   world: string;
+  /**
+   * Which bridge in this page answered: bumps each time the host installs a
+   * bridge, so a world switched inside one page (no new document, and a
+   * fresh network whose join generation starts over) is still a new join.
+   * Absent on hosts that install one bridge per page.
+   */
+  joinSerial?: number;
   /**
    * The host's join has finished: the player is in and the world can be
    * played and set up (view radius, field of view). A live connection whose
@@ -189,6 +201,10 @@ export type ConnectionSnapshot = {
   pendingCommandCount: number;
   droppedCommandCount: number;
   serverUrl: string | null;
+  /** The world the page is on now (`Snapshot.world`), when the host says. */
+  world?: string;
+  /** `Snapshot.joinSerial`: which bridge in this page answered. */
+  joinSerial?: number;
 };
 
 export type CommandQueueReason = "disconnected" | "rejoining" | "retrying";
@@ -1017,6 +1033,13 @@ export interface AgentBridge {
    * never connected, or the client build was terminally rejected.
    */
   reconnectNow(): boolean;
+
+  /**
+   * Ask the host to switch this page to another world in place (no new
+   * document). True when the host started a switch; false when it has no
+   * in-page switch, and the daemon navigates the page instead. Optional.
+   */
+  switchWorld?(world: string): boolean | Promise<boolean>;
 
   /**
    * Why a frame captured now would not show the world as a player standing

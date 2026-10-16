@@ -1,4 +1,4 @@
-import { MeshBasicMaterial, Object3D } from "three";
+import { BatchedMesh, MeshBasicMaterial, Object3D } from "three";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { ChunkLayer, type ChunkShadowCasters } from "./chunk-layer";
@@ -25,6 +25,9 @@ afterEach(() => {
 function group(material: string): MeshGroup {
   return {
     material,
+    quantized: false,
+    minY: 64,
+    maxY: 64,
     positions: new Float32Array([0, 64, 0, 1, 64, 0, 0, 64, 1]),
     uvs: new Float32Array(6),
     lights: new Int32Array(3),
@@ -48,41 +51,46 @@ function chunk(cx: number, cz: number): MeshedChunk {
   };
 }
 
-/** Records what a chunk layer tells the shadow maps. */
+/** Records what a chunk layer keeps out of the shadow maps. */
 function recorder() {
-  const skipped = new Set<Object3D>();
+  const never = new Set<Object3D>();
   const casters: ChunkShadowCasters = {
-    addSkipShadowObject: (object) => {
-      const material = (object as { material?: { userData?: object } }).material
-        ?.userData as { skipShadow?: boolean } | undefined;
-      if (material?.skipShadow) skipped.add(object);
+    addNeverCaster: (object) => {
+      never.add(object);
     },
-    removeSkipShadowObject: (object) => {
-      skipped.delete(object);
+    removeNeverCaster: (object) => {
+      never.delete(object);
     },
   };
-  return { skipped, casters };
+  return { never, casters };
 }
 
-describe("a chunk layer and the sun's shadow maps", () => {
-  it("reports streamed meshes whose material skips shadows, and forgets them on eviction", () => {
+describe("a chunk layer's arenas", () => {
+  it("draws neighbouring chunks of a material as one batch, keeps water out of the shadow maps, and reuses slots after eviction", () => {
     vi.stubGlobal("Worker", StubWorker);
     const water = new MeshBasicMaterial();
     water.userData.skipShadow = true;
     const stone = new MeshBasicMaterial();
     const materials = {
-      keyTables: () => ({}),
+      keyTables: () => ({
+        blockKeys: {},
+        faceKeys: {},
+        quantized: [],
+        positionUnits: 1,
+      }),
       materialFor: (key: string) => (key === "water" ? water : stone),
       isFluid: (key: string) => key === "water",
       isCutout: () => false,
     } as unknown as ViewerMaterials;
     const layer = new ChunkLayer("http://viewer/chunks", materials, 16, {
       workers: 1,
+      // Every arrival lands in the frame it arrives.
+      uploadBytesPerFrame: Infinity,
     });
-    const { skipped, casters } = recorder();
+    const { never, casters } = recorder();
     layer.setShadowCasters(casters);
 
-    layer.update(8, 8, 0);
+    layer.update(8, 8, 1);
     const worker = StubWorker.last;
     const load = worker?.posted.find((m) => m.type === "load");
     expect(load?.id).toBeDefined();
@@ -90,27 +98,48 @@ describe("a chunk layer and the sun's shadow maps", () => {
       data: {
         type: "loaded",
         id: load?.id ?? 0,
-        chunks: [chunk(0, 0)],
+        chunks: [chunk(0, 0), chunk(1, 0)],
         ms: 1,
         bytes: 1,
       },
     } as MessageEvent<MeshWorkerResult>);
-    layer.update(8, 8, 0);
+    layer.update(8, 8, 1);
 
-    const meshes = layer.group.children;
-    expect(meshes).toHaveLength(2);
-    expect(skipped.size).toBe(1);
-    const [onlySkipped] = [...skipped];
-    expect((onlySkipped as { material?: unknown }).material).toBe(water);
+    // One group per material, and both chunks in one page's batch.
+    const groups = layer.group.children;
+    expect(groups).toHaveLength(2);
+    for (const group of groups) {
+      expect(group.children).toHaveLength(1);
+      const batch = group.children[0] as BatchedMesh;
+      expect(batch).toBeInstanceOf(BatchedMesh);
+      expect(batch.instanceCount).toBe(2);
+    }
+    expect(layer.poolStats).toMatchObject({ pages: 2, slots: 4 });
+    expect(never.size).toBe(1);
+    const [waterGroup] = [...never];
+    expect((waterGroup.children[0] as BatchedMesh).material).toBe(water);
 
-    // Attached late, a second set of maps still learns of what is resident.
+    // Attached late, a second set of maps still learns of the water.
     const late = recorder();
     layer.setShadowCasters(late.casters);
-    expect(late.skipped.size).toBe(1);
-    expect(skipped.size).toBe(0);
+    expect(late.never.size).toBe(1);
+    expect(never.size).toBe(0);
 
+    // Leaving hides the sections and keeps their slots, so the next chunks
+    // in reuse them: no page is made or regrown.
     layer.update(16 * 40, 16 * 40, 0);
-    expect(layer.group.children).toHaveLength(0);
-    expect(late.skipped.size).toBe(0);
+    expect(layer.poolStats).toMatchObject({ pages: 2, slots: 0, freeSlots: 4 });
+    const next = worker?.posted.filter((m) => m.type === "load").at(-1);
+    worker?.onmessage?.({
+      data: {
+        type: "loaded",
+        id: next?.id ?? 0,
+        chunks: [chunk(40, 40)],
+        ms: 1,
+        bytes: 1,
+      },
+    } as MessageEvent<MeshWorkerResult>);
+    layer.update(16 * 40, 16 * 40, 0);
+    expect(layer.poolStats).toMatchObject({ pages: 2, slots: 2, freeSlots: 2 });
   });
 });

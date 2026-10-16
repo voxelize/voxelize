@@ -1,19 +1,25 @@
 /**
  * The far layer past the meshed chunks: the engine's own `FarTerrain` (the
  * horizon a game client draws, with its rings, seam and coverage mask),
- * fed from the viewer backend instead of a server method. Tiles also keep
- * their extra rasters for the overlays.
+ * fed from the viewer backend instead of a server method. A source whose
+ * classes name the blocks they are made of (`FarMeta.terrain`, the game
+ * server's descriptor) is painted as a game client paints it: the blocks'
+ * own textures, regional tints, tree crowns and floating land. Otherwise
+ * each class or block gets a flat colour. Tiles also keep their extra
+ * rasters for the overlays.
  */
 import {
   type FarTerrainDescriptor,
   FAR_TERRAIN_METHOD,
   FarTerrain,
+  readFarFaceLook,
 } from "@voxelize/core";
 import type { Vector3 } from "three";
 
 import type { ChunkLayer } from "./chunk-layer";
 import { decodeBundle, decodeFarTile, type FarTileFile } from "./formats";
 import type { ViewerMaterials } from "./materials";
+import type { FarMeta } from "./overlays";
 
 export type FarPalette = {
   /** Linear RGB per class, flattened (class sources). */
@@ -68,6 +74,9 @@ export class FarLayer {
 
   private classOf = new Map<number, number>();
 
+  /** Tiles carry block ids, coloured by each block's top. */
+  private readonly isBlocks: boolean;
+
   private failures = 0;
 
   /** Heights of recent tiles, finest last, for picking and ground-following. */
@@ -82,7 +91,7 @@ export class FarLayer {
   constructor(
     url: string,
     materials: ViewerMaterials,
-    private readonly kind: "blocks" | "classes",
+    far: FarMeta | null,
     palette: FarPalette,
     private readonly blockColors: () => Map<number, [number, number, number]>,
     waterSurface: number,
@@ -90,10 +99,19 @@ export class FarLayer {
     this.client = new FarTileClient(url);
     const u = materials.chunkRenderer.uniforms;
     const l = materials.chunkRenderer.shaderLightingUniforms;
+    this.isBlocks = far?.kind !== "classes";
     this.palette = palette.classes ? [...palette.classes] : [0.5, 0.5, 0.5];
-    // Finer than a game client's horizon (8): a viewer frames its far layer
-    // from above, where a coarse step reads as a mosaic.
-    this.descriptor = { baseStep: 4, tileSamples: 33, levels: 4, waterSurface };
+    const terrain = far?.kind === "classes" ? far.terrain : undefined;
+    // Twice a game client's finest step (2): a viewer pans far faster than
+    // a player moves, and at 2 the tiles a pan sweeps through, their tree
+    // crowns above all, halved its frame rate.
+    this.descriptor = {
+      baseStep: 4,
+      tileSamples: 33,
+      levels: 4,
+      waterSurface,
+      ...terrain,
+    };
     this.terrain = new FarTerrain(
       {
         fogColor: u.fogColor,
@@ -112,6 +130,7 @@ export class FarLayer {
         skyFogDimension: u.skyFogDimension,
         skyFogStrength: u.skyFogStrength,
         sunlightIntensity: u.sunlightIntensity,
+        directSunlight: l.directSunlight,
         minLightLevel: u.minLightLevel,
         baseAmbient: u.baseAmbient,
         faceShades: u.faceShades,
@@ -122,6 +141,9 @@ export class FarLayer {
         sunDirection: l.sunDirection,
         sunColor: l.sunColor,
         ambientColor: l.ambientColor,
+        skyTopColor: l.skyTopColor,
+        skyMiddleColor: l.skyMiddleColor,
+        waterFresnelStrength: l.waterFresnelStrength,
         farCoverMask: u.farCoverMask,
         farCover: u.farCover,
         farSeam: u.farSeam,
@@ -129,6 +151,16 @@ export class FarLayer {
       {
         distance: 0,
         palette: this.palette,
+        faceLook: terrain
+          ? (block, side, stage) =>
+              readFarFaceLook(
+                materials.registry.blocksById.get(block),
+                block,
+                side,
+                stage,
+                (b, face) => materials.getBlockFaceMaterial(b.id, face),
+              )
+          : null,
         waterColor: palette.water,
         skyTopColor: palette.skyTop,
         skySideColor: palette.skySide,
@@ -195,7 +227,7 @@ export class FarLayer {
   }
 
   private paletteIndex(material: number): number {
-    if (this.kind === "classes") return Math.min(255, material);
+    if (!this.isBlocks) return Math.min(255, material);
     let index = this.classOf.get(material);
     if (index === undefined) {
       index = Math.min(255, this.classOf.size + 1);
@@ -238,20 +270,22 @@ export class FarLayer {
           colors[s] =
             tile.heights[s] === 0 ? 0 : this.paletteIndex(tile.materials[s]);
         }
-        const heights = new Uint8Array(
-          tile.heights.buffer.slice(
-            tile.heights.byteOffset,
-            tile.heights.byteOffset + tile.heights.byteLength,
-          ),
-        );
+        const bytes = (view: ArrayBufferView | null) =>
+          view &&
+          toBase64(
+            new Uint8Array(view.buffer, view.byteOffset, view.byteLength),
+          );
         this.terrain.onMethodReply(FAR_TERRAIN_METHOD, {
           level,
           tx,
           tz,
           step: tile.step,
           size: tile.size,
-          heights: toBase64(heights),
+          heights: bytes(tile.heights),
           colors: toBase64(colors),
+          sky: bytes(tile.sky) ?? undefined,
+          tints: bytes(tile.tints) ?? undefined,
+          canopy: bytes(tile.canopy) ?? undefined,
         });
       });
     } catch (error) {
