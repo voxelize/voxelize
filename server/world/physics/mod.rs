@@ -377,7 +377,16 @@ impl Physics {
             // (the `no_gravity` check); passing it through costs nothing
             // extra here; the `.sqrt()` a hop needs is taken lazily, only
             // on the tick a hop actually launches.
-            Physics::try_auto_stepping(space, registry, body, &mut tmp_box, &dx, gravity_mag_sq);
+            Physics::try_auto_stepping(
+                space,
+                registry,
+                body,
+                &mut tmp_box,
+                &dx,
+                gravity_mag_sq,
+                drag / body.mass,
+                dt,
+            );
         }
 
         let mut impacts: Vec3<f32> = Vec3::default();
@@ -778,10 +787,11 @@ impl Physics {
         old_aabb: &mut AABB,
         dx: &Vec3<f32>,
         gravity_mag_sq: f32,
+        drag_per_second: f32,
+        dt: f32,
     ) {
-        // No grounded/in-fluid requirement: auto-stepping bodies may catch a
-        // ledge mid-flight, e.g. a swimmer hopping out of water onto a bank
-        // one block above the surface.
+        // Grounded and swimming bodies step; an airborne one does not (see
+        // below), so a climb is always an arc the body flies itself.
 
         // A body already rising under its own velocity — mid-arc from a
         // ledge hop launched below, or any other upward jump — is left
@@ -892,21 +902,41 @@ impl Physics {
         // instant step does) so the body's horizontal intent survives the
         // tick instead of stopping dead against the ledge face.
         //
-        // A body already mid-flight (not grounded) or in a zero-gravity
-        // world has no meaningful hop to launch — e.g. a swimmer cresting a
-        // bank keeps the old instant step, and so does a ceiling-limited
-        // step too tight to bother hopping (`step_height` collapses to ~0
-        // once `old_aabb`'s trial sweep above already found the headroom).
+        // A swimmer pressed against a bank gets the same arc. Only a
+        // zero-gravity world keeps the instant step, and so does a
+        // ceiling-limited step too tight to bother hopping (`step_height`
+        // collapses to ~0 once `old_aabb`'s trial sweep above already found
+        // the headroom).
         let step_height = old_aabb.min_y - body.aabb.min_y;
         let grounded = body.resting[1] < 0;
-        if grounded
+        let hop_mode = perf_toggle(PerfToggle::LedgeHopStep);
+        // An airborne body out of the water never steps: the trial above
+        // targets the next whole block over its current feet, so a body
+        // that jumped ~1.3 blocks and pressed into a two-high wall was
+        // teleported the rest of the way onto it — a snap that read as a
+        // two-block jump. A walker in the air climbs only what its own
+        // jump carries it over; a swimmer gets the same arc as the ground.
+        if hop_mode
+            && !grounded
+            && !body.in_fluid
             && step_height > 1e-4
             && gravity_mag_sq > 1e-4
-            && perf_toggle(PerfToggle::LedgeHopStep)
+        {
+            return;
+        }
+        if (grounded || body.in_fluid)
+            && step_height > 1e-4
+            && gravity_mag_sq > 1e-4
+            && hop_mode
         {
             const HOP_HEIGHT_MARGIN: f32 = 0.1;
             let gravity_mag = gravity_mag_sq.sqrt();
-            body.velocity[1] = (2.0 * gravity_mag * (step_height + HOP_HEIGHT_MARGIN)).sqrt();
+            body.velocity[1] = hop_launch_speed(
+                step_height + HOP_HEIGHT_MARGIN,
+                gravity_mag,
+                drag_per_second,
+                dt,
+            );
             body.resting[0] = tmp_resting[0];
             body.resting[1] = 0;
             body.resting[2] = tmp_resting[2];
@@ -920,6 +950,43 @@ impl Physics {
         body.resting[2] = tmp_resting[2];
         body.stepped = true;
     }
+}
+
+/// Takeoff speed that lifts a body `apex` blocks under `gravity` and the
+/// linear drag it is in, integrated the way `iterate_body` steps it. Without
+/// drag it is `sqrt(2*g*h)`; in water that same launch falls a quarter
+/// short, and a wader bobbed under the bank lip forever.
+fn hop_launch_speed(apex: f32, gravity: f32, drag_per_second: f32, dt: f32) -> f32 {
+    let free = (2.0 * gravity * apex).sqrt();
+    let dt = dt.clamp(1.0 / 240.0, 0.05);
+    let keep = (1.0 - drag_per_second * dt).max(0.0);
+    if drag_per_second <= 1e-4 || keep <= 0.0 {
+        return free;
+    }
+    let apex_of = |v0: f32| {
+        let (mut v, mut y) = (v0, 0.0);
+        for _ in 0..1000 {
+            v = (v - gravity * dt) * keep;
+            if v <= 0.0 {
+                break;
+            }
+            y += v * dt;
+        }
+        y
+    };
+    let (mut lo, mut hi) = (free, free * 4.0);
+    if apex_of(hi) < apex {
+        return hi;
+    }
+    for _ in 0..24 {
+        let mid = 0.5 * (lo + hi);
+        if apex_of(mid) < apex {
+            lo = mid;
+        } else {
+            hi = mid;
+        }
+    }
+    hi
 }
 
 #[cfg(test)]
@@ -1312,6 +1379,42 @@ mod ledge_hop_tests {
                 body.aabb.min_y > floor_y as f32 + 1.9,
                 "the body must end resting on top of the ledge, min_y={}",
                 body.aabb.min_y
+            );
+        }
+
+        // A jump into a two-high wall never lands on it: the airborne
+        // body is not stepped the rest of the way up (it was once
+        // teleported from ~1.3 blocks onto the 2-block top in one tick).
+        {
+            let (mut chunk, registry) = ledge_chunk(floor_y);
+            for x in 12..16 {
+                for z in 0..16 {
+                    chunk.set_voxel(x, floor_y + 2, z, 5);
+                }
+            }
+            let mut body = walking_body(floor_y);
+            body.velocity.0 = 2.0;
+            for _ in 0..30 {
+                Physics::iterate_body(&mut body, 1.0 / 60.0, &chunk, &registry, &config);
+            }
+            // Pressed into the wall on the ground: jump ~1.3 blocks.
+            body.velocity.1 = (2.0 * 24.8_f32 * 1.3).sqrt();
+            let mut highest = body.aabb.min_y;
+            for _ in 0..240 {
+                body.velocity.0 = 2.0;
+                let y_before = body.aabb.min_y;
+                Physics::iterate_body(&mut body, 1.0 / 60.0, &chunk, &registry, &config);
+                assert!(
+                    body.aabb.min_y - y_before < 0.5,
+                    "no tick may snap the body upward, rose {}",
+                    body.aabb.min_y - y_before
+                );
+                highest = highest.max(body.aabb.min_y);
+            }
+            assert!(
+                highest < floor_y as f32 + 1.0 + 1.6,
+                "a ~1.3 jump must not end on a 2-high wall, peaked at {}",
+                highest - (floor_y as f32 + 1.0)
             );
         }
 
