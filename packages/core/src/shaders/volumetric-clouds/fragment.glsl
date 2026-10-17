@@ -108,7 +108,7 @@ vec3 cloudLight(int i, vec3 p, vec3 normal, float hasNormal, vec3 rd, float thic
     float face = normal.y > 0.5
       ? 1.0
       : (normal.y < -0.5 ? uCloudBottomShade : uCloudSideShade);
-    shade = mix(1.0, face, 0.45);
+    shade = mix(1.0, face, 0.3);
   }
 
   // Skylight falls on the tops; the underside of a thick bank is greyer.
@@ -117,10 +117,11 @@ vec3 cloudLight(int i, vec3 p, vec3 normal, float hasNormal, vec3 rd, float thic
   float facing = hasNormal > 0.5 ? dot(normal, toSun) * 0.5 + 0.5 : 0.75;
   float direct = sunVis * mix(0.5, 1.0, facing);
 
-  // What the sun does not reach is lit by the blue sky above, so shadowed
-  // cloud is cool grey-blue rather than a darker white.
+  // What the sun does not reach is lit by the sky above: a touch cooler,
+  // barely darker. Fair-weather cloud stays white underneath; a deep grey
+  // underside reads as rain on the way.
   vec3 skyTint = uSkyFogTopColor / max(max(uSkyFogTopColor.r, max(uSkyFogTopColor.g, uSkyFogTopColor.b)), 1e-3);
-  vec3 shadowColor = mix(vec3(1.0), skyTint, 0.32) * 0.64;
+  vec3 shadowColor = mix(vec3(1.0), skyTint, 0.12) * 0.9;
   vec3 lit = ambient * shade * mix(shadowColor, vec3(1.0), direct);
 
   vec3 sunLight = uSunColor * uSunlightIntensity * uDirectSunlight;
@@ -130,7 +131,7 @@ vec3 cloudLight(int i, vec3 p, vec3 normal, float hasNormal, vec3 rd, float thic
   float through = henyeyGreenstein(cosTheta, 0.72) * exp(-thickness * 0.45);
   float rim = henyeyGreenstein(cosTheta, 0.5) * sunVis;
 
-  return uCloudColor * lit * 0.94 + sunLight * (through * 0.55 + rim * 0.3);
+  return uCloudColor * lit + sunLight * (through * 0.55 + rim * 0.3);
 }
 
 // Voxel style: the cells decide where cloud stands, so the outline is cubes;
@@ -194,7 +195,7 @@ void marchVoxel(int i, vec3 ro, vec3 rd, float t0, float t1,
       float mist = 1.0 - exp(-segment * 0.03);
       float h = clamp((p.y - span.x) / (span.y - span.x), 0.0, 1.0);
       vec3 skyTint = uSkyFogTopColor / max(max(uSkyFogTopColor.r, max(uSkyFogTopColor.g, uSkyFogTopColor.b)), 1e-3);
-      vec3 mistColor = uCloudColor * mix(mix(vec3(1.0), skyTint, 0.25) * 0.78, vec3(0.97), h);
+      vec3 mistColor = uCloudColor * mix(mix(vec3(1.0), skyTint, 0.12) * 0.9, vec3(0.97), h);
       float absorbed = transmittance * mist;
       color += absorbed * mistColor;
       weightedDistance += absorbed * (t + segment * 0.5);

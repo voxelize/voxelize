@@ -91,7 +91,7 @@ const defaultLayer: VolumetricCloudLayer = {
   coverageScale: 3.3,
   bottomRound: 0.15,
   topRound: 0.5,
-  shadeFloor: 0.62,
+  shadeFloor: 0.9,
   offset: 0,
   drift: 1,
 };
