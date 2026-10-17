@@ -377,6 +377,12 @@ export class LightClusterGrid {
     this.overflowTexture.generateMipmaps = false;
     this.overflowTexture.flipY = false;
     this.overflowTexture.unpackAlignment = 2;
+    // Both integer textures upload their zeros now: a texture three has
+    // never uploaded binds as its RGBA8 placeholder, which a usampler2D
+    // rejects (GL_INVALID_OPERATION), dropping every chunk draw. The
+    // overflow texture is otherwise only flagged once a cell overflows.
+    this.gridTexture.needsUpdate = true;
+    this.overflowTexture.needsUpdate = true;
 
     const cellSize = settings.gridCellSize;
     this.uniforms.lightGrid.value = this.gridTexture;
