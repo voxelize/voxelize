@@ -231,6 +231,10 @@ import {
   quantizeUvs,
 } from "./vertex-quantization";
 import {
+  VolumetricClouds,
+  type VolumetricCloudsOptions,
+} from "./volumetric-clouds";
+import {
   createVoxelBoxBand,
   fillVoxelBoxBand,
   maxVoxelBoxSide,
@@ -273,6 +277,7 @@ export * from "./chunk-region-arenas";
 export * from "./chunk-renderer";
 export * from "./chunk-requests";
 export * from "./clouds";
+export * from "./volumetric-clouds";
 export * from "./coupled-blocks";
 export * from "./crusted-fluid-shader";
 export * from "./csm-renderer";
@@ -731,6 +736,15 @@ export class World<T = any> extends Scene implements NetIntercept {
    * The clouds that renders the cubical clouds.
    */
   public clouds: Clouds;
+
+  /**
+   * The volumetric cloud deck, when the host asked for one
+   * ({@link World.setVolumetricClouds}).
+   */
+  public volumetricClouds: VolumetricClouds | null = null;
+
+  /** Whether the host wants the meshed deck drawn at all. */
+  private isClassicCloudsEnabled = true;
 
   /**
    * Coarse terrain past the loaded chunks, drawn from server-sampled tiles
@@ -1701,6 +1715,7 @@ export class World<T = any> extends Scene implements NetIntercept {
     this.lightWorkerPool.terminate();
     this.memoryPressureMonitor.stop();
     this.clouds.dispose();
+    this.volumetricClouds?.dispose();
     this.csmRenderer?.dispose();
     this.localLights.dispose();
     // The passes and targets this world made for itself. Each one's
@@ -5639,6 +5654,7 @@ export class World<T = any> extends Scene implements NetIntercept {
     const isCloudSeedAutomatic = (this.options.cloudsOptions.seed ?? -1) === -1;
     if (isCloudSeedAutomatic && typeof this.options.seed === "number") {
       this.clouds.setSeed(this.options.seed);
+      this.volumetricClouds?.setSeed(this.options.seed);
     }
 
     // Only now are the server's chunk dimensions known; a graph keyed with
@@ -6903,6 +6919,41 @@ export class World<T = any> extends Scene implements NetIntercept {
     });
   };
 
+  /** Show or hide the meshed cloud deck. */
+  public setClassicCloudsEnabled(enabled: boolean) {
+    this.isClassicCloudsEnabled = enabled;
+    this.clouds.visible = enabled && !this.cloudsHiddenUnderwater;
+  }
+
+  /**
+   * Draw a volumetric cloud deck with these options, reshape the one already
+   * drawn, or (with `null`) drop it. It lights and hazes from the same
+   * uniforms as the meshed deck and grows from the same seed.
+   */
+  public setVolumetricClouds(options: Partial<VolumetricCloudsOptions> | null) {
+    if (!options) {
+      if (this.volumetricClouds) {
+        this.remove(this.volumetricClouds);
+        this.volumetricClouds.dispose();
+        this.volumetricClouds = null;
+      }
+      return;
+    }
+
+    const seed = options.seed ?? this.clouds.options.seed;
+    if (this.volumetricClouds) {
+      this.volumetricClouds.configure({ ...options, seed });
+      return;
+    }
+
+    this.volumetricClouds = new VolumetricClouds(
+      { ...options, seed },
+      this.clouds.material.uniforms,
+    );
+    this.volumetricClouds.setHidden(this.cloudsHiddenUnderwater);
+    this.add(this.volumetricClouds);
+  }
+
   public updateSkyAndClouds(position: Vector3) {
     const {
       sunlightStartTimeFrac,
@@ -6914,6 +6965,7 @@ export class World<T = any> extends Scene implements NetIntercept {
 
     this.sky.update(position, this.time, timePerDay);
     this.clouds.update(position, this.sharedClock);
+    this.volumetricClouds?.update(this.sharedClock);
 
     // Update the sunlight intensity
     const sunlightStartTime = Math.floor(sunlightStartTimeFrac * timePerDay);
@@ -7338,7 +7390,8 @@ export class World<T = any> extends Scene implements NetIntercept {
     const hideClouds = this.waterOptics.submersion >= 0.5;
     if (hideClouds !== this.cloudsHiddenUnderwater && this.clouds) {
       this.cloudsHiddenUnderwater = hideClouds;
-      this.clouds.visible = !hideClouds;
+      this.clouds.visible = this.isClassicCloudsEnabled && !hideClouds;
+      this.volumetricClouds?.setHidden(hideClouds);
     }
   }
 
@@ -8420,6 +8473,9 @@ export class World<T = any> extends Scene implements NetIntercept {
       skyGlow: cloudsOptions.skyGlow ?? this.sky.glow,
     });
     this.add(this.sky, this.clouds);
+    if (this.options.volumetricCloudsOptions) {
+      this.setVolumetricClouds(this.options.volumetricCloudsOptions);
+    }
     if (this.orderIndependent) {
       const { open, split, close } = this.orderIndependent;
       this.add(open, split, close);

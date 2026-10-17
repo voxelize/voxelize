@@ -4,6 +4,7 @@ import { LocalLightsOptions } from "./local-lights/types";
 import { MemoryPressureOptions } from "./memory-pressure";
 import type { OrderIndependentTransparencyOptions } from "./order-independent-transparency";
 import { SkyOptions } from "./sky";
+import type { VolumetricCloudsOptions } from "./volumetric-clouds";
 
 /**
  * The client-side options to create a world. These are client-side only and can be customized to specific use.
@@ -337,6 +338,13 @@ export type WorldClientOptions = {
   cloudsOptions: Partial<CloudsOptions>;
 
   /**
+   * A volumetric cloud deck drawn beside (or instead of) the meshed one;
+   * `null` draws none. Change it live with `World.setVolumetricClouds`.
+   * Defaults to `null`.
+   */
+  volumetricCloudsOptions: Partial<VolumetricCloudsOptions> | null;
+
+  /**
    * How far the far-terrain layer reaches past the viewer, in blocks, in a
    * world that serves far terrain (`farTerrain` in its INIT options). `0`
    * (the default) draws none. Change it through `world.farTerrainDistance`.
@@ -575,6 +583,7 @@ export const defaultWorldClientOptions: WorldClientOptions = {
   chunkLoadExponent: 8,
   skyOptions: {},
   cloudsOptions: {},
+  volumetricCloudsOptions: null,
   farTerrainDistance: 0,
   farTerrainPalette: [],
   farTerrainWaterColor: "#2d6a9a",
