@@ -426,6 +426,33 @@ const renderShadowFrame = (
   }
 };
 
+describe("CSMRenderer cascade depth range", () => {
+  it("keeps ground far up-sun of a deep player inside every cascade", () => {
+    const csm = new CSMRenderer();
+    const scene = new Scene();
+    const counter = makeRenderer();
+    const towardSun = new Vector3(0.4, 1, 0.3).normalize();
+    const player = new Vector3(0, -100, 0);
+    const camera = makeCamera(player, new Vector3(10, -100, 0));
+    for (let i = 0; i < 8; i++) {
+      csm.update(camera, towardSun, player);
+      csm.render(counter.renderer, scene);
+    }
+
+    // The surface over a 100-block shaft, along the sun ray to the player:
+    // it shades the shaft's floor, so it has to draw into the near map.
+    const surface = player.clone().addScaledVector(towardSun, 100 / towardSun.y);
+    for (let i = 0; i < 3; i++) {
+      const ndc = surface.clone().applyMatrix4(csm.getCascadeMatrix(i)!);
+      expect(ndc.z).toBeGreaterThan(-1);
+      expect(ndc.z).toBeLessThan(1);
+      const receiver = player.clone().applyMatrix4(csm.getCascadeMatrix(i)!);
+      expect(receiver.z).toBeGreaterThan(-1);
+      expect(receiver.z).toBeLessThan(1);
+    }
+  });
+});
+
 describe("CSMRenderer dynamic casters", () => {
   it("draws each near caster once per near cascade, pools posed", () => {
     const csm = new CSMRenderer({ entityShadowFrameInterval: 1 });

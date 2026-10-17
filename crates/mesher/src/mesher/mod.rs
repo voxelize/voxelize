@@ -13,6 +13,7 @@ mod lighting;
 mod space;
 #[cfg(test)]
 mod tests;
+mod tufts;
 mod types;
 mod vertex_light;
 
@@ -26,6 +27,7 @@ pub use connectivity::{
     CONNECTIVITY_SEALED,
 };
 pub use greedy::mesh_space_greedy;
+pub use tufts::TUFTS_FACE_NAME;
 pub use types::*;
 pub use vertex_light::*;
 
@@ -37,6 +39,7 @@ use faces::*;
 use fluid::*;
 use lighting::*;
 use space::*;
+use tufts::*;
 
 pub fn mesh_chunk(mut input: MeshInput) -> MeshOutput {
     input.registry.build_cache();

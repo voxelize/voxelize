@@ -245,6 +245,170 @@ fn a_cutout_mass_lays_inward_copies_of_its_surface() {
     assert_eq!(meshes.iter().map(|g| g.indices.len()).sum::<usize>(), 36);
 }
 
+/// A see-through cutout cube wearing one tuft quad that reaches a quarter
+/// block past its cell on either side.
+fn tufted_leaf_registry() -> Registry {
+    let air = Block {
+        is_empty: true,
+        aabbs: vec![],
+        ..plain_block(0, "Air")
+    };
+    let mut leaf = plain_block(1, "Leaf");
+    leaf.is_see_through = true;
+    leaf.transparent_standalone = true;
+    leaf.standalone_face_depth = 2;
+    leaf.faces = six_faces();
+    let corner = |pos: [f32; 3], uv: [f32; 2]| CornerData { pos, uv };
+    leaf.tufts = Some(Tufts {
+        faces: vec![BlockFace {
+            name: "tuft".to_string(),
+            dir: [0, 0, 0],
+            corners: [
+                corner([-0.25, 1.25, 0.5], [0.0, 1.0]),
+                corner([-0.25, -0.25, 0.5], [0.0, 0.0]),
+                corner([1.25, 1.25, 0.5], [1.0, 1.0]),
+                corner([1.25, -0.25, 0.5], [1.0, 0.0]),
+            ],
+            ..Default::default()
+        }],
+        stage_faces: vec![],
+        jitter: 0.1,
+        tilt: 0.3,
+    });
+    let mut registry = Registry::new(vec![(0, air), (1, leaf)]);
+    registry.build_cache();
+    registry
+}
+
+/// Vertices a mesh lays more than a tenth of a block outside the cells
+/// `lo..hi` on any axis: only a tuft reaches that far (an inward copy sits a
+/// hair outside).
+fn tuft_vertices(meshes: &[GeometryProtocol], lo: f32, hi: f32) -> usize {
+    meshes
+        .iter()
+        .flat_map(|g| g.positions.chunks(3))
+        .filter(|p| p.iter().any(|&c| c < lo - 0.1 || c > hi + 0.1))
+        .count()
+}
+
+#[test]
+fn a_voxel_wears_its_tufts_only_where_it_meets_the_air() {
+    let registry = tufted_leaf_registry();
+
+    // A lone leaf: one tuft quad, laid once in a geometry of its own that
+    // the client draws from both sides.
+    let lone = SparseSpace::new(&[((0, 0, 0), (1, 0))]);
+    let meshes = mesh_space_greedy(&[0, 0, 0], &[1, 1, 1], &lone, &registry);
+    assert_eq!(tuft_vertices(&meshes, 0.0, 1.0), 4);
+    let tufts: Vec<_> = meshes
+        .iter()
+        .filter(|g| g.face_name.as_deref() == Some(TUFTS_FACE_NAME))
+        .collect();
+    assert_eq!(tufts.len(), 1);
+    assert_eq!(tufts[0].voxel, 1);
+    assert_eq!(tufts[0].indices.len(), 6);
+    assert_eq!(tuft_vertices(&meshes, 0.0, 1.0), tufts[0].positions.len() / 3);
+    // Its cube is meshed as before: six faces and their inward copies.
+    assert_eq!(meshes.iter().map(|g| g.indices.len()).sum::<usize>(), 72 + 6);
+
+    // The centre of a 3x3x3 block of leaves touches no air: it lays nothing
+    // beyond its cell, though its outer neighbours each lay their own.
+    let mut cells = Vec::new();
+    for x in -1..=1 {
+        for y in -1..=1 {
+            for z in -1..=1 {
+                cells.push(((x, y, z), (1, 0)));
+            }
+        }
+    }
+    let solid = SparseSpace::new(&cells);
+    let centre = mesh_space_greedy(&[0, 0, 0], &[1, 1, 1], &solid, &registry);
+    assert_eq!(tuft_vertices(&centre, 0.0, 1.0), 0);
+    // Meshed from the block's corner, positions run from 0 to 3.
+    let whole = mesh_space_greedy(&[-1, -1, -1], &[2, 2, 2], &solid, &registry);
+    assert!(tuft_vertices(&whole, 0.0, 3.0) > 0);
+}
+
+/// The triangles a crown of leaves costs: a ball of radius 4, every voxel
+/// within it a leaf.
+fn crown_triangles(registry: &Registry) -> usize {
+    let mut cells = Vec::new();
+    for x in -4..=4 {
+        for y in -4..=4 {
+            for z in -4..=4 {
+                if x * x + y * y + z * z <= 16 {
+                    cells.push(((x, y, z), (1, 0)));
+                }
+            }
+        }
+    }
+    let crown = SparseSpace::new(&cells);
+    mesh_space_greedy(&[-5, -5, -5], &[6, 6, 6], &crown, registry)
+        .iter()
+        .map(|g| g.indices.len() / 3)
+        .sum()
+}
+
+#[test]
+fn tufts_cost_a_crown_its_surface_not_its_volume() {
+    let registry = tufted_leaf_registry();
+    let mut plain = registry.clone();
+    for (_, block) in plain.blocks_by_id.iter_mut() {
+        block.tufts = None;
+    }
+    let (with, without) = (crown_triangles(&registry), crown_triangles(&plain));
+    // 257 voxels, of which the 134 that touch the air wear one quad; the 123
+    // buried ones cost nothing.
+    assert_eq!(with - without, 134 * 2, "{with} with tufts, {without} without");
+}
+
+#[test]
+fn tufts_leave_the_cube_greedy_and_differ_from_voxel_to_voxel() {
+    let registry = tufted_leaf_registry();
+    let mut plain = registry.clone();
+    for (_, block) in plain.blocks_by_id.iter_mut() {
+        block.tufts = None;
+    }
+
+    // A row of four leaves: the cube faces merge into the same quads with
+    // tufts as without, and the tufts add four quads.
+    let cells: Vec<_> = (0..4).map(|x| ((x, 0, 0), (1, 0))).collect();
+    let row = SparseSpace::new(&cells);
+    let indices = |registry: &Registry| {
+        mesh_space_greedy(&[0, 0, 0], &[4, 1, 1], &row, registry)
+            .iter()
+            .map(|g| g.indices.len())
+            .sum::<usize>()
+    };
+    assert_eq!(indices(&registry), indices(&plain) + 4 * 6);
+
+    // Each voxel turns and nudges its own set: no two tufts lie alike.
+    let meshes = mesh_space_greedy(&[0, 0, 0], &[4, 1, 1], &row, &registry);
+    let mut firsts: Vec<[i32; 3]> = Vec::new();
+    for g in &meshes {
+        let ext: Vec<&[f32]> = g
+            .positions
+            .chunks(3)
+            .filter(|p| p[1] > 1.1 || p[1] < -0.1)
+            .collect();
+        // In voxel order along x; each first corner taken in its own cell.
+        for (x, quad) in ext.chunks(4).enumerate() {
+            let p = quad[0];
+            firsts.push([
+                ((p[0] - x as f32) * 1000.0).round() as i32,
+                (p[1] * 1000.0).round() as i32,
+                (p[2] * 1000.0).round() as i32,
+            ]);
+        }
+    }
+    assert_eq!(firsts.len(), 4);
+    for i in 0..firsts.len() {
+        for j in i + 1..firsts.len() {
+            assert_ne!(firsts[i], firsts[j]);
+        }
+    }
+}
+
 struct SingleVoxelSpace {
     voxel_id: u32,
     is_waterlogged: bool,
@@ -367,6 +531,7 @@ fn full_block_diagonal_block() -> Block {
         branch_shell: false,
         branch_sockets: vec![],
         stage_faces: None,
+        tufts: None,
     }
 }
 
@@ -768,6 +933,7 @@ fn upward_stair_face_samples_light_from_opaque_block_above() {
         branch_shell: false,
         branch_sockets: vec![],
         stage_faces: None,
+        tufts: None,
     };
 
     let stone_block = Block {
@@ -804,6 +970,7 @@ fn upward_stair_face_samples_light_from_opaque_block_above() {
         branch_shell: false,
         branch_sockets: vec![],
         stage_faces: None,
+        tufts: None,
     };
 
     let mut registry = Registry::new(vec![(1, stair_block), (2, stone_block)]);
@@ -908,6 +1075,7 @@ fn plain_block(id: u32, name: &str) -> Block {
         branch_shell: false,
         branch_sockets: vec![],
         stage_faces: None,
+        tufts: None,
     }
 }
 

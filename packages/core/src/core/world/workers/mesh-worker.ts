@@ -109,6 +109,14 @@ type WasmBlock = {
   // Mirrors `stage_faces`: without it a voxel whose stage picks the block's
   // other look re-meshes locally in its plain one.
   stageFaces: { mask: number; faces: WasmBlock["faces"] } | null;
+  // Mirrors `tufts`: without it a canopy's soft outline drops off the moment
+  // a chunk re-meshes locally.
+  tufts: {
+    faces: WasmBlock["faces"];
+    stageFaces: WasmBlock["faces"];
+    jitter: number;
+    tilt: number;
+  } | null;
 };
 
 // Mirrors `ConnectedFrame` in crates/mesher/src/mesher/types.rs. Dropping it
@@ -192,6 +200,12 @@ type RawWasmBlock = {
   branchSockets?: BranchSocket[];
   branchShell?: boolean;
   stageFaces?: { mask: number; faces: RawWasmFace[] } | null;
+  tufts?: {
+    faces: RawWasmFace[];
+    stageFaces?: RawWasmFace[];
+    jitter: number;
+    tilt?: number;
+  } | null;
 };
 
 type GeometryProtocol = {
@@ -491,6 +505,14 @@ export function convertRegistryToWasm(rawRegistry: {
           ? {
               mask: block.stageFaces.mask,
               faces: convertFaces(block.stageFaces.faces),
+            }
+          : null,
+        tufts: block.tufts
+          ? {
+              faces: convertFaces(block.tufts.faces),
+              stageFaces: convertFaces(block.tufts.stageFaces ?? []),
+              jitter: block.tufts.jitter,
+              tilt: block.tufts.tilt ?? 0,
             }
           : null,
       };

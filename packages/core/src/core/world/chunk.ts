@@ -48,6 +48,12 @@ export class Chunk extends RawChunk {
   public plantsShown: boolean | null = null;
 
   /**
+   * Whether this chunk's tuft meshes ({@link Block.tufts}) are shown, or
+   * `null` when it must be asked again, as {@link plantsShown} is.
+   */
+  public tuftsShown: boolean | null = null;
+
+  /**
    * Bit-per-level mask of which sections the occlusion walk last left
    * visible, or `null` when it must be reapplied (fresh meshes default to
    * visible). Lets the per-frame walk skip rewriting mesh visibility for

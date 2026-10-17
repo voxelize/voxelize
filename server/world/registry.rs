@@ -150,7 +150,11 @@ impl Registry {
                 .stage_faces
                 .iter()
                 .flat_map(|stage| stage.faces.iter());
-            for face in block.faces.iter().chain(stage_faces) {
+            let tufts = block
+                .tufts
+                .iter()
+                .flat_map(|tufts| tufts.faces.iter().chain(tufts.stage_faces.iter()));
+            for face in block.faces.iter().chain(stage_faces).chain(tufts) {
                 if face.independent || face.isolated {
                     continue;
                 }
@@ -217,7 +221,11 @@ impl Registry {
                 .stage_faces
                 .iter_mut()
                 .flat_map(|stage| stage.faces.iter_mut());
-            for face in block.faces.iter_mut().chain(stage_faces) {
+            let tufts = block
+                .tufts
+                .iter_mut()
+                .flat_map(|tufts| tufts.faces.iter_mut().chain(tufts.stage_faces.iter_mut()));
+            for face in block.faces.iter_mut().chain(stage_faces).chain(tufts) {
                 if face.independent || face.isolated {
                     continue;
                 }
@@ -253,6 +261,7 @@ impl Registry {
                 .unwrap();
             block_by_name.faces = block.faces.clone();
             block_by_name.stage_faces = block.stage_faces.clone();
+            block_by_name.tufts = block.tufts.clone();
             block_by_name.dynamic_patterns = block.dynamic_patterns.clone();
         });
     }

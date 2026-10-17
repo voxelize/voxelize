@@ -100,6 +100,7 @@ import {
   BlockUpdateWithSource,
   everyFaceOf,
   PY_ROTATION,
+  TUFTS_FACE_NAME,
 } from "./block";
 import { BlockAnimations } from "./block-animations";
 import { BlockEntityLedger } from "./block-entity-ledger";
@@ -118,6 +119,7 @@ import {
   SHARED_CUTOUT_CUBE_MATERIAL_KEY,
   SHARED_CUTOUT_PLANT_MATERIAL_KEY,
   SHARED_OPAQUE_MATERIAL_KEY,
+  SHARED_TUFTS_MATERIAL_KEY,
   applyQuantizedPositionDefine,
   forkChunkMaterial,
   forkVoxelBoxMaterial,
@@ -334,6 +336,7 @@ const ARENA_BUCKETS: readonly string[] = [
   SHARED_OPAQUE_MATERIAL_KEY,
   SHARED_CUTOUT_CUBE_MATERIAL_KEY,
   SHARED_CUTOUT_PLANT_MATERIAL_KEY,
+  SHARED_TUFTS_MATERIAL_KEY,
 ];
 
 /** Region arenas' regions, pages and sections, in all and per bucket. */
@@ -661,6 +664,9 @@ export class World<T = any> extends Scene implements NetIntercept {
    * batching.
    */
   private readonly arenaSets = new Map<string, ChunkRegionArenas>();
+
+  /** Whether tufts draw at all ({@link setTuftsShown}). */
+  private tuftsShown = true;
 
   /**
    * The region arenas' live regions, their pages (one draw each) and the
@@ -1178,10 +1184,14 @@ export class World<T = any> extends Scene implements NetIntercept {
     if (!this.bucketBlocks) {
       const buckets = new Map<string, Block[]>();
       for (const block of this.registry.blocksById.values()) {
-        const key = makeChunkMaterialKey(this, block.id);
-        const blocks = buckets.get(key);
-        if (blocks) blocks.push(block);
-        else buckets.set(key, [block]);
+        // A tufted block also draws in the tufts' bucket.
+        const keys = [makeChunkMaterialKey(this, block.id)];
+        if (block.tufts) keys.push(SHARED_TUFTS_MATERIAL_KEY);
+        for (const key of keys) {
+          const blocks = buckets.get(key);
+          if (blocks) blocks.push(block);
+          else buckets.set(key, [block]);
+        }
       }
       this.bucketBlocks = buckets;
     }
@@ -2503,6 +2513,7 @@ export class World<T = any> extends Scene implements NetIntercept {
       materialBucket: key,
       voxel,
       isPlant: voxel !== undefined && this.isPlantVoxel(voxel),
+      isTufts: key === SHARED_TUFTS_MATERIAL_KEY,
     };
     if (material.transparent) {
       this.configureTransparentChunkMesh(
@@ -4024,6 +4035,10 @@ export class World<T = any> extends Scene implements NetIntercept {
 
     const block = this.getBlockOf(idOrName);
 
+    if (faceName === TUFTS_FACE_NAME) {
+      return this.chunkRenderer.materials.get(SHARED_TUFTS_MATERIAL_KEY);
+    }
+
     if (voxel && faceName && block.isolatedFaces.has(faceName)) {
       return this.chunkRenderer.materials.get(
         makeChunkMaterialKey(this, block.id, faceName, voxel),
@@ -4103,6 +4118,8 @@ export class World<T = any> extends Scene implements NetIntercept {
     at?: Coords3,
   ) {
     const block = this.getBlockById(voxel);
+
+    if (faceName === TUFTS_FACE_NAME) return SHARED_TUFTS_MATERIAL_KEY;
 
     if (at && faceName && block.isolatedFaces.has(faceName)) {
       return makeChunkMaterialKey(this, voxel, faceName, at);
@@ -7797,6 +7814,7 @@ export class World<T = any> extends Scene implements NetIntercept {
           isPlant:
             materialKey === SHARED_CUTOUT_PLANT_MATERIAL_KEY ||
             (isSingleVoxelMesh && this.isPlantVoxel(voxel)),
+          isTufts: materialKey === SHARED_TUFTS_MATERIAL_KEY,
         };
         if (material.transparent) {
           this.configureTransparentChunkMesh(mesh, voxel, material);
@@ -7835,6 +7853,7 @@ export class World<T = any> extends Scene implements NetIntercept {
     // Fresh meshes default to visible, so a chunk beyond the plant radius has
     // to be re-asked rather than left believing it is already hidden.
     chunk.plantsShown = null;
+    chunk.tuftsShown = null;
 
     if (!chunk.meshes.has(level)) {
       chunk.meshes.set(level, []);
@@ -7927,6 +7946,7 @@ export class World<T = any> extends Scene implements NetIntercept {
         at && at.length ? at : undefined,
       ),
       isPlant: this.isPlantVoxel(voxel),
+      isTufts: faceName === TUFTS_FACE_NAME,
     };
     if (material.transparent) {
       this.configureTransparentChunkMesh(mesh, voxel, material);
@@ -9921,9 +9941,48 @@ export class World<T = any> extends Scene implements NetIntercept {
   }
 
   /**
+   * Shows or hides a chunk's tuft meshes ({@link Block.tufts}) for whether
+   * tufts are on ({@link setTuftsShown}) and, with a
+   * {@link WorldClientOptions.tuftDetailDistance}, the chunk's distance band.
+   * Cached per chunk as the plants' answer is.
+   */
+  private updateChunkTuftDetail(chunk: Chunk, distanceSquared: number) {
+    const { tuftDetailDistance, chunkSize } = this.options;
+    const radius =
+      tuftDetailDistance === null ? Infinity : tuftDetailDistance / chunkSize;
+    const wanted = this.tuftsShown && distanceSquared <= radius * radius;
+    if (chunk.tuftsShown === wanted) return;
+    chunk.tuftsShown = wanted;
+
+    const [cx, cz] = chunk.coords;
+    const tufts = this.arenaSets.get(SHARED_TUFTS_MATERIAL_KEY);
+    for (const [level, meshes] of chunk.meshes) {
+      const isLevelVisible =
+        chunk.sectionVisibleMask === null ||
+        ((chunk.sectionVisibleMask >> level) & 1) === 1;
+      for (const mesh of meshes) {
+        if (mesh.userData?.isTufts) mesh.visible = wanted && isLevelVisible;
+      }
+      tufts?.setSectionVisible(cx, cz, level, wanted && isLevelVisible);
+    }
+  }
+
+  /**
+   * Draws or hides every chunk's tufts ({@link Block.tufts}) from the next
+   * frame, without a remesh: a canopy without them is its plain cubes.
+   */
+  setTuftsShown(shown: boolean) {
+    if (this.tuftsShown === shown) return;
+    this.tuftsShown = shown;
+    this.chunkPipeline.forEachLoaded((chunk) => {
+      chunk.tuftsShown = null;
+    });
+  }
+
+  /**
    * Whether an arena slot draws: its level passed the chunk's visibility
    * walk (`mask`, null before the first), and a plant is inside the plant
-   * radius as well.
+   * radius and a tuft inside the tuft radius as well.
    */
   private isArenaSectionShown(
     bucket: string,
@@ -9935,7 +9994,8 @@ export class World<T = any> extends Scene implements NetIntercept {
     return (
       isLevelVisible &&
       (bucket !== SHARED_CUTOUT_PLANT_MATERIAL_KEY ||
-        chunk.plantsShown !== false)
+        chunk.plantsShown !== false) &&
+      (bucket !== SHARED_TUFTS_MATERIAL_KEY || chunk.tuftsShown !== false)
     );
   }
 
@@ -9949,12 +10009,15 @@ export class World<T = any> extends Scene implements NetIntercept {
 
     const [cx, cz] = chunk.coords;
     const isPlantShown = chunk.plantsShown !== false;
+    const isTuftShown = chunk.tuftsShown !== false;
 
     for (const [level, meshes] of chunk.meshes) {
       const isLevelVisible = ((sectionMask >> level) & 1) === 1;
       for (const mesh of meshes) {
         mesh.visible =
-          isLevelVisible && (isPlantShown || mesh.userData?.isPlant !== true);
+          isLevelVisible &&
+          (isPlantShown || mesh.userData?.isPlant !== true) &&
+          (isTuftShown || mesh.userData?.isTufts !== true);
       }
       for (const [bucket, arenas] of this.arenaSets) {
         arenas.setSectionVisible(
@@ -10044,6 +10107,7 @@ export class World<T = any> extends Scene implements NetIntercept {
       const distanceSquared = dx * dx + dz * dz;
 
       this.updateChunkPlantDetail(chunk, distanceSquared);
+      this.updateChunkTuftDetail(chunk, distanceSquared);
 
       // A chunk landing where the far layer draws stays hidden until all
       // of it has meshed, the far layer drawing its column meanwhile

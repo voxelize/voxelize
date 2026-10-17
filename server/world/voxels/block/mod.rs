@@ -8,6 +8,8 @@ mod faces;
 mod rules;
 #[cfg(test)]
 mod stage_faces_parity_tests;
+#[cfg(test)]
+mod tufts_parity_tests;
 
 use std::{f32, marker::Sync, sync::Arc};
 
@@ -245,6 +247,11 @@ pub struct Block {
     /// [`BlockBuilder::stage_faces`].
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub stage_faces: Option<StageFaces>,
+
+    /// Loose quads a voxel of this block wears over its cube where it meets
+    /// the open air. Declared with [`BlockBuilder::tufts`].
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub tufts: Option<Tufts>,
 
     /// Dynamic aabb and face generation function. Defaults to `None`.
     #[serde(skip)]
@@ -583,6 +590,16 @@ impl Block {
                     mask: alternate.mask,
                     faces: alternate.faces.iter().map(|f| f.to_mesher_face()).collect(),
                 }),
+            tufts: self.tufts.as_ref().map(|tufts| voxelize_mesher::Tufts {
+                faces: tufts.faces.iter().map(|f| f.to_mesher_face()).collect(),
+                stage_faces: tufts
+                    .stage_faces
+                    .iter()
+                    .map(|f| f.to_mesher_face())
+                    .collect(),
+                jitter: tufts.jitter,
+                tilt: tufts.tilt,
+            }),
         }
     }
 
@@ -594,6 +611,22 @@ impl Block {
             _ => &self.faces,
         }
     }
+}
+
+/// Loose quads drawn over a cube where it meets the open air, mirroring the
+/// mesher's `Tufts`: `faces` in the voxel's frame (corners may reach past the
+/// cell), `stage_faces` worn instead while the stage picks the block's stage
+/// faces (empty keeps `faces`), the largest per-axis nudge in blocks and the
+/// largest lean from upright in radians.
+#[derive(Clone, Debug, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct Tufts {
+    pub faces: Vec<BlockFace>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub stage_faces: Vec<BlockFace>,
+    pub jitter: f32,
+    #[serde(default)]
+    pub tilt: f32,
 }
 
 /// Faces a block wears in place of its own on a voxel whose stage holds any

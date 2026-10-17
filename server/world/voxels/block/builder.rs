@@ -7,7 +7,7 @@ use super::coupled::coupled_guard_fns;
 use super::rules::{attached_support_fns, solid_below_support_fns};
 use super::{
     Block, BlockDynamicPattern, BranchKind, BranchSeat, BranchShape, BranchSocket, ConnectedFrame,
-    CoupledPart, StageFaces, SupportRequirement, YRotatableSegments,
+    CoupledPart, StageFaces, SupportRequirement, Tufts, YRotatableSegments,
 };
 
 #[derive(Default)]
@@ -65,6 +65,7 @@ pub struct BlockBuilder {
     branch_shell: bool,
     rotation_bits_are_state: bool,
     stage_faces: Option<(u32, Vec<BlockFace>)>,
+    tufts: Option<(Vec<BlockFace>, Vec<BlockFace>, f32, f32)>,
     dynamic_fn: Option<
         Arc<
             dyn Fn(Vec3<i32>, &dyn VoxelAccess, &Registry) -> (Vec<BlockFace>, Vec<AABB>, [bool; 6])
@@ -555,6 +556,29 @@ impl BlockBuilder {
         self
     }
 
+    /// Wear the loose quads `faces` over the cube wherever a voxel meets the
+    /// open air ([`Block::tufts`]), each voxel's set turned about its centre,
+    /// leant by up to `tilt` radians and nudged by up to `jitter` blocks per
+    /// axis. They share the atlas and take the tint and glow of the block's
+    /// first face.
+    pub fn tufts(mut self, faces: &[BlockFace], jitter: f32, tilt: f32) -> Self {
+        let stage = self
+            .tufts
+            .take()
+            .map(|(_, stage, ..)| stage)
+            .unwrap_or_default();
+        self.tufts = Some((faces.to_vec(), stage, jitter, tilt));
+        self
+    }
+
+    /// The tufts a voxel wears instead while its stage picks the block's
+    /// stage faces ([`BlockBuilder::stage_faces`]), one per tuft.
+    pub fn stage_tufts(mut self, faces: &[BlockFace]) -> Self {
+        let (own, _, jitter, tilt) = self.tufts.take().unwrap_or_default();
+        self.tufts = Some((own, faces.to_vec(), jitter, tilt));
+        self
+    }
+
     /// Configure the function that is used to create dynamic AABBs and faces for this block.
     pub fn dynamic_fn<
         F: Fn(Vec3<i32>, &dyn VoxelAccess, &Registry) -> (Vec<BlockFace>, Vec<AABB>, [bool; 6])
@@ -719,6 +743,61 @@ impl BlockBuilder {
             StageFaces {
                 mask,
                 faces: alternates,
+            }
+        });
+        let tufts = self.tufts.map(|(mut own, mut stage, jitter, tilt)| {
+            assert!(
+                !own.is_empty(),
+                "{}: stage tufts stand in for tufts it has none of",
+                self.name
+            );
+            assert!(
+                !self.is_fluid
+                    && !self.rotatable
+                    && !self.y_rotatable
+                    && !self.is_animated
+                    && self.branch.is_none()
+                    && !self.branch_shell
+                    && self.connected.is_none()
+                    && self.dynamic_fn.is_none()
+                    && self.dynamic_patterns.is_none(),
+                "{}: tufts dress a plain cube, not a fluid, rotating, animated, branch, shell, frame or dynamic one",
+                self.name
+            );
+            assert!(
+                stage.is_empty() || (stage_faces.is_some() && stage.len() == own.len()),
+                "{}: stage tufts need stage faces and one stand-in per tuft",
+                self.name
+            );
+            let dress = |tufts: &mut Vec<BlockFace>, like: Option<&BlockFace>| {
+                for tuft in tufts.iter_mut() {
+                    assert!(
+                        !tuft.independent && !tuft.isolated,
+                        "{}: tuft {} must share the atlas",
+                        self.name,
+                        tuft.name
+                    );
+                    if let Some(like) = like {
+                        tuft.stage_tint_mask = like.stage_tint_mask;
+                        tuft.pigment_mask = like.pigment_mask;
+                        tuft.regional_tint = like.regional_tint;
+                        tuft.emissive = like.emissive;
+                    }
+                }
+            };
+            dress(&mut own, faces.first());
+            dress(
+                &mut stage,
+                stage_faces
+                    .as_ref()
+                    .and_then(|s| s.faces.first())
+                    .or(faces.first()),
+            );
+            Tufts {
+                faces: own,
+                stage_faces: stage,
+                jitter,
+                tilt,
             }
         });
         if let Some(frame) = &self.connected {
@@ -913,6 +992,7 @@ impl BlockBuilder {
             branch_shell: self.branch_shell,
             rotation_bits_are_state: self.rotation_bits_are_state,
             stage_faces,
+            tufts,
             dynamic_fn: self.dynamic_fn,
             is_active: active_updater.is_some() && active_ticker.is_some(),
             active_ticker,

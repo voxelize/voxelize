@@ -538,13 +538,21 @@ export class CSMRenderer {
       .copy(this.lightSpaceCenter)
       .applyMatrix4(this.lightViewMatrixInverse);
 
+    // The caster reach belongs on the sun's side of the cascade: everything
+    // that shades a receiver lies up the light ray from it. With the camera
+    // only radius + margin up-sun (52 blocks for the near cascade), the
+    // ground over a deep shaft fell behind the near plane, drew into no
+    // map, and the shaft's sunlit floor and walls lit up near the player.
+    // The receiver side needs only the cascade's own radius plus margin.
+    // The total depth range is unchanged, so the depth biases keep their
+    // calibration.
     const offset = radius + lightMargin;
     const casterDepth = Math.max(offset, this.config.shadowCasterDistance);
 
     const camera = this.fitCamera;
     camera.position
       .copy(this.frustumCenter)
-      .addScaledVector(this.renderLightDirection, offset);
+      .addScaledVector(this.renderLightDirection, casterDepth);
     camera.up.copy(this.frustumUp);
     camera.lookAt(this.frustumCenter);
     camera.updateMatrixWorld();

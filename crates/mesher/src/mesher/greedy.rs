@@ -490,6 +490,25 @@ pub fn mesh_space_greedy<S: VoxelAccess>(
                     let is_non_greedy_block = !can_greedy_mesh_block(block, &rotation);
 
                     if !is_non_greedy_block {
+                        // Tufts are not faces of the cube: each voxel lays
+                        // its own once, on the first of the six sweeps, into a
+                        // geometry of their own (`TUFTS_FACE_NAME`) that the
+                        // client draws double-sided and can hide.
+                        if block.tufts.is_some() && dir == [1, 0, 0] {
+                            let geometry = map
+                                .entry(format!(
+                                    "{}::{}",
+                                    block.get_name_lower(),
+                                    TUFTS_FACE_NAME
+                                ))
+                                .or_insert_with(|| GeometryProtocol {
+                                    voxel: voxel_id,
+                                    face_name: Some(TUFTS_FACE_NAME.to_string()),
+                                    ..Default::default()
+                                });
+                            emit_tufts([vx, vy, vz], block, space, registry, min, geometry);
+                        }
+
                         let Some(face) = block
                             .faces_at(voxel_stage_for_faces(block, [vx, vy, vz], space))
                             .iter()

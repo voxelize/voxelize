@@ -72,6 +72,47 @@ pub struct Block {
     /// of the mask's bits. See [`Block::faces_at`].
     #[serde(default)]
     pub stage_faces: Option<StageFaces>,
+    /// Loose quads a voxel of this block wears where it meets the open air,
+    /// on top of its cube. See [`Tufts`].
+    #[serde(default)]
+    pub tufts: Option<Tufts>,
+}
+
+/// Loose quads drawn over a cube where it meets the open air: a mass of
+/// them reads as a soft, ragged outline instead of a stack of boxes. A voxel
+/// wears them only while one of its six neighbours is empty, so a buried
+/// voxel costs nothing, and its cube faces still greedy-mesh. Each voxel's
+/// set is turned about the vertical through its centre, leant by up to
+/// `tilt` radians about a level axis, and nudged by up to `jitter` blocks
+/// along each axis, all picked from its position, so no two neighbours
+/// repeat. Laid apart from the cube, in a geometry named
+/// [`TUFTS_FACE_NAME`] the client draws from both sides; lit by the voxel's
+/// own light and tinted as the block's first face is.
+#[derive(Clone, Debug, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct Tufts {
+    /// Quads in the voxel's frame; corners may reach past the cell.
+    pub faces: Vec<BlockFace>,
+    /// Worn instead of `faces` while the voxel's stage picks the block's
+    /// stage faces, one per face. Empty keeps `faces` in every look.
+    #[serde(default)]
+    pub stage_faces: Vec<BlockFace>,
+    /// Largest nudge of a voxel's set from its cell, in blocks per axis.
+    #[serde(default)]
+    pub jitter: f32,
+    /// Largest lean of a voxel's set from upright, in radians.
+    #[serde(default)]
+    pub tilt: f32,
+}
+
+impl Tufts {
+    /// The quads a voxel at `stage` wears on a block with `stage_mask`.
+    pub fn faces_at(&self, stage: u32, stage_mask: Option<u32>) -> &[BlockFace] {
+        match stage_mask {
+            Some(mask) if stage & mask != 0 && !self.stage_faces.is_empty() => &self.stage_faces,
+            _ => &self.faces,
+        }
+    }
 }
 
 /// Faces a block wears in place of its own on a voxel whose stage holds any
@@ -135,6 +176,11 @@ impl Block {
         }
         if let Some(alternate) = &mut self.stage_faces {
             for face in &mut alternate.faces {
+                face.compute_name_lower();
+            }
+        }
+        if let Some(tufts) = &mut self.tufts {
+            for face in tufts.faces.iter_mut().chain(tufts.stage_faces.iter_mut()) {
                 face.compute_name_lower();
             }
         }

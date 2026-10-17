@@ -177,6 +177,7 @@ fn block(id: u32, name: &str) -> Block {
         branch_shell: false,
         branch_sockets: vec![],
         stage_faces: None,
+        tufts: None,
     }
 }
 

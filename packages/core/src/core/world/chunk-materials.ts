@@ -21,7 +21,7 @@ import {
 import { Coords3 } from "../../types";
 import { ThreeUtils } from "../../utils";
 
-import { Block } from "./block";
+import { Block, TUFTS_FACE_NAME } from "./block";
 import { BLOCK_LIGHT_TUNING } from "./block-light-transfer";
 import { ChunkRenderer } from "./chunk-renderer";
 import { forwardDraws } from "./forward-draws";
@@ -49,6 +49,12 @@ export const SHARED_OPAQUE_MATERIAL_KEY = "shared-opaque";
 export const SHARED_CUTOUT_MATERIAL_KEY = "shared-cutout";
 export const SHARED_CUTOUT_PLANT_MATERIAL_KEY = "shared-cutout-plant";
 export const SHARED_CUTOUT_CUBE_MATERIAL_KEY = "shared-cutout-cube";
+/**
+ * Every tufted block's tufts ({@link Block.tufts}): one double-sided cutout
+ * material on the atlas, so the mesher lays each tuft quad once and a chunk's
+ * tufts of every species are one batch.
+ */
+export const SHARED_TUFTS_MATERIAL_KEY = "shared-tufts";
 
 const UNIT_CUBE_FACE_DIRECTIONS = [
   "1,0,0",
@@ -167,6 +173,7 @@ export const SHARED_CHUNK_MATERIAL_KEYS = [
   SHARED_CUTOUT_MATERIAL_KEY,
   SHARED_CUTOUT_PLANT_MATERIAL_KEY,
   SHARED_CUTOUT_CUBE_MATERIAL_KEY,
+  SHARED_TUFTS_MATERIAL_KEY,
 ] as const;
 
 /**
@@ -298,6 +305,7 @@ export function makeChunkMaterialKey(
 ) {
   const block = world.getBlockById(id);
 
+  if (faceName === TUFTS_FACE_NAME) return SHARED_TUFTS_MATERIAL_KEY;
   if (voxel) return `${id}-${faceName}-${voxel.join("-")}`;
   if (faceName) return `${id}-${faceName}`;
   if (!world.hasCustomBlockMaterial(id)) {
@@ -753,6 +761,10 @@ export async function loadChunkMaterials(
   world.chunkRenderer.materials.set(
     SHARED_CUTOUT_PLANT_MATERIAL_KEY,
     makeSharedCutout(false),
+  );
+  world.chunkRenderer.materials.set(
+    SHARED_TUFTS_MATERIAL_KEY,
+    makeSharedCutout(true),
   );
 
   world.chunkRenderer.uniforms.atlasSize.value = countPerSide;

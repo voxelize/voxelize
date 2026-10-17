@@ -223,6 +223,15 @@ export type WorldClientOptions = {
   plantDetailDistance: number | null;
 
   /**
+   * Block distance out to which blocks' tufts ({@link Block.tufts}) are
+   * drawn; beyond it a chunk's tuft batch is hidden and its canopies are
+   * their plain cubes. `null` (the default) draws them everywhere. Like
+   * {@link plantDetailDistance} it hides whole sections rather than fading,
+   * so set it where a tuft's ragged edge no longer reads.
+   */
+  tuftDetailDistance: number | null;
+
+  /**
    * Whether to use client-only meshing. When true, chunks are always meshed locally.
    * When false, server-provided meshes are used for initial chunk load.
    * Defaults to `true`.
@@ -565,6 +574,7 @@ export const defaultWorldClientOptions: WorldClientOptions = {
   isCullingChunksByFog: true,
   fogCullSlack: 16,
   plantDetailDistance: null,
+  tuftDetailDistance: null,
   distantDetailCullBelowY: null,
   nearDetailRadius: 10,
   distantDetailCullHysteresis: 8,

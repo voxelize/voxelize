@@ -312,6 +312,21 @@ export type Block = {
   stageFaces?: { mask: number; faces: Block["faces"] } | null;
 
   /**
+   * Loose quads a voxel wears over its cube while one of its six neighbours
+   * is empty, turned, leant by up to `tilt` radians and nudged by up to
+   * `jitter` blocks per voxel;
+   * `stageFaces` (when not empty) are worn instead while the stage picks
+   * {@link stageFaces}. They share the atlas. `null` (or absent) for a
+   * block without them. Mirrors the server `tufts`.
+   */
+  tufts?: {
+    faces: Block["faces"];
+    stageFaces?: Block["faces"];
+    jitter: number;
+    tilt?: number;
+  } | null;
+
+  /**
    * Raw bits 16-23 of this block's voxels hold the block's own state, not a
    * rotation: {@link World.getVoxelRotationAt} reads the identity rotation
    * for it, and its rotation cannot be set. Mirrors the server
@@ -347,13 +362,27 @@ export type Block = {
 };
 
 /**
- * Every face a block can draw: its own, then its stage faces
- * ({@link Block.stageFaces}), which share its atlas.
+ * The face name of a chunk geometry holding a block's tufts
+ * ({@link Block.tufts}), apart from its cube. Mirrors the mesher's
+ * `TUFTS_FACE_NAME`.
  */
-export function everyFaceOf(block: Pick<Block, "faces" | "stageFaces">) {
-  return block.stageFaces
-    ? [...block.faces, ...block.stageFaces.faces]
-    : block.faces;
+export const TUFTS_FACE_NAME = "voxelize:tufts";
+
+/**
+ * Every face a block can draw: its own, then its stage faces
+ * ({@link Block.stageFaces}), then its tufts ({@link Block.tufts}), all of
+ * which share its atlas.
+ */
+export function everyFaceOf(
+  block: Pick<Block, "faces" | "stageFaces" | "tufts">,
+) {
+  if (!block.stageFaces && !block.tufts) return block.faces;
+  return [
+    ...block.faces,
+    ...(block.stageFaces?.faces ?? []),
+    ...(block.tufts?.faces ?? []),
+    ...(block.tufts?.stageFaces ?? []),
+  ];
 }
 
 /**
