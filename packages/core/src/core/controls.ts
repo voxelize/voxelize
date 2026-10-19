@@ -1674,7 +1674,28 @@ export class RigidControls extends EventEmitter implements NetIntercept {
     return this.treadGap(surface) <= this.treadRiseSpeed() * dt;
   };
 
+  /**
+   * Whether the swim hitbox has room over it to grow back to the height the
+   * body stands at. The physics sweep cannot see a box the body already
+   * overlaps, so standing up into a ceiling would carry it through.
+   */
+  private hasRoomToStand = () => {
+    const { aabb } = this.body;
+    const standing = this.state.crouching
+      ? this.options.crouchBodyHeight
+      : this.options.bodyHeight;
+    const grow = standing - aabb.height;
+    if (grow <= 0) return true;
+    return this.world.physics.isSweepClear(aabb, [0, grow, 0]);
+  };
+
   private updateSwimState = (dt: number): SwimState => {
+    // Under a ceiling too low to stand in, the body keeps its swim pose.
+    if (this._swimState === "swimming" && !this.hasRoomToStand()) {
+      this._swimIdleStartedAt = -1;
+      return this._swimState;
+    }
+
     if (
       !this.isSubmergedForSwimming() ||
       this.state.crouching ||
@@ -1764,9 +1785,23 @@ export class RigidControls extends EventEmitter implements NetIntercept {
     const { bodyWidth, bodyDepth, bodyHeight, swimBodyHeight } = this.options;
     const [cx, , cz] = this.body.getPosition();
     const { aabb } = this.body;
-    const height =
+    let height =
       bodyHeight + (swimBodyHeight - bodyHeight) * this._swimAABBBlend;
     const minY = aabb.minY;
+
+    // Growing into a ceiling would leave the top inside it, where the sweep
+    // no longer stops the body: grow only as far as the room over it.
+    const grow = height - aabb.height;
+    if (grow > 0) {
+      const hit = this.world.physics.sweepObstruction(aabb, [0, grow, 0]);
+      if (hit) {
+        height = aabb.height + Math.max(hit.distance - Engine.EPSILON, 0);
+        this._swimAABBBlend = Math.min(
+          Math.max((bodyHeight - height) / (bodyHeight - swimBodyHeight), 0),
+          1,
+        );
+      }
+    }
 
     aabb.minX = cx - bodyWidth / 2;
     aabb.minY = minY;

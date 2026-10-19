@@ -17,7 +17,10 @@ const SETTLE_SECONDS = 2;
 /** Water over a bed whose top is y = 1, up to `surface`, for z >= 0; a bank
  * whose top is `bankTop` for z < 0, ahead of a body facing forward (-z). */
 type Pool = { surface: number; bankTop: number };
-type Scene = "sky" | "floor" | "water" | "ladder" | Pool;
+type Scene = "sky" | "floor" | "water" | "ladder" | "slabbed" | Pool;
+/** In the "slabbed" scene, water fills every voxel below this, under a
+ * ceiling of bottom slabs (half a block thick) laid on the water. */
+const SLAB_CEILING = 10;
 const POOL_BED_TOP = 1;
 type Held = Partial<RigidControls["movements"]>;
 /** Keys held from `at` seconds into a run, for `for` seconds. */
@@ -29,6 +32,9 @@ function sceneFluid(scene: Scene) {
     const { surface } = scene;
     return (_vx: number, vy: number, vz: number) =>
       vz >= 0 && vy >= POOL_BED_TOP && vy < surface;
+  }
+  if (scene === "slabbed") {
+    return (_vx: number, vy: number) => vy < SLAB_CEILING;
   }
   return (_vx: number, vy: number) => scene === "water" && vy < 200;
 }
@@ -51,6 +57,19 @@ function sceneEngine(scene: Scene) {
       (vx, vy, vz) =>
         vy < (vz < 0 ? bankTop : POOL_BED_TOP)
           ? [new AABB(vx, vy, vz, vx + 1, vy + 1, vz + 1)]
+          : [],
+      sceneFluid(scene),
+      () => [],
+      () => 0,
+      () => 0,
+      engineOptions,
+    );
+  }
+  if (scene === "slabbed") {
+    return new Engine(
+      (vx, vy, vz) =>
+        vy === SLAB_CEILING
+          ? [new AABB(vx, vy, vz, vx + 1, vy + 0.5, vz + 1)]
           : [],
       sceneFluid(scene),
       () => [],
@@ -622,6 +641,35 @@ describe("RigidControls in a thick fluid at 30, 60, 120 and 240 fps", () => {
       expect(thick.cruise, `${fps} fps`).toBeLessThan(0.55 * water.cruise);
       expect(thick.cruise, `${fps} fps`).toBeGreaterThan(0.25 * water.cruise);
       expect(thick.coast, `${fps} fps`).toBeLessThan(0.5 * water.coast);
+    }
+  });
+});
+
+describe("RigidControls swimming under a slab ceiling at 30, 60, 120 and 240 fps", () => {
+  it("never stands up through the slabs over the water", () => {
+    const leaves: [string, Held][] = [
+      ["holding jump", { up: true }],
+      ["letting go", {}],
+      ["crouching", { down: true }],
+    ];
+    for (const [how, keys] of leaves) {
+      for (const fps of FRAME_RATES) {
+        const body = rig("slabbed", [0.5, SLAB_CEILING - 5, 0.5]);
+        body.run(fps, 0.3, [
+          { keys: { front: true, sprint: true }, at: 0, for: 0.3 },
+        ]);
+        // Up to the slabs in the swim pose.
+        body.run(fps, 1.5, [
+          { keys: { front: true, sprint: true, up: true }, at: 0, for: 1.5 },
+        ]);
+        expect(body.controls.isSwimming, `${how}, ${fps} fps`).toBe(true);
+        // Past swimIdleStandDelay, so an idle swimmer would stand up too.
+        body.run(fps, 4, [{ keys, at: 0, for: 4 }]);
+        expect(
+          body.controls.body.aabb.maxY,
+          `${how}, ${fps} fps`,
+        ).toBeLessThanOrEqual(SLAB_CEILING + 1e-6);
+      }
     }
   });
 });
