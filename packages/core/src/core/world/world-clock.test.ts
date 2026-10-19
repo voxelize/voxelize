@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import {
   advanceWorldClock,
+  clockStepSince,
   elapsedSeconds,
   isClockDriftBeyond,
 } from "./world-clock";
@@ -53,5 +54,45 @@ describe("isClockDriftBeyond", () => {
     const client = { day: 4, time: 500 };
     expect(isClockDriftBeyond(client, server, TIME_PER_DAY, 0.1)).toBe(true);
     expect(isClockDriftBeyond(client, server, TIME_PER_DAY, 0.3)).toBe(false);
+  });
+});
+
+describe("clockStepSince", () => {
+  it("takes the whole frame when no server time landed in it", () => {
+    expect(clockStepSince(0.016, 100, -Infinity)).toBeCloseTo(0.016, 6);
+  });
+
+  it("takes only what came after a sync that landed mid-frame", () => {
+    // A 1s frame (a throttled tab) whose STATS arrived 0.4s before it ended
+    expect(clockStepSince(1, 100, 99.6)).toBeCloseTo(0.4, 6);
+  });
+
+  it("never steps backward", () => {
+    expect(clockStepSince(0.016, 100, 100.5)).toBe(0);
+  });
+
+  it("keeps the clock on the server's track across a throttled tab", () => {
+    // Frames once a second, STATS twice a second; the server is the truth
+    let local = 0;
+    let syncedAt = -Infinity;
+    let lastFrame = 0;
+    const corrections: number[] = [];
+    for (let ms = 1; ms <= 10_000; ms++) {
+      const now = ms / 1000;
+      if (ms % 500 === 250) {
+        corrections.push(now - local);
+        if (Math.abs(now - local) > 0.1) {
+          local = now;
+          syncedAt = now;
+        }
+      }
+      if (ms % 1000 === 0) {
+        local += clockStepSince(now - lastFrame, now, syncedAt);
+        syncedAt = -Infinity;
+        lastFrame = now;
+      }
+    }
+    // Lagging between frames is expected; running ahead is the double count
+    expect(Math.min(...corrections)).toBeGreaterThan(-0.01);
   });
 });
