@@ -6994,7 +6994,8 @@ export class World<T = any> extends Scene implements NetIntercept {
 
     this.sky.update(position, this.time, timePerDay);
     this.clouds.update(position, this.sharedClock);
-    this.volumetricClouds?.update(this.sharedClock);
+    // Slewed, not the raw shared clock, which snaps on server corrections.
+    this.volumetricClouds?.update(this.shaderClock.seconds);
 
     // Update the sunlight intensity
     const sunlightStartTime = Math.floor(sunlightStartTimeFrac * timePerDay);
@@ -8350,6 +8351,16 @@ export class World<T = any> extends Scene implements NetIntercept {
           this.captureSceneDepth(renderer, target);
           this.pointWaterRefractionAt(target);
         },
+        // The volumetric deck draws after the composite, so it must not
+        // paint over a pane or portal in front of it: what of it lies
+        // behind the blended layers draws here, under them.
+        beforeComposite: (renderer, scene, camera, layers) =>
+          this.volumetricClouds?.drawBehindBlended(
+            renderer,
+            scene,
+            camera,
+            layers,
+          ),
         // Water refracts what lies beyond it: glass, particles and farther
         // water behind its nearest face join the scene it reads before it
         // draws.

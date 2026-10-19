@@ -16,8 +16,8 @@ import {
   OneFactor,
   OneMinusSrcAlphaFactor,
   type PerspectiveCamera,
-  RedFormat,
   RGBAFormat,
+  RGFormat,
   type Scene,
   ShaderMaterial,
   SrcAlphaFactor,
@@ -169,7 +169,8 @@ const KEY_MARK = "|order-independent-";
  * open) turns its colour into the weighted sums: premultiplied colour times
  * the weight into the first target (its alpha keeps the product of
  * transmittances through the blend state), alpha times the weight into the
- * second.
+ * second's red, and that times the fragment's view depth into its green, so
+ * a pass after the band can tell where the layers it composited stand.
  */
 export function orderIndependentFragment(source: string, kind: BlendedKind) {
   const premultiplied =
@@ -215,7 +216,7 @@ void main() {
   );
   float oitWeight = oitAlpha * oitDepthWeight;
   gl_FragColor = vec4(${premultiplied} * oitWeight, oitAlpha);
-  pc_fragOitWeight = vec4(oitAlpha * oitWeight, 0.0, 0.0, 0.0);
+  pc_fragOitWeight = vec4(oitAlpha * oitWeight, oitAlpha * oitWeight * oitDistance, 0.0, 0.0);
 }
 `;
 }
@@ -357,6 +358,19 @@ export class OrderIndependentTransparency {
        * also holds what lies behind the separating surface.
        */
       onOpen?: (renderer: WebGLRenderer, target: WebGLRenderTarget) => void;
+      /**
+       * Right before the closing composite, with the scene's target bound:
+       * whatever lies behind the blended layers and could not draw before
+       * them (a deck of cloud marched after the scene) draws here, under
+       * them. `layers` is the weight target: per pixel, the layers'
+       * weighted alpha (r) and that times their view depth (g).
+       */
+      beforeComposite?: (
+        renderer: WebGLRenderer,
+        scene: Scene,
+        camera: Camera,
+        layers: Texture,
+      ) => void;
       separator?: OrderIndependentSeparator;
     } = {},
   ) {
@@ -416,7 +430,8 @@ export class OrderIndependentTransparency {
     this.close.name = "OrderIndependent.close";
     this.close.frustumCulled = false;
     this.close.renderOrder = OIT_CLOSE_RENDER_ORDER;
-    this.close.onBeforeRender = (renderer) => this.end(renderer);
+    this.close.onBeforeRender = (renderer, scene, camera) =>
+      this.end(renderer, scene as Scene, camera);
     this.close.onAfterRender = () => this.compositeGeometry.setDrawRange(0, 0);
     this.declined.add(this.open.material as Material);
     this.declined.add(this.composite);
@@ -697,10 +712,16 @@ export class OrderIndependentTransparency {
     this.compositeGeometry.setDrawRange(0, 0);
   }
 
-  private end(renderer: WebGLRenderer) {
+  private end(renderer: WebGLRenderer, scene: Scene, camera: Camera) {
     if (!this.isAccumulating || !this.accumulation) return;
     this.abandon();
     renderer.setRenderTarget(this.sceneTarget);
+    this.hooks.beforeComposite?.(
+      renderer,
+      scene,
+      camera,
+      this.accumulation.textures[1],
+    );
     this.composite.uniforms.tAccumulation.value = this.accumulation.textures[0];
     this.composite.uniforms.tWeight.value = this.accumulation.textures[1];
     this.compositeGeometry.setDrawRange(0, 3);
@@ -774,7 +795,7 @@ export class OrderIndependentTransparency {
     });
     accumulation.textures[0].name = "OrderIndependent.accumulation";
     accumulation.textures[1].name = "OrderIndependent.weight";
-    accumulation.textures[1].format = RedFormat;
+    accumulation.textures[1].format = RGFormat;
     this.accumulation = accumulation;
     this.accumulationDepthHandle = depthHandle;
     return accumulation;

@@ -12,6 +12,16 @@ uniform sampler2D uSceneDepth;
 uniform float uSceneDepthReady;
 uniform mat4 uInverseProjection;
 uniform vec2 uResolution;
+// The see-through layers (glass, portals, water, particles) composite over
+// the scene in one pass, and nothing records where they stand, so a deck
+// drawn after them would paint over a pane in front of it. With them in
+// view the deck draws in two halves split at their distance: 1 marches the
+// part behind them, under their composite; 2 the part in front, over it;
+// 0 marches the whole ray. The split comes from the accumulation's weight
+// target: its alpha-weighted sum (r) and that sum times each layer's view
+// depth (g).
+uniform float uBlendedSplit;
+uniform sampler2D uBlendedLayers;
 
 uniform vec3 uCloudColor;
 uniform float uCloudFogDistanceScale;
@@ -21,7 +31,6 @@ uniform float uCloudSunTint;
 
 // 0: voxel (the deck is cubes, each one a texel of the volume), 1: soft.
 uniform float uStyle;
-uniform vec3 uDrift;
 uniform float uMaxDistance;
 uniform float uFadeStart;
 uniform int uLayerCount;
@@ -31,10 +40,16 @@ uniform vec4 uLayerSpan[MAX_LAYERS];
 uniform vec4 uLayerCell[MAX_LAYERS];
 // bottom rounding, top rounding, shade floor, noise offset
 uniform vec4 uLayerShape[MAX_LAYERS];
-// share of the wind each slab drifts with
-uniform float uLayerDrift[MAX_LAYERS];
+// The slab's drift, wrapped on the CPU so it stays small at any clock: the
+// cell grid's shift within one cell (x, z), then the shift of the detail
+// noise and of the coverage map, each in its own tiles (x, z, x, z). A raw
+// drift is the shared clock times the speed, far past what a float32 can
+// step smoothly.
+uniform vec2 uLayerGridShift[MAX_LAYERS];
+uniform vec4 uLayerNoiseShift[MAX_LAYERS];
 
 varying vec3 vRay;
+varying vec3 vViewRay;
 
 // Density at p. `stepped` makes the voxel style's cells all-or-nothing, for
 // deciding where a cube stands; unstepped, the filtered field is smooth,
@@ -47,14 +62,14 @@ float layerDensity(int i, vec3 p, bool stepped) {
   float h = (p.y - span.x) / (span.y - span.x);
   if (h < 0.0 || h > 1.0) return 0.0;
 
-  vec3 drift = uDrift * uLayerDrift[i];
-  vec3 q = vec3(p.x + drift.x, p.y - span.x, p.z + drift.z) / cell.xyz;
+  vec4 shift = uLayerNoiseShift[i];
+  vec3 q = vec3(p.x, p.y - span.x, p.z) / cell.xyz;
   // Whole-texel offset, so voxel cell centres stay on texel centres.
-  vec3 uvw = (q + vec3(shape.w, 0.0, floor(shape.w * 1.7))) / uNoiseSize;
-  vec4 n = texture(uCloudNoise, uvw);
+  vec3 still = (q + vec3(shape.w, 0.0, floor(shape.w * 1.7))) / uNoiseSize;
+  vec4 n = texture(uCloudNoise, still + vec3(shift.x, 0.0, shift.y));
   float coverageMap = texture(
     uCloudNoise,
-    vec3(uvw.x / cell.w + 0.31, 0.5, uvw.z / cell.w + 0.17)
+    vec3(still.x / cell.w + shift.z + 0.31, 0.5, still.z / cell.w + shift.w + 0.17)
   ).b;
 
   // Rounded underside and top, so a bank is a billow and not a slab.
@@ -137,12 +152,12 @@ vec3 cloudLight(int i, vec3 p, vec3 normal, float hasNormal, vec3 rd, float thic
 // Voxel style: the cells decide where cloud stands, so the outline is cubes;
 // each surface the ray meets is lit and made see-through from the smooth
 // field, so no cell edge shows across a face.
-void marchVoxel(int i, vec3 ro, vec3 rd, float t0, float t1,
+void marchVoxel(int i, vec3 ro, vec3 rd, float t0, float t1, bool resumed,
                 inout vec3 color, inout float transmittance, inout float weightedDistance) {
   vec4 span = uLayerSpan[i];
   vec3 cell = uLayerCell[i].xyz;
-  vec3 drift = uDrift * uLayerDrift[i];
-  vec3 origin = vec3(-drift.x, span.x, -drift.z);
+  vec2 gridShift = uLayerGridShift[i];
+  vec3 origin = vec3(-gridShift.x, span.x, -gridShift.y);
 
   vec3 og = (ro - origin) / cell;
   vec3 dg = rd / cell;
@@ -156,7 +171,9 @@ void marchVoxel(int i, vec3 ro, vec3 rd, float t0, float t1,
 
   vec3 normal = vec3(0.0, -sign(rd.y), 0.0);
   float hasNormal = t0 > 0.0 ? 1.0 : 0.0;
-  bool wasCloudy = false;
+  // A march that picks up where the front half stopped, inside a bank, goes
+  // on through its mist instead of meeting a face at the split.
+  bool wasCloudy = resumed && layerDensity(i, (idx + 0.5) * cell + origin, true) > 0.0;
   float probe = min(cell.x, cell.y);
 
   for (int s = 0; s < VOXEL_STEPS; s++) {
@@ -245,12 +262,12 @@ void marchSoft(int i, vec3 ro, vec3 rd, float t0, float t1, float jitter,
   }
 }
 
-vec2 layerSegment(int i, vec3 ro, vec3 rd, float limit) {
+vec2 layerSegment(int i, vec3 ro, vec3 rd, float start, float limit) {
   vec4 span = uLayerSpan[i];
   float inv = 1.0 / (abs(rd.y) > 1e-5 ? rd.y : 1e-5);
   float ta = (span.x - ro.y) * inv;
   float tb = (span.y - ro.y) * inv;
-  float t0 = max(min(ta, tb), 0.0);
+  float t0 = max(min(ta, tb), start);
   float t1 = min(max(ta, tb), limit);
   return vec2(t0, t1);
 }
@@ -269,6 +286,21 @@ void main() {
     }
   }
 
+  float start = 0.0;
+  if (uBlendedSplit > 0.5) {
+    vec2 layers = texelFetch(uBlendedLayers, ivec2(gl_FragCoord.xy), 0).rg;
+    // Their mean view depth, weighted as the composite weighs them, as a
+    // distance along this pixel's ray. None here: the front half is all.
+    float split = limit;
+    if (layers.r > 1e-6) {
+      vec3 viewRay = normalize(vViewRay);
+      split = (layers.g / layers.r) / max(-viewRay.z, 1e-4);
+    }
+    if (uBlendedSplit < 1.5) start = split;
+    else limit = min(limit, split);
+  }
+  if (start >= limit) discard;
+
   // Interleaved gradient noise: steps start at a per-pixel offset so the
   // soft style's banding becomes a fine, fixed grain.
   float jitter = fract(52.9829189 * fract(dot(gl_FragCoord.xy, vec2(0.06711056, 0.00583715))));
@@ -278,8 +310,8 @@ void main() {
   float weightedDistance = 0.0;
 
   // Front to back: the layer the ray reaches first composites first.
-  vec2 segA = uLayerCount > 0 ? layerSegment(0, ro, rd, limit) : vec2(1.0, 0.0);
-  vec2 segB = uLayerCount > 1 ? layerSegment(1, ro, rd, limit) : vec2(1.0, 0.0);
+  vec2 segA = uLayerCount > 0 ? layerSegment(0, ro, rd, start, limit) : vec2(1.0, 0.0);
+  vec2 segB = uLayerCount > 1 ? layerSegment(1, ro, rd, start, limit) : vec2(1.0, 0.0);
   int first = segB.x < segA.x ? 1 : 0;
 
   for (int k = 0; k < MAX_LAYERS; k++) {
@@ -289,7 +321,7 @@ void main() {
     if (uStyle > 0.5) {
       marchSoft(i, ro, rd, seg.x, seg.y, jitter, color, transmittance, weightedDistance);
     } else {
-      marchVoxel(i, ro, rd, seg.x, seg.y, color, transmittance, weightedDistance);
+      marchVoxel(i, ro, rd, seg.x, seg.y, start > 0.0 && seg.x <= start, color, transmittance, weightedDistance);
     }
   }
 
