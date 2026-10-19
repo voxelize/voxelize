@@ -118,10 +118,11 @@ export class StatusBar {
   item(options: StatusItemOptions): this {
     if (this.items.has(options.id)) return this;
 
-    const element = createElement("div", {
-      className: "vxd-statusbar-item",
-      parent: options.side === "right" ? this.rightElement : this.leftElement,
-    });
+    const element = createElement("div", { className: "vxd-statusbar-item" });
+    // The right side lays out row-reverse from the edge (see styles.css), so
+    // prepending keeps segments in registration order on screen.
+    if (options.side === "right") this.rightElement.prepend(element);
+    else this.leftElement.appendChild(element);
 
     let dotElement: HTMLElement | null = null;
     let sparkCanvas: HTMLCanvasElement | null = null;

@@ -113,14 +113,29 @@
   pointer-events: auto;
 }
 
+/* When the bar is narrower than its segments, whole segments drop rather than
+   one side running over the other: each side wraps, and only its first line
+   shows. The left side drops from its end (the target name first); the right
+   side is laid out from the right edge in reverse DOM order (StatusBar
+   prepends there), so it drops its leading segments and keeps mem, peers and
+   lag in the corner. */
 .vxd-statusbar-side {
   display: flex;
-  align-items: stretch;
+  flex: 0 1 auto;
+  flex-wrap: wrap;
+  align-content: flex-start;
+  height: 100%;
   min-width: 0;
+  overflow: hidden;
+}
+
+.vxd-statusbar-side-right {
+  flex-direction: row-reverse;
 }
 
 .vxd-statusbar-item {
   display: flex;
+  height: 100%;
   align-items: center;
   gap: 5px;
   padding: 0 8px;
@@ -153,6 +168,12 @@
   max-width: 22ch;
   overflow: hidden;
   text-overflow: ellipsis;
+}
+
+/* An icon-only segment with nothing to count (logs with none unread) keeps
+   neither its reserved slot nor the gap before it. */
+.vxd-statusbar-value:empty {
+  display: none;
 }
 
 .vxd-statusbar-item.vxd-tone-ok .vxd-statusbar-value {
