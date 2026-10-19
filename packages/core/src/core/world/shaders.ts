@@ -178,8 +178,12 @@ const LOCAL_LIGHTS_SPECULAR_FRAGMENT = `
   // Torch sparkle on water: the clustered lights are the only local sources
   // with a position to reflect, so fluids are where local specular lives.
   // The flood field rides along for the same leak masking the diffuse path
-  // applies — an occluded lamp must not glint through its wall.
-  specularColor += localLightSpecular(wPos, waterNormal, viewDir, voxelLight.rgb);
+  // applies — an occluded lamp must not glint through its wall. A tank
+  // window takes none: its face is a flat mirror with no ripple to break
+  // the lobe, so a lamp in the tank wall smeared a white glare across the
+  // glass, cut off at the block edge.
+  specularColor += localLightSpecular(wPos, waterNormal, viewDir, voxelLight.rgb)
+    * (1.0 - airSideFace);
 `;
 
 const LOCAL_LIGHTS_DEBUG_TAIL_FRAGMENT = `
@@ -1676,6 +1680,11 @@ ${LOCAL_LIGHTS_SPECULAR_FRAGMENT}
       airSideFace
     );
     float tintAmount = 0.12 + fresnel * 0.28 + surfaceRipple * 0.08 + thicknessScatter;
+    tintAmount *= mix(
+      1.0,
+      ${WATER_OPTICS.airSideFaceRefractionTintScale.toFixed(4)},
+      airSideFace
+    );
     waterColor = mix(refractedScene, waterColor, tintAmount);
   } else {
     // No floor to shade: the caustics land on the surface layer instead,

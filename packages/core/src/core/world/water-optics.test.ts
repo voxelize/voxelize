@@ -351,7 +351,7 @@ describe("the water behind a tank window", () => {
       WATER_OPTICS.paneFallbackPathBlocks,
     );
     // A fish a block behind the glass keeps most of its colour; the far
-    // wall of a dozen-block tank has lost most of its red.
+    // wall of a two-dozen-block tank has lost most of its red.
     const red = (blocks: number) =>
       Math.exp(
         -WATER_OPTICS.downwellingExtinction.red *
@@ -359,7 +359,7 @@ describe("the water behind a tank window", () => {
           blocks,
       );
     expect(red(1)).toBeGreaterThan(0.85);
-    expect(red(12)).toBeLessThan(0.5);
+    expect(red(24)).toBeLessThan(0.5);
   });
 
   it("measures the run from the window to the first thing behind it, never past the water's end", () => {

@@ -586,6 +586,13 @@ export const WATER_OPTICS = Object.freeze({
   airSideFaceAlphaScale: 0.42,
   airSideFaceGlossScale: 0.0,
   airSideFaceTintMix: 0.85,
+  /**
+   * How much of the flat water colour a window lays over the refracted view
+   * behind it, relative to the lake surface's tint amount. The run's own fog
+   * already colours what lies behind the glass; the flat layer on top only
+   * frosted the pane.
+   */
+  airSideFaceRefractionTintScale: 0.3,
 
   /**
    * What a tank window shows is the water behind it. The eye's ray crosses
@@ -601,8 +608,11 @@ export const WATER_OPTICS = Object.freeze({
    * (`viewExtinctionScale`), whose clarity is tuned for swimming through
    * open water: from outside, a tank has to read as water at a glance,
    * with the far wall gone blue and a fish near the glass still crisp.
+   * Kept light enough that a small tank still reads as clear glass with
+   * water behind it, not a blue haze: at 0.7 a three-block tank went flat
+   * and matte (18 Oct).
    */
-  paneViewExtinctionScale: 0.7,
+  paneViewExtinctionScale: 0.28,
   /**
    * The run assumed where the frame has nothing to measure it with (no
    * glass in view to draw the water's exit for — a Barrier tank — or no
