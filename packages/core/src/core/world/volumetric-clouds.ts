@@ -3,10 +3,14 @@ import {
   Camera,
   Data3DTexture,
   Float32BufferAttribute,
+  type Group,
   LinearFilter,
   Matrix4,
   Mesh,
+  type Scene,
+  type Texture,
   NormalBlending,
+  type Object3D,
   RepeatWrapping,
   RGBAFormat,
   ShaderMaterial,
@@ -28,6 +32,7 @@ import { ORDER_INDEPENDENT_KEY } from "./order-independent-transparency";
 import { SceneDepthCopy } from "./scene-depth-copy";
 import { markNeverCaster } from "./shadow-casters";
 import { createSkyFogFragment, SKY_FOG_UNIFORM_DECLARATIONS } from "./sky-fog";
+import { driftShift } from "./volumetric-clouds-drift";
 import VolumetricCloudWorker from "./workers/volumetric-clouds-worker.ts?worker&inline";
 
 /** How a volumetric deck is drawn. */
@@ -151,6 +156,12 @@ export class VolumetricClouds extends Mesh<BufferGeometry, ShaderMaterial> {
 
   private isHidden = false;
 
+  /** The layers as drawn, defaults filled in, for the per-frame drift. */
+  private resolvedLayers: VolumetricCloudLayer[] = [];
+
+  /** The render whose blended layers the back half drew under. */
+  private splitFrame = -1;
+
   constructor(
     options: Partial<VolumetricCloudsOptions> = {},
     shared: VolumetricCloudsSharedUniforms = {},
@@ -206,7 +217,8 @@ export class VolumetricClouds extends Mesh<BufferGeometry, ShaderMaterial> {
         uCameraWorld: { value: new Matrix4() },
         uResolution: { value: new Vector2(1, 1) },
         uStyle: { value: 0 },
-        uDrift: { value: new Vector3() },
+        uBlendedSplit: { value: 0 },
+        uBlendedLayers: { value: null },
         uMaxDistance: { value: 2400 },
         uFadeStart: { value: 1200 },
         uLayerCount: { value: 0 },
@@ -228,8 +240,17 @@ export class VolumetricClouds extends Mesh<BufferGeometry, ShaderMaterial> {
             () => new Vector4(),
           ),
         },
-        uLayerDrift: {
-          value: Array.from({ length: VOLUMETRIC_CLOUD_MAX_LAYERS }, () => 1),
+        uLayerGridShift: {
+          value: Array.from(
+            { length: VOLUMETRIC_CLOUD_MAX_LAYERS },
+            () => new Vector2(),
+          ),
+        },
+        uLayerNoiseShift: {
+          value: Array.from(
+            { length: VOLUMETRIC_CLOUD_MAX_LAYERS },
+            () => new Vector4(),
+          ),
         },
       },
     });
@@ -261,14 +282,69 @@ export class VolumetricClouds extends Mesh<BufferGeometry, ShaderMaterial> {
 
   /**
    * Drift the deck with a clock every viewer shares, so two clients see the
-   * same cloud in the same place.
+   * same cloud in the same place. Pass a slewed clock (`World.shaderClock`):
+   * the shared clock itself snaps on every server correction, and the deck
+   * would jump with it.
    */
   update(driftClock: number) {
-    this.material.uniforms.uDrift.value.set(
-      0,
-      0,
-      this.options.speed * driftClock,
+    const { speed, noiseSize } = this.options;
+    const uniforms = this.material.uniforms;
+    for (let i = 0; i < this.resolvedLayers.length; i++) {
+      const layer = this.resolvedLayers[i];
+      const shift = driftShift(
+        speed * driftClock * layer.drift,
+        layer.cell[2],
+        noiseSize[2],
+        layer.coverageScale,
+      );
+      uniforms.uLayerGridShift.value[i].set(0, shift.grid);
+      uniforms.uLayerNoiseShift.value[i].set(0, shift.noise, 0, shift.coverage);
+    }
+  }
+
+  /**
+   * Draws the half of the deck behind the scene's blended layers, under
+   * their composite: `layers` is the accumulation's weight target, read for
+   * where they stand. Called with the scene's target bound, just before the
+   * composite; the deck's own draw later this render is the front half.
+   */
+  drawBehindBlended(
+    renderer: WebGLRenderer,
+    scene: Scene,
+    camera: Camera,
+    layers: Texture,
+  ) {
+    if (!this.visible) return;
+    // Every argument three passes: a game may wrap this hook and read them.
+    (this.onBeforeRender as Object3D["onBeforeRender"])(
+      renderer,
+      scene,
+      camera,
+      this.geometry,
+      this.material,
+      null as unknown as Group,
     );
+    const uniforms = this.material.uniforms;
+    uniforms.uBlendedLayers.value = layers;
+    this.setSplit(1);
+    renderer.renderBufferDirect(
+      camera,
+      scene,
+      this.geometry,
+      this.material,
+      this,
+      null,
+    );
+    this.setSplit(2);
+    this.splitFrame = renderer.info.render.frame;
+  }
+
+  private setSplit(split: number) {
+    const uniforms = this.material.uniforms;
+    if (uniforms.uBlendedSplit.value === split) return;
+    uniforms.uBlendedSplit.value = split;
+    // The same material draws twice in a render: make three upload again.
+    this.material.uniformsNeedUpdate = true;
   }
 
   onBeforeRender = (
@@ -287,6 +363,9 @@ export class VolumetricClouds extends Mesh<BufferGeometry, ShaderMaterial> {
       renderer.getDrawingBufferSize(this.resolution);
     }
     uniforms.uResolution.value.copy(this.resolution);
+
+    // No back half this render (no blended layers accumulated): one march.
+    if (this.splitFrame !== renderer.info.render.frame) this.setSplit(0);
 
     this.depthCopy.capture(renderer, target);
   };
@@ -310,8 +389,10 @@ export class VolumetricClouds extends Mesh<BufferGeometry, ShaderMaterial> {
 
     const count = Math.min(layers.length, VOLUMETRIC_CLOUD_MAX_LAYERS);
     uniforms.uLayerCount.value = count;
+    this.resolvedLayers.length = 0;
     for (let i = 0; i < count; i++) {
       const layer = { ...defaultLayer, ...layers[i] };
+      this.resolvedLayers.push(layer);
       uniforms.uLayerSpan.value[i].set(
         layer.bottom,
         layer.top,
@@ -330,7 +411,6 @@ export class VolumetricClouds extends Mesh<BufferGeometry, ShaderMaterial> {
         layer.shadeFloor,
         layer.offset,
       );
-      uniforms.uLayerDrift.value[i] = layer.drift;
     }
 
     this.visible = this.isInitialized && count > 0 && !this.isHidden;
