@@ -263,6 +263,7 @@ import MeshWorker from "./workers/mesh-worker.ts?worker";
 import { WORKER_READY_MESSAGE_TYPE } from "./workers/worker-ready";
 import {
   advanceWorldClock,
+  clockStepSince,
   elapsedSeconds,
   isClockDriftBeyond,
 } from "./world-clock";
@@ -1373,6 +1374,13 @@ export class World<T = any> extends Scene implements NetIntercept {
    * The internal clock.
    */
   private timer = new Timer();
+
+  /**
+   * When the world clock last took the server's time, in `performance.now()`
+   * seconds, so the next frame advances it only by what came after
+   * (`clockStepSince`). `-Infinity` once a frame has used it.
+   */
+  private clockSyncedAt = -Infinity;
 
   /**
    * A map of initialize listeners on chunks.
@@ -5646,6 +5654,7 @@ export class World<T = any> extends Scene implements NetIntercept {
 
     this._time = stats.time;
     this._day = stats.day ?? 0;
+    this.clockSyncedAt = performance.now() / 1000;
 
     // Loading the items registry
     if (items && Array.isArray(items)) {
@@ -5728,9 +5737,10 @@ export class World<T = any> extends Scene implements NetIntercept {
     if (this.options.doesTickTime) {
       const { day, time } = advanceWorldClock(
         { day: this._day, time: this._time },
-        delta,
+        clockStepSince(delta, performance.now() / 1000, this.clockSyncedAt),
         this.options.timePerDay,
       );
+      this.clockSyncedAt = -Infinity;
       this._day = day;
       this._time = time;
     }
@@ -6008,6 +6018,7 @@ export class World<T = any> extends Scene implements NetIntercept {
         ) {
           this._time = server.time;
           this._day = server.day;
+          this.clockSyncedAt = performance.now() / 1000;
         }
 
         break;
@@ -6166,6 +6177,7 @@ export class World<T = any> extends Scene implements NetIntercept {
 
   set time(time: number) {
     this._time = time;
+    this.clockSyncedAt = performance.now() / 1000;
 
     if (this.isInitialized) {
       this.packets.push({
