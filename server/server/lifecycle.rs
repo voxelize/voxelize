@@ -351,9 +351,9 @@ impl Server {
     /// registry (authoritative server-side membership, updated synchronously on
     /// join/leave/switch/disconnect).
     pub(crate) fn world_player_count(&self, name: &str) -> usize {
-        self.connections
+        self.sessions
             .values()
-            .filter(|(_, world_name, _)| world_name == name)
+            .filter(|session| session.world.as_deref() == Some(name))
             .count()
     }
 
@@ -575,16 +575,10 @@ impl Server {
         // Step 5 (server side): eject sessions bound to this world so a stale
         // reconnect can't resurrect a dead world; it takes the clean
         // non-existent path instead.
-        let bound: Vec<String> = self
-            .connections
-            .iter()
-            .filter(|(_, (_, world_name, _))| world_name == name)
-            .map(|(id, _)| id.clone())
-            .collect();
-        for id in &bound {
-            self.connections.remove(id);
-            self.lost_sessions.remove(id);
-        }
+        let before = self.sessions.len();
+        self.sessions
+            .retain(|_, session| session.world.as_deref() != Some(name));
+        let ejected = before - self.sessions.len();
 
         let mut entry = self.world_entries.remove(name);
         if let Some(entry) = &mut entry {
@@ -605,7 +599,7 @@ impl Server {
             serde_json::json!({
                 "lifetimeMs": lifetime_ms,
                 "peakPlayers": peak,
-                "ejectedSessions": bound.len(),
+                "ejectedSessions": ejected,
             }),
         );
         info!(
@@ -613,7 +607,7 @@ impl Server {
             name,
             lifetime_ms,
             peak,
-            bound.len()
+            ejected
         );
 
         // Warm-pool return: keep the actor dormant for reuse instead of
@@ -663,7 +657,7 @@ impl Server {
     /// worlds never arm.
     pub(crate) fn reconcile_gc(&mut self, ctx: &mut Context<Self>) {
         let mut counts: std::collections::HashMap<String, usize> = std::collections::HashMap::new();
-        for (_, world_name, _) in self.connections.values() {
+        for world_name in self.sessions.values().filter_map(|session| session.world.as_ref()) {
             *counts.entry(world_name.clone()).or_insert(0) += 1;
         }
 

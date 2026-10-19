@@ -31,6 +31,16 @@ pub struct Disconnect {
     pub token: String,
 }
 
+/// The socket (sender and connection token) a WebRTC data channel for
+/// `id` attaches to: its session in `world`, or with no world, its only
+/// session. `None` when there is no such session.
+#[derive(ActixMessage)]
+#[rtype(result = "Option<(WsSender, String)>")]
+pub struct ResolveRtcSession {
+    pub id: String,
+    pub world: Option<String>,
+}
+
 #[derive(ActixMessage)]
 #[rtype(result = "Value")]
 pub struct Info;
@@ -57,9 +67,9 @@ pub struct ClientMessage {
     /// Protobuf message
     pub data: Message,
 
-    /// Connection token of the socket that produced this message. `None` for
-    /// secondary channels (WebRTC data channel) riding on a validated
-    /// session. When set, messages from superseded sockets are rejected.
+    /// Connection token of the socket that produced this message (a WebRTC
+    /// data channel carries its socket's). Messages from superseded sockets
+    /// are rejected. `None` resolves only while `id` holds a single session.
     pub session_token: Option<String>,
 
     pub received_monotonic_ms: Option<f64>,
@@ -107,6 +117,14 @@ impl Handler<Disconnect> for Server {
     fn handle(&mut self, msg: Disconnect, ctx: &mut Context<Self>) {
         self.unregister_session(&msg.id, &msg.token);
         self.reconcile_gc(ctx);
+    }
+}
+
+impl Handler<ResolveRtcSession> for Server {
+    type Result = MessageResult<ResolveRtcSession>;
+
+    fn handle(&mut self, msg: ResolveRtcSession, _: &mut Context<Self>) -> Self::Result {
+        MessageResult(self.world_session(&msg.id, msg.world.as_deref()))
     }
 }
 

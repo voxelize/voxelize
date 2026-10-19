@@ -18,12 +18,15 @@ export class WebRTCConnection {
    * Open the data channel for an already-registered session. `ticket` is the
    * same signed session credential the WebSocket upgrade carried; the server
    * derives the acting client id from it, so without one the offer is only
-   * accepted on servers that trust client-chosen ids.
+   * accepted on servers that trust client-chosen ids. `world` names which of
+   * the client id's sockets the channel belongs to: one id may be in
+   * several worlds at once, each socket with its own channel.
    */
   async connect(
     serverUrl: string,
     clientId: string,
     ticket?: string | null,
+    world?: string,
   ): Promise<void> {
     this.pc = new RTCPeerConnection({
       iceServers: [{ urls: "stun:stun.l.google.com:19302" }],
@@ -71,6 +74,7 @@ export class WebRTCConnection {
           sdp: offer.sdp,
           client_id: clientId,
           ...(ticket ? { ticket } : {}),
+          ...(world ? { world } : {}),
         }),
       });
 

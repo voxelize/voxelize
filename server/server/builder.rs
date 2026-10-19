@@ -136,15 +136,12 @@ impl ServerBuilder {
             secret: self.secret,
             transport_secret: self.transport_secret,
             session_authenticator: self.session_authenticator,
-            identities: HashMap::default(),
-
             registry,
             init_registry: Default::default(),
 
             started: false,
 
-            connections: HashMap::default(),
-            lost_sessions: HashMap::default(),
+            sessions: HashMap::default(),
             transport_sessions: HashMap::default(),
             method_guard: None,
             method_index: MethodIndex::default(),

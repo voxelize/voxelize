@@ -29,6 +29,9 @@ pub use world::system_profiler::{
 };
 pub use world::*;
 
+/// No longer routes anything: a data channel attaches to its own socket
+/// ([`WsSender::attach_rtc`]), since one client id may hold a socket in
+/// several worlds. Kept so adapters that still create and install it build.
 pub type RtcSenders = Arc<Mutex<HashMap<String, mpsc::UnboundedSender<Vec<u8>>>>>;
 
 pub fn create_rtc_senders() -> RtcSenders {
