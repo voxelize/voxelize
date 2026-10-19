@@ -17,7 +17,8 @@ use webrtc::peer_connection::RTCPeerConnection;
 
 use super::datachannel::{fragment_message, FragmentAssembler};
 use crate::{
-    decode_message, ClientMessage, RtcSenders, Server, SessionAuth, VoxelizeHandle, CLIENT_ID_PARAM,
+    decode_message, ClientMessage, ResolveRtcSession, Server, SessionAuth, VoxelizeHandle,
+    WsSender, CLIENT_ID_PARAM,
 };
 
 use actix::Addr;
@@ -35,20 +36,13 @@ pub const SESSION_TICKET_PARAM: &str = "ticket";
 /// keeps using its WebSocket.
 const DATA_CHANNEL_OPEN_DEADLINE: Duration = Duration::from_secs(30);
 
-/// Drop `client_id`'s sender if it is still the one feeding `tx`'s channel.
-/// A connection that fails after the client has opened a newer one must not
-/// take the newer one's sender with it.
-async fn forget_sender(
-    rtc_senders: &RtcSenders,
-    client_id: &str,
-    tx: &mpsc::UnboundedSender<Vec<u8>>,
-) {
-    let mut senders = rtc_senders.lock().await;
-    if senders
-        .get(client_id)
-        .is_some_and(|sender| sender.same_channel(tx))
-    {
-        senders.remove(client_id);
+/// The `peers` key of a client's connection for one world. A client id may
+/// hold a socket in several worlds at once, each with its own connection;
+/// an offer without a world (older clients) keys on the id alone.
+fn peer_key(client_id: &str, world: Option<&str>) -> String {
+    match world {
+        Some(world) => format!("{client_id}\u{1f}{world}"),
+        None => client_id.to_owned(),
     }
 }
 
@@ -96,6 +90,10 @@ pub struct RtcOfferRequest {
     /// the socket did.
     #[serde(default)]
     pub ticket: Option<String>,
+    /// The world the offering socket is in. The channel attaches to that
+    /// socket; without it, to the client id's only socket.
+    #[serde(default)]
+    pub world: Option<String>,
 }
 
 #[derive(Serialize)]
@@ -109,13 +107,14 @@ pub struct RtcCandidateRequest {
     pub candidate: String,
     pub sdp_mid: Option<String>,
     pub sdp_mline_index: Option<u16>,
+    #[serde(default)]
+    pub world: Option<String>,
 }
 
 pub async fn rtc_offer(
     body: web::Json<RtcOfferRequest>,
     api: web::Data<Arc<API>>,
     peers: web::Data<WebRTCPeers>,
-    rtc_senders: web::Data<RtcSenders>,
     server: web::Data<Addr<Server>>,
     handle: web::Data<VoxelizeHandle>,
 ) -> Result<HttpResponse, Error> {
@@ -143,6 +142,25 @@ pub async fn rtc_offer(
         }
     };
 
+    // The channel is one more lane of one socket: everything it carries in
+    // is that socket's, and the socket's own traffic goes out on it.
+    let (ws_sender, session_token): (WsSender, String) = server
+        .send(ResolveRtcSession {
+            id: client_id.clone(),
+            world: body.world.clone(),
+        })
+        .await
+        .ok()
+        .flatten()
+        .ok_or_else(|| {
+            actix_web::error::ErrorNotFound(format!(
+                "No session for {} in {}",
+                client_id,
+                body.world.as_deref().unwrap_or("any world")
+            ))
+        })?;
+    let peer_key = peer_key(&client_id, body.world.as_deref());
+
     let pc = api
         .new_peer_connection(webrtc::peer_connection::configuration::RTCConfiguration {
             ice_servers: vec![webrtc::ice_transport::ice_server::RTCIceServer {
@@ -163,7 +181,7 @@ pub async fn rtc_offer(
     // A client offers again after every reconnect, and the connection it
     // offered before is dead to it. Left open, that one kept checking ICE on
     // this side for as long as the server ran, one more per reconnect.
-    let replaced = peers.lock().await.insert(client_id.clone(), pc.clone());
+    let replaced = peers.lock().await.insert(peer_key.clone(), pc.clone());
     if let Some(replaced) = replaced {
         let _ = replaced.close().await;
     }
@@ -171,7 +189,7 @@ pub async fn rtc_offer(
     let (rtc_tx, rtc_rx) = mpsc::unbounded_channel::<Vec<u8>>();
     let opened = Arc::new(AtomicBool::new(false));
 
-    let rtc_senders_clone = rtc_senders.get_ref().clone();
+    let ws_sender_open = ws_sender.clone();
     let client_id_clone = client_id.clone();
     let rtc_tx_clone = rtc_tx.clone();
     let opened_clone = opened.clone();
@@ -182,7 +200,8 @@ pub async fn rtc_offer(
     let rtc_rx_opt = Arc::new(Mutex::new(Some(rtc_rx)));
 
     pc.on_data_channel(Box::new(move |dc: Arc<RTCDataChannel>| {
-        let rtc_senders = rtc_senders_clone.clone();
+        let ws_sender = ws_sender_open.clone();
+        let session_token = session_token.clone();
         let client_id = client_id_clone.clone();
         let rtc_tx = rtc_tx_clone.clone();
         let server = server_clone.clone();
@@ -198,7 +217,7 @@ pub async fn rtc_offer(
             );
 
             opened.store(true, Ordering::Release);
-            rtc_senders.lock().await.insert(client_id.clone(), rtc_tx);
+            ws_sender.attach_rtc(rtc_tx);
 
             if let Some(mut rtc_rx) = rtc_rx_opt.lock().await.take() {
                 let dc_send = dc.clone();
@@ -217,6 +236,7 @@ pub async fn rtc_offer(
             dc.on_message(Box::new(move |msg| {
                 let server = server.clone();
                 let client_id = client_id_msg.clone();
+                let session_token = session_token.clone();
                 let assembler = assembler.clone();
 
                 Box::pin(async move {
@@ -224,7 +244,12 @@ pub async fn rtc_offer(
                     if let Some(complete) = asm.process(&msg.data) {
                         if let Ok(message) = decode_message(&complete) {
                             let _ = server
-                                .send(ClientMessage::new(client_id, message, complete.len(), None))
+                                .send(ClientMessage::new(
+                                    client_id,
+                                    message,
+                                    complete.len(),
+                                    Some(session_token),
+                                ))
                                 .await;
                         }
                     }
@@ -233,16 +258,18 @@ pub async fn rtc_offer(
         })
     }));
 
-    let rtc_senders_disconnect = rtc_senders.get_ref().clone();
+    let ws_sender_disconnect = ws_sender;
     let peers_disconnect = peers.get_ref().clone();
     let client_id_disconnect = client_id.clone();
+    let peer_key_disconnect = peer_key.clone();
     // Weak: the connection owns this callback, which must not own it back.
     let pc_disconnect = Arc::downgrade(&pc);
 
     pc.on_ice_connection_state_change(Box::new(move |state: RTCIceConnectionState| {
-        let rtc_senders = rtc_senders_disconnect.clone();
+        let ws_sender = ws_sender_disconnect.clone();
         let peers = peers_disconnect.clone();
         let client_id = client_id_disconnect.clone();
+        let peer_key = peer_key_disconnect.clone();
         let rtc_tx = rtc_tx.clone();
         let pc = pc_disconnect.clone();
 
@@ -254,14 +281,14 @@ pub async fn rtc_offer(
                     | RTCIceConnectionState::Disconnected
                     | RTCIceConnectionState::Closed
             ) {
-                forget_sender(&rtc_senders, &client_id, &rtc_tx).await;
+                ws_sender.detach_rtc(&rtc_tx);
             }
             if matches!(
                 state,
                 RTCIceConnectionState::Failed | RTCIceConnectionState::Closed
             ) {
                 if let Some(pc) = pc.upgrade() {
-                    forget_peer(&peers, &client_id, &pc).await;
+                    forget_peer(&peers, &peer_key, &pc).await;
                     if state == RTCIceConnectionState::Failed {
                         let _ = pc.close().await;
                     }
@@ -271,7 +298,7 @@ pub async fn rtc_offer(
     }));
 
     let peers_deadline = peers.get_ref().clone();
-    let client_id_deadline = client_id.clone();
+    let client_id_deadline = peer_key.clone();
     let pc_deadline = Arc::downgrade(&pc);
     tokio::spawn(async move {
         tokio::time::sleep(DATA_CHANNEL_OPEN_DEADLINE).await;
@@ -324,7 +351,9 @@ pub async fn rtc_candidate(
 ) -> Result<HttpResponse, Error> {
     let peers_map = peers.lock().await;
 
-    let pc = peers_map.get(&body.client_id).ok_or_else(|| {
+    let pc = peers_map
+        .get(&peer_key(&body.client_id, body.world.as_deref()))
+        .ok_or_else(|| {
         actix_web::error::ErrorNotFound(format!("No peer for client {}", body.client_id))
     })?;
 
@@ -351,7 +380,13 @@ mod tests {
     use webrtc::peer_connection::peer_connection_state::RTCPeerConnectionState;
 
     use super::*;
-    use crate::{create_rtc_senders, create_webrtc_api};
+    use crate::{create_webrtc_api, Connect, SessionIdentity};
+
+    fn fake_socket() -> WsSender {
+        let (control_tx, _) = mpsc::unbounded_channel();
+        let (bulk_tx, _) = mpsc::unbounded_channel();
+        WsSender::new(control_tx, bulk_tx)
+    }
 
     /// A browser-side connection and the offer it would send.
     async fn client_offer() -> (Arc<RTCPeerConnection>, String) {
@@ -372,13 +407,21 @@ mod tests {
 
     #[actix_web::test]
     async fn a_new_offer_closes_the_connection_it_replaces() {
-        let handle = VoxelizeHandle::new(Server::new().debug(false).build().start());
+        let server = Server::new().debug(false).build().start();
+        server
+            .send(Connect {
+                identity: SessionIdentity::for_client("rejoiner"),
+                is_transport: false,
+                sender: fake_socket(),
+            })
+            .await
+            .unwrap();
+        let handle = VoxelizeHandle::new(server);
         let peers: WebRTCPeers = Arc::new(Mutex::new(HashMap::new()));
         let app = test::init_service(
             App::new()
                 .app_data(web::Data::new(create_webrtc_api()))
                 .app_data(web::Data::new(peers.clone()))
-                .app_data(web::Data::new(create_rtc_senders()))
                 .configure(handle.configure())
                 .route("/rtc/offer", web::post().to(rtc_offer)),
         )
@@ -413,21 +456,55 @@ mod tests {
         assert_ne!(second.connection_state(), RTCPeerConnectionState::Closed);
     }
 
+    #[actix_web::test]
+    async fn an_offer_with_no_session_in_its_world_is_refused() {
+        let server = Server::new().debug(false).build().start();
+        server
+            .send(Connect {
+                identity: SessionIdentity::for_client("visitor"),
+                is_transport: false,
+                sender: fake_socket(),
+            })
+            .await
+            .unwrap();
+        let handle = VoxelizeHandle::new(server);
+        let app = test::init_service(
+            App::new()
+                .app_data(web::Data::new(create_webrtc_api()))
+                .app_data(web::Data::new(WebRTCPeers::default()))
+                .configure(handle.configure())
+                .route("/rtc/offer", web::post().to(rtc_offer)),
+        )
+        .await;
+
+        for body in [
+            serde_json::json!({ "sdp": "", "client_id": "visitor", "world": "elsewhere" }),
+            serde_json::json!({ "sdp": "", "client_id": "stranger" }),
+        ] {
+            let response = test::call_service(
+                &app,
+                test::TestRequest::post()
+                    .uri("/rtc/offer")
+                    .set_json(body)
+                    .to_request(),
+            )
+            .await;
+            assert_eq!(response.status(), actix_web::http::StatusCode::NOT_FOUND);
+        }
+    }
+
     #[tokio::test]
-    async fn a_failing_connection_drops_only_its_own_sender() {
-        let senders = create_rtc_senders();
+    async fn a_failing_channel_detaches_only_itself() {
+        let sender = fake_socket();
         let (old_tx, _old_rx) = mpsc::unbounded_channel::<Vec<u8>>();
         let (new_tx, _new_rx) = mpsc::unbounded_channel::<Vec<u8>>();
-        senders
-            .lock()
-            .await
-            .insert("client".to_owned(), new_tx.clone());
+        sender.attach_rtc(new_tx.clone());
 
-        forget_sender(&senders, "client", &old_tx).await;
-        assert!(senders.lock().await.contains_key("client"));
+        sender.detach_rtc(&old_tx);
+        assert!(sender.rtc().is_some_and(|rtc| rtc.same_channel(&new_tx)));
 
-        forget_sender(&senders, "client", &new_tx).await;
-        assert!(!senders.lock().await.contains_key("client"));
+        sender.detach_rtc(&new_tx);
+        assert!(sender.rtc().is_none());
     }
 
     #[tokio::test]

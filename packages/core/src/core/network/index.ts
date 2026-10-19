@@ -612,9 +612,7 @@ export class Network {
       !this.connected ||
       this.waitingForInit ||
       this.nextDecodeSequence !== this.nextDeliverySequence ||
-      !this.intercepts.some((intercept) =>
-        intercept.wantsMessagesOnArrival?.(),
-      )
+      !this.intercepts.some((intercept) => intercept.wantsMessagesOnArrival?.())
     ) {
       return false;
     }
@@ -783,6 +781,7 @@ export class Network {
         this.url.toString(),
         this.clientInfo.id,
         this.sessionTicket,
+        this.world,
       );
       console.log("[NETWORK] WebRTC connected");
     } catch (e) {

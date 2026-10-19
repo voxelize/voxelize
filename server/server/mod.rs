@@ -97,6 +97,11 @@ pub struct WsSender {
     /// [`PROTOCOL_MISMATCH_CLOSE_CODE`]) so the transport can close with a code
     /// the client treats as non-retryable.
     close_code: Arc<AtomicU16>,
+    /// The WebRTC data channel opened for this socket, if any. It rides with
+    /// the socket (across world switches, and out with it when it is
+    /// replaced or closes) because one client id may hold sockets in several
+    /// worlds, each with its own channel.
+    rtc: Arc<std::sync::Mutex<Option<mpsc::UnboundedSender<Vec<u8>>>>>,
 }
 
 /// One message on the bulk lane, stamped with when it was queued.
@@ -128,7 +133,32 @@ impl WsSender {
             control_written: Arc::new(AtomicU64::new(0)),
             join_trace: JoinTrace::default(),
             close_code: Arc::new(AtomicU16::new(0)),
+            rtc: Arc::default(),
         }
+    }
+
+    /// Route this socket's unreliable traffic through `rtc` from now on.
+    pub fn attach_rtc(&self, rtc: mpsc::UnboundedSender<Vec<u8>>) {
+        *self.rtc.lock().unwrap_or_else(|poisoned| poisoned.into_inner()) = Some(rtc);
+    }
+
+    /// Stop using `rtc`, if it is still the attached channel: a channel that
+    /// fails after a newer one was attached must not take the newer one
+    /// with it.
+    pub fn detach_rtc(&self, rtc: &mpsc::UnboundedSender<Vec<u8>>) {
+        let mut slot = self.rtc.lock().unwrap_or_else(|poisoned| poisoned.into_inner());
+        if slot.as_ref().is_some_and(|current| current.same_channel(rtc)) {
+            *slot = None;
+        }
+    }
+
+    /// The attached WebRTC channel, if one is open.
+    pub fn rtc(&self) -> Option<mpsc::UnboundedSender<Vec<u8>>> {
+        self.rtc
+            .lock()
+            .unwrap_or_else(|poisoned| poisoned.into_inner())
+            .clone()
+            .filter(|rtc| !rtc.is_closed())
     }
 
     /// Request the transport close this session with a specific WebSocket close
@@ -384,7 +414,11 @@ fn default_info_handle(server: &Server) -> Value {
 
     info.insert(
         "lost_sessions".to_owned(),
-        json!(server.lost_sessions.len()),
+        json!(server
+            .sessions
+            .values()
+            .filter(|session| session.world.is_none())
+            .count()),
     );
 
     info.insert("buildId".to_owned(), json!(server.build_identity.build_id));
@@ -402,13 +436,20 @@ fn default_info_handle(server: &Server) -> Value {
         json!(server.process_started_at_secs),
     );
 
+    // `connections` (client id -> one world) predates an id being in several
+    // worlds at once; `memberships` lists every (id, world) pair.
     let mut connections = HashMap::new();
+    let mut memberships = vec![];
 
-    for (id, (_, world, _)) in server.connections.iter() {
-        connections.insert(id.to_owned(), json!(world));
+    for session in server.sessions.values() {
+        if let Some(world) = &session.world {
+            connections.insert(session.id.to_owned(), json!(world));
+            memberships.push(json!({ "id": session.id, "world": world }));
+        }
     }
 
     info.insert("connections".to_owned(), json!(connections));
+    info.insert("memberships".to_owned(), json!(memberships));
 
     let mut transports = vec![];
 
@@ -508,6 +549,19 @@ fn default_info_handle(server: &Server) -> Value {
     serde_json::to_value(info).unwrap()
 }
 
+/// One client socket registered with the server.
+pub struct Session {
+    /// The client id the socket acts as (from the session authenticator).
+    pub id: String,
+    pub sender: WsSender,
+    /// The world the socket is in; `None` until it joins one, and again
+    /// after it leaves.
+    pub world: Option<String>,
+    /// Verified identity, handed to the world on join so game code can read
+    /// the session's claims from the `SessionIdentities` resource.
+    pub identity: SessionIdentity,
+}
+
 /// A websocket server for Voxelize, holds all worlds data, and runs as a background
 /// system service.
 pub struct Server {
@@ -551,11 +605,6 @@ pub struct Server {
     /// with the worlds that have it.
     method_index: MethodIndex,
 
-    /// Verified identity of every registered session (pre-join and in-world),
-    /// keyed by client id. Handed to the world on join so game code can read
-    /// the session's claims from the `SessionIdentities` resource.
-    identities: HashMap<String, SessionIdentity>,
-
     /// A map of all the worlds.
     pub worlds: HashMap<String, Addr<SyncWorld>>,
 
@@ -572,16 +621,14 @@ pub struct Server {
     /// and shared by every world this server adds.
     init_registry: SharedInitRegistry,
 
-    /// Session IDs and senders who haven't connected to a world.
-    /// Value: (sender, connection_token)
-    pub lost_sessions: HashMap<String, (WsSender, String)>,
+    /// Every registered client socket, pre-join and in-world, keyed by its
+    /// connection token. One client id may hold several sockets, one per
+    /// world: a second socket joining a world the id is already in replaces
+    /// the first there (see [`Server::on_join`]).
+    pub sessions: HashMap<String, Session>,
 
     /// Transport sessions, not connected to any particular world.
     pub transport_sessions: HashMap<String, WsSender>,
-
-    /// What world each client ID is connected to, client ID <-> world ID.
-    /// Value: (sender, world_name, connection_token)
-    pub connections: HashMap<String, (WsSender, String, String)>,
 
     /// Worlds with a tick already queued or running.
     pending_world_ticks: HashSet<String>,
@@ -761,24 +808,10 @@ impl Server {
         // superseded by a newer connection with the same client id. Without
         // this check, a zombie socket's JOIN retry could move the *new*
         // session's registration around and cross-wire the two connections.
-        // `None` tokens come from secondary channels (WebRTC data channel)
-        // that ride on an already-validated session.
-        if let Some(session_token) = session_token {
-            let current_token = self
-                .connections
-                .get(id)
-                .map(|(_, _, token)| token)
-                .or_else(|| self.lost_sessions.get(id).map(|(_, token)| token));
-            if let Some(current_token) = current_token {
-                if current_token != session_token {
-                    perf::log("session_superseded", "server", json!({ "clientId": id }));
-                    return Some(
-                        "Session superseded by a newer connection with the same client id."
-                            .to_owned(),
-                    );
-                }
-            }
-        }
+        let session_token = match self.resolve_session(id, session_token) {
+            Ok(token) => token,
+            Err(error) => return Some(error),
+        };
 
         if perf::is_enabled() && data.r#type == MessageType::Chat as i32 {
             if let Some(chat) = data.chat.as_mut() {
@@ -793,12 +826,23 @@ impl Server {
                 Err(error) => return Some(format!("Malformed JOIN payload: {}", error)),
             };
 
-            return self.on_join(id, json);
+            let Some(token) = session_token else {
+                return Some(format!(
+                    "Client {} has no registered session; reconnect before joining.",
+                    id
+                ));
+            };
+            return self.on_join(&token, json);
         } else if data.r#type == MessageType::Leave as i32 {
-            if let Some(world) = self.worlds.get_mut(&data.text) {
-                if let Some((sender, _, token)) = self.connections.remove(id) {
-                    self.lost_sessions.insert(id.to_owned(), (sender, token));
-
+            // Only the world this socket is in: a stale LEAVE for a world it
+            // has already switched out of must not pull it out of the new one.
+            let session = session_token
+                .as_deref()
+                .and_then(|token| self.sessions.get_mut(token))
+                .filter(|session| session.world.as_deref() == Some(data.text.as_str()));
+            if let Some(session) = session {
+                session.world = None;
+                if let Some(world) = self.worlds.get_mut(&data.text) {
                     world.do_send(ClientLeaveRequest { id: id.to_owned() });
                 }
             }
@@ -866,12 +910,13 @@ impl Server {
             }
         }
 
-        let connection = self.connections.get(id);
-        if connection.is_none() {
+        let world_name = session_token
+            .as_deref()
+            .and_then(|token| self.sessions.get(token))
+            .and_then(|session| session.world.clone());
+        let Some(world_name) = world_name else {
             return Some("You are not connected to a world!".to_owned());
-        }
-
-        let (_, world_name, _) = connection.unwrap().to_owned();
+        };
 
         // Peer packets are latest-wins STATE, not events: stage them in the
         // world's inbound state buffer instead of its actor mailbox. The world
@@ -917,14 +962,78 @@ impl Server {
         None
     }
 
-    /// The control-lane sender for a session, whether it is already in a world
-    /// (`connections`) or still pre-join (`lost_sessions`). Used to signal a
-    /// terminal close code before rejecting a join.
-    fn session_sender(&self, id: &str) -> Option<WsSender> {
-        self.connections
-            .get(id)
-            .map(|(sender, _, _)| sender.clone())
-            .or_else(|| self.lost_sessions.get(id).map(|(sender, _)| sender.clone()))
+    /// Which registered socket a message from `id` belongs to.
+    ///
+    /// - A token naming a live session of `id` is that session.
+    /// - A token naming no live session, while `id` still holds others, is a
+    ///   socket a newer one replaced: refused.
+    /// - No token (a secondary lane that cannot name its socket) resolves
+    ///   only when `id` holds exactly one session.
+    ///
+    /// `Ok(None)` means `id` holds no client session at all (transports, or
+    /// a socket that was never registered).
+    fn resolve_session(&self, id: &str, token: Option<&str>) -> Result<Option<String>, String> {
+        if let Some(token) = token {
+            if self
+                .sessions
+                .get(token)
+                .is_some_and(|session| session.id == id)
+            {
+                return Ok(Some(token.to_owned()));
+            }
+            if self.sessions.values().any(|session| session.id == id) {
+                perf::log("session_superseded", "server", json!({ "clientId": id }));
+                return Err(
+                    "Session superseded by a newer connection with the same client id.".to_owned(),
+                );
+            }
+            return Ok(None);
+        }
+
+        let mut tokens = self
+            .sessions
+            .iter()
+            .filter(|(_, session)| session.id == id)
+            .map(|(token, _)| token);
+        match (tokens.next(), tokens.next()) {
+            (None, _) => Ok(None),
+            (Some(token), None) => Ok(Some(token.clone())),
+            (Some(_), Some(_)) => Err(format!(
+                "Client {} has sessions in several worlds; this message names none of them.",
+                id
+            )),
+        }
+    }
+
+    /// The token of `id`'s session in `world`, if it has one.
+    fn member_token(&self, id: &str, world: &str) -> Option<String> {
+        self.sessions
+            .iter()
+            .find(|(_, session)| session.id == id && session.world.as_deref() == Some(world))
+            .map(|(token, _)| token.clone())
+    }
+
+    /// The socket and token of `id`'s session in `world`: the lane a
+    /// secondary channel (WebRTC) opened for that world attaches to.
+    pub(crate) fn world_session(&self, id: &str, world: Option<&str>) -> Option<(WsSender, String)> {
+        let token = match world {
+            Some(world) => self.member_token(id, world)?,
+            None => self.resolve_session(id, None).ok().flatten()?,
+        };
+        let session = self.sessions.get(&token)?;
+        Some((session.sender.clone(), token))
+    }
+
+    /// Whether `id` has a session in `world`.
+    pub fn is_in_world(&self, id: &str, world: &str) -> bool {
+        self.member_token(id, world).is_some()
+    }
+
+    /// Whether `id` has a registered socket that has not joined a world.
+    pub fn has_pending_session(&self, id: &str) -> bool {
+        self.sessions
+            .values()
+            .any(|session| session.id == id && session.world.is_none())
     }
 
     /// Handle a JOIN request. JOIN is reliable control-plane (see
@@ -934,14 +1043,21 @@ impl Server {
     /// fatal error — a fatal error here is what caused live
     /// join -> ack unanswered -> retry -> "already in world" -> disconnect
     /// loops in live deployments.
-    fn on_join(&mut self, id: &str, json: OnJoinRequest) -> Option<String> {
+    fn on_join(&mut self, token: &str, json: OnJoinRequest) -> Option<String> {
+        let Some(session) = self.sessions.get(token) else {
+            return Some("Session has no registration; reconnect before joining.".to_owned());
+        };
+        let id = session.id.clone();
+        let id = id.as_str();
+        let sender = session.sender.clone();
+        let current_world = session.world.clone();
         let preferences = json
             .flat_preferences
             .merge(json.preferences.unwrap_or_default());
         let motion_protocol = MotionProtocol::negotiate(&json.capabilities);
         // A verified display name outranks whatever the JOIN payload claims;
         // an unverified session keeps the client's own username.
-        let identity = self.session_identity(id);
+        let identity = session.identity.clone();
         let username = identity
             .username
             .clone()
@@ -961,9 +1077,7 @@ impl Server {
         // deterministic worlds skip this entirely — existing clients unchanged.
         if self.world_is_deterministic(&json.world) {
             if let Err(reject) = check_protocol(json.protocol) {
-                if let Some(sender) = self.session_sender(id) {
-                    sender.request_close(PROTOCOL_MISMATCH_CLOSE_CODE);
-                }
+                sender.request_close(PROTOCOL_MISMATCH_CLOSE_CODE);
                 perf::log(
                     "client_join_rejected",
                     &json.world,
@@ -978,16 +1092,21 @@ impl Server {
             }
         }
 
-        // Per-world join cap. An idempotent replay of an existing membership is
-        // not a new occupant, so it is exempt; a fresh join or a switch into a
-        // full world is rejected with typed backpressure before any world-side
-        // state changes.
-        let is_replay = self
-            .connections
-            .get(id)
-            .map(|(_, world_name, _)| world_name == &json.world)
-            .unwrap_or(false);
-        if !is_replay {
+        let is_replay = current_world.as_deref() == Some(json.world.as_str());
+        // Another socket of this id already in the target world: this one
+        // takes its place there. Sockets of the id in other worlds stay.
+        let replaced = if is_replay {
+            None
+        } else {
+            self.member_token(id, &json.world)
+        };
+
+        // Per-world join cap. An idempotent replay of an existing membership,
+        // or a socket taking over its id's own place, is not a new occupant,
+        // so both are exempt; a fresh join or a switch into a full world is
+        // rejected with typed backpressure before any world-side state
+        // changes.
+        if !is_replay && replaced.is_none() {
             let live = self.world_player_count(&json.world);
             let cap = self.world_max_clients(&json.world);
             if live >= cap {
@@ -1003,75 +1122,85 @@ impl Server {
             }
         }
 
-        if let Some((sender, world_name, _)) = self.connections.get(id) {
-            if *world_name == json.world {
-                // Idempotent replay: this session already joined this world.
-                // Re-issue the join; the world-side handler replays the INIT
-                // ack without creating a duplicate entity.
-                let sender = sender.clone();
-                perf::log(
-                    "client_join_replayed",
-                    &json.world,
-                    json!({ "clientId": id }),
-                );
-                info!("Replaying JOIN ack for {} in world {}", id, json.world);
-                sender.join_trace().forwarded(id, &json.world);
-                let world = self.worlds.get_mut(&json.world).unwrap();
-                world.do_send(ClientJoinRequest {
-                    id: id.to_owned(),
-                    username,
-                    sender,
-                    preferences,
-                    motion_protocol,
-                    identity,
-                    registry_digest: json.registry_digest,
-                });
-                return None;
-            }
+        if is_replay {
+            // Idempotent replay: this session already joined this world.
+            // Re-issue the join; the world-side handler replays the INIT
+            // ack without creating a duplicate entity.
+            perf::log(
+                "client_join_replayed",
+                &json.world,
+                json!({ "clientId": id }),
+            );
+            info!("Replaying JOIN ack for {} in world {}", id, json.world);
+            sender.join_trace().forwarded(id, &json.world);
+            let world = self.worlds.get_mut(&json.world).unwrap();
+            world.do_send(ClientJoinRequest {
+                id: id.to_owned(),
+                username,
+                sender,
+                preferences,
+                motion_protocol,
+                identity,
+                registry_digest: json.registry_digest,
+            });
+            return None;
+        }
 
+        if let Some(replaced) = replaced {
+            if let Some(old) = self.sessions.remove(&replaced) {
+                info!("Kicking duplicate session of {} in world {}", id, json.world);
+                let _ = old.sender.send(encode_message(
+                    &Message::new(&MessageType::Error)
+                        .text("Another session connected with your account.")
+                        .build(),
+                ));
+            }
+            // Same mailbox as the join below, so the old membership is gone
+            // before the new one is made.
+            if let Some(world) = self.worlds.get_mut(&json.world) {
+                world.do_send(ClientLeaveRequest { id: id.to_owned() });
+            }
+            perf::log("session_replaced", &json.world, json!({ "clientId": id }));
+        }
+
+        if let Some(old_world) = &current_world {
             // Session is in a different world: switch atomically — leave the
-            // old world, then fall through to a fresh join below. The two
-            // messages share the target/source world mailboxes, so ordering
-            // per world is preserved.
-            let (sender, old_world, token) = self.connections.remove(id).unwrap();
-            if let Some(old) = self.worlds.get_mut(&old_world) {
+            // old world, then join below. The two messages share the
+            // target/source world mailboxes, so ordering per world is
+            // preserved.
+            if let Some(old) = self.worlds.get_mut(old_world) {
                 old.do_send(ClientLeaveRequest { id: id.to_owned() });
             }
-            self.lost_sessions.insert(id.to_owned(), (sender, token));
             info!(
                 "Client {} switching worlds: {} -> {}",
                 id, old_world, json.world
             );
         }
 
-        if let Some((sender, token)) = self.lost_sessions.remove(id) {
-            sender.join_trace().forwarded(id, &json.world);
-            let world = self.worlds.get_mut(&json.world).unwrap();
-            world.do_send(ClientJoinRequest {
-                id: id.to_owned(),
-                username,
-                sender: sender.clone(),
-                preferences,
-                motion_protocol,
-                identity,
-                registry_digest: json.registry_digest,
-            });
-            self.connections
-                .insert(id.to_owned(), (sender, json.world, token));
-            return None;
+        sender.join_trace().forwarded(id, &json.world);
+        let world = self.worlds.get_mut(&json.world).unwrap();
+        world.do_send(ClientJoinRequest {
+            id: id.to_owned(),
+            username,
+            sender,
+            preferences,
+            motion_protocol,
+            identity,
+            registry_digest: json.registry_digest,
+        });
+        if let Some(session) = self.sessions.get_mut(token) {
+            session.world = Some(json.world);
         }
-
-        Some(format!(
-            "Client {} has no registered session; reconnect before joining.",
-            id
-        ))
+        None
     }
 
-    /// Register a new session, kicking any previous session with the same
-    /// client id (its world membership is released so the new session can
-    /// join cleanly). Returns (client_id, connection_token); the token
-    /// authenticates this specific socket for the rest of its life so a
-    /// superseded socket cannot act on the new session's registration.
+    /// Register a new session. Returns (client_id, connection_token); the
+    /// token authenticates this specific socket for the rest of its life so a
+    /// superseded socket cannot act on its replacement's registration.
+    ///
+    /// Nothing is kicked here: one id may hold a socket in each of several
+    /// worlds, so a duplicate is only known once this socket joins a world
+    /// the id is already in ([`Server::on_join`]).
     ///
     /// The identity comes from the session authenticator, never from the
     /// client directly: an `identity.id` of `None` mints a fresh id.
@@ -1097,63 +1226,39 @@ impl Server {
             return (id, token);
         }
 
-        let kick_msg = encode_message(
-            &Message::new(&MessageType::Error)
-                .text("Another session connected with your account.")
-                .build(),
-        );
-
-        if let Some((old_sender, _old_token)) = self.lost_sessions.remove(&id) {
-            info!("Kicking duplicate pre-join session: {}", id);
-            let _ = old_sender.send(kick_msg.clone());
-        }
-
-        if let Some((old_sender, world_name, _old_token)) = self.connections.remove(&id) {
-            info!("Kicking duplicate in-world session: {}", id);
-            let _ = old_sender.send(kick_msg);
-            if let Some(world) = self.worlds.get_mut(&world_name) {
-                world.do_send(ClientLeaveRequest { id: id.clone() });
-            }
-            perf::log("session_replaced", &world_name, json!({ "clientId": id }));
-        }
-
-        self.lost_sessions
-            .insert(id.to_owned(), (sender, token.clone()));
-        self.identities.insert(
-            id.to_owned(),
-            SessionIdentity {
-                id: Some(id.to_owned()),
-                ..identity
+        self.sessions.insert(
+            token.clone(),
+            Session {
+                id: id.clone(),
+                sender,
+                world: None,
+                identity: SessionIdentity {
+                    id: Some(id.clone()),
+                    ..identity
+                },
             },
         );
 
         (id, token)
     }
 
-    /// The verified identity registered for a session, or an unverified
-    /// identity carrying just the id when the session predates registration
-    /// (tests driving `on_join` directly).
-    fn session_identity(&self, id: &str) -> SessionIdentity {
-        self.identities
-            .get(id)
-            .cloned()
-            .unwrap_or_else(|| SessionIdentity::for_client(id))
-    }
-
     /// Deterministically release a disconnected session's registration and
     /// world membership. Token-checked so a stale disconnect from a kicked
     /// socket cannot remove its replacement's state.
     pub(crate) fn unregister_session(&mut self, id: &str, token: &str) {
-        if let Some((_, _, current_token)) = self.connections.get(id) {
-            if current_token == token {
-                let (_, world_name, _) = self.connections.remove(id).unwrap();
-                self.identities.remove(id);
+        if self
+            .sessions
+            .get(token)
+            .is_some_and(|session| session.id == id)
+        {
+            let session = self.sessions.remove(token).unwrap();
+            if let Some(world_name) = session.world {
                 if let Some(world) = self.worlds.get_mut(&world_name) {
                     world.do_send(ClientLeaveRequest { id: id.to_owned() });
                 }
-            } else {
-                info!("Ignoring stale disconnect for {} (token mismatch)", id);
             }
+        } else if self.sessions.values().any(|session| session.id == id) {
+            info!("Ignoring stale disconnect for {} (token mismatch)", id);
         }
 
         if self.transport_sessions.remove(id).is_some() {
@@ -1162,13 +1267,6 @@ impl Server {
             });
 
             info!("A transport server connection has ended.")
-        }
-
-        if let Some((_, current_token)) = self.lost_sessions.get(id) {
-            if current_token == token {
-                self.lost_sessions.remove(id);
-                self.identities.remove(id);
-            }
         }
     }
 

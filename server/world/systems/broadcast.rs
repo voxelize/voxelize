@@ -17,7 +17,7 @@ use crate::{
         Stats, WorldConfig,
     },
     EncodedMessage, EncodedMessageQueue, EntityOperation, MessageType, ReplicatedStateBuffer,
-    LogRateLimiter, RtcSenders, Transports,
+    LogRateLimiter, Transports,
 };
 
 /// How often (wall-clock ms) each client's motion-gap distribution is
@@ -216,7 +216,6 @@ impl<'a> System<'a> for BroadcastSystem {
         WriteExpect<'a, EncodedMessageQueue>,
         WriteExpect<'a, ReplicatedStateBuffer>,
         WriteExpect<'a, Profiler>,
-        Option<ReadExpect<'a, RtcSenders>>,
     );
 
     fn run(&mut self, data: Self::SystemData) {
@@ -230,7 +229,6 @@ impl<'a> System<'a> for BroadcastSystem {
             mut encoded_queue,
             mut replicated_state,
             _profiler,
-            rtc_senders_opt,
         ) = data;
         let world_name = &*timing.world_name;
 
@@ -279,8 +277,6 @@ impl<'a> System<'a> for BroadcastSystem {
         let mut done_messages = immediate_encoded;
         done_messages.extend(async_messages);
 
-        let rtc_map = rtc_senders_opt.as_ref().and_then(|rtc| rtc.try_lock().ok());
-
         // ---- Reliable ordered events (must-deliver, FIFO) -----------------
         //
         // Entity lifecycle bytes sent here PREEMPT the same tick's state
@@ -297,15 +293,13 @@ impl<'a> System<'a> for BroadcastSystem {
             if let ClientFilter::Direct(id) = &filter {
                 if let Some(client) = clients.get(id) {
                     if use_rtc {
-                        if let Some(ref rtc_map) = rtc_map {
-                            if let Some(rtc_sender) = rtc_map.get(id) {
-                                for fragment in fragment_message(&encoded.data) {
-                                    if rtc_sender.send(fragment).is_err() {
-                                        break;
-                                    }
+                        if let Some(rtc_sender) = client.sender.rtc() {
+                            for fragment in fragment_message(&encoded.data) {
+                                if rtc_sender.send(fragment).is_err() {
+                                    break;
                                 }
-                                continue;
                             }
+                            continue;
                         }
                     }
                     if log_enabled!(Level::Debug)
@@ -375,15 +369,13 @@ impl<'a> System<'a> for BroadcastSystem {
                 };
 
                 if use_rtc {
-                    if let Some(ref rtc_map) = rtc_map {
-                        if let Some(rtc_sender) = rtc_map.get(id) {
-                            for fragment in fragment_message(&encoded.data) {
-                                if rtc_sender.send(fragment).is_err() {
-                                    break;
-                                }
+                    if let Some(rtc_sender) = client.sender.rtc() {
+                        for fragment in fragment_message(&encoded.data) {
+                            if rtc_sender.send(fragment).is_err() {
+                                break;
                             }
-                            return;
                         }
+                        return;
                     }
                 }
 
@@ -429,7 +421,7 @@ impl<'a> System<'a> for BroadcastSystem {
         let mut gated_clients = 0;
 
         for (client_id, client) in clients.iter() {
-            let rtc_sender = rtc_map.as_ref().and_then(|rtc_map| rtc_map.get(client_id));
+            let rtc_sender = client.sender.rtc();
 
             // Gate on the CONTROL lane only: bulk chunk streaming must never
             // stall live state — that starvation is what made a newcomer
@@ -476,7 +468,7 @@ impl<'a> System<'a> for BroadcastSystem {
                     message = message.json(&json!({ "townPerfTraceId": trace_id }).to_string());
                 }
                 let data = encode_message(&message.build());
-                send_to_client(client, rtc_sender, &data);
+                send_to_client(client, rtc_sender.as_ref(), &data);
 
                 if perf::is_enabled() {
                     let mut depths = Map::new();
@@ -529,7 +521,7 @@ impl<'a> System<'a> for BroadcastSystem {
                     .tick(tick)
                     .build();
                 let data = encode_message(&message);
-                send_to_client(client, rtc_sender, &data);
+                send_to_client(client, rtc_sender.as_ref(), &data);
 
                 if perf::is_enabled() {
                     perf::log(
