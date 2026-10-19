@@ -626,6 +626,17 @@ export const WATER_OPTICS = Object.freeze({
   bodySurfaceSearchRadius: 32,
 
   /**
+   * A column whose top meets air under a roof this close above it (an air
+   * bell, a pocket under a sunken ceiling) may be a bubble trapped inside
+   * deeper water, so its open surface is looked for too. The walk from a
+   * pocket never descends and stops after this many voxels: the way out to
+   * the higher water is at the pocket's edge, and a pond under a canopy
+   * should cost next to nothing.
+   */
+  pocketRoofScanBlocks: 16,
+  pocketSurfaceSearchVoxels: 512,
+
+  /**
    * Height of a resting fluid surface within its voxel. Mirrors
    * FLUID_BASE_HEIGHT in the mesher so the waterline plane matches the
    * rendered surface.
@@ -996,6 +1007,11 @@ export function measureWaterColumn(
  * top that is not sealed is the surface. A cave sealed all round keeps its
  * highest roof the walk reaches, so a low roof never cuts its own higher
  * dome out of the water either.
+ *
+ * `fromPocket` starts from a column whose top is open to air trapped under
+ * a roof: an air bell in a sunken hall. That top is the fallback, and only
+ * a surface higher than it counts, so a diver under the bell sees the sea
+ * the bell sits in rather than the bubble's floor as the waterline.
  */
 export function findWaterBodySurface(
   isFluidAt: FluidQuery,
@@ -1003,10 +1019,11 @@ export function findWaterBodySurface(
   vx: number,
   vy: number,
   vz: number,
+  fromPocket = false,
 ): number {
   const radius = WATER_OPTICS.bodySurfaceSearchRadius;
   const span = radius * 2 + 1;
-  const minY = vy - radius;
+  const minY = fromPocket ? vy : vy - radius;
   const maxY = vy + WATER_OPTICS.maxSurfaceScanBlocks;
   const levels: number[][] = [];
   const seen = new Set<number>();
@@ -1025,10 +1042,13 @@ export function findWaterBodySurface(
     if (level > top) top = level;
   };
 
-  let highestRoof = vy + 1;
+  let highestRoof = vy + (fromPocket ? WATER_OPTICS.fluidSurfaceHeight : 1);
+  const budget = fromPocket
+    ? WATER_OPTICS.pocketSurfaceSearchVoxels
+    : WATER_OPTICS.bodySurfaceSearchVoxels;
   let visits = 0;
   push(vx, vy, vz);
-  while (top >= 0 && visits < WATER_OPTICS.bodySurfaceSearchVoxels) {
+  while (top >= 0 && visits < budget) {
     const level = levels[top];
     if (!level || level.length === 0) {
       top -= 1;
@@ -1041,8 +1061,11 @@ export function findWaterBodySurface(
     visits += 1;
 
     if (!isFluidAt(x, y + 1, z)) {
-      if (!isSealedAt(x, y, z)) return y + WATER_OPTICS.fluidSurfaceHeight;
-      highestRoof = Math.max(highestRoof, y + 1);
+      if (!isSealedAt(x, y, z)) {
+        if (!fromPocket || y > vy) return y + WATER_OPTICS.fluidSurfaceHeight;
+      } else {
+        highestRoof = Math.max(highestRoof, y + 1);
+      }
     }
     push(x, y + 1, z);
     push(x + 1, y, z);

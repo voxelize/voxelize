@@ -7311,10 +7311,12 @@ export class World<T = any> extends Scene implements NetIntercept {
   ): WaterColumnSample | null {
     const { x, y, z } = cameraPosition;
     const column = this.measureWaterColumnAt(x, y, z);
-    if (!column?.roofed) return column;
+    if (!column) return column;
 
     const vx = Math.floor(x);
-    const vy = Math.round(column.surfaceY) - 1;
+    const vy = column.roofed
+      ? Math.round(column.surfaceY) - 1
+      : Math.floor(column.surfaceY);
     const vz = Math.floor(z);
     const memo = this.waterBodySurfaceMemo;
     const now = performance.now();
@@ -7324,6 +7326,16 @@ export class World<T = any> extends Scene implements NetIntercept {
       memo.vz !== vz ||
       now - memo.atMs > 1000
     ) {
+      const fromPocket =
+        !column.roofed && this.isAirPocketAbove(vx, vy + 1, vz);
+      if (!column.roofed && !fromPocket) {
+        memo.vx = vx;
+        memo.vy = vy;
+        memo.vz = vz;
+        memo.atMs = now;
+        memo.surfaceY = column.surfaceY;
+        return column;
+      }
       const filter = this.waterOpticsFluidFilter;
       memo.surfaceY = findWaterBodySurface(
         (cx, cy, cz) => {
@@ -7340,6 +7352,7 @@ export class World<T = any> extends Scene implements NetIntercept {
         vx,
         vy,
         vz,
+        fromPocket,
       );
       memo.vx = vx;
       memo.vy = vy;
@@ -7349,6 +7362,22 @@ export class World<T = any> extends Scene implements NetIntercept {
 
     const surfaceY = Math.max(column.surfaceY, memo.surfaceY);
     return { depth: surfaceY - y, surfaceY };
+  }
+
+  /**
+   * Whether the air over a water column's top is shut in by a roof within
+   * {@link WATER_OPTICS.pocketRoofScanBlocks}: a bell or a pocket that may
+   * be trapped inside deeper water, rather than open sky.
+   */
+  private isAirPocketAbove(vx: number, fromY: number, vz: number) {
+    const limit = fromY + WATER_OPTICS.pocketRoofScanBlocks;
+    for (let vy = fromY; vy < limit; vy++) {
+      const raw = this.getRawVoxelAt(vx, vy, vz);
+      if (this.isRawVoxelFluid(raw)) return false;
+      const block = this.registry.blocksById.get(BlockUtils.extractID(raw));
+      if (block && !block.isEmpty) return true;
+    }
+    return false;
   }
 
   updateWaterOptics(cameraPosition: Vector3, deltaSeconds: number) {

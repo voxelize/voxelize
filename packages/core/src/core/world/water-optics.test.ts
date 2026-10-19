@@ -771,6 +771,38 @@ describe("findWaterBodySurface", () => {
     );
     expect(surfaceY).toBe(53);
   });
+
+  it("sees past an air bell to the sea it sits in", () => {
+    // A bell over x and z in -3..3 traps air at y 49-53 in a sea to y 59.
+    const isFluidAt = sea(
+      (vx, vy, vz) =>
+        vy >= 49 && vy <= 54 && Math.abs(vx) <= 3 && Math.abs(vz) <= 3,
+    );
+    const surfaceY = findWaterBodySurface(
+      isFluidAt,
+      sealedUnder(isFluidAt),
+      0,
+      48,
+      0,
+      true,
+    );
+    expect(surfaceY).toBeCloseTo(59 + WATER_OPTICS.fluidSurfaceHeight);
+  });
+
+  it("keeps a pool's own surface when nothing rises above it", () => {
+    // A pool to y 48 in a dry cave: no water anywhere higher.
+    const isFluidAt = (vx: number, vy: number, vz: number) =>
+      Math.abs(vx) <= 5 && Math.abs(vz) <= 5 && vy >= 44 && vy <= 48;
+    const surfaceY = findWaterBodySurface(
+      isFluidAt,
+      () => false,
+      0,
+      48,
+      0,
+      true,
+    );
+    expect(surfaceY).toBeCloseTo(48 + WATER_OPTICS.fluidSurfaceHeight);
+  });
 });
 
 describe("WaterOptics", () => {
