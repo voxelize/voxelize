@@ -140,8 +140,15 @@ export class BoneTextureManager {
   // paths (updateRanges, copyTextureToTexture) bracket uploads with
   // synchronous gl.getParameter round-trips to the GPU process that stall
   // the main thread for longer than the upload itself.
+  //
+  // A hidden page skips the upload and keeps the dirty range for its first
+  // visible frame. Its update tick still runs at 60 Hz off a worker timer,
+  // and uploads that no frame consumes piled up in the GPU process (~7 MB/s,
+  // only reclaimed in bursts): a tab left hidden on a sleeping Mac grew
+  // Arc's GPU process to 50 GB overnight and froze the machine.
   upload(renderer: THREE.WebGLRenderer): void {
     if (this.dirtyMaxPixel < 0) return;
+    if (typeof document !== "undefined" && document.hidden) return;
 
     const textureProperties = renderer.properties.get(this.texture) as {
       __webglTexture?: WebGLTexture;
