@@ -385,3 +385,25 @@ export function decodeMessage(
 
   return message;
 }
+
+/**
+ * Decode every packet of a job on its own. A packet that will not decode
+ * comes back as `null` in its slot (and goes to `onError`), so the packets
+ * beside it still arrive: one garbled packet used to throw the whole job,
+ * and once its retries ran out every chunk in that job was lost with it.
+ */
+export function decodeMessages(
+  buffers: Array<ArrayBuffer | Uint8Array>,
+  transferables: ArrayBuffer[],
+  onError?: (error: unknown, buffer: Uint8Array) => void,
+): Array<Record<string, unknown> | null> {
+  return buffers.map((buffer) => {
+    const view = buffer instanceof Uint8Array ? buffer : new Uint8Array(buffer);
+    try {
+      return decodeMessage(view, transferables);
+    } catch (error) {
+      onError?.(error, view);
+      return null;
+    }
+  });
+}
