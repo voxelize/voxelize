@@ -1,7 +1,9 @@
+import { protocol } from "@voxelize/protocol";
 import { describe, expect, it } from "vitest";
 
 import {
   coerceMotionBytes,
+  decodeMessages,
   decodeMotion,
   normalizeEntityMotion,
 } from "./decode-utils";
@@ -177,5 +179,45 @@ describe("normalizeEntityMotion", () => {
     const absent: Record<string, unknown> = {};
     normalizeEntityMotion(absent);
     expect("motion" in absent).toBe(false);
+  });
+});
+
+describe("decodeMessages", () => {
+  const encoded = (text: string) =>
+    protocol.Message.encode(
+      protocol.Message.create({ type: protocol.Message.Type.EVENT, text }),
+    ).finish();
+
+  /**
+   * What the client handed the decoder when the server fragmented an RTC
+   * message twice: an inner fragment (flag, total, index) whose payload is
+   * the start of an lz4 frame.
+   */
+  const innerFragment = () => {
+    const bytes = new Uint8Array(9 + 8);
+    const view = new DataView(bytes.buffer);
+    view.setUint8(0, 1);
+    view.setUint32(1, 3, true);
+    view.setUint32(5, 0, true);
+    bytes.set([0x04, 0x22, 0x4d, 0x18, 0x64, 0x40, 0xa7, 0x00], 9);
+    return bytes;
+  };
+
+  it("decodes each packet on its own, a garbled one coming back null", () => {
+    const errors: string[] = [];
+    const messages = decodeMessages(
+      [encoded("a"), innerFragment(), new Uint8Array(encoded("b")).buffer],
+      [],
+      (error) => errors.push(String(error)),
+    );
+
+    expect(messages.map((message) => message?.text ?? null)).toEqual([
+      "a",
+      null,
+      "b",
+    ]);
+    expect(errors).toEqual([
+      expect.stringContaining("invalid wire type 4 at offset 10"),
+    ]);
   });
 });

@@ -8,7 +8,7 @@ use tokio::sync::mpsc::UnboundedSender;
 
 use crate::{
     common::ClientFilter,
-    encode_message, fragment_message,
+    encode_message, fits_one_datagram,
     perf::{self, OutboundPerfKind},
     server::Message,
     state_flush_budget,
@@ -191,15 +191,26 @@ fn batch_messages(messages: Vec<(Message, ClientFilter)>) -> Vec<(Message, Clien
     result
 }
 
-/// Send encoded bytes to a client over its WebRTC data channel when one is
-/// available, otherwise over its WebSocket channel.
-fn send_to_client(client: &Client, rtc_sender: Option<&UnboundedSender<Vec<u8>>>, data: &[u8]) {
-    if let Some(rtc_sender) = rtc_sender {
-        for fragment in fragment_message(data) {
-            if rtc_sender.send(fragment).is_err() {
-                break;
-            }
+/// Hand `data` to the client's WebRTC data channel, whole. False when there
+/// is no open channel or the message is too big for one datagram: those go
+/// over the WebSocket instead. The channel's writer fragments anything it is
+/// given, so fragmenting here as well split every large message twice, and
+/// the client, which undoes one level, decoded the inner fragments as
+/// messages ("invalid wire type 4").
+fn send_rtc(rtc_sender: Option<&UnboundedSender<Vec<u8>>>, data: &[u8]) -> bool {
+    match rtc_sender {
+        Some(rtc_sender) if fits_one_datagram(data.len()) => {
+            rtc_sender.send(data.to_vec()).is_ok()
         }
+        _ => false,
+    }
+}
+
+/// Send encoded bytes to a client over its WebRTC data channel when one is
+/// available and the message fits one datagram, otherwise over its
+/// WebSocket channel.
+fn send_to_client(client: &Client, rtc_sender: Option<&UnboundedSender<Vec<u8>>>, data: &[u8]) {
+    if send_rtc(rtc_sender, data) {
         return;
     }
     let _ = client.sender.send(data.to_vec());
@@ -292,15 +303,8 @@ impl<'a> System<'a> for BroadcastSystem {
 
             if let ClientFilter::Direct(id) = &filter {
                 if let Some(client) = clients.get(id) {
-                    if use_rtc {
-                        if let Some(rtc_sender) = client.sender.rtc() {
-                            for fragment in fragment_message(&encoded.data) {
-                                if rtc_sender.send(fragment).is_err() {
-                                    break;
-                                }
-                            }
-                            continue;
-                        }
+                    if use_rtc && send_rtc(client.sender.rtc().as_ref(), &encoded.data) {
+                        continue;
                     }
                     if log_enabled!(Level::Debug)
                         && MessageType::try_from(encoded.msg_type) == Ok(MessageType::Load)
@@ -368,15 +372,8 @@ impl<'a> System<'a> for BroadcastSystem {
                     _ => {}
                 };
 
-                if use_rtc {
-                    if let Some(rtc_sender) = client.sender.rtc() {
-                        for fragment in fragment_message(&encoded.data) {
-                            if rtc_sender.send(fragment).is_err() {
-                                break;
-                            }
-                        }
-                        return;
-                    }
+                if use_rtc && send_rtc(client.sender.rtc().as_ref(), &encoded.data) {
+                    return;
                 }
 
                 send_lane_routed(client, encoded.msg_type, encoded.data.clone());
@@ -425,14 +422,11 @@ impl<'a> System<'a> for BroadcastSystem {
 
             // Gate on the CONTROL lane only: bulk chunk streaming must never
             // stall live state — that starvation is what made a newcomer
-            // invisible to an existing client while it loaded chunks. RTC
-            // channels are unreliable/unordered and expose no backlog, so
-            // they are never gated.
-            let backlog = if rtc_sender.is_none() {
-                client.sender.control_len()
-            } else {
-                0
-            };
+            // invisible to an existing client while it loaded chunks. An RTC
+            // channel exposes no backlog, but a flush too big for one of its
+            // datagrams still goes down the control lane, so that lane's
+            // backlog gates every client.
+            let backlog = client.sender.control_len();
             let Some(budget_bytes) =
                 state_flush_budget(config.entity_flush_base_bytes_per_tick, tick_ms, backlog)
             else {
@@ -630,3 +624,98 @@ impl<'a> System<'a> for BroadcastSystem {
 //         profiler.time_end("broadcast");
 //     }
 // }
+
+#[cfg(test)]
+mod tests {
+    use specs::{Builder, WorldExt};
+    use tokio::sync::mpsc;
+
+    use super::*;
+    use crate::{fragment_message, WsSender};
+
+    /// A client whose socket and RTC channel are both observable.
+    fn client_with_rtc() -> (
+        Client,
+        mpsc::UnboundedReceiver<Vec<u8>>,
+        mpsc::UnboundedReceiver<Vec<u8>>,
+    ) {
+        let (control_tx, control_rx) = mpsc::unbounded_channel();
+        let (bulk_tx, _bulk_rx) = mpsc::unbounded_channel();
+        let (rtc_tx, rtc_rx) = mpsc::unbounded_channel();
+        let sender = WsSender::new(control_tx, bulk_tx);
+        sender.attach_rtc(rtc_tx);
+        let mut ecs = specs::World::new();
+        let client = Client {
+            id: "client".to_owned(),
+            username: "client".to_owned(),
+            entity: ecs.create_entity().build(),
+            sender,
+            motion_protocol: Default::default(),
+        };
+        (client, control_rx, rtc_rx)
+    }
+
+    fn drain(rx: &mut mpsc::UnboundedReceiver<Vec<u8>>) -> Vec<Vec<u8>> {
+        std::iter::from_fn(|| rx.try_recv().ok()).collect()
+    }
+
+    #[test]
+    fn a_small_message_rides_rtc_whole() {
+        let (client, mut control_rx, mut rtc_rx) = client_with_rtc();
+        let data = vec![7u8; 1200];
+
+        send_to_client(&client, client.sender.rtc().as_ref(), &data);
+
+        assert_eq!(drain(&mut rtc_rx), vec![data]);
+        assert!(drain(&mut control_rx).is_empty());
+    }
+
+    #[test]
+    fn a_message_too_big_for_one_datagram_goes_over_the_websocket() {
+        let (client, mut control_rx, mut rtc_rx) = client_with_rtc();
+        let data = vec![7u8; 40_000];
+        assert!(!fits_one_datagram(data.len()));
+
+        send_to_client(&client, client.sender.rtc().as_ref(), &data);
+
+        assert!(drain(&mut rtc_rx).is_empty());
+        assert_eq!(drain(&mut control_rx), vec![data]);
+    }
+
+    #[test]
+    fn what_rides_rtc_passes_the_channel_writer_unsplit() {
+        // The data channel's writer runs `fragment_message` over everything
+        // it is handed. Anything broadcast sends there must come out as the
+        // one unchanged datagram, or the client sees nested fragments.
+        let (client, _control_rx, mut rtc_rx) = client_with_rtc();
+        for len in [1, 4_000, 15_991] {
+            let data = vec![3u8; len];
+            send_to_client(&client, client.sender.rtc().as_ref(), &data);
+            for sent in drain(&mut rtc_rx) {
+                assert_eq!(fragment_message(&sent), vec![sent.clone()]);
+            }
+        }
+    }
+
+    #[test]
+    fn a_closed_rtc_channel_falls_back_to_the_websocket() {
+        let (control_tx, mut control_rx) = mpsc::unbounded_channel();
+        let (bulk_tx, _bulk_rx) = mpsc::unbounded_channel();
+        let (rtc_tx, rtc_rx) = mpsc::unbounded_channel::<Vec<u8>>();
+        let sender = WsSender::new(control_tx, bulk_tx);
+        drop(rtc_rx);
+        let mut ecs = specs::World::new();
+        let client = Client {
+            id: "client".to_owned(),
+            username: "client".to_owned(),
+            entity: ecs.create_entity().build(),
+            sender,
+            motion_protocol: Default::default(),
+        };
+        let data = vec![1u8; 64];
+
+        send_to_client(&client, Some(&rtc_tx), &data);
+
+        assert_eq!(drain(&mut control_rx), vec![data]);
+    }
+}

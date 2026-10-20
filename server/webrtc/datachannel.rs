@@ -4,6 +4,15 @@ const MAX_FRAGMENT_SIZE: usize = 16000;
 const FRAGMENT_HEADER_SIZE: usize = 9;
 const MAX_PAYLOAD_SIZE: usize = MAX_FRAGMENT_SIZE - FRAGMENT_HEADER_SIZE;
 
+/// Whether a message of `len` bytes goes over the data channel whole, as one
+/// datagram. The server's channel is unordered with no retransmits, so a
+/// message split into fragments arrives with pieces lost or out of order,
+/// and the client, which reassembles by arrival order, turns those into
+/// garbage. Unreliable traffic larger than this belongs on the WebSocket.
+pub fn fits_one_datagram(len: usize) -> bool {
+    len <= MAX_PAYLOAD_SIZE
+}
+
 pub fn fragment_message(data: &[u8]) -> Vec<Vec<u8>> {
     if data.len() <= MAX_PAYLOAD_SIZE {
         return vec![data.to_vec()];
@@ -103,5 +112,28 @@ impl FragmentAssembler {
         }
 
         None
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn fits_one_datagram_is_the_unfragmented_limit() {
+        assert!(fits_one_datagram(MAX_PAYLOAD_SIZE));
+        assert_eq!(fragment_message(&vec![0; MAX_PAYLOAD_SIZE]).len(), 1);
+        assert!(!fits_one_datagram(MAX_PAYLOAD_SIZE + 1));
+        assert_eq!(fragment_message(&vec![0; MAX_PAYLOAD_SIZE + 1]).len(), 2);
+    }
+
+    #[test]
+    fn a_fragment_is_too_big_to_pass_the_writer_unsplit() {
+        // Why broadcast must not fragment before the channel's writer does:
+        // a full fragment is split again into a fragment of fragments, which
+        // the client (one level of reassembly) decodes as a message.
+        let fragments = fragment_message(&vec![9; 40_000]);
+        assert!(!fits_one_datagram(fragments[0].len()));
+        assert_eq!(fragment_message(&fragments[0]).len(), 2);
     }
 }

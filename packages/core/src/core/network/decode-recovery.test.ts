@@ -3,6 +3,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 const fakes = vi.hoisted(() => {
   const INIT = 1;
+  const GARBLED = 254;
   const POISON = 255;
 
   /**
@@ -10,6 +11,8 @@ const fakes = vi.hoisted(() => {
    * the value. A worker can be dead from the start, like one the renderer
    * killed for memory, or die on the poison packet: a dead worker swallows
    * every job and never raises an event, which is how a killed worker looks.
+   * A garbled packet comes back as a null slot, as the real worker answers a
+   * packet that will not decode.
    */
   class FakeDecodeWorker extends EventTarget {
     static spawned: FakeDecodeWorker[] = [];
@@ -31,6 +34,7 @@ const fakes = vi.hoisted(() => {
       if (this.isDead || this.isTerminated) return;
       const messages = buffers.map((buffer) => {
         const [kind, value] = new Uint8Array(buffer);
+        if (kind === GARBLED) return null;
         return kind === INIT
           ? { type: "INIT", json: { id: "client" }, text: String(value) }
           : { type: "EVENT", text: String(value) };
@@ -45,7 +49,7 @@ const fakes = vi.hoisted(() => {
     }
   }
 
-  return { FakeDecodeWorker, INIT, POISON };
+  return { FakeDecodeWorker, GARBLED, INIT, POISON };
 });
 
 vi.mock("./workers/decode-worker.ts?worker&inline", () => ({
@@ -57,7 +61,7 @@ vi.mock("../../libs/setWorkerInterval", () => ({
 
 import { Network } from "./index";
 
-const { FakeDecodeWorker, INIT, POISON } = fakes;
+const { FakeDecodeWorker, GARBLED, INIT, POISON } = fakes;
 const EVENT = 0;
 
 type NetworkInternals = {
@@ -149,6 +153,25 @@ describe("Network decode recovery", () => {
         line.includes("Gave up decoding 2 packet(s) after 2 failed attempt(s)"),
       ),
     ).toBe(true);
+  });
+
+  it("drops only a packet that will not decode; the rest of its job still arrives", async () => {
+    const { network, received } = connectedNetwork({});
+
+    receive(network, packet(EVENT, 1), packet(GARBLED, 0));
+    receive(network, packet(EVENT, 3), packet(EVENT, 4));
+    await vi.advanceTimersByTimeAsync(0);
+
+    expect(received).toEqual(["1", "3", "4"]);
+    expect(network.droppedPacketCount).toBe(1);
+    expect(
+      errors.some((line) =>
+        line.includes("1 inbound packet(s) would not decode and were dropped"),
+      ),
+    ).toBe(true);
+    expect(errors.some((line) => line.includes("Decoding them again"))).toBe(
+      false,
+    );
   });
 
   it("replaces a dead priority worker so a rejoin's INIT still lands", async () => {

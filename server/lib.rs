@@ -22,7 +22,10 @@ pub use runtime::*;
 pub use server::*;
 pub use types::*;
 pub use webrtc::signaling::{rtc_candidate, rtc_offer, WebRTCPeers};
-pub use webrtc::{create_webrtc_api, datachannel::fragment_message};
+pub use webrtc::{
+    create_webrtc_api,
+    datachannel::{fits_one_datagram, fragment_message},
+};
 pub use world::system_profiler::{
     clear_timing_data_for_world, get_all_world_names, get_timing_summary_for_world, SystemTimer,
     TimedDispatcherBuilder, TimedSystem, WorldTimingContext,

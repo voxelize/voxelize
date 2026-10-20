@@ -292,6 +292,11 @@ export class Network {
   private unreportedPacketDrops = 0;
 
   private lastPacketDropReportAt = Number.NEGATIVE_INFINITY;
+
+  /** Undecodable packets not yet reported, and when the last report went out. */
+  private unreportedUndecodable = 0;
+
+  private lastUndecodableReportAt = Number.NEGATIVE_INFINITY;
   /**
    * When each queued packet's bytes arrived, keyed by the buffer object. A
    * buffer transferred to a decode worker is detached but keeps its identity,
@@ -562,6 +567,23 @@ export class Network {
 
       this.ws = ws;
     });
+  };
+
+  /** Count packets the decode workers could not decode; they are lost. */
+  private reportUndecodable = (count: number) => {
+    if (count <= 0) return;
+    this.droppedPacketTotal += count;
+    this.unreportedUndecodable += count;
+    const now = performance.now();
+    if (now - this.lastUndecodableReportAt < PACKET_DROP_REPORT_INTERVAL_MS) {
+      return;
+    }
+    console.error(
+      `[NETWORK] ${this.unreportedUndecodable} inbound packet(s) would not decode and were dropped, ` +
+        `each on its own (${this.droppedPacketTotal} dropped this session)`,
+    );
+    this.unreportedUndecodable = 0;
+    this.lastUndecodableReportAt = now;
   };
 
   private enqueuePacket = (buffer: ArrayBuffer) => {
@@ -1588,11 +1610,11 @@ export class Network {
         return;
       }
 
-      const messages = e.data as MessageProtocol[];
+      const messages = e.data as Array<MessageProtocol | null>;
       const decoded = messages[0];
 
       if (
-        (decoded.type === "INIT" || decoded.type === "ERROR") &&
+        (decoded?.type === "INIT" || decoded?.type === "ERROR") &&
         this.waitingForInit
       ) {
         this.onMessage(decoded);
@@ -1636,17 +1658,27 @@ export class Network {
           buffers: copies,
           // On timeout the pool replaces the worker and settles the job null.
           timeoutMs: decodeJobTimeoutMs,
-          resolve: (messages) => {
-            if (messages) {
+          resolve: (slots) => {
+            if (slots) {
+              // One slot per packet, in packet order; a packet that would
+              // not decode is a null slot and only that packet is lost.
+              const messages: MessageProtocol[] = [];
+              const decodedSizes: number[] = [];
+              (slots as Array<MessageProtocol | null>).forEach(
+                (message, index) => {
+                  if (!message) return;
+                  const arrivedAt = arrivedAts[index];
+                  if (arrivedAt !== undefined) {
+                    message.perfArrivedAt = arrivedAt;
+                  }
+                  messages.push(message);
+                  if (byteSizes) decodedSizes.push(byteSizes[index]);
+                },
+              );
               if (byteSizes) {
-                annotateIncomingMessages(messages, byteSizes);
+                annotateIncomingMessages(messages, decodedSizes);
               }
-              // One message per packet, in packet order - the same 1:1 the
-              // byte size annotation relies on.
-              messages.forEach((message, index) => {
-                const arrivedAt = arrivedAts[index];
-                if (arrivedAt !== undefined) message.perfArrivedAt = arrivedAt;
-              });
+              this.reportUndecodable(slots.length - messages.length);
               resolve(messages);
               return;
             }
