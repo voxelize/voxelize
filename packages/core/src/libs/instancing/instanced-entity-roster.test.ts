@@ -150,4 +150,32 @@ describe("InstancedEntityRoster", () => {
     assert.equal(pool.warm.size, 0);
     assert.deepEqual(roster.listShadowCasterPools(), [pool]);
   });
+
+  it("yields a slice while the next variant is not ready, then bakes it", async () => {
+    class KeyedPool extends FakePool {
+      peekNextVariantKey(): string | null {
+        const next = this.variants.find(
+          (type) => !this.warm.has(`${type}:false`),
+        );
+        return next ?? null;
+      }
+    }
+    const pool = new KeyedPool(["a", "b"]);
+    const roster = new InstancedEntityRoster();
+    roster.register(pool);
+    const ready = new Set(["a"]);
+    const warmed = roster.warm({
+      budgetMs: 1000,
+      isVariantReady: (key) => ready.has(key),
+    });
+    await Promise.resolve();
+    frames.shift()?.(0);
+    await Promise.resolve();
+    assert.deepEqual([...pool.warm], ["a:false"], "b waits for its asset");
+    ready.add("b");
+    roster.setWarmupBudget(500);
+    await drainFrames();
+    await warmed;
+    assert.deepEqual([...pool.warm], ["a:false", "b:false"]);
+  });
 });

@@ -55,10 +55,23 @@ The join awaits `warm`; the player is not let in until it resolves. Budget: a va
 
 The engine never names a family. A game keeps: its families and variant tables, painters and art constants (its `TexelDensity`, face shades), its atlas cache (persistence, profiling), and gameplay-driven animation. Moving more of a game's pool code down is only right once the code names nothing game-specific.
 
-## Roadmap
+## The family layer (above the pieces)
 
-Designed and not yet moved, in this order, each behaviour-preserving and gated on a before/after run of the game's parity scenario (fixed row, fixed pose, frame rate, zero late bakes):
+| Piece | What it does |
+| --- | --- |
+| `SkinnedInstancePool` + `SkinnedFamilyConfig` | One `InstancedMesh` per variant (and baby variant): bone texture, skinned material and depth material, per-instance light/hit/emissive attributes, warmup. Per-variant bone counts, surfaces, material options, alpha-cut shadows, emissive faces and rig facts are config, never a new pool class. |
+| `SkinnedTextureSource` / `setDefaultSkinnedTextureSource` | Where variant textures come from. Default builds and owns them; a game plugs in its persistent atlas cache once. |
+| `InstancedSkinnedMaterial` | The skinned instanced shader: face-UV atlas or vertex colour, shared entity shadow and fog uniforms, face shades (`faceShades`, `DEFAULT_ENTITY_FACE_SHADES`). |
+| `InstancedEntity` | Entity base: slot lifecycle, damped motion from the stream, instance matrix, staggered `lightAt` sampling, hide/freeze, `animate(time, dt)`. |
+| `buildSkinnedPartsGeometry` / `paintSkinnedPartsAtlas` | A part list (bone, size, at, pivot, paint) to skinned geometry and a density-uniform atlas. |
+| `defineSkinnedFamily` | The one-call consumer entry point: named bones, parts, `animate`, `install({ entities, roster })`. |
 
-1. **The game's roster manager extends `InstancedEntityRoster`.** Its pools `register` in their existing order (warm order and update order are registration order), odd `update` signatures pass adapters, and game-only concerns (shadow-uniform toggles, a second drain for item shapes, atlas disposal) stay in the subclass around `super` calls.
-2. **`InstancedSkinnedMaterial` moves down**, parameterized by the game's face-shade table and bound to the engine's shared entity shadow and fog uniform blocks.
-3. **`SkinnedInstancePool` and its family config move down**, with the texture source injected (`acquireTexture(family, variant, isBaby)`) so the game's atlas store stays in the game. A new land family is then a config row plus painters, with allocation, skinning, hit flash, lighting and shadows from the engine.
+A game's own pools subclass `SkinnedInstancePool` (family config + game methods such as `getMeshConfig`); a game's entity base may stay its own when it carries gameplay (gait, head look, death, debug overlays) the engine does not name.
+
+## Consumer surface
+
+The consumer-facing skill ships in the npm package: `packages/core/skills/voxelize-instanced-entities/SKILL.md` (with `sources:` the CI test checks). Any change to the public API above updates that skill, `examples/client/src/critters.ts`, and `docs/docs/wiki/entities/instanced-entities.md` in the same change.
+
+## History
+
+Moved down from the first game in this order, each step gated on its parity scenario (fixed row, fixed pose, frame rate, zero late bakes): the roster manager onto `InstancedEntityRoster` (with `isVariantReady` and `setWarmupBudget` for an atlas worker and a network phase); `InstancedSkinnedMaterial`; `SkinnedInstancePool` with an injected texture source; then every hand-copied pool class onto family configs.

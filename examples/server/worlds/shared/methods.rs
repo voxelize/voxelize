@@ -6,7 +6,7 @@ use voxelize::{
     IDComp, MetadataComp, PositionComp, Vec3, World,
 };
 
-use super::components::{BotFlag, FaunaComp, TextComp};
+use super::components::{BotFlag, FaunaComp, TextComp, VariantComp};
 
 #[derive(Serialize, Deserialize, Debug)]
 struct TimeMethodPayload {
@@ -47,6 +47,16 @@ struct SpawnPigPayload {
     #[serde(default)]
     kind: String,
 }
+
+#[derive(Serialize, Deserialize, Debug)]
+struct SpawnCritterPayload {
+    position: Vec3<f32>,
+    count: usize,
+}
+
+/// The variants of the example's instanced `critter` family (client:
+/// `examples/client/src/critters.ts`).
+const CRITTER_VARIANTS: [&str; 3] = ["sand", "moss", "slate"];
 
 #[derive(Serialize, Deserialize, Debug)]
 struct BenchLightsPayload {
@@ -338,13 +348,48 @@ pub fn setup_methods(world: &mut World) {
         }
     });
 
+    // Instanced, bone-animated critters (one draw call per variant however
+    // many there are): each walks a ground-level Lissajous loop around the
+    // given point, and carries its variant in its metadata.
+    world.set_method_handle("spawn-critter", |world, _, payload| {
+        let data: SpawnCritterPayload = serde_json::from_str(&payload).unwrap();
+        let count = data.count.clamp(1, 500);
+
+        for i in 0..count {
+            let phase = i as f32 * 2.399963;
+            let fauna = FaunaComp {
+                center: data.position.clone(),
+                radius_x: 2.0 + (i % 7) as f32 * 0.9,
+                radius_z: 2.0 + (i % 5) as f32 * 1.1,
+                angular_speed_x: 0.3 + (i % 4) as f32 * 0.05,
+                angular_speed_z: 0.3 + (i % 3) as f32 * 0.05,
+                bob_amplitude: 0.0,
+                phase,
+            };
+            world
+                .create_entity(&nanoid!(), "critter")
+                .with(PositionComp::new(
+                    data.position.0,
+                    data.position.1,
+                    data.position.2,
+                ))
+                .with(DirectionComp::default())
+                .with(DoNotPersistComp)
+                .with(VariantComp::new(
+                    CRITTER_VARIANTS[i % CRITTER_VARIANTS.len()],
+                ))
+                .with(fauna)
+                .build();
+        }
+    });
+
     world.set_method_handle("clear-pigs", |world, _, _| {
         let entities = world.ecs().entities();
         let etypes = world.ecs().read_storage::<ETypeComp>();
 
         let mut to_delete = vec![];
         for (entity, etype) in (&entities, &etypes).join() {
-            if etype.0 == "pig" || etype.0 == "sheep" {
+            if etype.0 == "pig" || etype.0 == "sheep" || etype.0 == "critter" {
                 to_delete.push(entity);
             }
         }

@@ -1,0 +1,38 @@
+# Voxelize
+
+> Multiplayer voxel engine: an authoritative Rust server (`voxelize` crate) and TypeScript client packages (`@voxelize/core` and friends) on three.js. Chunked worlds with a WASM mesher, voxel lighting, an ECS with server-streamed entities, and GPU-instanced animated entities.
+
+Notes for agents:
+- Docs and skills matching the installed version ship inside the package: read `node_modules/@voxelize/core/skills/<topic>/SKILL.md` for the task first, then the typed API in `node_modules/@voxelize/core/dist/**/*.d.ts`. Run `npx voxelize-agents init` once in a project to point AGENTS.md / CLAUDE.md at them.
+- The server is authoritative; clients render and request.
+- Anything that can number in the dozens (animals, mobs, crowds) is instanced with `defineSkinnedFamily`, not a mesh per entity.
+- The `examples/` folder of the repository is the compiling reference for every skill.
+
+## Skills
+
+- [Instanced entities](https://github.com/voxelize/voxelize/blob/main/packages/core/skills/voxelize-instanced-entities/SKILL.md): creatures and many-of-a-kind animated entities with `defineSkinnedFamily`, server spawning, warmup, lighting and shadows.
+
+## Tutorials
+
+- [What is Voxelize](https://docs.voxelize.io/tutorials/intro/what-is-voxelize): the architecture.
+- [Getting started](https://docs.voxelize.io/tutorials/intro/getting-started): server, world, registry, client in order.
+- [The client entity](https://docs.voxelize.io/tutorials/intermediate/the-client-entity): `Entities`, `Entity`, `setClass`.
+- [Custom entity creation](https://docs.voxelize.io/tutorials/intermediate/custom-entity-creation): server entity loaders and components.
+- [Metadata component](https://docs.voxelize.io/tutorials/intermediate/metadata-component): what the server streams per entity.
+- [Method handling](https://docs.voxelize.io/tutorials/intermediate/method-handling): client-to-server calls.
+- [Custom blocks](https://docs.voxelize.io/tutorials/intermediate/custom-blocks): block registry and dynamic shapes.
+
+## Wiki
+
+- [Instanced entities](https://docs.voxelize.io/wiki/entities/instanced-entities)
+- [Custom entities](https://docs.voxelize.io/wiki/entities/custom-entities)
+- [Custom peers](https://docs.voxelize.io/wiki/entities/custom-peers)
+- [Metadata processing](https://docs.voxelize.io/wiki/networking/metadata-processing)
+- [Calling methods](https://docs.voxelize.io/wiki/networking/calling-methods)
+- [Block registry](https://docs.voxelize.io/wiki/blocks/block-registry)
+- [Block textures](https://docs.voxelize.io/wiki/blocks/block-textures)
+
+## Optional
+
+- [API reference](https://docs.voxelize.io/api): generated TypeDoc for every package.
+- [Repository](https://github.com/voxelize/voxelize)

@@ -4,8 +4,14 @@
   "license": "MIT",
   "files": [
     "dist",
-    "src/styles.css"
+    "src/styles.css",
+    "skills",
+    "AGENTS.consumer.md",
+    "bin"
   ],
+  "bin": {
+    "voxelize-agents": "./bin/voxelize-agents.mjs"
+  },
   "style": "src/styles.css",
   "main": "dist/index.js",
   "module": "dist/index.mjs",

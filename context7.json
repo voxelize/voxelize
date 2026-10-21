@@ -1,0 +1,13 @@
+{
+  "$schema": "https://context7.com/schema/context7.json",
+  "projectTitle": "Voxelize",
+  "description": "Multiplayer voxel engine: an authoritative Rust server (voxelize crate) with TypeScript client packages (@voxelize/core and friends) built on three.js.",
+  "folders": ["docs/docs", "packages/core/skills", "examples"],
+  "excludeFolders": ["notes", "target", "benches", "node_modules", "docs/node_modules"],
+  "rules": [
+    "The server is authoritative: gameplay state changes on the server and streams to clients.",
+    "Entities that can number in the dozens are instanced with defineSkinnedFamily from @voxelize/core, never a THREE.Mesh per entity.",
+    "Bake per-variant work during load with InstancedEntityRoster.warm, not the first time something appears.",
+    "Read packages/core/skills/<topic>/SKILL.md for the task before writing engine code; examples/ holds the worked, compiling version."
+  ]
+}

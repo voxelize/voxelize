@@ -12,6 +12,7 @@ import * as THREE from "three";
 
 import "@voxelize/core/styles.css"; //? For official use, you should do `@voxelize/core/styles.css` instead.
 
+import { critters } from "./critters";
 import LolImage from "./assets/lol.png";
 import {
   BOT_HEAD_COLOR,
@@ -551,6 +552,7 @@ const shadowCasters: THREE.Object3D[] = [];
 const collectShadowCasters = () => {
   shadowCasters.length = 0;
   peers.collectShadowCasters(shadowCasters);
+  shadowCasters.push(...roster.listShadowCasterPools());
   entities.map.forEach((entity) => {
     const caster = (entity as { shadowCaster?: THREE.Object3D }).shadowCaster;
     if (caster) shadowCasters.push(caster);
@@ -1044,6 +1046,8 @@ const frameStats = () => {
   clearPigs: () => method.call("clear-pigs", {}),
   spawnFauna: (x: number, y: number, z: number, count = 1) =>
     method.call("spawn-fauna", { position: [x, y, z], count }),
+  spawnCritters: (x: number, y: number, z: number, count = 12) =>
+    method.call("spawn-critter", { position: [x, y, z], count }),
   toggleAtlasViewer: (x: number, y: number, z: number, size = 6) =>
     toggleAtlasViewer(x, y, z, size),
   setPerspective: (state: "first" | "second" | "third") => {
@@ -1757,6 +1761,12 @@ entities.setClass("drop", Drop);
 entities.setClass("pig", Pig);
 entities.setClass("sheep", Sheep);
 
+// Instanced entity families: the roster owns their pools (one draw call per
+// variant), and each family registers its entity class for its type.
+const roster = new VOXELIZE.InstancedEntityRoster();
+world.add(roster);
+critters.install({ entities, roster, world, lightAt: lightShined.lightAt });
+
 world.add(entities);
 
 events.on("test", (payload) => {
@@ -1919,6 +1929,7 @@ const update = () => {
   );
 
   entities.update();
+  roster.update(1 / 60, renderer);
 
   peers.update();
   debug.update();
@@ -1943,6 +1954,7 @@ const animate = () => {
   // plus the local-light atlas) exactly the way a production host does.
   if (world.isInitialized && SHADOWS_ENABLED) {
     world.updateShaderLighting(camera, controls.object.position);
+    roster.updateShadowUniforms(world.chunkRenderer.shaderLightingUniforms);
     world.renderShadowMaps(renderer, collectShadowCasters());
   }
   if (world.isInitialized) world.prepareTransparency(renderer, camera);

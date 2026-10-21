@@ -1,10 +1,14 @@
 import * as THREE from "three";
 
+import { ShaderLightingUniforms } from "../../core/world/chunk-renderer";
+import { updateEntityShadowUniforms } from "../../core/world/entity-shadow-uniforms";
+
 import {
   BudgetedDrain,
   BudgetedWorkOutcome,
   createBudgetedDrain,
 } from "./frame-budget";
+import { sharedEntityShadowUniforms } from "./instanced-skinned-material";
 import { WarmablePool, isWarmablePool } from "./pool-warmup";
 
 /// A pool's per-frame advance. Pools whose own `update` takes other
@@ -30,6 +34,10 @@ export interface RosterWarmupOptions {
   /// Awaited after the drain empties and before `warm` resolves, e.g. the
   /// decodes of atlases restored from a cache.
   after?: () => Promise<void>;
+  /// Asked with the key a pool will bake next (`peekNextVariantKey`); false
+  /// ends the slice so the frame goes on without it, e.g. while a worker is
+  /// still painting that variant's atlas. Unasked for pools without keys.
+  isVariantReady?: (key: string) => boolean;
 }
 
 export interface RosterWarmupStats {
@@ -59,6 +67,9 @@ export class InstancedEntityRoster extends THREE.Group {
   private warmupIndex = 0;
   private warmupDrain: BudgetedDrain | null = null;
   private warmup: Promise<void> | null = null;
+  private warmupBudgetMs = 0;
+  private isVariantReady: ((key: string) => boolean) | null = null;
+  private resolveDrained: (() => void) | null = null;
   /// Variants the drain itself baked in the pool it is currently walking.
   /// A variant an arriving entity built on demand before the drain reached
   /// it is not in here - the drain skips it - which is why the count below
@@ -96,6 +107,8 @@ export class InstancedEntityRoster extends THREE.Group {
    */
   warm(options: RosterWarmupOptions): Promise<void> {
     if (this.warmup) return this.warmup;
+    this.warmupBudgetMs = options.budgetMs;
+    this.isVariantReady = options.isVariantReady ?? null;
     const ready = options.before ? options.before() : Promise.resolve();
     this.warmup = ready
       .then(
@@ -107,16 +120,38 @@ export class InstancedEntityRoster extends THREE.Group {
               resolve();
               return;
             }
-            this.warmupDrain = createBudgetedDrain(
-              options.budgetMs,
-              () => this.warmNextVariant(),
-              resolve,
-            );
-            this.warmupDrain.schedule();
+            this.resolveDrained = resolve;
+            this.startDrain();
           }),
       )
       .then(() => (options.after ? options.after() : undefined));
     return this.warmup;
+  }
+
+  /// Changes the warmup's slice budget, e.g. smaller while the join still
+  /// reads the network and larger once only loading is left. Takes effect
+  /// at once if the drain is running, else when it starts.
+  setWarmupBudget(budgetMs: number): void {
+    if (budgetMs === this.warmupBudgetMs) return;
+    this.warmupBudgetMs = budgetMs;
+    if (this.warmupDrain && this.resolveDrained && !this.isDisposed) {
+      this.startDrain();
+    }
+  }
+
+  private startDrain(): void {
+    const resolve = this.resolveDrained;
+    if (!resolve) return;
+    this.warmupDrain?.cancel();
+    this.warmupDrain = createBudgetedDrain(
+      this.warmupBudgetMs,
+      () => this.warmNextVariant(),
+      () => {
+        this.resolveDrained = null;
+        resolve();
+      },
+    );
+    this.warmupDrain.schedule();
   }
 
   /// What the warmup actually did, so a loading log can separate the cost of
@@ -137,6 +172,16 @@ export class InstancedEntityRoster extends THREE.Group {
       entry.update?.(deltaTime, renderer);
     }
     this.hideEmptyInstanceMeshes();
+  }
+
+  /**
+   * Copies the frame's lighting (sun, shadow maps, cascades) into the one
+   * shadow block every pooled material shares. Call once a frame, after
+   * `world.updateShaderLighting`, or instanced entities neither receive
+   * shadows nor follow the sun.
+   */
+  updateShadowUniforms(lightingUniforms: ShaderLightingUniforms): void {
+    updateEntityShadowUniforms(sharedEntityShadowUniforms, lightingUniforms);
   }
 
   /**
@@ -174,6 +219,10 @@ export class InstancedEntityRoster extends THREE.Group {
     const pools = this.getWarmablePools();
     while (this.warmupIndex < pools.length) {
       const pool = pools[this.warmupIndex];
+      if (this.isVariantReady) {
+        const key = pool.peekNextVariantKey?.() ?? null;
+        if (key !== null && !this.isVariantReady(key)) return "yield";
+      }
       const startedAt = performance.now();
       if (pool.warmNextVariant()) {
         this.currentPoolBakedCount += 1;

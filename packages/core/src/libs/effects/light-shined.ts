@@ -664,6 +664,16 @@ export class LightShined {
   };
 
   /**
+   * The light an object standing at `position` is shaded with, composed
+   * the way the chunk shader lights the block there (capped at
+   * `maxBrightness`). The returned colour is reused: copy it to keep it.
+   * Instanced entities light their instances from this.
+   */
+  lightAt = (position: Vector3): Color => {
+    return this.computeShaderBasedLight(position);
+  };
+
+  /**
    * Gather the chunk shader's inputs at a point — flood light, sun
    * exposure and shadow, the water column, the analytic lights in the cell
    * and their flood-ownership claim — and compose them exactly the way the

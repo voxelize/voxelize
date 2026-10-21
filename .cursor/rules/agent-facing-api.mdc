@@ -1,0 +1,32 @@
+---
+description: Public engine APIs are written for the agent that will use them from a game - one obvious entry point, declarative config, errors that say the fix, a compiling example, and a shipped skill that stays current
+globs: packages/core/src/**/*.ts,packages/core/skills/**,examples/**
+alwaysApply: false
+---
+
+# Agent-Facing API
+
+Most code that uses Voxelize is written by a coding agent pointed at it from a game. It reads the `.d.ts` files and the skills in `node_modules/@voxelize/core/`, not this repository. Design for that reader.
+
+## Shape
+
+- **One obvious entry point per job.** A game should reach a working result through one call (`defineSkinnedFamily`), with the layers under it (`SkinnedInstancePool`, `InstancedEntity`) public for when it needs more. Do not make the first use depend on calling five things in the right order.
+- **Declarative config over call order.** A config object a reader can see whole (variants, bones, parts) beats setters and lifecycle hooks. Name things for what they are in the game's terms: bones by name, parts by bone.
+- **One spelling.** No deprecated aliases kept in the public types; rename the callers. Verb-noun methods, `is`/`has` booleans, the same word for the same thing across packages.
+- **Defaults that are right.** Out of the box a feature is lit, shadowed, warmed and budgeted; opting out is the explicit path.
+
+## Errors
+
+A thrown error names what was wrong, the value that was wrong, and the fix, e.g. `part names bone "tail", which is not in bones [body, head]`. A full pool or a missed warmup warns once, naming the family and variant. Never fail silently into an invisible entity.
+
+## Docs that ship
+
+- Public exports carry JSDoc with an `@example` that compiles. The example is what an agent copies.
+- Every consumer skill lives in `packages/core/skills/<name>/SKILL.md` (shipped in the npm package; `skills/` at the repo root links to it for `npx skills add`). Its frontmatter names the files it was written from in `sources:`; `src/agent-skills.test.ts` fails when one is gone.
+- Every skill points at a worked version in `examples/` that builds and runs (`pnpm demo`). An API change updates the skill, the example and the docs page in the same change.
+- `AGENTS.consumer.md` is the block a game's AGENTS.md gets from `npx voxelize-agents init`: a task to skill index and the ground rules. Keep it short; it is always loaded.
+- `docs/static/llms.txt` indexes the docs site and the skills for agents that browse.
+
+## Proof
+
+A new public API is not done until an agent could use it from the example alone: the example runs, renders what the skill claims, and the skill's snippets match the API's current names.

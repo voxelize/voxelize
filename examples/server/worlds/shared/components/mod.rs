@@ -3,6 +3,7 @@ mod flags;
 mod holding_object_id;
 mod role;
 mod text;
+mod variant;
 
 use specs::WorldExt;
 
@@ -11,6 +12,7 @@ pub use flags::*;
 pub use holding_object_id::HoldingObjectIdComp;
 pub use role::RoleComp;
 pub use text::TextComp;
+pub use variant::VariantComp;
 
 use voxelize::World;
 
@@ -20,4 +22,5 @@ pub fn setup_components(world: &mut World) {
     world.ecs_mut().register::<RoleComp>();
     world.ecs_mut().register::<HoldingObjectIdComp>();
     world.ecs_mut().register::<FaunaComp>();
+    world.ecs_mut().register::<VariantComp>();
 }
