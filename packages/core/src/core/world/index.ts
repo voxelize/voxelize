@@ -8587,6 +8587,7 @@ export class World<T = any> extends Scene implements NetIntercept {
         skyTopColor: lighting.skyTopColor,
         skyMiddleColor: lighting.skyMiddleColor,
         waterFresnelStrength: lighting.waterFresnelStrength,
+        waterTint: lighting.waterTint,
         farCoverMask: chunkUniforms.farCoverMask,
         farCover: chunkUniforms.farCover,
         farSeam: chunkUniforms.farSeam,
