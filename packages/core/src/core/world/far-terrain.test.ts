@@ -11,6 +11,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import {
   CHUNK_DAYLIGHT,
   CHUNK_WATER_FRESNEL,
+  CHUNK_WATER_TINT,
   FAR_TERRAIN_METHOD,
   FarBuiltTile,
   FarTerrain,
@@ -669,6 +670,21 @@ describe("CHUNK_WATER_FRESNEL", () => {
     expect(fluid).toContain(
       `float fresnelMax = mix(0.22, ${CHUNK_WATER_FRESNEL.max}, topWaterFace);`,
     );
+  });
+});
+
+describe("CHUNK_WATER_TINT", () => {
+  it("is the chunk water's tint share, near, far and with distance", () => {
+    const fluid = SHADER_LIGHTING_FLUID_CHUNK_SHADERS.fragment;
+    const t = CHUNK_WATER_TINT;
+    for (const literal of [
+      `float depthFactor = 1.0 - exp(-distToCamera * ${t.perBlock});`,
+      `vec3 shallowWater = mix(baseWater, waterTint, ${t.near});`,
+      `vec3 deepWater = mix(baseWater, waterTint, ${t.far});`,
+      `max(depthFactor, verticalDepthFactor) * ${t.reach});`,
+    ]) {
+      expect(fluid).toContain(literal);
+    }
   });
 });
 

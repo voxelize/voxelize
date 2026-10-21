@@ -144,6 +144,7 @@ export class FarLayer {
         skyTopColor: l.skyTopColor,
         skyMiddleColor: l.skyMiddleColor,
         waterFresnelStrength: l.waterFresnelStrength,
+        waterTint: l.waterTint,
         farCoverMask: u.farCoverMask,
         farCover: u.farCover,
         farSeam: u.farSeam,
