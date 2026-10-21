@@ -465,38 +465,65 @@ export class AtlasTexture extends CanvasTexture {
       return;
     }
 
-    // Draw a background first.
-
-    if (clearRect) {
-      context.drawImage(
-        image2,
-        (startU - this.atlasOffset) * canvasWidth,
-        (1 - endV - this.atlasOffset) * canvasHeight,
-        this.dimension * this.atlasRatio + 2 * this.atlasMargin,
-        this.dimension * this.atlasRatio + 2 * this.atlasMargin,
-      );
-
-      // Carve out the middle.
-      context.clearRect(
-        (startU - this.atlasOffset) * canvasWidth + this.atlasMargin,
-        (1 - endV - this.atlasOffset) * canvasHeight + this.atlasMargin,
-        this.dimension * this.atlasRatio,
-        this.dimension * this.atlasRatio,
-      );
-    }
-
-    // Draw the actual texture.
-    context.drawImage(
+    this.drawPaddedTile(
+      context,
       image2,
-      (startU - this.atlasOffset) * canvasWidth + this.atlasMargin,
-      (1 - endV - this.atlasOffset) * canvasHeight + this.atlasMargin,
-      this.dimension * this.atlasRatio,
-      this.dimension * this.atlasRatio,
+      (startU - this.atlasOffset) * canvasWidth,
+      (1 - endV - this.atlasOffset) * canvasHeight,
     );
 
     context.restore();
 
     this.needsUpdate = true;
+  }
+
+  /**
+   * Draws a texture into the cell whose top-left corner is (x, y): the
+   * texture in the middle and its edge texels repeated out across the
+   * margin. A sample that lands just past the tile's edge (an antialiased
+   * pixel centre outside a quad, a mip or anisotropic tap) reads the edge's
+   * own texel. The margin used to hold the whole texture stretched over the
+   * cell, so the texel next to the edge came from a few texels in: on a
+   * plant, whose edges are clear, petals and leaves drew as dashed lines
+   * along every quad's border.
+   */
+  private drawPaddedTile(
+    context: CanvasRenderingContext2D,
+    source: CanvasImageSource,
+    x: number,
+    y: number,
+  ) {
+    const margin = this.atlasMargin;
+    const inner = this.dimension * this.atlasRatio;
+    const sourceWidth =
+      (source as HTMLImageElement).naturalWidth ||
+      (source as { width: number }).width;
+    const sourceHeight =
+      (source as HTMLImageElement).naturalHeight ||
+      (source as { height: number }).height;
+
+    context.drawImage(source, x + margin, y + margin, inner, inner);
+
+    if (margin <= 0 || !sourceWidth || !sourceHeight) return;
+
+    const right = sourceWidth - 1;
+    const bottom = sourceHeight - 1;
+    const far = x + margin + inner;
+    const low = y + margin + inner;
+    // [sx, sy, sw, sh, dx, dy, dw, dh]: four edge strips, four corners.
+    const pieces: number[][] = [
+      [0, 0, 1, sourceHeight, x, y + margin, margin, inner],
+      [right, 0, 1, sourceHeight, far, y + margin, margin, inner],
+      [0, 0, sourceWidth, 1, x + margin, y, inner, margin],
+      [0, bottom, sourceWidth, 1, x + margin, low, inner, margin],
+      [0, 0, 1, 1, x, y, margin, margin],
+      [right, 0, 1, 1, far, y, margin, margin],
+      [0, bottom, 1, 1, x, low, margin, margin],
+      [right, bottom, 1, 1, far, low, margin, margin],
+    ];
+    for (const [sx, sy, sw, sh, dx, dy, dw, dh] of pieces) {
+      context.drawImage(source, sx, sy, sw, sh, dx, dy, dw, dh);
+    }
   }
 
   registerAnimation(
@@ -600,7 +627,6 @@ export class AtlasTexture extends CanvasTexture {
   ) {
     const context = patch.scratch.getContext("2d");
     const size = patch.size;
-    const inner = this.dimension * this.atlasRatio;
 
     context.save();
     context.globalAlpha = opacity;
@@ -617,16 +643,7 @@ export class AtlasTexture extends CanvasTexture {
       return;
     }
 
-    const source = image as HTMLImageElement;
-
-    // Same margin-bleed layout as drawImageToRange: a padded backdrop, a
-    // carved center, then the actual texture in the center.
-    if (clearRect) {
-      context.drawImage(source, 0, 0, size, size);
-      context.clearRect(this.atlasMargin, this.atlasMargin, inner, inner);
-    }
-
-    context.drawImage(source, this.atlasMargin, this.atlasMargin, inner, inner);
+    this.drawPaddedTile(context, image as HTMLImageElement, 0, 0);
 
     context.restore();
   }
