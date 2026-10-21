@@ -31,8 +31,9 @@ export const critters = VOXELIZE.defineSkinnedFamily({
     { bone: "legL", size: [0.12, 0.25, 0.12], at: [-0.15, 0.125, 0], pivot: [-0.15, 0.25, 0], paint: "#3b2b1a" },
     { bone: "legR", size: [0.12, 0.25, 0.12], at: [0.15, 0.125, 0], pivot: [0.15, 0.25, 0], paint: "#3b2b1a" },
   ],
+  legSwing: 0.6,
   animate: (pose) => {
-    const swing = Math.sin(pose.time * 8) * 0.6 * pose.movement;
+    const swing = Math.sin(pose.stride) * 0.6 * pose.swing;
     pose.rotateBone("legL", swing);
     pose.rotateBone("legR", -swing);
   },
@@ -42,7 +43,9 @@ export const critters = VOXELIZE.defineSkinnedFamily({
 - Mesh units with the origin at the feet, +y up and +z forward.
 - Each part turns about its bone's `pivot` (a hip, a neck).
 - `paint` is a colour or a per-face painter; faces are `0=+x 1=-x 2=+y 3=-y 4=+z 5=-z`.
+- `pose.stride` is the walk phase, advanced by the distance travelled and paced from the measured leg length, so feet keep pace with the ground; `pose.swing` is the swing amplitude, 0 at rest.
 - `pose.time` is the world's shader clock, so every client poses idle motion alike. `pose.movement` eases from 0 at rest to 1 while travelling.
+- The same motion kit (`StrideGait`, `dampPosition`, `computeHeadLook`, `AttackMotion`, hit flash, `DeathAnimation`, two-bone and FABRIK IK with a voxel ground sampler) is exported for entities you animate yourself.
 
 ## Install it
 

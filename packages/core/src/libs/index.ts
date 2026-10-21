@@ -12,6 +12,7 @@ export * from "./debug";
 export * from "./effects";
 export * from "./instancing";
 export * from "./item-slots";
+export * from "./motion";
 export * from "./nametag";
 export * from "./perspective";
 export * from "./portrait";

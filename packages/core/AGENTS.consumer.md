@@ -8,6 +8,7 @@ Before writing Voxelize code, read the skill that matches the task in `node_modu
 | Task | Skill |
 | --- | --- |
 | Creatures, animals, mobs, NPC bodies, any many-of-a-kind animated entity | `voxelize-instanced-entities` |
+| Walks that skate, head look, strike, hurt and death animation, IK feet on terrain | `voxelize-entity-motion` |
 
 Then read the APIs it names in `node_modules/@voxelize/core/dist/**/*.d.ts` (JSDoc has `@example`s).
 

@@ -11,6 +11,7 @@ sources:
   - packages/core/src/libs/instancing/instanced-entity-roster.ts
   - examples/client/src/critters.ts
   - examples/server/worlds/shared/methods.rs
+  - packages/core/src/libs/motion/stride-gait.ts
 ---
 
 # Instanced entities in Voxelize
@@ -37,8 +38,9 @@ export const critters = VOXELIZE.defineSkinnedFamily({
     { bone: "legR", size: [0.12, 0.25, 0.12], at: [0.15, 0.125, 0],
       pivot: [0.15, 0.25, 0], paint: "#3b2b1a" },
   ],
+  legSwing: 0.6,                         // leg sweep at full stride
   animate: (pose) => {
-    const swing = Math.sin(pose.time * 8) * 0.6 * pose.movement;
+    const swing = Math.sin(pose.stride) * 0.6 * pose.swing;
     pose.rotateBone("legL", swing);
     pose.rotateBone("legR", -swing);
   },
@@ -49,7 +51,7 @@ Conventions (getting these wrong is the usual bug):
 - Mesh units, origin **at the feet**, **+y up, +z forward** (the way it faces). `size` is the whole body at `size = 1`; the server's `size` metadata scales it.
 - A part rotates about its **`pivot`** (hip, neck, tail root). Every part on one bone shares that bone's pivot. Without a pivot it rotates about the origin.
 - `paint` is a CSS colour or a `FacePainter` `(ctx, face, width, height)`; faces are `0=+x 1=-x 2=+y 3=-y 4=+z (front) 5=-z (back)`. Painters run at one texel density across parts (`density`, default 16 texels per block), so keep pixel art in texels, not fractions.
-- `pose.time` is the world's shader clock (all clients agree); `pose.movement` eases 0..1 between rest and travel. Scale gait swings by it so a resting body stands square.
+- `pose.stride` is the walk phase, advanced by distance travelled and paced from the measured legs, so feet never skate; `pose.swing` is the swing amplitude (0 at rest). `pose.time` is the world's shader clock (all clients agree) for idle motion; `pose.movement` eases 0..1 between rest and travel. Gait, head look, strikes, hit flash, death and IK feet: the `voxelize-entity-motion` skill.
 - Calm idle motion reads natural; fast constant wiggle does not. Tie fast motion to `movement` or to an event in `pose.data`.
 - `hasBabies: true` gives `parts(variant, true)` its own body; `config: { material, emissive, surface, hitEffectIntensity, ... }` passes anything else to the pool (see `SkinnedFamilyConfig`).
 

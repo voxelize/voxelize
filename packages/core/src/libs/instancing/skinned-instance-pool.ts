@@ -588,10 +588,7 @@ export class SkinnedInstancePool<
   }
 
   /// What the family's `rigInfo` adds, over the measured facts.
-  getRigInfo(
-    variant: TVariant,
-    isBaby: boolean = false,
-  ): TInfo | undefined {
+  getRigInfo(variant: TVariant, isBaby: boolean = false): TInfo | undefined {
     return this.getOrCreateVariantPool(variant, isBaby)?.rigInfo as
       | TInfo
       | undefined;

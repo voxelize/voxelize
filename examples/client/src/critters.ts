@@ -93,10 +93,13 @@ export const critters = VOXELIZE.defineSkinnedFamily({
       leg("legBR", 0.14, -0.2),
     ];
   },
+  // Legs sweep this far at full stride; the stride clock paces them from it
+  // and the measured leg length, so feet keep pace with the ground.
+  legSwing: 0.7,
   animate: (pose) => {
     // Diagonal pairs swing together; the swing fades out at rest so an idle
     // critter stands square instead of freezing mid-stride.
-    const stride = Math.sin(pose.time * 9) * 0.7 * pose.movement;
+    const stride = Math.sin(pose.stride) * 0.7 * pose.swing;
     pose.rotateBone("legFL", stride);
     pose.rotateBone("legBR", stride);
     pose.rotateBone("legFR", -stride);

@@ -3,6 +3,8 @@ import * as THREE from "three";
 import { Entity } from "../../core/entities";
 import type { World } from "../../core/world";
 import type { Coords3 } from "../../types";
+import { dampPosition } from "../motion/damp-position";
+import { shortestYawDelta } from "../motion/yaw";
 
 import type {
   SkinnedInstancePool,
@@ -223,13 +225,14 @@ export abstract class InstancedEntity<
     return this.hidden;
   }
 
-  /** Damps `position` and `yaw` toward the stream; override to attach. */
+  /**
+   * Damps `position` and `yaw` toward the stream at the same speed whatever
+   * the frame rate (a far jump snaps); override to attach to a rider.
+   */
   protected resolveMotion(_deltaTime: number): void {
     const gap = this.targetPosition.distanceTo(this.position);
-    this.position.lerp(this.targetPosition, this.positionDamping);
-    let yawGap = this.targetYaw - this.yaw;
-    yawGap = Math.atan2(Math.sin(yawGap), Math.cos(yawGap));
-    this.yaw += yawGap * this.yawDamping;
+    dampPosition(this.position, this.targetPosition, this.positionDamping);
+    this.yaw += shortestYawDelta(this.yaw, this.targetYaw) * this.yawDamping;
     const isMoving = gap > 0.002;
     this.movement +=
       ((isMoving ? 1 : 0) - this.movement) * (isMoving ? 0.08 : 0.05);

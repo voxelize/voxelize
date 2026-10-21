@@ -1,6 +1,7 @@
 import * as THREE from "three";
 
 import type { Entities } from "../../core/entities";
+import { StrideGait, strideGaitParamsForScale } from "../motion/stride-gait";
 
 import type { TexelDensity } from "./face-density";
 import {
@@ -35,6 +36,14 @@ export interface SkinnedPose<
   readonly deltaTime: number;
   /** 0 at rest, 1 while travelling, eased between. */
   readonly movement: number;
+  /**
+   * Walk cycle phase, radians: one full turn per stride over the ground,
+   * paced from the legs the body actually draws, so feet never skate.
+   * Drive leg swings with `Math.sin(pose.stride) * maxSwing * pose.swing`.
+   */
+  readonly stride: number;
+  /** Leg-swing amplitude 0..1: `movement` times the speed-tracked reach. */
+  readonly swing: number;
   /** The latest server metadata. */
   readonly data: TData;
   readonly variant: string;
@@ -61,6 +70,11 @@ export interface SkinnedFamilyDefinition<
   hasBabies?: boolean;
   /** Texels per block of the painted atlas. */
   density?: TexelDensity;
+  /**
+   * The leg sweep (radians) `animate` uses at full stride, so the stride
+   * clock covers the ground those legs reach. Defaults to 0.5.
+   */
+  legSwing?: number;
   /** Poses the bones each frame; a still body when unset. */
   animate?: (pose: SkinnedPose<TBone, TData>) => void;
   /** Anything else the pool takes (material, emissive, ...). */
@@ -134,8 +148,9 @@ export interface SkinnedFamily<
  *         pivot: [0.15, 0.25, 0], paint: "#3b2b1a" },
  *     ];
  *   },
+ *   legSwing: 0.6,
  *   animate: (pose) => {
- *     const swing = Math.sin(pose.time * 8) * 0.6 * pose.movement;
+ *     const swing = Math.sin(pose.stride) * 0.6 * pose.swing;
  *     pose.rotateBone("legL", swing);
  *     pose.rotateBone("legR", -swing);
  *     pose.rotateBone("head", Math.sin(pose.time * 1.5) * 0.05);
@@ -188,9 +203,12 @@ export function defineSkinnedFamily<
   const animate = definition.animate;
   const rotation = new THREE.Euler();
 
+  const legSwing = definition.legSwing ?? 0.5;
+
   class DefinedEntity extends InstancedEntity<TData, TVariant> {
     private latest: TData | null = null;
     private pose: SkinnedPose<TBone, TData> | null = null;
+    private gait: StrideGait | null = null;
 
     protected onData(data: TData): void {
       this.latest = data;
@@ -199,10 +217,17 @@ export function defineSkinnedFamily<
     protected animate(time: number, deltaTime: number): void {
       if (!animate || !this.latest) return;
       const pose = (this.pose ??= this.makePose());
+      const gait = (this.gait ??= new StrideGait(
+        strideGaitParamsForScale(this.size),
+      ));
+      gait.fitWalker(this.rig?.legLength, this.size, legSwing);
+      gait.update(this.position, this.targetPosition);
       Object.assign(pose, {
         time,
         deltaTime,
         movement: this.movement,
+        stride: gait.phase,
+        swing: this.movement * gait.swingScale,
         data: this.latest,
         variant: this.variant,
         isBaby: this.isBaby,
@@ -216,6 +241,8 @@ export function defineSkinnedFamily<
         time: 0,
         deltaTime: 0,
         movement: 0,
+        stride: 0,
+        swing: 0,
         data: this.latest as TData,
         variant: this.variant,
         isBaby: this.isBaby,
