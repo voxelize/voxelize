@@ -1,0 +1,37 @@
+name: Transport CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  transport:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10.9.0
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - name: Install transport dependencies
+        run: pnpm --filter @voxelize/transport... --filter voxelize install --frozen-lockfile --ignore-scripts
+
+      - name: Build protocol
+        run: pnpm --filter @voxelize/protocol build
+
+      - name: Test transport
+        run: pnpm exec vitest run packages/transport/src --maxWorkers 1 --minWorkers 1 --pool forks
+
+      - name: Build transport
+        run: pnpm --filter @voxelize/transport build
