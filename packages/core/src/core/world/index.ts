@@ -5905,9 +5905,8 @@ export class World<T = any> extends Scene implements NetIntercept {
   onPacketsSent = (packets: MessageProtocol[]) => {
     const sentAt = performance.now();
     for (const packet of packets) {
-      // Encoding rewrites the packet in place on its way out: `type` becomes
-      // the wire enum and `json` a string, so a sent packet is judged by
-      // both spellings and its payload parsed back.
+      // Network preserves the application packet. Also accept the wire enum
+      // and serialized JSON for callers supplying already encoded records.
       const type: unknown = packet.type;
       if (type !== "LOAD" && type !== protocol.Message.Type.LOAD) continue;
       const json: unknown = packet.json;
