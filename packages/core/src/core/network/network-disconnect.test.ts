@@ -1,4 +1,4 @@
-import type { MessageProtocol } from "@voxelize/protocol";
+import { MessageProtocol, protocol } from "@voxelize/protocol";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 const fakes = vi.hoisted(() => {
@@ -85,7 +85,7 @@ const drainMicrotasks = async () => {
   for (let i = 0; i < 8; i += 1) await Promise.resolve();
 };
 
-describe("Network.disconnect during a join", () => {
+describe("Network connection lifecycle and sending", () => {
   beforeEach(() => {
     FakeSocket.opened = [];
     vi.stubGlobal("window", { navigator: { hardwareConcurrency: 4 } });
@@ -109,6 +109,117 @@ describe("Network.disconnect during a join", () => {
     await connecting;
     return network;
   };
+
+  it("sends a reused update with the same type and the caller's latest values", async () => {
+    const network = await openNetwork();
+    try {
+      const message = {
+        type: "UPDATE",
+        updates: [{ vx: -2, vy: 3, vz: 4, voxel: 7 }],
+      };
+      expect(network.send(message)).toBe(true);
+      message.updates[0].voxel = 9;
+      expect(network.send(message)).toBe(true);
+      const frames = FakeSocket.opened[0].sent.map((bytes) =>
+        protocol.Message.decode(bytes as Uint8Array),
+      );
+      expect(frames.map((frame) => frame.type)).toEqual([
+        protocol.Message.Type.UPDATE,
+        protocol.Message.Type.UPDATE,
+      ]);
+      expect(frames.map((frame) => frame.updates[0].voxel)).toEqual([7, 9]);
+      expect(message.type).toBe("UPDATE");
+    } finally {
+      network.disconnect();
+    }
+  });
+
+  it("accepts a frozen command without changing its JSON", async () => {
+    const network = await openNetwork();
+    const json = Object.freeze({
+      center: [0, 0],
+      direction: [0, 1],
+      chunks: [[0, 0]],
+    });
+    const message = Object.freeze({ type: "LOAD", json });
+    try {
+      expect(network.send(message)).toBe(true);
+      expect(network.send(message)).toBe(true);
+      for (const bytes of FakeSocket.opened[0].sent) {
+        const frame = protocol.Message.decode(bytes as Uint8Array);
+        expect(frame.type).toBe(protocol.Message.Type.LOAD);
+        expect(JSON.parse(frame.json)).toEqual(json);
+      }
+      expect(message.json).toBe(json);
+    } finally {
+      network.disconnect();
+    }
+  });
+
+  it("passes the original packet to an intercept's sent callback", async () => {
+    const network = await openNetwork();
+    const message: MessageProtocol = {
+      type: "LOAD",
+      json: { center: [0, 0], direction: [0, 1], chunks: [[0, 0]] },
+    };
+    const before = structuredClone(message);
+    const sent: MessageProtocol[] = [];
+    network.register({
+      packets: [message],
+      onPacketsSent: (packets) => sent.push(...packets),
+    });
+    try {
+      network.flush();
+      expect(sent).toHaveLength(1);
+      expect(sent[0]).toBe(message);
+      expect(sent[0]).toEqual(before);
+    } finally {
+      network.disconnect();
+    }
+  });
+
+  it("serializes frozen entity and peer records without replacing their metadata", async () => {
+    const network = await openNetwork();
+    const metadata = Object.freeze({ position: [1, 2, 3] });
+    const entity = Object.freeze({ id: "e1", metadata });
+    const peer = Object.freeze({ id: "p1", metadata });
+    const message = Object.freeze({
+      type: "ENTITY",
+      entities: Object.freeze([entity]),
+      peers: Object.freeze([peer]),
+    });
+    try {
+      expect(network.send(message)).toBe(true);
+      expect(network.send(message)).toBe(true);
+      for (const bytes of FakeSocket.opened[0].sent) {
+        const frame = protocol.Message.decode(bytes as Uint8Array);
+        expect(frame.type).toBe(protocol.Message.Type.ENTITY);
+        expect(JSON.parse(frame.entities[0].metadata)).toEqual(metadata);
+        expect(JSON.parse(frame.peers[0].metadata)).toEqual(metadata);
+      }
+      expect(message.entities[0]).toBe(entity);
+      expect(message.peers[0]).toBe(peer);
+      expect(entity.metadata).toBe(metadata);
+      expect(peer.metadata).toBe(metadata);
+    } finally {
+      network.disconnect();
+    }
+  });
+
+  it("leaves a command intact when its metadata cannot be serialized", async () => {
+    const network = await openNetwork();
+    const metadata: { self?: unknown } = {};
+    metadata.self = metadata;
+    const message = { type: "ENTITY", entities: [{ id: "e1", metadata }] };
+    try {
+      expect(() => network.send(message)).toThrow(TypeError);
+      expect(FakeSocket.opened[0].sent).toHaveLength(0);
+      expect(message.type).toBe("ENTITY");
+      expect(message.entities[0].metadata).toBe(metadata);
+    } finally {
+      network.disconnect();
+    }
+  });
 
   it("rejects the join still waiting for its INIT within a microtask", async () => {
     const network = await openNetwork();
