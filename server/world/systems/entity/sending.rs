@@ -8,8 +8,8 @@ use crate::{
     BackgroundEntitiesSaver, Bookkeeping, ClientFilter, Clients, DirectionComp, DoNotPersistComp,
     ETypeComp, EntityFlag, EntityIDs, EntityOperation, EntityProtocol, IDComp, InteractorComp,
     InterestTransition, KdTree, Message, MessageQueues, MessageType, MetadataComp, MotionSample,
-    OnRequestMetadataClients, Physics, PositionComp, QuantizedMotion, ReplicatedStateBuffer, RigidBodyComp, Stats,
-    TargetComp, Vec3, VoxelComp, WorldConfig, METADATA_MAX_AGE_MS,
+    OnRequestMetadataClients, Physics, PositionComp, QuantizedMotion, ReplicatedStateBuffer,
+    RigidBodyComp, Stats, TargetComp, Vec3, VoxelComp, WorldConfig, METADATA_MAX_AGE_MS,
 };
 
 const BLOCK_ENTITY_PREFIX: &str = "block::";
@@ -225,8 +225,7 @@ impl<'a> System<'a> for EntitiesSendingSystem {
                 }
             }
 
-            let snapshot =
-                metadata.snapshot_for_replication(on_request_keys, is_on_request_wanted);
+            let snapshot = metadata.snapshot_for_replication(on_request_keys, is_on_request_wanted);
 
             if is_new || snapshot.is_full_updated {
                 changed_metadata_ids.insert(id.0.clone());
@@ -385,8 +384,7 @@ impl<'a> System<'a> for EntitiesSendingSystem {
                                     updates.staged_bytes += non_motion.len();
                                     is_staged = true;
                                 }
-                            } else if is_motion_fresh || non_motion_lane.contains_key(entity_id)
-                            {
+                            } else if is_motion_fresh || non_motion_lane.contains_key(entity_id) {
                                 // Legacy clients receive the full metadata
                                 // map exactly as before the compact path
                                 // existed, but scheduled with motion-lane

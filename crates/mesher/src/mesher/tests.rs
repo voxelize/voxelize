@@ -19,24 +19,37 @@ fn opaque_lava_does_not_erase_the_stone_wall_above_its_lowered_surface() {
     ]);
     registry.build_cache();
     for dir in [[1, 0, 0], [-1, 0, 0], [0, 0, 1], [0, 0, -1], [0, 1, 0]] {
-        let space = SparseSpace::new(&[
-            ((0, 0, 0), (1, 0)),
-            ((dir[0], dir[1], dir[2]), (2, 0)),
-        ]);
+        let space = SparseSpace::new(&[((0, 0, 0), (1, 0)), ((dir[0], dir[1], dir[2]), (2, 0))]);
         let meshes = mesh_space_greedy(&[0, 0, 0], &[1, 1, 1], &space, &registry);
-        assert_eq!(meshes.iter().map(|g| g.indices.len()).sum::<usize>(), 36,
-            "lava must not cull stone at {dir:?}");
+        assert_eq!(
+            meshes.iter().map(|g| g.indices.len()).sum::<usize>(),
+            36,
+            "lava must not cull stone at {dir:?}"
+        );
         // The real failure occurs below an overhanging lip: every other
         // neighbour is solid, so the whole-voxel shortcut also needs to
         // recognize the air strip above the fluid surface.
         let mut cells = vec![((0, 0, 0), (1, 0))];
-        for side in [[1, 0, 0], [-1, 0, 0], [0, 1, 0], [0, -1, 0], [0, 0, 1], [0, 0, -1]] {
-            cells.push(((side[0], side[1], side[2]), (if side == dir { 2 } else { 1 }, 0)));
+        for side in [
+            [1, 0, 0],
+            [-1, 0, 0],
+            [0, 1, 0],
+            [0, -1, 0],
+            [0, 0, 1],
+            [0, 0, -1],
+        ] {
+            cells.push((
+                (side[0], side[1], side[2]),
+                (if side == dir { 2 } else { 1 }, 0),
+            ));
         }
         let enclosed = SparseSpace::new(&cells);
         let meshes = mesh_space_greedy(&[0, 0, 0], &[1, 1, 1], &enclosed, &registry);
-        assert_eq!(meshes.iter().map(|g| g.indices.len()).sum::<usize>(), 6,
-            "buried bank still needs its exposed face at {dir:?}");
+        assert_eq!(
+            meshes.iter().map(|g| g.indices.len()).sum::<usize>(),
+            6,
+            "buried bank still needs its exposed face at {dir:?}"
+        );
     }
 }
 
@@ -122,13 +135,30 @@ fn rotated_solid_keeps_exposed_faces_and_culls_only_its_actual_neighbors() {
         let mut space = SparseSpace::new(&[((0, 0, 0), (1, 0))]);
         space.rotation = rotation.clone();
         let meshes = mesh_space_greedy(&[0, 0, 0], &[1, 1, 1], &space, &registry);
-        assert_eq!(meshes.iter().map(|g| g.indices.len()).sum::<usize>(), 36,
-            "quarter turn {quarter} must retain all six exposed faces");
+        assert_eq!(
+            meshes.iter().map(|g| g.indices.len()).sum::<usize>(),
+            36,
+            "quarter turn {quarter} must retain all six exposed faces"
+        );
         // Only one neighbor is air. A translated normal can point at self
         // or a diagonal, either erasing that face or leaking a buried one.
-        for opening in [[1, 0, 0], [-1, 0, 0], [0, 1, 0], [0, -1, 0], [0, 0, 1], [0, 0, -1]] {
+        for opening in [
+            [1, 0, 0],
+            [-1, 0, 0],
+            [0, 1, 0],
+            [0, -1, 0],
+            [0, 0, 1],
+            [0, 0, -1],
+        ] {
             let mut cells = vec![((0, 0, 0), (1, 0))];
-            for side in [[1, 0, 0], [-1, 0, 0], [0, 1, 0], [0, -1, 0], [0, 0, 1], [0, 0, -1]] {
+            for side in [
+                [1, 0, 0],
+                [-1, 0, 0],
+                [0, 1, 0],
+                [0, -1, 0],
+                [0, 0, 1],
+                [0, 0, -1],
+            ] {
                 if side != opening {
                     cells.push(((side[0], side[1], side[2]), (1, 0)));
                 }
@@ -136,8 +166,11 @@ fn rotated_solid_keeps_exposed_faces_and_culls_only_its_actual_neighbors() {
             let mut space = SparseSpace::new(&cells);
             space.rotation = rotation.clone();
             let meshes = mesh_space_greedy(&[0, 0, 0], &[1, 1, 1], &space, &registry);
-            assert_eq!(meshes.iter().map(|g| g.indices.len()).sum::<usize>(), 6,
-                "quarter turn {quarter} must leave only its {opening:?} face exposed");
+            assert_eq!(
+                meshes.iter().map(|g| g.indices.len()).sum::<usize>(),
+                6,
+                "quarter turn {quarter} must leave only its {opening:?} face exposed"
+            );
         }
     }
 }
@@ -196,8 +229,12 @@ fn standalone_faces_between_same_blocks_stop_at_their_depth() {
     // Five leaves along x, depth 1: only faces with one leaf before either
     // end of the line are meshed, from both sides of each plane.
     let (leaf, registry, space) = leaf_line(1);
-    let toward_px: Vec<_> = (-2..=1).filter(|&x| renders(&leaf, &registry, &space, x, 1)).collect();
-    let toward_nx: Vec<_> = (-1..=2).filter(|&x| renders(&leaf, &registry, &space, x, -1)).collect();
+    let toward_px: Vec<_> = (-2..=1)
+        .filter(|&x| renders(&leaf, &registry, &space, x, 1))
+        .collect();
+    let toward_nx: Vec<_> = (-1..=2)
+        .filter(|&x| renders(&leaf, &registry, &space, x, -1))
+        .collect();
     assert_eq!(toward_px, vec![-2, 1]);
     assert_eq!(toward_nx, vec![-1, 2]);
     // The ends of the line still face the air.
@@ -237,8 +274,14 @@ fn a_cutout_mass_lays_inward_copies_of_its_surface() {
         .iter()
         .flat_map(|g| g.positions.chunks(3).map(|p| p[0]))
         .collect();
-    assert!(xs.iter().any(|&x| x < 0.0), "the -x copy lies outside the cube");
-    assert!(xs.iter().any(|&x| x > 1.0), "the +x copy lies outside the cube");
+    assert!(
+        xs.iter().any(|&x| x < 0.0),
+        "the -x copy lies outside the cube"
+    );
+    assert!(
+        xs.iter().any(|&x| x > 1.0),
+        "the +x copy lies outside the cube"
+    );
 
     // Without a depth it is a plain standalone cutout: six faces.
     let meshes = mesh_lone_leaf(0);
@@ -307,9 +350,15 @@ fn a_voxel_wears_its_tufts_only_where_it_meets_the_air() {
     assert_eq!(tufts.len(), 1);
     assert_eq!(tufts[0].voxel, 1);
     assert_eq!(tufts[0].indices.len(), 6);
-    assert_eq!(tuft_vertices(&meshes, 0.0, 1.0), tufts[0].positions.len() / 3);
+    assert_eq!(
+        tuft_vertices(&meshes, 0.0, 1.0),
+        tufts[0].positions.len() / 3
+    );
     // Its cube is meshed as before: six faces and their inward copies.
-    assert_eq!(meshes.iter().map(|g| g.indices.len()).sum::<usize>(), 72 + 6);
+    assert_eq!(
+        meshes.iter().map(|g| g.indices.len()).sum::<usize>(),
+        72 + 6
+    );
 
     // The centre of a 3x3x3 block of leaves touches no air: it lays nothing
     // beyond its cell, though its outer neighbours each lay their own.
@@ -359,7 +408,11 @@ fn tufts_cost_a_crown_its_surface_not_its_volume() {
     let (with, without) = (crown_triangles(&registry), crown_triangles(&plain));
     // 257 voxels, of which the 134 that touch the air wear one quad; the 123
     // buried ones cost nothing.
-    assert_eq!(with - without, 134 * 2, "{with} with tufts, {without} without");
+    assert_eq!(
+        with - without,
+        134 * 2,
+        "{with} with tufts, {without} without"
+    );
 }
 
 #[test]
@@ -2845,7 +2898,10 @@ fn still_water_sealed_under_a_roof_fills_its_voxel() {
     };
     let mut registry = Registry::new(vec![
         (0, registry.get_block_by_id(0).unwrap().clone()),
-        (STONE_ID, registry.get_block_by_id(STONE_ID).unwrap().clone()),
+        (
+            STONE_ID,
+            registry.get_block_by_id(STONE_ID).unwrap().clone(),
+        ),
         (WATER_ID, water.clone()),
         (SLAB_ID, slab),
     ]);
@@ -2869,7 +2925,10 @@ fn still_water_sealed_under_a_roof_fills_its_voxel() {
 
     let sealed = SparseSpace::new(&[((0, 0, 0), (WATER_ID, 0)), ((0, 1, 0), (STONE_ID, 0))]);
     let positions = water_positions(&sealed);
-    assert!(!positions.is_empty(), "the sealed voxel still draws its walls");
+    assert!(
+        !positions.is_empty(),
+        "the sealed voxel still draws its walls"
+    );
     assert!(
         !has_surface(&positions),
         "still water under a roof draws no surface: {positions:?}"
@@ -3168,7 +3227,10 @@ fn a_tinted_voxel_packs_its_table_entry_and_never_merges_across_colours() {
 
     let (count, pigments) = quads(&TintedSpace([6, 13]));
     assert_eq!(count, 10, "two colours must never share a quad");
-    assert_eq!(pigments, std::collections::HashSet::from([Some(6), Some(13)]));
+    assert_eq!(
+        pigments,
+        std::collections::HashSet::from([Some(6), Some(13)])
+    );
 
     let (count, pigments) = quads(&TintedSpace([9, 9]));
     assert_eq!(count, 6, "one colour merges like any other face");
@@ -3955,7 +4017,10 @@ fn a_lone_cube_in_a_lit_corner_bakes_its_pinned_corners() {
         is_opaque: true,
         ..plain_block(LitCornerSpace::CUBE, "Cube")
     };
-    let mut registry = Registry::new(vec![(LitCornerSpace::STONE, stone), (LitCornerSpace::CUBE, cube)]);
+    let mut registry = Registry::new(vec![
+        (LitCornerSpace::STONE, stone),
+        (LitCornerSpace::CUBE, cube),
+    ]);
     registry.build_cache();
     let neighbors = NeighborCache::populate(0, 0, 0, &LitCornerSpace);
     let cube = registry.get_block_by_id(LitCornerSpace::CUBE).unwrap();

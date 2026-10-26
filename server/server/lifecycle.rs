@@ -604,10 +604,7 @@ impl Server {
         );
         info!(
             "world lifecycle: destroyed world '{}' (lifetime {}ms, peak {}, ejected {})",
-            name,
-            lifetime_ms,
-            peak,
-            ejected
+            name, lifetime_ms, peak, ejected
         );
 
         // Warm-pool return: keep the actor dormant for reuse instead of
@@ -657,7 +654,11 @@ impl Server {
     /// worlds never arm.
     pub(crate) fn reconcile_gc(&mut self, ctx: &mut Context<Self>) {
         let mut counts: std::collections::HashMap<String, usize> = std::collections::HashMap::new();
-        for world_name in self.sessions.values().filter_map(|session| session.world.as_ref()) {
+        for world_name in self
+            .sessions
+            .values()
+            .filter_map(|session| session.world.as_ref())
+        {
             *counts.entry(world_name.clone()).or_insert(0) += 1;
         }
 
@@ -905,7 +906,10 @@ mod runtime_lifecycle_tests {
                 gc_policy: GcPolicy::Never,
             };
 
-            addr.send(create("slot-a")).await.unwrap().expect("create slot-a");
+            addr.send(create("slot-a"))
+                .await
+                .unwrap()
+                .expect("create slot-a");
             assert_eq!(handling_ping(addr.clone()).await, ["slot-a"]);
 
             addr.send(DestroyWorld {
@@ -920,7 +924,10 @@ mod runtime_lifecycle_tests {
                 "a pooled world is not live, so no call is pointed at it"
             );
 
-            addr.send(create("slot-b")).await.unwrap().expect("create slot-b");
+            addr.send(create("slot-b"))
+                .await
+                .unwrap()
+                .expect("create slot-b");
             let metrics = addr.send(GetLifecycleMetrics).await.unwrap();
             assert_eq!(metrics.reused, 1, "slot-b came from the warm pool");
             assert_eq!(

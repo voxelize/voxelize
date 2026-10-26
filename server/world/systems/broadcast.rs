@@ -16,8 +16,8 @@ use crate::{
         profiler::Profiler, system_profiler::WorldTimingContext, Client, Clients, MessageQueues,
         Stats, WorldConfig,
     },
-    EncodedMessage, EncodedMessageQueue, EntityOperation, MessageType, ReplicatedStateBuffer,
-    LogRateLimiter, Transports,
+    EncodedMessage, EncodedMessageQueue, EntityOperation, LogRateLimiter, MessageType,
+    ReplicatedStateBuffer, Transports,
 };
 
 /// How often (wall-clock ms) each client's motion-gap distribution is
@@ -199,9 +199,7 @@ fn batch_messages(messages: Vec<(Message, ClientFilter)>) -> Vec<(Message, Clien
 /// messages ("invalid wire type 4").
 fn send_rtc(rtc_sender: Option<&UnboundedSender<Vec<u8>>>, data: &[u8]) -> bool {
     match rtc_sender {
-        Some(rtc_sender) if fits_one_datagram(data.len()) => {
-            rtc_sender.send(data.to_vec()).is_ok()
-        }
+        Some(rtc_sender) if fits_one_datagram(data.len()) => rtc_sender.send(data.to_vec()).is_ok(),
         _ => false,
     }
 }

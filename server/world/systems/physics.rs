@@ -6,6 +6,7 @@ use rapier3d::prelude::CollisionEvent;
 use specs::{BitSet, Entities, ReadExpect, ReadStorage, System, WriteExpect, WriteStorage};
 
 use crate::{
+    run_on_tick_pool, tick_split,
     world::{
         components::{CurrentChunkComp, PositionComp, RigidBodyComp},
         interests::ChunkInterests,
@@ -15,8 +16,8 @@ use crate::{
         voxels::Chunks,
         WorldConfig,
     },
-    run_on_tick_pool, tick_split, ClientFilter, ClientFlag, CollisionsComp, Event, EventBuilder,
-    Events, IDComp, InteractorComp, Vec2, Vec3, TICK_SPLIT_MIN_BODIES,
+    ClientFilter, ClientFlag, CollisionsComp, Event, EventBuilder, Events, IDComp, InteractorComp,
+    Vec2, Vec3, TICK_SPLIT_MIN_BODIES,
 };
 
 #[derive(Default)]
@@ -123,24 +124,23 @@ impl<'a> System<'a> for PhysicsSystem {
             active_count += 1;
         }
 
-        let integrate =
-            |(_, body, position): (u32, &mut RigidBodyComp, &mut PositionComp)| {
-                // First tick against ready terrain: lift the body clear of
-                // any solids it was revived or spawned overlapping (saves
-                // written under older body dimensions bake in centers the
-                // current box may overlap the floor with).
-                if !body.0.is_placement_validated {
-                    Physics::validate_placement(&mut body.0, chunks.deref(), &registry, &config);
-                    let lifted_pos = body.0.get_position();
-                    position.0.set(lifted_pos.0, lifted_pos.1, lifted_pos.2);
-                }
+        let integrate = |(_, body, position): (u32, &mut RigidBodyComp, &mut PositionComp)| {
+            // First tick against ready terrain: lift the body clear of
+            // any solids it was revived or spawned overlapping (saves
+            // written under older body dimensions bake in centers the
+            // current box may overlap the floor with).
+            if !body.0.is_placement_validated {
+                Physics::validate_placement(&mut body.0, chunks.deref(), &registry, &config);
+                let lifted_pos = body.0.get_position();
+                position.0.set(lifted_pos.0, lifted_pos.1, lifted_pos.2);
+            }
 
-                Physics::iterate_body(&mut body.0, stats.delta, chunks.deref(), &registry, &config);
+            Physics::iterate_body(&mut body.0, stats.delta, chunks.deref(), &registry, &config);
 
-                let body_pos = body.0.get_position();
-                let Vec3(px, py, pz) = body_pos;
-                position.0.set(px, py, pz);
-            };
+            let body_pos = body.0.get_position();
+            let Vec3(px, py, pz) = body_pos;
+            position.0.set(px, py, pz);
+        };
 
         if tick_split(active_count, TICK_SPLIT_MIN_BODIES) {
             let work = (&active, &mut bodies, &mut positions).par_join();

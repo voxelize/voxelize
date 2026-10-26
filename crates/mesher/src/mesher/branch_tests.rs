@@ -1418,7 +1418,10 @@ fn bole_census() {
 fn a_branch_holds_water_beside_its_wood_until_it_fills_its_voxel() {
     let voxel = shape(BranchSeat::Centre);
     for radius in 1..T / 2 {
-        assert!(voxel.holds_water(voxel.with_radius(0, radius)), "radius {radius}");
+        assert!(
+            voxel.holds_water(voxel.with_radius(0, radius)),
+            "radius {radius}"
+        );
     }
     assert!(
         !voxel.holds_water(voxel.with_radius(0, T / 2)),

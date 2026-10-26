@@ -4,16 +4,16 @@ use super::*;
 /// [`World::set_raw_update_guard`]. It is handed the writes that landed
 /// inside the world and returns the ones that may be applied.
 pub(crate) struct RawUpdateGuard(
-    pub(crate) Arc<
-        dyn Fn(&mut World, &str, Vec<(Vec3<i32>, u32)>) -> Vec<(Vec3<i32>, u32)> + Send + Sync,
-    >,
+    pub(crate) 
+        Arc<dyn Fn(&mut World, &str, Vec<(Vec3<i32>, u32)>) -> Vec<(Vec3<i32>, u32)> + Send + Sync>,
 );
 
 /// A game's look at every public chat line before it goes out, set with
 /// [`World::set_chat_guard`]. It is handed the sender's id and the line, may
 /// rewrite the line, and returns whether it is broadcast at all.
 pub(crate) struct ChatGuard(
-    pub(crate) Arc<dyn Fn(&mut World, &str, &mut crate::protocols::ChatMessage) -> bool + Send + Sync>,
+    pub(crate) 
+        Arc<dyn Fn(&mut World, &str, &mut crate::protocols::ChatMessage) -> bool + Send + Sync>,
 );
 
 impl World {
@@ -87,8 +87,8 @@ impl World {
     /// them where it installs the systems writing those keys, after the
     /// world's config was built.
     pub fn set_on_request_metadata_keys(&mut self, keys: &[&str]) {
-        self.write_resource::<WorldConfig>().on_request_metadata_keys =
-            keys.iter().map(|key| (*key).to_owned()).collect();
+        self.write_resource::<WorldConfig>()
+            .on_request_metadata_keys = keys.iter().map(|key| (*key).to_owned()).collect();
     }
 
     pub fn set_method_handle<F: Fn(&mut World, &str, &str) + Send + Sync + 'static>(
@@ -200,7 +200,10 @@ mod raw_update_guard_tests {
                 .lock()
                 .unwrap()
                 .push((client_id.to_owned(), writes.clone()));
-            writes.into_iter().filter(|(voxel, _)| voxel.0 != 1).collect()
+            writes
+                .into_iter()
+                .filter(|(voxel, _)| voxel.0 != 1)
+                .collect()
         });
 
         let message = Message::new(&MessageType::Update)
@@ -219,9 +222,13 @@ mod raw_update_guard_tests {
         chunks.flush_staged_updates();
         let refused = Vec3(1, 2, 3);
         let landed = Vec3(4, 2, 3);
-        assert!(chunks.pending_updates_in_bounds(&refused, &refused).is_empty());
+        assert!(chunks
+            .pending_updates_in_bounds(&refused, &refused)
+            .is_empty());
         assert_eq!(
-            chunks.pending_updates_in_bounds(&landed, &landed).get(&landed),
+            chunks
+                .pending_updates_in_bounds(&landed, &landed)
+                .get(&landed),
             Some(&6)
         );
     }

@@ -146,7 +146,11 @@ fn a_join_naming_the_digest_gets_an_init_without_the_registry() {
         let digest = digest_of(&full);
 
         let cached = join(&mut server, "second", WORLD, Some(&digest)).await;
-        assert!(cached.json.get("blocks").is_none(), "no registry: {}", cached.text);
+        assert!(
+            cached.json.get("blocks").is_none(),
+            "no registry: {}",
+            cached.text
+        );
         assert_eq!(cached.json[INIT_REGISTRY_CACHED_KEY], json!(true));
         assert_eq!(digest_of(&cached), digest);
         assert!(cached.json.get(INIT_REGISTRY_LENGTH_KEY).is_none());
@@ -225,7 +229,11 @@ fn transports_always_get_the_full_registry() {
     actix::System::new().block_on(async {
         let mut server = build_server();
         let (sender, mut rx) = fake_socket();
-        server.register_session(SessionIdentity::for_client("transport"), true, sender.clone());
+        server.register_session(
+            SessionIdentity::for_client("transport"),
+            true,
+            sender.clone(),
+        );
         server
             .worlds
             .get(WORLD)
@@ -264,13 +272,19 @@ fn every_world_shares_one_registry_text() {
     }
     let first = worlds[0].init_registry() as *const _;
     let second = worlds[1].init_registry() as *const _;
-    assert!(std::ptr::eq(first, second), "serialized once, served by both");
+    assert!(
+        std::ptr::eq(first, second),
+        "serialized once, served by both"
+    );
 
     // A world outside any server still serves its own registry.
     let mut alone = World::new("alone", &config);
     alone.ecs_mut().insert(registry());
     assert!(!alone.shares_init_registry_with(&shared));
-    assert_eq!(alone.init_registry().digest, worlds[0].init_registry().digest);
+    assert_eq!(
+        alone.init_registry().digest,
+        worlds[0].init_registry().digest
+    );
 }
 
 /// A registry no world holds: a copy serialized from it names itself in the

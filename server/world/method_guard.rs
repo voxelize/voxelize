@@ -43,20 +43,29 @@ impl MethodIndex {
     /// Records `methods` (dispatch keys) as the ones `world` handles,
     /// replacing whatever it held under that name.
     pub fn record(&self, world: &str, methods: impl IntoIterator<Item = String>) {
-        let mut index = self.0.write().unwrap_or_else(|poisoned| poisoned.into_inner());
+        let mut index = self
+            .0
+            .write()
+            .unwrap_or_else(|poisoned| poisoned.into_inner());
         index.insert(world.to_owned(), methods.into_iter().collect());
     }
 
     /// Drops `world` from the index, returning the methods it handled.
     pub fn forget(&self, world: &str) -> Option<BTreeSet<String>> {
-        let mut index = self.0.write().unwrap_or_else(|poisoned| poisoned.into_inner());
+        let mut index = self
+            .0
+            .write()
+            .unwrap_or_else(|poisoned| poisoned.into_inner());
         index.remove(world)
     }
 
     /// The worlds that handle `method` (any casing), sorted.
     pub fn worlds_handling(&self, method: &str) -> Vec<String> {
         let key = method.to_lowercase();
-        let index = self.0.read().unwrap_or_else(|poisoned| poisoned.into_inner());
+        let index = self
+            .0
+            .read()
+            .unwrap_or_else(|poisoned| poisoned.into_inner());
         index
             .iter()
             .filter(|(_, methods)| methods.contains(&key))

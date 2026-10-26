@@ -204,7 +204,9 @@ pub(crate) fn setup_logger() {
     let dispatch = match AsyncStdout::spawn() {
         Ok(sink) => dispatch.chain(fern::Output::call(move |record| sink.send(record))),
         Err(err) => {
-            eprintln!("[log] could not start the log writer thread ({err}); logging to stdout directly");
+            eprintln!(
+                "[log] could not start the log writer thread ({err}); logging to stdout directly"
+            );
             dispatch.chain(std::io::stdout())
         }
     };
@@ -297,7 +299,9 @@ mod tests {
 
     #[test]
     fn spec_reads_levels_and_targets_and_keeps_the_unreadable() {
-        let spec = parse_log_spec(Some(" debug, voxelize::world=trace ,webrtc=off, loud, x=bogus "));
+        let spec = parse_log_spec(Some(
+            " debug, voxelize::world=trace ,webrtc=off, loud, x=bogus ",
+        ));
         assert_eq!(spec.default, LevelFilter::Debug);
         assert_eq!(
             spec.targets,

@@ -120,7 +120,8 @@ fn deterministic_world_rejects_missing_protocol_and_closes_terminal() {
     actix::System::new().block_on(async {
         let mut server = build_server_with_deterministic_world();
         let (sender, _rx) = fake_socket();
-        let (id, token) = server.register_session(SessionIdentity::for_client("bot"), false, sender.clone());
+        let (id, token) =
+            server.register_session(SessionIdentity::for_client("bot"), false, sender.clone());
 
         // No protocol field: strict-equality reject, no missing bypass.
         let rejected = on_request(
@@ -145,7 +146,8 @@ fn deterministic_world_rejects_wrong_protocol() {
     actix::System::new().block_on(async {
         let mut server = build_server_with_deterministic_world();
         let (sender, _rx) = fake_socket();
-        let (id, token) = server.register_session(SessionIdentity::for_client("bot"), false, sender.clone());
+        let (id, token) =
+            server.register_session(SessionIdentity::for_client("bot"), false, sender.clone());
 
         let rejected = on_request(
             &mut server,
@@ -163,7 +165,8 @@ fn deterministic_world_accepts_exact_protocol() {
     actix::System::new().block_on(async {
         let mut server = build_server_with_deterministic_world();
         let (sender, _rx) = fake_socket();
-        let (id, token) = server.register_session(SessionIdentity::for_client("bot"), false, sender.clone());
+        let (id, token) =
+            server.register_session(SessionIdentity::for_client("bot"), false, sender.clone());
 
         assert_eq!(
             on_request(
@@ -187,7 +190,8 @@ fn non_deterministic_world_ignores_protocol() {
     actix::System::new().block_on(async {
         let mut server = build_server_with_world();
         let (sender, _rx) = fake_socket();
-        let (id, token) = server.register_session(SessionIdentity::for_client("bot"), false, sender.clone());
+        let (id, token) =
+            server.register_session(SessionIdentity::for_client("bot"), false, sender.clone());
 
         assert_eq!(
             on_request(
@@ -220,7 +224,8 @@ fn duplicate_join_replays_ack_without_error_or_duplicate_entity() {
     actix::System::new().block_on(async {
         let mut server = build_server_with_world();
         let (sender, mut rx) = fake_socket();
-        let (id, token) = server.register_session(SessionIdentity::for_client("bot"), false, sender.clone());
+        let (id, token) =
+            server.register_session(SessionIdentity::for_client("bot"), false, sender.clone());
 
         // First JOIN, then a retry as if the INIT ack was lost in flight.
         assert_eq!(
@@ -250,8 +255,11 @@ fn abrupt_disconnect_then_same_id_reconnect_joins_cleanly() {
         let mut server = build_server_with_world();
 
         let (old_sender, _old_rx) = fake_socket();
-        let (id, old_token) =
-            server.register_session(SessionIdentity::for_client("bot"), false, old_sender.clone());
+        let (id, old_token) = server.register_session(
+            SessionIdentity::for_client("bot"),
+            false,
+            old_sender.clone(),
+        );
         assert_eq!(
             on_request(&mut server, &id, &old_token, join_message(WORLD)),
             None
@@ -261,7 +269,11 @@ fn abrupt_disconnect_then_same_id_reconnect_joins_cleanly() {
         // Abrupt closure: no Leave, no Disconnect — the process died. A
         // fresh connection with the same id must replace the membership.
         let (new_sender, mut new_rx) = fake_socket();
-        let (_, new_token) = server.register_session(SessionIdentity::for_client("bot"), false, new_sender.clone());
+        let (_, new_token) = server.register_session(
+            SessionIdentity::for_client("bot"),
+            false,
+            new_sender.clone(),
+        );
         assert_eq!(
             on_request(&mut server, &id, &new_token, join_message(WORLD)),
             None,
@@ -293,8 +305,11 @@ fn superseded_socket_is_rejected_and_cannot_cross_wire_sessions() {
         let mut server = build_server_with_world();
 
         let (old_sender, mut old_rx) = fake_socket();
-        let (id, old_token) =
-            server.register_session(SessionIdentity::for_client("bot"), false, old_sender.clone());
+        let (id, old_token) = server.register_session(
+            SessionIdentity::for_client("bot"),
+            false,
+            old_sender.clone(),
+        );
         assert_eq!(
             on_request(&mut server, &id, &old_token, join_message(WORLD)),
             None
@@ -303,8 +318,14 @@ fn superseded_socket_is_rejected_and_cannot_cross_wire_sessions() {
         // New socket connects while the old one is still open: connecting
         // alone kicks nothing (it may be headed for another world).
         let (new_sender, _new_rx) = fake_socket();
-        let (_, new_token) = server.register_session(SessionIdentity::for_client("bot"), false, new_sender.clone());
-        assert!(!drain_message_types(&old_sender, &mut old_rx).contains(&(MessageType::Error as i32)));
+        let (_, new_token) = server.register_session(
+            SessionIdentity::for_client("bot"),
+            false,
+            new_sender.clone(),
+        );
+        assert!(
+            !drain_message_types(&old_sender, &mut old_rx).contains(&(MessageType::Error as i32))
+        );
 
         // Joining the old socket's world kicks it with a reliable ERROR.
         assert_eq!(
@@ -328,7 +349,8 @@ fn disconnect_removes_membership_deterministically_and_rejoin_works() {
         let mut server = build_server_with_world();
 
         let (sender, _rx) = fake_socket();
-        let (id, token) = server.register_session(SessionIdentity::for_client("bot"), false, sender.clone());
+        let (id, token) =
+            server.register_session(SessionIdentity::for_client("bot"), false, sender.clone());
         assert_eq!(
             on_request(&mut server, &id, &token, join_message(WORLD)),
             None
@@ -342,7 +364,8 @@ fn disconnect_removes_membership_deterministically_and_rejoin_works() {
 
         // A later reconnect with the same id starts a clean session.
         let (sender, mut rx) = fake_socket();
-        let (_, token) = server.register_session(SessionIdentity::for_client("bot"), false, sender.clone());
+        let (_, token) =
+            server.register_session(SessionIdentity::for_client("bot"), false, sender.clone());
         assert_eq!(
             on_request(&mut server, &id, &token, join_message(WORLD)),
             None
@@ -358,7 +381,8 @@ fn join_for_unknown_world_is_rejected_without_touching_session() {
         let mut server = build_server_with_world();
 
         let (sender, _rx) = fake_socket();
-        let (id, token) = server.register_session(SessionIdentity::for_client("bot"), false, sender.clone());
+        let (id, token) =
+            server.register_session(SessionIdentity::for_client("bot"), false, sender.clone());
 
         let error = on_request(&mut server, &id, &token, join_message("nowhere"));
         assert!(error.is_some());
@@ -389,7 +413,8 @@ fn peer_visibility_is_bidirectional_and_lifecycle_survives_backlog() {
         // A joins first and settles (its metadata dirty flag is long
         // consumed by the time B joins).
         let (sender_a, mut rx_a) = fake_socket();
-        let (id_a, token_a) = server.register_session(SessionIdentity::for_client("visA"), false, sender_a.clone());
+        let (id_a, token_a) =
+            server.register_session(SessionIdentity::for_client("visA"), false, sender_a.clone());
         assert_eq!(
             on_request(&mut server, &id_a, &token_a, join_message(WORLD)),
             None
@@ -399,7 +424,8 @@ fn peer_visibility_is_bidirectional_and_lifecycle_survives_backlog() {
 
         // B joins later.
         let (sender_b, mut rx_b) = fake_socket();
-        let (id_b, token_b) = server.register_session(SessionIdentity::for_client("visB"), false, sender_b.clone());
+        let (id_b, token_b) =
+            server.register_session(SessionIdentity::for_client("visB"), false, sender_b.clone());
         assert_eq!(
             on_request(&mut server, &id_b, &token_b, join_message(WORLD)),
             None
@@ -520,7 +546,8 @@ fn malformed_join_payload_is_a_typed_error_not_a_panic() {
         let mut server = build_server_with_world();
 
         let (sender, _rx) = fake_socket();
-        let (id, token) = server.register_session(SessionIdentity::for_client("bot"), false, sender.clone());
+        let (id, token) =
+            server.register_session(SessionIdentity::for_client("bot"), false, sender.clone());
 
         let message = Message::new(&MessageType::Join).json("{not json").build();
         let error = on_request(&mut server, &id, &token, message);
@@ -562,16 +589,27 @@ fn one_id_stays_connected_in_two_worlds_at_once() {
         let mut server = build_server_with_two_worlds();
 
         let (a_sender, mut a_rx) = fake_socket();
-        let (id, a_token) = server.register_session(SessionIdentity::for_client("bot"), false, a_sender.clone());
-        assert_eq!(on_request(&mut server, &id, &a_token, join_message(WORLD)), None);
+        let (id, a_token) =
+            server.register_session(SessionIdentity::for_client("bot"), false, a_sender.clone());
+        assert_eq!(
+            on_request(&mut server, &id, &a_token, join_message(WORLD)),
+            None
+        );
 
         let (b_sender, mut b_rx) = fake_socket();
-        let (_, b_token) = server.register_session(SessionIdentity::for_client("bot"), false, b_sender.clone());
-        assert_eq!(on_request(&mut server, &id, &b_token, join_message(OTHER_WORLD)), None);
+        let (_, b_token) =
+            server.register_session(SessionIdentity::for_client("bot"), false, b_sender.clone());
+        assert_eq!(
+            on_request(&mut server, &id, &b_token, join_message(OTHER_WORLD)),
+            None
+        );
 
         assert_eq!(client_count_in(&server, WORLD).await, 1);
         assert_eq!(client_count_in(&server, OTHER_WORLD).await, 1);
-        assert!(!kicked(&a_sender, &mut a_rx), "a socket in another world was kicked");
+        assert!(
+            !kicked(&a_sender, &mut a_rx),
+            "a socket in another world was kicked"
+        );
         assert!(!kicked(&b_sender, &mut b_rx));
         assert!(server.is_in_world(&id, WORLD) && server.is_in_world(&id, OTHER_WORLD));
 
@@ -592,11 +630,19 @@ fn disconnecting_one_worlds_socket_leaves_the_other_world_alone() {
         let mut server = build_server_with_two_worlds();
 
         let (a_sender, _a_rx) = fake_socket();
-        let (id, a_token) = server.register_session(SessionIdentity::for_client("bot"), false, a_sender);
-        assert_eq!(on_request(&mut server, &id, &a_token, join_message(WORLD)), None);
+        let (id, a_token) =
+            server.register_session(SessionIdentity::for_client("bot"), false, a_sender);
+        assert_eq!(
+            on_request(&mut server, &id, &a_token, join_message(WORLD)),
+            None
+        );
         let (b_sender, _b_rx) = fake_socket();
-        let (_, b_token) = server.register_session(SessionIdentity::for_client("bot"), false, b_sender);
-        assert_eq!(on_request(&mut server, &id, &b_token, join_message(OTHER_WORLD)), None);
+        let (_, b_token) =
+            server.register_session(SessionIdentity::for_client("bot"), false, b_sender);
+        assert_eq!(
+            on_request(&mut server, &id, &b_token, join_message(OTHER_WORLD)),
+            None
+        );
 
         server.unregister_session(&id, &a_token);
         assert_eq!(client_count_in(&server, WORLD).await, 0);
@@ -617,15 +663,26 @@ fn switching_into_a_world_the_id_is_in_replaces_only_that_socket() {
         let mut server = build_server_with_two_worlds();
 
         let (a_sender, mut a_rx) = fake_socket();
-        let (id, a_token) = server.register_session(SessionIdentity::for_client("bot"), false, a_sender.clone());
-        assert_eq!(on_request(&mut server, &id, &a_token, join_message(WORLD)), None);
+        let (id, a_token) =
+            server.register_session(SessionIdentity::for_client("bot"), false, a_sender.clone());
+        assert_eq!(
+            on_request(&mut server, &id, &a_token, join_message(WORLD)),
+            None
+        );
         let (b_sender, mut b_rx) = fake_socket();
-        let (_, b_token) = server.register_session(SessionIdentity::for_client("bot"), false, b_sender.clone());
-        assert_eq!(on_request(&mut server, &id, &b_token, join_message(OTHER_WORLD)), None);
+        let (_, b_token) =
+            server.register_session(SessionIdentity::for_client("bot"), false, b_sender.clone());
+        assert_eq!(
+            on_request(&mut server, &id, &b_token, join_message(OTHER_WORLD)),
+            None
+        );
 
         // Socket A switches into B's world: B is replaced there, A leaves
         // its old world.
-        assert_eq!(on_request(&mut server, &id, &a_token, join_message(OTHER_WORLD)), None);
+        assert_eq!(
+            on_request(&mut server, &id, &a_token, join_message(OTHER_WORLD)),
+            None
+        );
         assert!(kicked(&b_sender, &mut b_rx));
         assert!(!kicked(&a_sender, &mut a_rx));
         assert_eq!(client_count_in(&server, WORLD).await, 0);
@@ -640,17 +697,30 @@ fn a_tokenless_message_resolves_only_a_single_session() {
         let mut server = build_server_with_two_worlds();
 
         let (a_sender, _a_rx) = fake_socket();
-        let (id, a_token) = server.register_session(SessionIdentity::for_client("bot"), false, a_sender);
-        assert_eq!(on_request(&mut server, &id, &a_token, join_message(WORLD)), None);
+        let (id, a_token) =
+            server.register_session(SessionIdentity::for_client("bot"), false, a_sender);
+        assert_eq!(
+            on_request(&mut server, &id, &a_token, join_message(WORLD)),
+            None
+        );
         assert!(server.world_session(&id, None).is_some());
 
         let (b_sender, _b_rx) = fake_socket();
-        let (_, b_token) = server.register_session(SessionIdentity::for_client("bot"), false, b_sender);
-        assert_eq!(on_request(&mut server, &id, &b_token, join_message(OTHER_WORLD)), None);
-
-        assert!(server.world_session(&id, None).is_none(), "ambiguous with two worlds");
+        let (_, b_token) =
+            server.register_session(SessionIdentity::for_client("bot"), false, b_sender);
         assert_eq!(
-            server.world_session(&id, Some(OTHER_WORLD)).map(|(_, token)| token),
+            on_request(&mut server, &id, &b_token, join_message(OTHER_WORLD)),
+            None
+        );
+
+        assert!(
+            server.world_session(&id, None).is_none(),
+            "ambiguous with two worlds"
+        );
+        assert_eq!(
+            server
+                .world_session(&id, Some(OTHER_WORLD))
+                .map(|(_, token)| token),
             Some(b_token)
         );
         let peer = Message::new(&MessageType::Peer).build();

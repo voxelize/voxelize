@@ -1,4 +1,4 @@
-use voxelize_core::{LightUtils, UV, VoxelAccess};
+use voxelize_core::{LightUtils, VoxelAccess, UV};
 
 use super::*;
 

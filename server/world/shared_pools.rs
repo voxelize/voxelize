@@ -70,7 +70,8 @@ fn cores() -> usize {
 /// cost of one parked thread.
 pub(crate) fn dispatch_pool() -> Arc<ThreadPool> {
     static POOL: OnceLock<Arc<ThreadPool>> = OnceLock::new();
-    POOL.get_or_init(|| build("world-dispatch", 1, None)).clone()
+    POOL.get_or_init(|| build("world-dispatch", 1, None))
+        .clone()
 }
 
 /// Rayon pool shared by every world's mesher: meshing parallelism should
@@ -463,10 +464,19 @@ mod tests {
     fn tick_split_modes_parse() {
         assert_eq!(parse_tick_split_mode(None), Ok(TickSplitMode::Auto));
         assert_eq!(parse_tick_split_mode(Some("")), Ok(TickSplitMode::Auto));
-        assert_eq!(parse_tick_split_mode(Some(" Never ")), Ok(TickSplitMode::Never));
+        assert_eq!(
+            parse_tick_split_mode(Some(" Never ")),
+            Ok(TickSplitMode::Never)
+        );
         assert_eq!(parse_tick_split_mode(Some("off")), Ok(TickSplitMode::Never));
-        assert_eq!(parse_tick_split_mode(Some("always")), Ok(TickSplitMode::Always));
-        assert_eq!(parse_tick_split_mode(Some("sometimes")), Err("sometimes".to_owned()));
+        assert_eq!(
+            parse_tick_split_mode(Some("always")),
+            Ok(TickSplitMode::Always)
+        );
+        assert_eq!(
+            parse_tick_split_mode(Some("sometimes")),
+            Err("sometimes".to_owned())
+        );
     }
 
     #[test]
@@ -477,7 +487,11 @@ mod tests {
         assert!(should_split(TickSplitMode::Auto, min, min));
         // A minimum below two never splits a single item.
         assert!(!should_split(TickSplitMode::Auto, 1, 0));
-        assert!(should_split(TickSplitMode::Auto, 2, TICK_SPLIT_MIN_SEARCHES));
+        assert!(should_split(
+            TickSplitMode::Auto,
+            2,
+            TICK_SPLIT_MIN_SEARCHES
+        ));
         assert!(!should_split(TickSplitMode::Never, 10_000, min));
         assert!(!should_split(TickSplitMode::Always, 1, min));
         assert!(should_split(TickSplitMode::Always, 2, min));
@@ -487,7 +501,10 @@ mod tests {
     fn priority_modes_parse() {
         assert_eq!(parse_priority_mode(None), Ok(PriorityMode::On));
         assert_eq!(parse_priority_mode(Some("OFF")), Ok(PriorityMode::Off));
-        assert_eq!(parse_priority_mode(Some("strict")), Ok(PriorityMode::Strict));
+        assert_eq!(
+            parse_priority_mode(Some("strict")),
+            Ok(PriorityMode::Strict)
+        );
         assert_eq!(parse_priority_mode(Some("max")), Err("max".to_owned()));
     }
 
@@ -507,7 +524,11 @@ mod tests {
             }
             assert_eq!(priority_request(ThreadTier::Delivery, mode), None);
         }
-        for tier in [ThreadTier::Tick, ThreadTier::Delivery, ThreadTier::Background] {
+        for tier in [
+            ThreadTier::Tick,
+            ThreadTier::Delivery,
+            ThreadTier::Background,
+        ] {
             assert_eq!(priority_request(tier, PriorityMode::Off), None);
         }
     }

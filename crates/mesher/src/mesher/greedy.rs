@@ -496,11 +496,7 @@ pub fn mesh_space_greedy<S: VoxelAccess>(
                         // client draws double-sided and can hide.
                         if block.tufts.is_some() && dir == [1, 0, 0] {
                             let geometry = map
-                                .entry(format!(
-                                    "{}::{}",
-                                    block.get_name_lower(),
-                                    TUFTS_FACE_NAME
-                                ))
+                                .entry(format!("{}::{}", block.get_name_lower(), TUFTS_FACE_NAME))
                                 .or_insert_with(|| GeometryProtocol {
                                     voxel: voxel_id,
                                     face_name: Some(TUFTS_FACE_NAME.to_string()),

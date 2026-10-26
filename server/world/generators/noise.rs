@@ -161,15 +161,27 @@ mod sampling_tests {
     #[test]
     fn continuous_sampling_preserves_integer_noise_exactly() {
         for ridged in [false, true] {
-            let options = NoiseOptions::new().frequency(0.017).lacunarity(2.1)
-                .octaves(3).persistence(0.45).ridged(ridged).build();
+            let options = NoiseOptions::new()
+                .frequency(0.017)
+                .lacunarity(2.1)
+                .octaves(3)
+                .persistence(0.45)
+                .ridged(ridged)
+                .build();
             for seed in [0, 76129, u32::MAX] {
                 let noise = SeededNoise::new(seed, &options);
                 for (x, z) in [(0, 0), (-1, 16), (608, -352), (-1000000, 1000000)] {
                     let point = [x as f64, z as f64];
-                    let original = if ridged { noise.ridged.get(point) } else { noise.regular.get(point) };
+                    let original = if ridged {
+                        noise.ridged.get(point)
+                    } else {
+                        noise.regular.get(point)
+                    };
                     assert_eq!(noise.get2d(x, z).to_bits(), original.to_bits());
-                    assert_eq!(noise.get2d_at(point[0], point[1]).to_bits(), original.to_bits());
+                    assert_eq!(
+                        noise.get2d_at(point[0], point[1]).to_bits(),
+                        original.to_bits()
+                    );
                 }
             }
         }
@@ -234,18 +246,28 @@ mod sampling_tests {
     #[test]
     fn fractional_sampling_is_continuous_across_rounding_boundaries() {
         for ridged in [false, true] {
-            let noise = SeededNoise::new(76129, &NoiseOptions::new()
-                .frequency(0.017).lacunarity(2.1).octaves(3)
-                .persistence(0.45).ridged(ridged).build());
+            let noise = SeededNoise::new(
+                76129,
+                &NoiseOptions::new()
+                    .frequency(0.017)
+                    .lacunarity(2.1)
+                    .octaves(3)
+                    .persistence(0.45)
+                    .ridged(ridged)
+                    .build(),
+            );
             let mut varied = false;
             for x in -64..64 {
                 let boundary = x as f64 + 0.5;
                 let a = noise.get2d_at(boundary - 1e-5, 31.125);
                 let b = noise.get2d_at(boundary + 1e-5, 31.125);
-                assert!((a-b).abs() < 1e-4);
+                assert!((a - b).abs() < 1e-4);
                 varied |= a != b;
             }
-            assert!(varied, "fractional coordinates must not collapse to one voxel");
+            assert!(
+                varied,
+                "fractional coordinates must not collapse to one voxel"
+            );
         }
     }
 }

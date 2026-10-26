@@ -407,7 +407,10 @@ fn register(world: &str, shared: &Arc<TickStatsShared>) {
 
 fn unregister(world: &str, shared: &Arc<TickStatsShared>) {
     let mut map = TICK_STATS.write().unwrap_or_else(|e| e.into_inner());
-    if map.get(world).is_some_and(|current| Arc::ptr_eq(current, shared)) {
+    if map
+        .get(world)
+        .is_some_and(|current| Arc::ptr_eq(current, shared))
+    {
         map.remove(world);
     }
 }
@@ -640,9 +643,9 @@ impl TickRecorder {
             scratch.in_tick = true;
             taken
         });
-        let interval_us = self
-            .last_started
-            .map_or(NONE_US, |last| micros(started.saturating_duration_since(last)));
+        let interval_us = self.last_started.map_or(NONE_US, |last| {
+            micros(started.saturating_duration_since(last))
+        });
         self.last_started = Some(started);
         TickInProgress {
             started,
@@ -842,7 +845,12 @@ pub(crate) struct Hibernation {
 impl Hibernation {
     /// `eligible`: the world may hibernate now (no clients, not preloading,
     /// not deterministic, the switch on, a non-zero `interval`).
-    pub(crate) fn step(&mut self, now: Instant, eligible: bool, interval: Duration) -> HibernationStep {
+    pub(crate) fn step(
+        &mut self,
+        now: Instant,
+        eligible: bool,
+        interval: Duration,
+    ) -> HibernationStep {
         if !eligible || interval.is_zero() {
             let expected_interval = self.hibernated_at.take().unwrap_or(Duration::ZERO);
             self.last_dispatch = Some(now);
@@ -900,7 +908,10 @@ mod tests {
         let mut at = start;
         for _ in 0..62 {
             at += tick;
-            if matches!(hibernation.step(at, true, interval), HibernationStep::Dispatch { .. }) {
+            if matches!(
+                hibernation.step(at, true, interval),
+                HibernationStep::Dispatch { .. }
+            ) {
                 dispatches += 1;
             }
         }
@@ -993,7 +1004,10 @@ mod tests {
             TICK_STATS_CAPACITY as u32 + 9
         );
         assert_eq!(ring.lifetime_ticks, TICK_STATS_CAPACITY as u64 + 10);
-        assert_eq!(ring.lifetime_over_one_frame, TICK_STATS_CAPACITY as u64 + 10);
+        assert_eq!(
+            ring.lifetime_over_one_frame,
+            TICK_STATS_CAPACITY as u64 + 10
+        );
         assert_eq!(ring.lifetime_over_two_frames, 0);
     }
 

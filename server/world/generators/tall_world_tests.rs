@@ -100,7 +100,10 @@ fn light_and_mesh(chunks: &Chunks, registry: &Registry, config: &WorldConfig) ->
         if let Some((chunk, _)) = mesher.results().pop() {
             return chunk;
         }
-        assert!(Instant::now() < deadline, "the mesher never returned the chunk");
+        assert!(
+            Instant::now() < deadline,
+            "the mesher never returned the chunk"
+        );
         std::thread::sleep(Duration::from_millis(2));
     }
 }
@@ -124,7 +127,11 @@ fn a_block_on_the_top_row_of_a_384_tall_world_is_stored_lit_meshed_and_sent() {
     // column under the ceiling block is shaded one step, fed sideways by
     // its neighbours, the whole way down.
     for y in (FLOOR_Y + 1)..=TOP_Y {
-        assert_eq!(chunk.get_sunlight(BX + 1, y, BZ), 15, "open column at y={y}");
+        assert_eq!(
+            chunk.get_sunlight(BX + 1, y, BZ),
+            15,
+            "open column at y={y}"
+        );
     }
     for y in (FLOOR_Y + 1)..TOP_Y {
         assert_eq!(chunk.get_sunlight(BX, y, BZ), 14, "shaded column at y={y}");
@@ -240,7 +247,10 @@ fn the_extra_sky_of_a_taller_world_barely_grows_the_chunk_payload() {
     let tall = payload_bytes(384);
     let extra_rows = 384 - 256;
     let raw_growth = extra_rows * SIZE * SIZE * 4 * 2;
-    assert!(tall > short, "384-tall payload {tall} B vs 256-tall {short} B");
+    assert!(
+        tall > short,
+        "384-tall payload {tall} B vs 256-tall {short} B"
+    );
     assert!(
         tall - short <= extra_rows * 16,
         "384-tall payload {tall} B vs 256-tall {short} B: {} B per extra row of sky ({raw_growth} B raw)",

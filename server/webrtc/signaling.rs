@@ -354,8 +354,8 @@ pub async fn rtc_candidate(
     let pc = peers_map
         .get(&peer_key(&body.client_id, body.world.as_deref()))
         .ok_or_else(|| {
-        actix_web::error::ErrorNotFound(format!("No peer for client {}", body.client_id))
-    })?;
+            actix_web::error::ErrorNotFound(format!("No peer for client {}", body.client_id))
+        })?;
 
     let candidate = RTCIceCandidateInit {
         candidate: body.candidate.clone(),

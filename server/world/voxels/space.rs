@@ -1,7 +1,7 @@
 use std::sync::Arc;
 
-use hashbrown::{HashMap, HashSet};
 use crate::{ndarray, BlockUtils, ChunkUtils, LightUtils, Ndarray, Vec2, Vec3};
+use hashbrown::{HashMap, HashSet};
 
 use super::{
     access::VoxelAccess,

@@ -6,9 +6,8 @@ pub use mesher::{
     BranchBeyond, BranchBlocks, BranchCell, BranchKind, BranchLayout, BranchPart, BranchPartKind,
     BranchQuad, BranchSeat, BranchShape, BranchSide, BranchSocket, BranchTexture, ChunkData,
     ConnectedFrame, GeometryProtocol, MeshConfig, MeshInput, MeshInputNoRegistry, MeshOutput,
-    Registry, StageFaces, Tufts, TUFTS_FACE_NAME, WideBranchBits, WideBranchSection, WideCell, CONNECTIVITY_FACES,
-    CONNECTIVITY_FULL,
-    CONNECTIVITY_SEALED, VOXEL_NEIGHBORS,
+    Registry, StageFaces, Tufts, WideBranchBits, WideBranchSection, WideCell, CONNECTIVITY_FACES,
+    CONNECTIVITY_FULL, CONNECTIVITY_SEALED, TUFTS_FACE_NAME, VOXEL_NEIGHBORS,
 };
 
 pub use voxelize_core::{

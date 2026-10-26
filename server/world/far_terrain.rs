@@ -324,7 +324,9 @@ impl TileBudget {
 
     /// How many of `wanted` tiles may go through now.
     fn take(&mut self, wanted: usize, limits: &FarTerrainLimits, now: Instant) -> usize {
-        let elapsed = now.saturating_duration_since(self.refilled_at).as_secs_f32();
+        let elapsed = now
+            .saturating_duration_since(self.refilled_at)
+            .as_secs_f32();
         self.refilled_at = now;
         self.tokens = (self.tokens + elapsed * limits.tiles_per_second).min(limits.burst);
         let granted = (wanted as f32).min(self.tokens.floor()) as usize;
@@ -483,12 +485,7 @@ impl TileWorker {
     }
 
     fn tile(&self, key: FarTileKey) -> Arc<FarTerrainTile> {
-        if let Some(tile) = self
-            .cache
-            .lock()
-            .ok()
-            .and_then(|cache| cache.get(&key))
-        {
+        if let Some(tile) = self.cache.lock().ok().and_then(|cache| cache.get(&key)) {
             return tile;
         }
         let step = (self.base_step as i32) << key.level;
@@ -626,7 +623,10 @@ mod tests {
         let reply = FarTerrainReply::new(key, 16, 33, &tile);
         let json = serde_json::to_string(&reply).unwrap();
         let back: FarTerrainReply = serde_json::from_str(&json).unwrap();
-        assert_eq!((back.level, back.tx, back.tz, back.step, back.size), (1, 2, -3, 16, 33));
+        assert_eq!(
+            (back.level, back.tx, back.tz, back.step, back.size),
+            (1, 2, -3, 16, 33)
+        );
         assert_eq!(decode_u16(&back.heights), tile.heights);
         assert_eq!(
             base64::engine::general_purpose::STANDARD
@@ -656,8 +656,14 @@ mod tests {
             ..tile
         };
         let json = serde_json::to_string(&FarTerrainReply::new(key, 16, 33, &bare)).unwrap();
-        assert!(!json.contains("tints"), "an untinted tile sends no tint field");
-        assert!(!json.contains("canopy"), "a treeless tile sends no canopy field");
+        assert!(
+            !json.contains("tints"),
+            "an untinted tile sends no tint field"
+        );
+        assert!(
+            !json.contains("canopy"),
+            "a treeless tile sends no canopy field"
+        );
     }
 
     #[test]
@@ -794,7 +800,10 @@ mod tests {
         assert_eq!(method.name, FAR_TERRAIN_METHOD);
         let reply: FarTerrainReply = serde_json::from_str(&method.payload).unwrap();
         assert_eq!((reply.level, reply.tx, reply.tz, reply.step), (0, 1, 1, 8));
-        assert_eq!(decode_u16(&reply.heights), Ramp.sample_tile(0, 1, 1, 8, 33).heights);
+        assert_eq!(
+            decode_u16(&reply.heights),
+            Ramp.sample_tile(0, 1, 1, 8, 33).heights
+        );
         assert_eq!(far.cached_tiles(), 1, "the same tile is sampled once");
         assert_eq!(far.refused(), 0);
     }

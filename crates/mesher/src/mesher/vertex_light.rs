@@ -303,7 +303,12 @@ mod tests {
     fn tinted_runs_never_reach_the_pigment_code() {
         assert!(STAGE_TINT_MAX_CODE < PIGMENT_CODE);
         assert!(PIGMENT_CODE <= STACK_FIELD_BITS);
-        let bases = [0, 0xabcd | (3 << AO_SHIFT), EMISSIVE_BIT | WAVE_BIT, GREEDY_BIT];
+        let bases = [
+            0,
+            0xabcd | (3 << AO_SHIFT),
+            EMISSIVE_BIT | WAVE_BIT,
+            GREEDY_BIT,
+        ];
         for base in bases {
             for palette in 0..=15 {
                 for count in 1..=STACK_MAX {

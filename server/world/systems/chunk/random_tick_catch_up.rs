@@ -130,19 +130,31 @@ mod tests {
         let farm = Vec2(3, 4);
         catch_up.observe(&interests_of(&[farm.clone()]), 100, 1_000);
         catch_up.observe(&interests_of(&[]), 200, 1_000);
-        assert_eq!(catch_up.owed_ticks(), 0, "nothing is owed while nobody is back");
+        assert_eq!(
+            catch_up.owed_ticks(),
+            0,
+            "nothing is owed while nobody is back"
+        );
         catch_up.observe(&interests_of(&[farm.clone()]), 700, 1_000);
         assert_eq!(catch_up.owed_ticks(), 500);
 
         catch_up.observe(&interests_of(&[]), 800, 1_000);
         catch_up.observe(&interests_of(&[farm]), 100_800, 1_000);
-        assert_eq!(catch_up.owed_ticks(), 1_500, "the second absence is capped at 1000");
+        assert_eq!(
+            catch_up.owed_ticks(),
+            1_500,
+            "the second absence is capped at 1000"
+        );
     }
 
     #[test]
     fn a_chunk_first_seen_owes_nothing() {
         let mut catch_up = RandomTickCatchUp::new();
         catch_up.observe(&interests_of(&[Vec2(0, 0)]), 5_000, 1_000);
-        assert_eq!(catch_up.owed_ticks(), 0, "worldgen is a fresh chunk's start");
+        assert_eq!(
+            catch_up.owed_ticks(),
+            0,
+            "worldgen is a fresh chunk's start"
+        );
     }
 }

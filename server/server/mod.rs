@@ -139,15 +139,24 @@ impl WsSender {
 
     /// Route this socket's unreliable traffic through `rtc` from now on.
     pub fn attach_rtc(&self, rtc: mpsc::UnboundedSender<Vec<u8>>) {
-        *self.rtc.lock().unwrap_or_else(|poisoned| poisoned.into_inner()) = Some(rtc);
+        *self
+            .rtc
+            .lock()
+            .unwrap_or_else(|poisoned| poisoned.into_inner()) = Some(rtc);
     }
 
     /// Stop using `rtc`, if it is still the attached channel: a channel that
     /// fails after a newer one was attached must not take the newer one
     /// with it.
     pub fn detach_rtc(&self, rtc: &mpsc::UnboundedSender<Vec<u8>>) {
-        let mut slot = self.rtc.lock().unwrap_or_else(|poisoned| poisoned.into_inner());
-        if slot.as_ref().is_some_and(|current| current.same_channel(rtc)) {
+        let mut slot = self
+            .rtc
+            .lock()
+            .unwrap_or_else(|poisoned| poisoned.into_inner());
+        if slot
+            .as_ref()
+            .is_some_and(|current| current.same_channel(rtc))
+        {
             *slot = None;
         }
     }
@@ -1015,7 +1024,11 @@ impl Server {
 
     /// The socket and token of `id`'s session in `world`: the lane a
     /// secondary channel (WebRTC) opened for that world attaches to.
-    pub(crate) fn world_session(&self, id: &str, world: Option<&str>) -> Option<(WsSender, String)> {
+    pub(crate) fn world_session(
+        &self,
+        id: &str,
+        world: Option<&str>,
+    ) -> Option<(WsSender, String)> {
         let token = match world {
             Some(world) => self.member_token(id, world)?,
             None => self.resolve_session(id, None).ok().flatten()?,
@@ -1148,7 +1161,10 @@ impl Server {
 
         if let Some(replaced) = replaced {
             if let Some(old) = self.sessions.remove(&replaced) {
-                info!("Kicking duplicate session of {} in world {}", id, json.world);
+                info!(
+                    "Kicking duplicate session of {} in world {}",
+                    id, json.world
+                );
                 let _ = old.sender.send(encode_message(
                     &Message::new(&MessageType::Error)
                         .text("Another session connected with your account.")

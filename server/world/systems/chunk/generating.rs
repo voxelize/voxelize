@@ -5,13 +5,13 @@ use rayon::iter::{IntoParallelIterator, ParallelIterator};
 use specs::{Entities, LazyUpdate, ReadExpect, ReadStorage, System, WriteExpect};
 
 use crate::world::profiler::Profiler;
+use crate::{perf_toggle, run_on_tick_pool, tick_split, PerfToggle};
 use crate::{
     BlockUtils, Chunk, ChunkInterests, ChunkOptions, ChunkRenewal, ChunkRequestsComp, ChunkStatus,
     ChunkUtils, Chunks, Clients, CurrentChunkComp, ETypeComp, EntityFlag, IDComp, JsonComp, Mesher,
     MessageType, MetadataComp, Pipeline, PositionComp, Registry, Resources, Stats, Vec2, Vec3,
     VoxelAccess, VoxelComp, WorldConfig,
 };
-use crate::{perf_toggle, run_on_tick_pool, tick_split, PerfToggle};
 
 /// Saved-chunk loads split across the tick pool from this many per tick. One
 /// load reads, parses and inflates a chunk file (milliseconds), so two
@@ -779,20 +779,29 @@ mod generated_entity_tests {
     }
     #[test]
     fn stage_only_update_preserves_entity_identity_and_contents() {
-        let dir = std::env::temp_dir().join(format!("block-state-{}-{:?}",std::process::id(),std::thread::current().id()));
+        let dir = std::env::temp_dir().join(format!(
+            "block-state-{}-{:?}",
+            std::process::id(),
+            std::thread::current().id()
+        ));
         std::fs::remove_dir_all(&dir).ok();
         let mut w = open(&dir);
-        let p = Vec3(3,1,3);
+        let p = Vec3(3, 1, 3);
         let entity = w.chunks().block_entities[&p];
-        let next = crate::BlockUtils::insert_stage(CHEST,1);
-        w.chunks_mut().update_voxel(&p,next);
-        wait(&mut w,"stage update committed",|w| w.chunks().get_raw_voxel(3,1,3)==next);
-        assert_eq!(w.chunks().block_entities[&p],entity);
-        assert_eq!(chest_json(&w),LOOT);
-        w.chunks_mut().update_voxel(&p,1);
-        wait(&mut w,"replacement removed entity",|w| w.chunks().get_voxel(3,1,3)==1);
+        let next = crate::BlockUtils::insert_stage(CHEST, 1);
+        w.chunks_mut().update_voxel(&p, next);
+        wait(&mut w, "stage update committed", |w| {
+            w.chunks().get_raw_voxel(3, 1, 3) == next
+        });
+        assert_eq!(w.chunks().block_entities[&p], entity);
+        assert_eq!(chest_json(&w), LOOT);
+        w.chunks_mut().update_voxel(&p, 1);
+        wait(&mut w, "replacement removed entity", |w| {
+            w.chunks().get_voxel(3, 1, 3) == 1
+        });
         assert!(!w.chunks().block_entities.contains_key(&p));
-        drop(w); std::fs::remove_dir_all(dir).ok();
+        drop(w);
+        std::fs::remove_dir_all(dir).ok();
     }
 
     #[test]

@@ -61,8 +61,7 @@ pub enum SessionAuth {
 /// the request's query parameters. Games install one with
 /// [`crate::ServerBuilder::session_authenticator`]; without it the engine
 /// falls back to [`permissive_session_auth`].
-pub type SessionAuthenticator =
-    Arc<dyn Fn(&HashMap<String, String>) -> SessionAuth + Send + Sync>;
+pub type SessionAuthenticator = Arc<dyn Fn(&HashMap<String, String>) -> SessionAuth + Send + Sync>;
 
 /// Query parameter carrying the client's requested id.
 pub const CLIENT_ID_PARAM: &str = "client_id";

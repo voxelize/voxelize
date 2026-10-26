@@ -355,7 +355,9 @@ impl World {
             && !hibernation_interval.is_zero()
             && !self.preloading
             && self.config().fixed_timestep.is_none()
-            && super::perf_toggles::perf_toggle(super::perf_toggles::PerfToggle::HibernateEmptyWorlds)
+            && super::perf_toggles::perf_toggle(
+                super::perf_toggles::PerfToggle::HibernateEmptyWorlds,
+            )
             && self.clients().is_empty();
         let (hibernating, expected_interval) =
             match self

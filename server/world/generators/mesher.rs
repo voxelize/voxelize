@@ -90,7 +90,10 @@ impl Mesher {
     /// or to accept the stale result after `MAX_STALE_LOAD_RETRIES` relights
     /// (false), so a chunk under constant writes still reaches clients.
     pub fn retry_stale_load(&mut self, coords: &Vec2<i32>) -> bool {
-        let tries = self.stale_load_retries.entry(coords.to_owned()).or_insert(0);
+        let tries = self
+            .stale_load_retries
+            .entry(coords.to_owned())
+            .or_insert(0);
         if *tries >= MAX_STALE_LOAD_RETRIES {
             self.stale_load_retries.remove(coords);
             return false;

@@ -130,7 +130,9 @@ fn pigment_at<'a, S: VoxelAccess>(
     at: [i32; 3],
     space: &S,
 ) -> u32 {
-    let mask = faces.into_iter().fold(0, |mask, face| mask | face.pigment_mask);
+    let mask = faces
+        .into_iter()
+        .fold(0, |mask, face| mask | face.pigment_mask);
     space.get_voxel_stage(at[0], at[1], at[2]) & mask
 }
 

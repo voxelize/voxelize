@@ -841,7 +841,10 @@ mod tests {
         let cut = torn.find('🎉').unwrap() + 2;
         let mut bytes = format!("{}\n{}\n", line(1, "café"), line(2, "naïve")).into_bytes();
         bytes.extend_from_slice(&torn.as_bytes()[..cut]);
-        assert!(std::str::from_utf8(&bytes).is_err(), "the tear splits a character");
+        assert!(
+            std::str::from_utf8(&bytes).is_err(),
+            "the tear splits a character"
+        );
         fs::write(dir.join(CHAT_LOG_FILE), &bytes).unwrap();
         {
             let mut log = ChatLog::open(Some(dir.clone()), 50);

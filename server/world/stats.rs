@@ -94,7 +94,10 @@ pub fn plan_world_steps(
     max_debt_secs: f64,
 ) -> WorldSteps {
     if step_secs <= 0.0 {
-        return WorldSteps { steps: 1, debt: 0.0 };
+        return WorldSteps {
+            steps: 1,
+            debt: 0.0,
+        };
     }
     let owed = (debt + elapsed_secs.max(0.0)).min(max_debt_secs.max(step_secs));
     let whole = (owed / step_secs).floor().max(0.0) as u64;
@@ -257,7 +260,10 @@ mod world_step_tests {
     fn a_hibernated_dispatch_stands_for_the_half_second_that_passed() {
         let plan = plan_world_steps(0.0, 0.5, STEP, 64, 600.0);
         assert_eq!(plan.steps, 31);
-        assert!((plan.debt - 0.004).abs() < 1e-9, "the 4 ms remainder carries");
+        assert!(
+            (plan.debt - 0.004).abs() < 1e-9,
+            "the 4 ms remainder carries"
+        );
     }
 
     #[test]
@@ -294,7 +300,11 @@ mod world_step_tests {
             stats.advance_world_steps(1.0 / 60.0, STEP, 64, 600.0);
         }
         let expected = (1000.0 / 60.0 / STEP) as i64;
-        assert!((stats.tick as i64 - expected).abs() <= 1, "tick {} vs {expected}", stats.tick);
+        assert!(
+            (stats.tick as i64 - expected).abs() <= 1,
+            "tick {} vs {expected}",
+            stats.tick
+        );
     }
 
     #[test]

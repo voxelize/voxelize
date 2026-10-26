@@ -1033,7 +1033,10 @@ fn pigmented_glass_joins_its_own_colour_and_frames_where_two_colours_meet() {
 
     // One colour joins exactly as undyed glass does.
     let joined = rendered(&mesh(&pair()), GLASS);
-    assert_eq!(drawn(&pair().stage((0, 0, 0), 3).stage((1, 0, 0), 3)), joined);
+    assert_eq!(
+        drawn(&pair().stage((0, 0, 0), 3).stage((1, 0, 0), 3)),
+        joined
+    );
     assert_eq!(drawn(&pair()), joined);
 
     // Two colours: each block keeps its whole frame, as if alone.

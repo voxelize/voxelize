@@ -383,8 +383,12 @@ impl BlockRotation {
     /// normal must never receive the half-block pivot offset or translation.
     pub fn rotate_direction(&self, direction: &mut [f32; 3], y_rotate: bool) {
         let angle = match self {
-            Self::PX(angle) | Self::NX(angle) | Self::PY(angle)
-            | Self::NY(angle) | Self::PZ(angle) | Self::NZ(angle) => *angle,
+            Self::PX(angle)
+            | Self::NX(angle)
+            | Self::PY(angle)
+            | Self::NY(angle)
+            | Self::PZ(angle)
+            | Self::NZ(angle) => *angle,
         };
         if y_rotate && angle.abs() > f32::EPSILON {
             self.rotate_y(direction, angle);
@@ -392,7 +396,7 @@ impl BlockRotation {
         match self {
             Self::PX(_) => self.rotate_z(direction, -PI_2),
             Self::NX(_) => self.rotate_z(direction, PI_2),
-            Self::PY(_) => {},
+            Self::PY(_) => {}
             Self::NY(_) => self.rotate_x(direction, PI_2 * 2.0),
             Self::PZ(_) => self.rotate_x(direction, PI_2),
             Self::NZ(_) => self.rotate_x(direction, -PI_2),
@@ -652,9 +656,12 @@ mod tests {
     #[test]
     fn rotated_directions_match_vertex_differences_without_pivot_translation() {
         let directions = [
-            [1.0, 0.0, 0.0], [-1.0, 0.0, 0.0],
-            [0.0, 1.0, 0.0], [0.0, -1.0, 0.0],
-            [0.0, 0.0, 1.0], [0.0, 0.0, -1.0],
+            [1.0, 0.0, 0.0],
+            [-1.0, 0.0, 0.0],
+            [0.0, 1.0, 0.0],
+            [0.0, -1.0, 0.0],
+            [0.0, 0.0, 1.0],
+            [0.0, 0.0, -1.0],
         ];
         for axis in 0..6 {
             for yaw in 0..Y_ROT_SEGMENTS {
@@ -665,12 +672,18 @@ mod tests {
                         rotation.rotate_direction(&mut actual, y_rotate);
                         assert!((actual.iter().map(|v| v * v).sum::<f32>() - 1.0).abs() < 1e-5);
                         let mut start = [0.25, 0.5, 0.75];
-                        let mut end = [start[0] + direction[0], start[1] + direction[1], start[2] + direction[2]];
+                        let mut end = [
+                            start[0] + direction[0],
+                            start[1] + direction[1],
+                            start[2] + direction[2],
+                        ];
                         rotation.rotate_node(&mut start, y_rotate, true);
                         rotation.rotate_node(&mut end, y_rotate, true);
                         for i in 0..3 {
-                            assert!((actual[i] - (end[i] - start[i])).abs() < 1e-5,
-                                "{rotation:?}, y_rotate={y_rotate}, direction={direction:?}");
+                            assert!(
+                                (actual[i] - (end[i] - start[i])).abs() < 1e-5,
+                                "{rotation:?}, y_rotate={y_rotate}, direction={direction:?}"
+                            );
                         }
                     }
                 }

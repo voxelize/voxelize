@@ -47,6 +47,5 @@ pub use pipeline::PipelineSource;
 pub use saved::SavedChunks;
 pub use source::{
     Annotation, FarClassTerrain, FarMaterials, FarTile, FarTileSpec, LayerInfo, LayerType,
-    SourceChunk,
-    SourceDescription, ViewerSource,
+    SourceChunk, SourceDescription, ViewerSource,
 };

@@ -2,8 +2,8 @@ use std::cell::RefCell;
 use std::collections::HashMap;
 
 use crate::{
-    find_path, run_on_tick_pool, tick_split, Chunks, PathComp, Registry, RigidBodyComp,
-    TargetComp, Vec3, VoxelAccess, WorldConfig, TICK_SPLIT_MIN_SEARCHES,
+    find_path, run_on_tick_pool, tick_split, Chunks, PathComp, Registry, RigidBodyComp, TargetComp,
+    Vec3, VoxelAccess, WorldConfig, TICK_SPLIT_MIN_SEARCHES,
 };
 use log::warn;
 use specs::{BitSet, Entities, ReadExpect, ReadStorage, System, WriteStorage};
@@ -70,8 +70,7 @@ impl<'a> System<'a> for PathFindingSystem {
 
             // Per-entity voxel passability cache: local and lock-free, so
             // parallel searches never contend on a shared lock.
-            let voxel_cache: RefCell<HashMap<(i32, i32, i32), bool>> =
-                RefCell::new(HashMap::new());
+            let voxel_cache: RefCell<HashMap<(i32, i32, i32), bool>> = RefCell::new(HashMap::new());
             let is_passable = |vx: i32, vy: i32, vz: i32| -> bool {
                 *voxel_cache
                     .borrow_mut()
@@ -146,15 +145,14 @@ impl<'a> System<'a> for PathFindingSystem {
                 return;
             }
 
-            let aabb_width = (body.0.aabb.max_x - body.0.aabb.min_x)
-                .max(body.0.aabb.max_z - body.0.aabb.min_z);
+            let aabb_width =
+                (body.0.aabb.max_x - body.0.aabb.min_x).max(body.0.aabb.max_z - body.0.aabb.min_z);
 
-            let start =
-                if body.0.at_rest_y() < 0 || is_position_supported(&body_vpos, aabb_width) {
-                    body_vpos.clone()
-                } else {
-                    get_standable_voxel(&body_vpos, 3)
-                };
+            let start = if body.0.at_rest_y() < 0 || is_position_supported(&body_vpos, aabb_width) {
+                body_vpos.clone()
+            } else {
+                get_standable_voxel(&body_vpos, 3)
+            };
 
             let goal = get_standable_voxel(&target_vpos, 2);
 

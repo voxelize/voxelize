@@ -676,7 +676,10 @@ impl BlockBuilder {
             );
         }
         for (prefix, mask) in &self.face_pigments {
-            for face in faces.iter_mut().filter(|face| face.name.starts_with(prefix)) {
+            for face in faces
+                .iter_mut()
+                .filter(|face| face.name.starts_with(prefix))
+            {
                 face.pigment_mask = *mask;
             }
         }

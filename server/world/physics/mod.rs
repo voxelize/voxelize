@@ -916,19 +916,10 @@ impl Physics {
         // teleported the rest of the way onto it — a snap that read as a
         // two-block jump. A walker in the air climbs only what its own
         // jump carries it over; a swimmer gets the same arc as the ground.
-        if hop_mode
-            && !grounded
-            && !body.in_fluid
-            && step_height > 1e-4
-            && gravity_mag_sq > 1e-4
-        {
+        if hop_mode && !grounded && !body.in_fluid && step_height > 1e-4 && gravity_mag_sq > 1e-4 {
             return;
         }
-        if (grounded || body.in_fluid)
-            && step_height > 1e-4
-            && gravity_mag_sq > 1e-4
-            && hop_mode
-        {
+        if (grounded || body.in_fluid) && step_height > 1e-4 && gravity_mag_sq > 1e-4 && hop_mode {
             const HOP_HEIGHT_MARGIN: f32 = 0.1;
             let gravity_mag = gravity_mag_sq.sqrt();
             body.velocity[1] = hop_launch_speed(
@@ -1435,8 +1426,8 @@ mod ledge_hop_tests {
                 }
             }
 
-            let lift = stepped_tick_lift
-                .expect("the old instant step must still fire when toggled off");
+            let lift =
+                stepped_tick_lift.expect("the old instant step must still fire when toggled off");
             assert!(
                 lift > 0.9,
                 "toggled off, the ledge must still teleport the full block height \

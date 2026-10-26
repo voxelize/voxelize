@@ -88,12 +88,12 @@ pub use perf_toggles::{perf_toggle, perf_toggles, set_perf_toggle, PerfToggle, P
 pub use physics::*;
 pub use registry::*;
 pub use replication::*;
-pub use stats::*;
-pub use system_profiler::*;
 pub use shared_pools::{
     pool_inflight, run_on_tick_pool, tick_split, PoolInflight, TICK_SPLIT_MIN_BODIES,
     TICK_SPLIT_MIN_SEARCHES,
 };
+pub use stats::*;
+pub use system_profiler::*;
 pub use systems::*;
 pub use tick_stats::{
     get_tick_stats, get_tick_stats_all, thread_cpu_time, Percentiles, TickStatsBrief,
@@ -121,12 +121,12 @@ mod lag_comp_wiring_tests;
 mod lifecycle;
 #[cfg(test)]
 mod mesher_readiness_tests;
-#[cfg(test)]
-mod unload_readiness_tests;
 mod method_guard;
 mod sessions;
 mod spawning;
 mod sync;
+#[cfg(test)]
+mod unload_readiness_tests;
 
 pub use client_body::*;
 use dispatcher::dispatcher;

@@ -946,7 +946,8 @@ impl Chunks {
                 !is_superseded
             };
             self.active_updates.retain(|(v, raw)| supersede(v, *raw));
-            self.active_updates_staging.retain(|v, raw| supersede(v, *raw));
+            self.active_updates_staging
+                .retain(|v, raw| supersede(v, *raw));
             for updates in self.parked_updates.values_mut() {
                 updates.retain(|(v, raw, lane)| match lane {
                     UpdateLane::Active => supersede(v, *raw),
@@ -992,9 +993,11 @@ impl Chunks {
             }
             !is_superseded
         };
-        self.active_updates.retain(|(voxel, raw)| supersede(voxel, *raw));
+        self.active_updates
+            .retain(|(voxel, raw)| supersede(voxel, *raw));
         for updates in self.parked_updates.values_mut() {
-            updates.retain(|(voxel, raw, lane)| *lane != UpdateLane::Active || supersede(voxel, *raw));
+            updates
+                .retain(|(voxel, raw, lane)| *lane != UpdateLane::Active || supersede(voxel, *raw));
         }
         self.parked_updates.retain(|_, updates| !updates.is_empty());
         self.superseded_active_updates += superseded;

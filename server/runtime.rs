@@ -1044,7 +1044,9 @@ impl Voxelize {
             .unwrap_or(false);
         actix_web::rt::spawn(async move {
             if is_preload_skipped {
-                info!("Boot preload skipped (VOXELIZE_PRELOAD=0); worlds generate chunks on demand");
+                info!(
+                    "Boot preload skipped (VOXELIZE_PRELOAD=0); worlds generate chunks on demand"
+                );
             } else if let Err(err) = server_addr.send(RunPreload).await {
                 warn!("RunPreload delivery failed: {:?}", err);
             }
