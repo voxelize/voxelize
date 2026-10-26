@@ -1,5 +1,7 @@
 import {
   Block,
+  BlockConditionalPart,
+  BlockDynamicPattern,
   BlockRotation,
   BlockRule,
   BlockRuleLogic,
@@ -207,35 +209,26 @@ export class BlockUtils {
       getVoxelStageAt: (x: number, y: number, z: number) => number;
     },
   ) => {
+    // A part answers only if it defines this colour, and one guarded on a
+    // stage the voxel is not at cannot match: a staged emitter (a wire
+    // glowing by its power) carries a part per stage, so most are passed
+    // over without a single voxel read. Mirrors the server's
+    // `Block::get_torch_light_level_at`.
     if (block.dynamicPatterns?.length) {
+      const stage = functions.getVoxelStageAt(voxel[0], voxel[1], voxel[2]);
       for (const pattern of block.dynamicPatterns) {
-        for (const part of pattern.parts) {
-          const isMatch = BlockUtils.evaluateBlockRule(
-            part.rule,
-            voxel,
-            functions,
-          );
-
-          if (!isMatch) {
-            continue;
-          }
-
-          switch (color) {
-            case "RED":
-              if (typeof part.redLightLevel === "number") {
-                return part.redLightLevel;
-              }
-              break;
-            case "GREEN":
-              if (typeof part.greenLightLevel === "number") {
-                return part.greenLightLevel;
-              }
-              break;
-            case "BLUE":
-              if (typeof part.blueLightLevel === "number") {
-                return part.blueLightLevel;
-              }
-              break;
+        for (const part of BlockUtils.partsAtStage(pattern, stage)) {
+          const level =
+            color === "RED"
+              ? part.redLightLevel
+              : color === "GREEN"
+                ? part.greenLightLevel
+                : color === "BLUE"
+                  ? part.blueLightLevel
+                  : undefined;
+          if (typeof level !== "number") continue;
+          if (BlockUtils.evaluateBlockRule(part.rule, voxel, functions)) {
+            return level;
           }
         }
       }
@@ -265,6 +258,63 @@ export class BlockUtils {
   }
 
   private static hasWarnedMissingTransparencyBlock = false;
+
+  /**
+   * The stage `rule` requires of the voxel it is evaluated at, if it
+   * requires one: a simple rule at offset zero naming a stage, alone or
+   * inside an `and`. Reading it costs no voxel lookup.
+   */
+  static selfStageGuard(rule: BlockRule): number | undefined {
+    if (rule.type === "simple") {
+      const { offset, stage } = rule;
+      if (offset[0] === 0 && offset[1] === 0 && offset[2] === 0) {
+        return stage ?? undefined;
+      }
+      return undefined;
+    }
+    if (rule.type === "combination" && rule.logic === BlockRuleLogic.And) {
+      for (const subRule of rule.rules) {
+        const guard = BlockUtils.selfStageGuard(subRule);
+        if (guard !== undefined) return guard;
+      }
+    }
+    return undefined;
+  }
+
+  /** False only when `rule` cannot match a voxel at `stage`. */
+  static stageMayMatch(rule: BlockRule, stage: number | undefined): boolean {
+    const guard = BlockUtils.selfStageGuard(rule);
+    return guard === undefined || guard === stage;
+  }
+
+  private static partsByStage = new WeakMap<
+    BlockDynamicPattern,
+    Map<number | undefined, BlockConditionalPart[]>
+  >();
+
+  /**
+   * The parts of `pattern` that can match a voxel at `stage`, in order: the
+   * rest are guarded on another stage. Kept per pattern, so a staged block
+   * (a wire carries a part per stage) is looked up without walking them.
+   */
+  static partsAtStage(
+    pattern: BlockDynamicPattern,
+    stage: number | undefined,
+  ): BlockConditionalPart[] {
+    let byStage = BlockUtils.partsByStage.get(pattern);
+    if (!byStage) {
+      byStage = new Map();
+      BlockUtils.partsByStage.set(pattern, byStage);
+    }
+    let parts = byStage.get(stage);
+    if (!parts) {
+      parts = pattern.parts.filter((part) =>
+        BlockUtils.stageMayMatch(part.rule, stage),
+      );
+      byStage.set(stage, parts);
+    }
+    return parts;
+  }
 
   static evaluateBlockRule = (
     rule: BlockRule,

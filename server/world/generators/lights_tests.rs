@@ -8,7 +8,8 @@ use std::collections::VecDeque;
 
 use super::*;
 use crate::{
-    Block, BlockConditionalPart, BlockDynamicPattern, BlockRule, BlockSimpleRule, Chunk,
+    Block, BlockConditionalPart, BlockDynamicPattern, BlockRule, BlockRuleLogic, BlockSimpleRule,
+    Chunk,
     ChunkOptions, Chunks, Registry, Vec2, Vec3, VoxelAccess, WorldConfig,
 };
 
@@ -18,6 +19,7 @@ const TORCH: u32 = 2;
 const DIM_LAMP: u32 = 3;
 const SWITCH_LAMP: u32 = 4;
 const WARM_LAMP: u32 = 5;
+const STAGED_WIRE: u32 = 6;
 
 const TORCH_LEVEL: u32 = 15;
 const DIM_LEVEL: u32 = 6;
@@ -72,6 +74,50 @@ fn switch_lamp() -> Block {
         .build()
 }
 
+/// Glows by its stage, the way a powered wire does: a dark part, then one
+/// part per stage guarded on that stage and on nothing sitting on top of it.
+fn staged_wire() -> Block {
+    let stage_rule = |stage: u32| {
+        BlockRule::Simple(BlockSimpleRule {
+            offset: Vec3(0, 0, 0),
+            id: None,
+            rotation: None,
+            stage: Some(stage),
+        })
+    };
+    let uncovered = BlockRule::Combination {
+        logic: BlockRuleLogic::Not,
+        rules: vec![BlockRule::Simple(BlockSimpleRule {
+            offset: Vec3(0, 1, 0),
+            id: Some(STONE),
+            rotation: None,
+            stage: None,
+        })],
+    };
+    let mut parts = vec![BlockConditionalPart {
+        rule: stage_rule(0),
+        is_transparent: [true; 6],
+        ..Default::default()
+    }];
+    parts.extend((1..=15).map(|stage| BlockConditionalPart {
+        rule: BlockRule::Combination {
+            logic: BlockRuleLogic::And,
+            rules: vec![stage_rule(stage), uncovered.clone()],
+        },
+        is_transparent: [true; 6],
+        red_light_level: Some(stage),
+        green_light_level: Some(stage / 2),
+        blue_light_level: Some(1),
+        ..Default::default()
+    }));
+    Block::new("Staged Wire")
+        .id(STAGED_WIRE)
+        .is_passable(true)
+        .is_transparent(true)
+        .dynamic_patterns(&[BlockDynamicPattern { parts }])
+        .build()
+}
+
 fn registry() -> Registry {
     let mut registry = Registry::new();
     registry.register_block(&Block::new("Stone").id(STONE).build());
@@ -85,6 +131,7 @@ fn registry() -> Registry {
     registry.register_block(&lamp("Dim Lamp", DIM_LAMP, DIM_LEVEL, DIM_LEVEL, DIM_LEVEL));
     registry.register_block(&switch_lamp());
     registry.register_block(&lamp("Warm Lamp", WARM_LAMP, 12, 7, 2));
+    registry.register_block(&staged_wire());
     registry
 }
 
@@ -356,6 +403,38 @@ fn a_row_of_switched_lamps_goes_dark_together_and_one_at_a_time() {
 }
 
 #[test]
+fn a_staged_emitter_glows_by_its_stage_and_relights_like_a_fresh_flood() {
+    // A powered line across a chunk border, lit and released one wire a
+    // step the way a signal runs along it.
+    let line: Vec<[i32; 3]> = (-7..=7).map(|x| [x, Y, 3]).collect();
+    let mut world = World::new();
+    for (index, &pos) in line.iter().enumerate() {
+        world.edit(&[(pos, STAGED_WIRE, 15 - index as u32)]);
+        assert_no_seams(&world);
+    }
+    for stage in 0..=15 {
+        world.chunks.set_voxel_stage(0, Y, 3, stage);
+        assert_eq!(world.emission(STAGED_WIRE, [0, Y, 3], &RED), stage);
+        assert_eq!(world.emission(STAGED_WIRE, [0, Y, 3], &GREEN), stage / 2);
+        assert_eq!(world.emission(STAGED_WIRE, [0, Y, 3], &BLUE), (stage > 0) as u32);
+        assert_eq!(
+            world.registry.get_block_by_id(STAGED_WIRE).is_light_at(&Vec3(0, Y, 3), &world.chunks),
+            stage > 0
+        );
+    }
+    world.chunks.set_voxel_stage(0, Y, 3, 8);
+    world.chunks.set_voxel(0, Y + 1, 3, STONE);
+    assert_eq!(world.emission(STAGED_WIRE, [0, Y, 3], &RED), 0, "covered, no part matches");
+    world.chunks.set_voxel(0, Y + 1, 3, AIR);
+    world.edit(&[([0, Y, 3], STAGED_WIRE, 8)]);
+    for &pos in &line {
+        world.edit(&[(pos, STAGED_WIRE, 0)]);
+        assert_no_seams(&world);
+    }
+    assert_eq!(world.light([0, Y, 3], &RED), 0);
+}
+
+#[test]
 fn random_torch_and_stone_edits_across_chunk_borders_never_leave_a_seam() {
     let mut seed: u64 = 0x5eed;
     let mut random = move || {
@@ -431,7 +510,10 @@ fn sunlight_under_a_roof_on_a_shared_border_agrees_from_both_chunks_load_passes(
                 world.chunks.get_sunlight(15, y, z),
                 world.chunks.get_sunlight(16, y, z),
             );
-            assert!(a.abs_diff(b) <= 1, "sunlight seam at y={y} z={z}: {a} vs {b}");
+            assert!(
+                a.abs_diff(b) <= 1,
+                "sunlight seam at y={y} z={z}: {a} vs {b}"
+            );
         }
     }
 }

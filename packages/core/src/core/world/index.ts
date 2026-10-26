@@ -4566,10 +4566,13 @@ export class World<T = any> extends Scene implements NetIntercept {
     vz: number,
     dynamicPatterns: BlockDynamicPattern[],
   ): { aabb: AABB; worldSpace: boolean }[] => {
+    // A part guarded on a stage the voxel is not at cannot match, so it is
+    // passed over without reading its rule (a wire carries one per stage).
+    const stage = this.getVoxelStageAt(vx, vy, vz);
     for (const dynamicPattern of dynamicPatterns) {
       const aabbsWithFlags: { aabb: AABB; worldSpace: boolean }[] = [];
 
-      for (const part of dynamicPattern.parts) {
+      for (const part of BlockUtils.partsAtStage(dynamicPattern, stage)) {
         const patternsMatched = BlockUtils.evaluateBlockRule(
           part.rule,
           [vx, vy, vz],
@@ -4618,8 +4621,10 @@ export class World<T = any> extends Scene implements NetIntercept {
     dynamicPatterns: BlockDynamicPattern[],
     defaultPassable: boolean,
   ): boolean => {
+    const stage = this.getVoxelStageAt(vx, vy, vz);
     for (const dynamicPattern of dynamicPatterns) {
-      for (const part of dynamicPattern.parts) {
+      for (const part of BlockUtils.partsAtStage(dynamicPattern, stage)) {
+        if (typeof part.isPassable !== "boolean") continue;
         const patternsMatched = BlockUtils.evaluateBlockRule(
           part.rule,
           [vx, vy, vz],

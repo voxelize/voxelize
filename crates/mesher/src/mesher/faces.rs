@@ -64,7 +64,10 @@ pub(super) fn is_cutout_mass(block: &Block) -> bool {
         && CARDINAL_DIRECTIONS
             .iter()
             .all(|dir| block.faces.iter().any(|face| face.dir == *dir))
-        && block.faces.iter().all(|face| !face.independent && !face.isolated)
+        && block
+            .faces
+            .iter()
+            .all(|face| !face.independent && !face.isolated)
 }
 
 const CARDINAL_DIRECTIONS: [[i32; 3]; 6] = [
@@ -482,6 +485,20 @@ pub(super) fn rotate_offset_y(offset: &mut [f32; 3], rotation: &BlockRotation) {
     }
 }
 
+/// The stage `rule` requires of the voxel it is evaluated at, if it requires
+/// one: a simple rule at offset zero naming a stage, alone or inside an
+/// `And`. Rotation leaves a zero offset where it is.
+pub(super) fn self_stage_guard(rule: &BlockRule) -> Option<u32> {
+    match rule {
+        BlockRule::Simple(simple) if simple.offset == [0, 0, 0] => simple.stage,
+        BlockRule::Combination {
+            logic: BlockRuleLogic::And,
+            rules,
+        } => rules.iter().find_map(self_stage_guard),
+        _ => None,
+    }
+}
+
 pub(super) fn evaluate_block_rule<S: VoxelAccess>(
     rule: &BlockRule,
     pos: [i32; 3],
@@ -509,30 +526,27 @@ pub(super) fn evaluate_block_rule<S: VoxelAccess>(
                 pos[2] + offset[2].round() as i32,
             ];
 
-            let mut rule_ok = true;
-            let actual_id = space.get_voxel(check_pos[0], check_pos[1], check_pos[2]);
+            // Only the fields the rule names are read, and the first that
+            // differs settles it: each read is a voxel lookup.
             if let Some(expected_id) = simple.id {
-                if actual_id != expected_id {
-                    rule_ok = false;
+                if space.get_voxel(check_pos[0], check_pos[1], check_pos[2]) != expected_id {
+                    return false;
                 }
             }
-
-            let actual_rotation =
-                space.get_voxel_rotation(check_pos[0], check_pos[1], check_pos[2]);
             if let Some(expected_rotation) = &simple.rotation {
-                if actual_rotation != *expected_rotation {
-                    rule_ok = false;
+                if space.get_voxel_rotation(check_pos[0], check_pos[1], check_pos[2])
+                    != *expected_rotation
+                {
+                    return false;
                 }
             }
-
-            let actual_stage = space.get_voxel_stage(check_pos[0], check_pos[1], check_pos[2]);
             if let Some(expected_stage) = simple.stage {
-                if actual_stage != expected_stage {
-                    rule_ok = false;
+                if space.get_voxel_stage(check_pos[0], check_pos[1], check_pos[2]) != expected_stage
+                {
+                    return false;
                 }
             }
-
-            rule_ok
+            true
         }
         BlockRule::Combination { logic, rules } => match logic {
             BlockRuleLogic::And => rules
@@ -559,11 +573,18 @@ pub(super) fn get_dynamic_faces<S: VoxelAccess>(
     rotation: &BlockRotation,
 ) -> Vec<(BlockFace, bool)> {
     if let Some(dynamic_patterns) = &block.dynamic_patterns {
+        // A part guarded on a stage this voxel is not at cannot match, so it
+        // is passed over without reading its rule: a staged block (a wire
+        // drawn by its power) carries a part per stage.
+        let stage = space.get_voxel_stage(pos[0], pos[1], pos[2]);
         for pattern in dynamic_patterns {
             let mut matched_faces: Vec<(BlockFace, bool)> = Vec::new();
             let mut any_matched = false;
 
             for part in &pattern.parts {
+                if self_stage_guard(&part.rule).is_some_and(|guard| guard != stage) {
+                    continue;
+                }
                 let rule_result = evaluate_block_rule(
                     &part.rule,
                     pos,

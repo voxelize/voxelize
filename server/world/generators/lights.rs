@@ -261,23 +261,11 @@ impl Lights {
 
                 let nvx = vx + ox;
                 let nvz = vz + oz;
-                let n_block = registry.get_block_by_id(space.get_voxel(nvx, nvy, nvz));
-                let n_voxel_pos = Vec3(nvx, nvy, nvz);
-                let rotation = space.get_voxel_rotation(nvx, nvy, nvz);
-                let n_transparency = n_block.get_rotated_transparency(&rotation);
-
-                let emission_level = if is_sunlight {
-                    0
-                } else {
-                    n_block.get_torch_light_level_at(&n_voxel_pos, space, color)
-                };
-
-                // if the neighboring block doesn't allow light, then it wouldn't be a potential light entrance.
-                if emission_level == 0 && !Lights::can_enter_into(&n_transparency, *ox, *oy, *oz) {
-                    continue;
-                }
-
                 let n_voxel = [nvx, nvy, nvz];
+                // An unlit neighbour is neither removed nor refilled, so its
+                // block is only read once it holds light: most of a removal
+                // front's neighbours are dark, and a dynamic emitter's level
+                // costs a pattern evaluation.
                 let nl = if is_sunlight {
                     space.get_sunlight(nvx, nvy, nvz)
                 } else {
@@ -285,6 +273,14 @@ impl Lights {
                 };
 
                 if nl == 0 {
+                    continue;
+                }
+
+                let (emission_level, n_transparency) =
+                    Lights::removal_neighbor(registry, &*space, nvx, nvy, nvz, color);
+
+                // if the neighboring block doesn't allow light, then it wouldn't be a potential light entrance.
+                if emission_level == 0 && !Lights::can_enter_into(&n_transparency, *ox, *oy, *oz) {
                     continue;
                 }
 
@@ -633,6 +629,34 @@ impl Lights {
         }
     }
 
+    /// What a removal front needs of the neighbour it reaches: the light it
+    /// emits in `color` and the faces light enters it by, both off the
+    /// light-pass table; only an emitter's level is evaluated.
+    fn removal_neighbor(
+        registry: &Registry,
+        space: &dyn VoxelAccess,
+        vx: i32,
+        vy: i32,
+        vz: i32,
+        color: &LightColor,
+    ) -> (u32, [bool; 6]) {
+        let id = space.get_voxel(vx, vy, vz);
+        let info = registry.light_pass_info(id);
+        let transparency = if info.is_rotation_dependent {
+            registry
+                .get_block_by_id(id)
+                .get_rotated_transparency(&space.get_voxel_rotation(vx, vy, vz))
+        } else {
+            info.is_transparent
+        };
+        let emission = if *color == LightColor::Sunlight || !info.emits_torch_light {
+            0
+        } else {
+            Lights::torch_level_of(registry, id, &info, vx, vy, vz, space, color)
+        };
+        (emission, transparency)
+    }
+
     #[allow(clippy::too_many_arguments)]
     fn torch_level_of(
         registry: &Registry,
@@ -789,22 +813,10 @@ impl Lights {
 
                 let nvx = vx + ox;
                 let nvz = vz + oz;
-                let n_block = registry.get_block_by_id(space.get_voxel(nvx, nvy, nvz));
-                let n_voxel_pos = Vec3(nvx, nvy, nvz);
-                let rotation = space.get_voxel_rotation(nvx, nvy, nvz);
-                let n_transparency = n_block.get_rotated_transparency(&rotation);
-
-                let emission_level = if is_sunlight {
-                    0
-                } else {
-                    n_block.get_torch_light_level_at(&n_voxel_pos, space, color)
-                };
-
-                // if the neighboring block doesn't allow light, then it wouldn't be a potential light entrance.
-                if emission_level == 0 && !Lights::can_enter_into(&n_transparency, *ox, *oy, *oz) {
-                    continue;
-                }
-
+                // An unlit neighbour is neither removed nor refilled, so its
+                // block is only read once it holds light: most of a removal
+                // front's neighbours are dark, and a dynamic emitter's level
+                // costs a pattern evaluation.
                 let nl = if is_sunlight {
                     space.get_sunlight(nvx, nvy, nvz)
                 } else {
@@ -812,6 +824,14 @@ impl Lights {
                 };
 
                 if nl == 0 {
+                    continue;
+                }
+
+                let (emission_level, n_transparency) =
+                    Lights::removal_neighbor(registry, &*space, nvx, nvy, nvz, color);
+
+                // if the neighboring block doesn't allow light, then it wouldn't be a potential light entrance.
+                if emission_level == 0 && !Lights::can_enter_into(&n_transparency, *ox, *oy, *oz) {
                     continue;
                 }
 

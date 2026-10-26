@@ -524,6 +524,15 @@ function removeLightsBatch(
       const nvx = vx + ox;
       const nvz = vz + oz;
 
+      // An unlit neighbour is neither removed nor refilled, so its block is
+      // only read once it holds light: most of a removal front's neighbours
+      // are dark, and a dynamic emitter's level costs a pattern evaluation.
+      // Mirrors the server's `Lights::remove_lights`.
+      const nl = isSunlight
+        ? space.getSunlightAt(nvx, nvy, nvz)
+        : space.getTorchLightAt(nvx, nvy, nvz, color);
+      if (nl === 0) continue;
+
       const nBlockId = space.getVoxelAt(nvx, nvy, nvz);
       const nBlock = resolveBlockOrAir(nBlockId);
       if (!nBlock) continue;
@@ -533,28 +542,20 @@ function removeLightsBatch(
         rotation,
       );
       const nVoxel: Coords3 = [nvx, nvy, nvz];
-      const dynamicTorchLightLevel = BlockUtils.getBlockTorchLightLevelAt(
-        nBlock,
-        color,
-        nVoxel,
-        {
-          getVoxelAt: (x, y, z) => space.getVoxelAt(x, y, z),
-          getVoxelRotationAt: (x, y, z) => space.getVoxelRotationAt(x, y, z),
-          getVoxelStageAt: (x, y, z) => space.getVoxelStageAt(x, y, z),
-        },
-      );
-      const nl = isSunlight
-        ? space.getSunlightAt(nvx, nvy, nvz)
-        : space.getTorchLightAt(nvx, nvy, nvz, color);
+      const dynamicTorchLightLevel = isSunlight
+        ? 0
+        : BlockUtils.getBlockTorchLightLevelAt(nBlock, color, nVoxel, {
+            getVoxelAt: (x, y, z) => space.getVoxelAt(x, y, z),
+            getVoxelRotationAt: (x, y, z) => space.getVoxelRotationAt(x, y, z),
+            getVoxelStageAt: (x, y, z) => space.getVoxelStageAt(x, y, z),
+          });
 
       if (
-        (isSunlight ? true : dynamicTorchLightLevel === 0) &&
+        dynamicTorchLightLevel === 0 &&
         !LightUtils.canEnterInto(nTransparency, ox, oy, oz)
       ) {
         continue;
       }
-
-      if (nl === 0) continue;
 
       // A remaining emitter the front crosses shines again at its own level,
       // whichever branch it lands in below: one lit brighter by the removed

@@ -584,7 +584,7 @@ export function analyzeLightOperations(
 
     if (oldBlock.dynamicPatterns) {
       for (const pattern of oldBlock.dynamicPatterns) {
-        for (const part of pattern.parts) {
+        for (const part of BlockUtils.partsAtStage(pattern, oldStage)) {
           const ruleMatched = BlockUtils.evaluateBlockRule(
             part.rule,
             [vx, vy, vz],
@@ -628,7 +628,7 @@ export function analyzeLightOperations(
     if (newBlock.dynamicPatterns && update.stage !== undefined) {
       newEmitsLight = false;
       for (const pattern of newBlock.dynamicPatterns) {
-        for (const part of pattern.parts) {
+        for (const part of BlockUtils.partsAtStage(pattern, update.stage || 0)) {
           const ruleMatched = BlockUtils.evaluateBlockRule(
             part.rule,
             [vx, vy, vz],
@@ -687,12 +687,18 @@ export function analyzeLightOperations(
     if (block.blueLightLevel > 0) blueRemoval.push(voxel);
   });
 
+  // A batch of a few hundred staged writes removed about as many sources:
+  // scanning the list for every update was quadratic in the batch.
+  const removedLightSourceKeys = new Set(
+    removedLightSources.map(({ voxel }) => ChunkUtils.getVoxelName(voxel)),
+  );
+
   for (const update of processedUpdates) {
     const { voxel, oldBlock, newBlock, oldRotation, newRotation } = update;
     const [vx, vy, vz] = voxel;
 
-    const isRemovedLightSource = removedLightSources.some(
-      ({ voxel: v }) => v[0] === vx && v[1] === vy && v[2] === vz,
+    const isRemovedLightSource = removedLightSourceKeys.has(
+      ChunkUtils.getVoxelName(voxel),
     );
 
     if (isRemovedLightSource && !oldBlock.isOpaque) {
@@ -841,8 +847,11 @@ export function analyzeLightOperations(
       let blueLevel = newBlock.blueLightLevel;
 
       if (newBlock.dynamicPatterns && update.stage !== undefined) {
+        // A part guarded on another stage cannot match, so it is passed over
+        // without reading its rule (a wire carries one per stage).
+        const stage = world.getVoxelStageAt(vx, vy, vz);
         for (const pattern of newBlock.dynamicPatterns) {
-          for (const part of pattern.parts) {
+          for (const part of BlockUtils.partsAtStage(pattern, stage)) {
             const ruleMatched = BlockUtils.evaluateBlockRule(
               part.rule,
               [vx, vy, vz],

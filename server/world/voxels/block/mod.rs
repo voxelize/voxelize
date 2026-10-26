@@ -301,18 +301,24 @@ impl Block {
     pub fn is_light_at(&self, pos: &Vec3<i32>, space: &dyn VoxelAccess) -> bool {
         // Check dynamic patterns first
         if let Some(dynamic_patterns) = &self.dynamic_patterns {
+            let stage = space.get_voxel_stage(pos.0, pos.1, pos.2);
             for pattern in dynamic_patterns {
                 for part in &pattern.parts {
+                    // Only a part that defines a light level can answer, and
+                    // one guarded on another stage cannot match.
+                    if part.red_light_level.is_none()
+                        && part.green_light_level.is_none()
+                        && part.blue_light_level.is_none()
+                    {
+                        continue;
+                    }
+                    if !Self::stage_may_match(&part.rule, stage) {
+                        continue;
+                    }
                     if Self::evaluate_rule(&part.rule, pos, space) {
-                        // If this part matches and has any light levels defined, it's a light
-                        if part.red_light_level.is_some()
-                            || part.green_light_level.is_some()
-                            || part.blue_light_level.is_some()
-                        {
-                            return part.red_light_level.unwrap_or(0) > 0
-                                || part.green_light_level.unwrap_or(0) > 0
-                                || part.blue_light_level.unwrap_or(0) > 0;
-                        }
+                        return part.red_light_level.unwrap_or(0) > 0
+                            || part.green_light_level.unwrap_or(0) > 0
+                            || part.blue_light_level.unwrap_or(0) > 0;
                     }
                 }
             }
@@ -433,30 +439,28 @@ impl Block {
         space: &dyn VoxelAccess,
         color: &LightColor,
     ) -> u32 {
-        // Check if we have dynamic patterns with light levels
+        // Check if we have dynamic patterns with light levels. A part answers
+        // only if it defines this colour, so the others are passed over
+        // before their rule is read, and so is every part guarded on a stage
+        // the voxel is not at: a staged emitter (a wire glowing by its power)
+        // carries a part per stage, nearly all of which could never match.
         if let Some(dynamic_patterns) = &self.dynamic_patterns {
+            let stage = space.get_voxel_stage(pos.0, pos.1, pos.2);
             for pattern in dynamic_patterns {
                 for part in &pattern.parts {
-                    if Self::evaluate_rule(&part.rule, pos, space) {
-                        // If this part matches and has light levels defined, use them
-                        match *color {
-                            LightColor::Red => {
-                                if let Some(level) = part.red_light_level {
-                                    return level;
-                                }
-                            }
-                            LightColor::Green => {
-                                if let Some(level) = part.green_light_level {
-                                    return level;
-                                }
-                            }
-                            LightColor::Blue => {
-                                if let Some(level) = part.blue_light_level {
-                                    return level;
-                                }
-                            }
-                            LightColor::Sunlight => return 0,
-                        }
+                    let level = match *color {
+                        LightColor::Red => part.red_light_level,
+                        LightColor::Green => part.green_light_level,
+                        LightColor::Blue => part.blue_light_level,
+                        LightColor::Sunlight => None,
+                    };
+                    let Some(level) = level else {
+                        continue;
+                    };
+                    if Self::stage_may_match(&part.rule, stage)
+                        && Self::evaluate_rule(&part.rule, pos, space)
+                    {
+                        return level;
                     }
                 }
             }
@@ -501,6 +505,27 @@ impl Block {
         }
 
         (combined_faces, combined_aabbs, combined_transparency)
+    }
+
+    /// The stage `rule` requires of the voxel it is evaluated at, if it
+    /// requires one: a simple rule at offset zero naming a stage, alone or
+    /// inside an `And`. Reading it costs no voxel lookup.
+    fn self_stage_guard(rule: &BlockRule) -> Option<u32> {
+        match rule {
+            BlockRule::Simple(simple_rule) if simple_rule.offset == Vec3(0, 0, 0) => {
+                simple_rule.stage
+            }
+            BlockRule::Combination {
+                logic: BlockRuleLogic::And,
+                rules,
+            } => rules.iter().find_map(Self::self_stage_guard),
+            _ => None,
+        }
+    }
+
+    /// False only when `rule` cannot match a voxel at `stage`.
+    fn stage_may_match(rule: &BlockRule, stage: u32) -> bool {
+        Self::self_stage_guard(rule).map_or(true, |guard| guard == stage)
     }
 
     fn evaluate_rule(rule: &BlockRule, pos: &Vec3<i32>, space: &dyn VoxelAccess) -> bool {

@@ -736,10 +736,14 @@ fn process_pending_updates(
         }
 
         // Under client-only meshing the remesh job would only clear meshes
-        // that are already empty and hand the chunk back a tick later, so the
-        // chunk goes straight onto this tick's send queue instead.
-        let is_sending_directly = config.client_only_meshing
-            && perf_toggle(PerfToggle::SkipNoopRemesh);
+        // that are already empty, and the client rebuilds an edited chunk
+        // from the voxel updates this pass sends, so nothing more is done for
+        // it. A whole copy of its voxels and lights used to ride along every
+        // tick it changed: a model copy and an LZ4 pass per chunk here, a
+        // decompress on the client, and then dropped unread. A glowing block
+        // that changed every tick relit, and re-sent, a ring of chunks.
+        let is_sending_directly =
+            config.client_only_meshing && perf_toggle(PerfToggle::SkipNoopRemesh);
         let mut processes = Vec::new();
         for coords in cache {
             if !chunks.is_chunk_ready(&coords) {
@@ -750,7 +754,6 @@ fn process_pending_updates(
                 continue;
             }
             if is_sending_directly {
-                chunks.add_chunk_to_send(&coords, &MessageType::Update, false);
                 continue;
             }
             let space = chunks
@@ -1766,9 +1769,21 @@ mod wake_budget_tests {
         }
 
         let mut plan = ActivePlan::new();
-        plan_due_active_voxels(&mut chunks, &mut plan, &registry, 5, &mut TickBudget::new(1e6));
+        plan_due_active_voxels(
+            &mut chunks,
+            &mut plan,
+            &registry,
+            5,
+            &mut TickBudget::new(1e6),
+        );
         chunks.mark_voxel_active(&a, 6);
-        plan_due_active_voxels(&mut chunks, &mut plan, &registry, 6, &mut TickBudget::new(1e6));
+        plan_due_active_voxels(
+            &mut chunks,
+            &mut plan,
+            &registry,
+            6,
+            &mut TickBudget::new(1e6),
+        );
 
         assert!(plan.is_empty(), "a handed-off wake proposes no write");
         assert_eq!(
@@ -1778,7 +1793,13 @@ mod wake_budget_tests {
         );
         assert!(chunks.take_handed_wakes().is_empty());
         chunks.mark_voxel_active(&a, 7);
-        plan_due_active_voxels(&mut chunks, &mut plan, &registry, 7, &mut TickBudget::new(1e6));
+        plan_due_active_voxels(
+            &mut chunks,
+            &mut plan,
+            &registry,
+            7,
+            &mut TickBudget::new(1e6),
+        );
         assert_eq!(chunks.take_handed_wakes(), vec![a]);
     }
 
@@ -2244,10 +2265,12 @@ mod write_budget_tests {
                     .max_active_updates_per_batch(10)
                     .max_update_ms_per_tick(0.0)
             });
-            let simulated: Vec<(Vec3<i32>, u32)> =
-                (0..30).map(|index| (Vec3(index % 10, 3, index / 10), STONE)).collect();
-            let edited: Vec<(Vec3<i32>, u32)> =
-                (0..30).map(|index| (Vec3(index % 10, 5, index / 10), GLASS)).collect();
+            let simulated: Vec<(Vec3<i32>, u32)> = (0..30)
+                .map(|index| (Vec3(index % 10, 3, index / 10), STONE))
+                .collect();
+            let edited: Vec<(Vec3<i32>, u32)> = (0..30)
+                .map(|index| (Vec3(index % 10, 5, index / 10), GLASS))
+                .collect();
             world.chunks_mut().update_active_voxels(&simulated);
             world.chunks_mut().update_voxels(&edited);
             for tick in 1..=3 {
@@ -2359,7 +2382,11 @@ mod write_budget_tests {
             );
             assert_eq!(chunks.superseded_active_updates(), before + 1);
             for x in 1..=3 {
-                assert_eq!(chunks.get_voxel(x, 3, 1), 0, "the rest of the removal landed at x {x}");
+                assert_eq!(
+                    chunks.get_voxel(x, 3, 1),
+                    0,
+                    "the rest of the removal landed at x {x}"
+                );
             }
         });
     }
