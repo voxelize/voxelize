@@ -207,16 +207,48 @@ pub const FLOW_STILL: u32 = 0;
 /// a face smooths well below anything the eye reads on moving water.
 pub const FLOW_DIRECTIONS: u32 = 15;
 
-/// Quantize a downhill direction into a flow code. `None` is still water.
+/// The unit vector `[x, z]` of each flow code from 1, `k * 24°` from +x
+/// toward +z. Written out rather than computed so quantizing a direction
+/// needs no `atan2`: the platform's libm and the wasm build's disagree in
+/// the last bit, and a flow lying exactly between two codes (due -x, which
+/// a symmetric spread produces) then packed a different code on the server
+/// than on the client.
+const FLOW_UNITS: [[f32; 2]; FLOW_DIRECTIONS as usize] = [
+    [1.0, 0.0],
+    [0.913545458, 0.40673664],
+    [0.6691306, 0.7431448],
+    [0.309017, 0.95105652],
+    [-0.104528463, 0.9945219],
+    [-0.5, 0.8660254],
+    [-0.809017, 0.58778525],
+    [-0.9781476, 0.20791169],
+    [-0.9781476, -0.20791169],
+    [-0.809017, -0.58778525],
+    [-0.5, -0.8660254],
+    [-0.104528463, -0.9945219],
+    [0.309017, -0.95105652],
+    [0.6691306, -0.7431448],
+    [0.913545458, -0.40673664],
+];
+
+/// Quantize a downhill direction into a flow code: the nearest of the
+/// `FLOW_DIRECTIONS`, by plain multiplies and adds so native and wasm agree
+/// bit for bit, the lower code winning a tie. `None` is still water.
 #[inline]
 pub fn flow_code(direction: Option<[f32; 2]>) -> u32 {
     let Some([dx, dz]) = direction else {
         return FLOW_STILL;
     };
-    let turn = dz.atan2(dx) / std::f32::consts::TAU;
-    let step = (turn * FLOW_DIRECTIONS as f32).round() as i32;
-    let step = step.rem_euclid(FLOW_DIRECTIONS as i32) as u32;
-    1 + step
+    let mut nearest = 0;
+    let mut nearest_dot = f32::NEG_INFINITY;
+    for (step, [ux, uz]) in FLOW_UNITS.iter().enumerate() {
+        let dot = dx * ux + dz * uz;
+        if dot > nearest_dot {
+            nearest = step;
+            nearest_dot = dot;
+        }
+    }
+    1 + nearest as u32
 }
 
 /// The direction a flow code names, as a unit vector `[x, z]`; `None` for
@@ -226,8 +258,7 @@ pub fn flow_direction(code: u32) -> Option<[f32; 2]> {
     if code == FLOW_STILL || code > FLOW_DIRECTIONS {
         return None;
     }
-    let angle = (code - 1) as f32 * std::f32::consts::TAU / FLOW_DIRECTIONS as f32;
-    Some([angle.cos(), angle.sin()])
+    Some(FLOW_UNITS[(code - 1) as usize])
 }
 
 /// On a fluid surface vertex the index field is not its voxel's own column
@@ -491,6 +522,16 @@ mod tests {
         // Exactly +x is code 1; a hair below the seam wraps to it too.
         assert_eq!(flow_code(Some([1.0, 0.0])), 1);
         assert_eq!(flow_code(Some([1.0, -1e-4])), 1);
+        // Due -x lies exactly between codes 8 and 9; the lower wins on
+        // either sign of zero, which `atan2` told apart.
+        assert_eq!(flow_code(Some([-1.0, 0.0])), 8);
+        assert_eq!(flow_code(Some([-1.0, -0.0])), 8);
+        // The table is the shader's decode, `(code - 1)` steps of 24°.
+        for code in 1..=FLOW_DIRECTIONS {
+            let angle = (code - 1) as f64 * std::f64::consts::TAU / FLOW_DIRECTIONS as f64;
+            let [x, z] = flow_direction(code).expect("a direction");
+            assert_eq!([x, z], [angle.cos() as f32, angle.sin() as f32], "{code}");
+        }
 
         let light = with_surface_flow(0x1234 | FLUID_BIT | WAVE_BIT, 9, 7);
         assert_eq!((light >> STACK_INDEX_SHIFT) & STACK_FIELD_BITS, 9);
