@@ -7459,6 +7459,16 @@ export class World<T = any> extends Scene implements NetIntercept {
     }
   }
 
+  /**
+   * Throws away every cached shadow map, the sun's cascades and the local
+   * lights' faces alike, so the next shadow pass draws them all again: for a
+   * caller whose earlier passes left casters out on purpose.
+   */
+  invalidateShadowMaps() {
+    this.csmRenderer?.markAllCascadesDirty();
+    this.localLights.shadows.invalidateAll("incompleteDraw");
+  }
+
   renderShadowMaps(
     renderer: WebGLRenderer,
     entities?: Object3D[],

@@ -70,7 +70,8 @@ export type ShadowInvalidationCause =
   | "contextRestore"
   | "manualRegion"
   | "lightMoved"
-  | "lightRotated";
+  | "lightRotated"
+  | "incompleteDraw";
 
 export interface ShadowInvalidationEntry {
   frame: number;

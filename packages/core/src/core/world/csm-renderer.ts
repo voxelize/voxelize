@@ -303,7 +303,8 @@ export class CSMRenderer {
     this.markAllCascadesDirty();
   }
 
-  private markAllCascadesDirty() {
+  /// Every cascade re-renders on its next shadow pass.
+  markAllCascadesDirty() {
     for (let i = 0; i < this.cascadeDirty.length; i++) {
       this.cascadeDirty[i] = true;
       this.cascadeNeedsRender[i] = true;
