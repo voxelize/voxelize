@@ -1534,21 +1534,26 @@ export class Network {
   };
 
   private static encodeSync(message: Record<string, unknown>) {
+    // Keep wire conversions separate from packets the caller may reuse.
+    const encoded = { ...message };
     if (message.json) {
-      message.json = JSON.stringify(message.json);
+      encoded.json = JSON.stringify(message.json);
     }
-    message.type = Message.Type[message.type as string];
+    encoded.type = Message.Type[message.type as string];
     if (message.entities) {
-      (message.entities as Array<Record<string, unknown>>).forEach(
-        (entity) => (entity.metadata = JSON.stringify(entity.metadata)),
-      );
+      encoded.entities = (
+        message.entities as Array<Record<string, unknown>>
+      ).map((entity) => ({
+        ...entity,
+        metadata: JSON.stringify(entity.metadata),
+      }));
     }
     if (message.peers) {
-      (message.peers as Array<Record<string, unknown>>).forEach(
-        (peer) => (peer.metadata = JSON.stringify(peer.metadata)),
+      encoded.peers = (message.peers as Array<Record<string, unknown>>).map(
+        (peer) => ({ ...peer, metadata: JSON.stringify(peer.metadata) }),
       );
     }
-    return protocol.Message.encode(protocol.Message.create(message)).finish();
+    return protocol.Message.encode(protocol.Message.create(encoded)).finish();
   }
 
   private decodePriority = (buffer: ArrayBuffer, attemptNumber = 1) => {
