@@ -68,7 +68,7 @@ export class Transport extends WebSocket {
   private address: string;
   private secret: string;
 
-  private reconnection: any;
+  private reconnection?: ReturnType<typeof setTimeout>;
 
   constructor(public reconnectTimeout?: number) {
     super();
@@ -79,6 +79,30 @@ export class Transport extends WebSocket {
       if (!this.reconnection) {
         this.tryReconnect();
       }
+    });
+
+    // Install the socket handlers once. A retry must not remove callers'
+    // observers or the one-shot listeners waiting for their first success.
+    this.on("connect", (connection) => {
+      this.connection = connection;
+      console.log("WebSocket Client Connected");
+      clearTimeout(this.reconnection);
+      this.reconnection = undefined;
+
+      connection.on("message", (message) => {
+        if (message.type !== "binary") return;
+        const decoded = Transport.decodeSync(message.binaryData);
+        this.onMessage(decoded);
+      });
+
+      connection.on("close", () => {
+        console.log("Transport connection closed.");
+        this.tryReconnect();
+      });
+
+      connection.on("error", (error) => {
+        console.log(`Connection Error: ${error.toString()}`);
+      });
     });
   }
 
@@ -98,56 +122,33 @@ export class Transport extends WebSocket {
   onAction?: (event: MessageProtocol) => void;
 
   async connect(address: string, secret: string) {
-    this.address = address;
+    this.address = new URL(address).href;
     this.secret = secret;
 
+    return new Promise<void>((resolve) => {
+      const connected = () => resolve();
+      this.once("connect", connected);
+      try {
+        this.connectSocket();
+      } catch (error) {
+        this.removeListener("connect", connected);
+        throw error;
+      }
+    });
+  }
+
+  private connectSocket = () => {
     if (this.connection) {
       this.connection.drop();
       this.connection.close();
       ["message", "close", "error"].forEach((event) => {
         this.connection.removeAllListeners(event);
       });
-      if (this.reconnection) {
-        clearTimeout(this.reconnection);
-      }
     }
-
-    const url = new URL(address);
-    super.connect(`${url.href}ws/?secret=${secret}&is_transport=true`);
-
-    return new Promise<void>((resolve) => {
-      this.removeAllListeners("connect");
-
-      this.on("connect", (connection) => {
-        this.connection = connection;
-
-        console.log("WebSocket Client Connected");
-
-        clearTimeout(this.reconnection);
-
-        connection.on("message", (message) => {
-          if (message.type !== "binary") return;
-
-          const decoded = Transport.decodeSync(message.binaryData);
-          this.onMessage(decoded);
-        });
-
-        connection.on("close", () => {
-          console.log("Transport connection closed.");
-
-          if (!this.reconnection) {
-            this.tryReconnect();
-          }
-        });
-
-        connection.on("error", (error) => {
-          console.log(`Connection Error: ${error.toString()}`);
-        });
-
-        resolve();
-      });
-    });
-  }
+    clearTimeout(this.reconnection);
+    this.reconnection = undefined;
+    super.connect(`${this.address}ws/?secret=${this.secret}&is_transport=true`);
+  };
 
   send = (event: MessageProtocol) => {
     if (!this.connection) return;
@@ -160,7 +161,7 @@ export class Transport extends WebSocket {
         clearTimeout(this.reconnection);
         this.reconnection = undefined;
         console.log("Transport reconnecting...");
-        this.connect(this.address, this.secret);
+        this.connectSocket();
       }, this.reconnectTimeout);
     }
   };
