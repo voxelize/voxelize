@@ -191,13 +191,13 @@ export class AABB {
    * @param aabb - Another AABB to test with
    */
   touches = (aabb: AABB) => {
-    const { width, height, depth } = this.intersection(aabb);
+    const intersection = this.intersection(aabb);
 
     return (
-      width >= 0 &&
-      height >= 0 &&
-      depth >= 0 &&
-      (width === 0 || height === 0 || depth === 0)
+      intersection !== null &&
+      (intersection.width === 0 ||
+        intersection.height === 0 ||
+        intersection.depth === 0)
     );
   };
 
