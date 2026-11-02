@@ -53,8 +53,7 @@ describe("BlockUtils.getBlockRotatedTransparency", () => {
 
 describe("BlockUtils.getBlockTorchLightLevelAt", () => {
   // A wire-like emitter: a dark part, then one glowing part per stage, each
-  // guarded on the voxel's own stage and on a neighbour, as Town's copper
-  // wire is built.
+  // guarded on the voxel's own stage and on a neighbour.
   const neighbourRule = {
     type: "simple" as const,
     offset: [1, 0, 0] as [number, number, number],
