@@ -876,7 +876,10 @@ export class Agent {
       }
     });
     page.on("pageerror", (err) => {
-      console.error("[agent-page-error]", truncateLogText(err.message));
+      console.error(
+        "[agent-page-error]",
+        truncateLogText(err instanceof Error ? err.message : String(err)),
+      );
     });
   }
 
