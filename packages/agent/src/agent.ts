@@ -414,8 +414,11 @@ export class Agent {
         waitReadyTimeoutMs + DEFAULT_PAGE_CALL_TIMEOUT_MS,
       ),
       args: [
-        "--no-sandbox",
-        "--disable-setuid-sandbox",
+        // macOS sandboxes without setup; Linux hosts here (root, containers,
+        // cloud VMs) have no usable sandbox and Chrome refuses to start there.
+        ...(process.platform === "linux"
+          ? ["--no-sandbox", "--disable-setuid-sandbox"]
+          : []),
         "--disable-dev-shm-usage",
         "--enable-webgl",
         "--ignore-gpu-blocklist",
