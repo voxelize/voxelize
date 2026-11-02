@@ -444,7 +444,7 @@ export class Agent {
     // The browser runs below the server and the player's browser. Like the
     // profile below, it is a nicety: a wrapped launch that fails falls back
     // to a plain one rather than costing the session.
-    const priority = lowPriorityBrowser(puppeteer.executablePath());
+    const priority = lowPriorityBrowser(await puppeteer.executablePath());
     console.log(
       `[voxelize-agent] browser priority: ${priority?.tier ?? "default"}`,
     );
