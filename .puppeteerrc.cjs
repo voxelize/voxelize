@@ -1,7 +1,7 @@
-// Puppeteer 24.43.1 is the last release that runs on our Node 20.9 (.nvmrc); 25
-// is ESM-only and needs Node 22.12. Its pinned Chrome predates the fixes for
-// CVE-2026-118306 and friends (156.0.8078.73), so pin a patched one here. Keep
-// this at the current Chrome for Testing stable until Puppeteer can move on.
+// Puppeteer 25.16.0's pinned Chrome (156.0.8078.47) predates the fixes for
+// CVE-2026-118306 and friends (156.0.8078.73), so pin a patched one here. Drop
+// this once a Puppeteer release pins 156.0.8078.73 or later; until then keep it
+// at the current Chrome for Testing stable.
 module.exports = {
   chrome: { version: "156.0.8078.80" },
 };
