@@ -70,7 +70,9 @@ export class HeadlessBrowser {
     this.launching ??= (async () => {
       const puppeteer = await loadPuppeteer();
       fs.mkdirSync(path.dirname(this.logFile), { recursive: true });
-      const lowered = this.lowPriorityExecutable(puppeteer.executablePath());
+      const lowered = this.lowPriorityExecutable(
+        await puppeteer.executablePath(),
+      );
       const browser = await puppeteer.launch({
         headless: true,
         ...(lowered ? { executablePath: lowered } : {}),
