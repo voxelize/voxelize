@@ -75,7 +75,7 @@ export class HeadlessBrowser {
         headless: true,
         ...(lowered ? { executablePath: lowered } : {}),
         args: [
-          "--no-sandbox",
+          ...(process.platform === "linux" ? ["--no-sandbox"] : []),
           "--enable-webgl",
           "--ignore-gpu-blocklist",
           "--enable-gpu-rasterization",

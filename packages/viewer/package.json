@@ -27,7 +27,7 @@
   "dependencies": {
     "@voxelize/core": "workspace:*",
     "esbuild": "^0.21.5",
-    "puppeteer": "^23.11.1"
+    "puppeteer": "^24.43.1"
   },
   "peerDependencies": {
     "three": "^0.183.0"

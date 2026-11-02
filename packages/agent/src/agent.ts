@@ -513,8 +513,11 @@ export class Agent {
         // The agent's own mark: the watchdog and every reaper know this
         // browser by it, whichever Chrome runs (browser-lifecycle.ts).
         agentBrowserFlag(port),
-        "--no-sandbox",
-        "--disable-setuid-sandbox",
+        // macOS sandboxes without setup; Linux hosts here (root, containers,
+        // cloud VMs) have no usable sandbox and Chrome refuses to start there.
+        ...(process.platform === "linux"
+          ? ["--no-sandbox", "--disable-setuid-sandbox"]
+          : []),
         "--disable-dev-shm-usage",
         "--enable-webgl",
         "--ignore-gpu-blocklist",

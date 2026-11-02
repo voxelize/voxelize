@@ -55,7 +55,7 @@ const browser = await puppeteer.launch({
   executablePath: cachedChrome(),
   headless: "new",
   args: [
-    "--no-sandbox",
+    ...(process.platform === "linux" ? ["--no-sandbox"] : []),
     "--disable-dev-shm-usage",
     "--enable-unsafe-swiftshader",
     "--use-angle=swiftshader",
