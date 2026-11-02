@@ -923,18 +923,14 @@ export class World<T = any> extends Scene implements NetIntercept {
   }
 
   /**
-   * The frame's depth for the tank windows, while water held by one is in
-   * view (`SceneDepthCopy`). Call with the scene's target bound, before the
-   * water draws.
+   * The frame's depth for the water's depth haze and the tank windows
+   * (`SceneDepthCopy`). Call with the scene's target bound, before the water
+   * draws.
    */
   private captureSceneDepth(
     renderer: WebGLRenderer,
     target: WebGLRenderTarget | null,
   ) {
-    if (this.chunkRenderer.uniforms.waterExitReady.value < 0.5) {
-      this.sceneDepthCopy.skip();
-      return;
-    }
     this.sceneDepthCopy.capture(renderer, target);
   }
 
@@ -7082,6 +7078,13 @@ export class World<T = any> extends Scene implements NetIntercept {
 
   updateShaderLighting(camera: Camera, position: Vector3) {
     const { timePerDay } = this.options;
+    const perspective = camera as PerspectiveCamera;
+    if (perspective.isPerspectiveCamera) {
+      this.chunkRenderer.uniforms.waterDepthClip.value.set(
+        perspective.near,
+        perspective.far,
+      );
+    }
     const timeRatio = this.time / timePerDay;
     const sunAngle = timeRatio * Math.PI * 2 - Math.PI / 2;
 

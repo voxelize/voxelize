@@ -1251,9 +1251,9 @@ if (vIsFluid > 0.5) {
         paneEndZ = min(paneEndZ, paneDepthDistance(texture2D(uSceneDepth, paneUv).r));
       }
       paneRun = max(paneEndZ - paneZ, 0.0) * distToCamera / max(paneZ, 1e-3);
-      // Without the frame's depth nothing ends the run at the floor or at a
-      // fish, only where the water does: keep it to the fixed few blocks.
-      if (uSceneDepthReady < 0.5) {
+      // With only one of the two measured, the run may overshoot the floor, a
+      // fish or where the water ends: keep it to the fixed few blocks.
+      if (uSceneDepthReady < 0.5 || uWaterExitReady < 0.5) {
         paneRun = min(paneRun, ${WATER_OPTICS.paneFallbackPathBlocks.toFixed(4)});
       }
     }
@@ -1648,8 +1648,9 @@ ${LOCAL_LIGHTS_SPECULAR_FRAGMENT}
     * ${WATER_OPTICS.fresnelAlphaStrength.toFixed(4)};
   diffuseColor.a = mix(diffuseColor.a, 1.0, fresnelAlpha);
 
+  vec2 screenUv = gl_FragCoord.xy / max(uSceneTextureSize, vec2(1.0));
+  vec2 refractedUv = screenUv;
   if (uWaterRefractionReady > 0.5 && refractionFace > 0.01 && uCameraSubmersion < 0.5) {
-    vec2 screenUv = gl_FragCoord.xy / max(uSceneTextureSize, vec2(1.0));
     // Displacement follows the surface slope directly, so the floor bends
     // under the same ripples the reflection shows. The separate slow swell
     // this replaces wobbled the whole bed at once — the set-gel look — and
@@ -1669,7 +1670,7 @@ ${LOCAL_LIGHTS_SPECULAR_FRAGMENT}
     );
     vec2 refractionOffset =
       refractionSlope * uWaterRefractionStrength * topWaterFace * refractionIncidence;
-    vec2 refractedUv = clamp(screenUv + refractionOffset, vec2(0.001), vec2(0.999));
+    refractedUv = clamp(screenUv + refractionOffset, vec2(0.001), vec2(0.999));
     // The sample is the floor lit through the column: absorbed on the way
     // down and back, wet, and lensed by the surface above it.
     vec3 refractedScene = texture2D(uSceneColor, refractedUv).rgb * floorShade;
@@ -1696,9 +1697,19 @@ ${LOCAL_LIGHTS_SPECULAR_FRAGMENT}
 
   // The four-block floor tint cap is for shallow refraction, not ocean
   // visibility. Fade the bed using the measured local column, never sea
-  // level or camera distance (which made high lakes stay glass-clear).
+  // level or camera distance (which made high lakes stay glass-clear). The
+  // mesher's depth stops at the few blocks shore shading can tell apart, so
+  // the frame's depth measures the rest: how far under this surface lies the
+  // first thing the ray meets (the floor, or a fish clear above it).
   if (topWaterFace > 0.5 && uCameraSubmersion < 0.5) {
-    float deepPath = max(vFluidDepthBelow - ${WATER_OPTICS.deepSurfaceClearDepth.toFixed(4)}, 0.0);
+    float columnDepth = vFluidDepthBelow;
+    if (uSceneDepthReady > 0.5) {
+      float surfaceZ = paneDepthDistance(gl_FragCoord.z);
+      float behindZ = paneDepthDistance(texture2D(uSceneDepth, refractedUv).r);
+      float behindPath = max(behindZ - surfaceZ, 0.0) * distToCamera / max(surfaceZ, 1e-3);
+      columnDepth = behindPath * max(viewDir.y, 0.0);
+    }
+    float deepPath = max(columnDepth - ${WATER_OPTICS.deepSurfaceClearDepth.toFixed(4)}, 0.0);
     float deepTransmit = exp(-deepPath * ${WATER_OPTICS.deepSurfaceExtinction.toFixed(4)});
     vec3 deepScatter = uUnderwaterAmbient * vec3(
       ${WATER_OPTICS.deepSurfaceScatterScale.red.toFixed(4)},
@@ -1706,7 +1717,7 @@ ${LOCAL_LIGHTS_SPECULAR_FRAGMENT}
       ${WATER_OPTICS.deepSurfaceScatterScale.blue.toFixed(4)}
     ) * exp(
       -${WATER_DOWNWELLING_EXTINCTION_GLSL}
-      * min(vFluidDepthBelow, 16.0)
+      * min(columnDepth, 16.0)
       * ${WATER_OPTICS.aboveSurfaceScatterDepthScale.toFixed(4)}
     );
     // That in-scatter is daylight let down through the surface. Where the

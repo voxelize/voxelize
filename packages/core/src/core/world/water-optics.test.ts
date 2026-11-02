@@ -340,6 +340,19 @@ describe("air-side vertical water faces", () => {
   });
 });
 
+describe("the view through water by night", () => {
+  it("closes in with no sun and keeps the clear look in full sun", () => {
+    const optics = new WaterOptics();
+    const column = { depth: 10, surfaceY: 60 };
+    optics.update({ column, sunStrength: 1, deltaSeconds: 0.016 });
+    expect(optics.viewExtinctionScale).toBe(1);
+    optics.update({ column, sunStrength: 0, deltaSeconds: 0.016 });
+    expect(optics.viewExtinctionScale).toBe(
+      WATER_OPTICS.nightViewExtinctionBoost,
+    );
+  });
+});
+
 describe("the water behind a tank window", () => {
   it("fogs a window's run harder than a diver's view, and bounds the run", () => {
     expect(WATER_OPTICS.paneViewExtinctionScale).toBeGreaterThan(
@@ -686,8 +699,10 @@ describe("terrain seen from above water", () => {
   it("leaves the depth haze to the surface's measured column", () => {
     const { fragment } = SHADER_LIGHTING_FLUID_CHUNK_SHADERS;
     expect(fragment).toContain(
-      `float deepPath = max(vFluidDepthBelow - ${WATER_OPTICS.deepSurfaceClearDepth.toFixed(4)}, 0.0);`,
+      `float deepPath = max(columnDepth - ${WATER_OPTICS.deepSurfaceClearDepth.toFixed(4)}, 0.0);`,
     );
+    // The mesher's depth stops at a few blocks; the frame's measures an ocean.
+    expect(fragment).toContain("texture2D(uSceneDepth, refractedUv)");
     expect(fragment).toContain(
       "diffuseColor.a = 1.0 - (1.0 - diffuseColor.a) * deepTransmit;",
     );

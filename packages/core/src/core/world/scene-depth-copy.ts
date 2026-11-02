@@ -27,9 +27,10 @@ export function sceneDepthSkipReason(
 }
 
 /**
- * A copy of the scene's depth as the water starts to draw, for the tank
- * windows: each one fogs the run of water between itself and the first
- * thing behind it, and that thing's depth is in this copy.
+ * A copy of the scene's depth as the water starts to draw. A tank window fogs
+ * the run of water between itself and the first thing behind it, and a
+ * surface hazes by how far under it that thing lies; its depth is in this
+ * copy.
  *
  * The water cannot read the scene target's own depth texture: while the
  * water draws, that texture is the depth attachment of the bound target

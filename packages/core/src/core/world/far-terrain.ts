@@ -795,25 +795,6 @@ export const CHUNK_WATER_TINT = {
 const FAR_SEABED_COVER = "0.68";
 
 /**
- * The deepest column the chunk water's surface can measure: its mesher packs
- * the fluid under a surface corner into 15 quarter-block steps
- * (`SURFACE_DEPTH_MAX_BLOCKS` in vertex_light.rs, `SURFACE_DEPTH_UNITS_PER_
- * BLOCK` in shaders.ts), on top of the 7/8 a still surface stands in its own
- * voxel. Past it every column reads the same, so loaded water never takes
- * more of its deep haze than this depth gives.
- */
-const CHUNK_WATER_DEPTH_REACH = (15 / 4 + 7 / 8).toFixed(4);
-
-/**
- * Blocks past the loaded edge over which the far water lets go of the
- * chunk water's measurable depth (`CHUNK_WATER_DEPTH_REACH`) for the sea's
- * real one: at the edge it is the water the chunks draw, and out toward
- * the horizon a deep sea closes into its haze. A shading ramp, not a line,
- * so nothing marks where it runs.
- */
-const FAR_WATER_DEPTH_RAMP = 256;
-
-/**
  * The far water, seen from above by the chunk water's own optics (the
  * refraction branch of its top face in shaders.ts), so the two agree where
  * the loaded chunks end: the sea floor dimmed over the path down and back,
@@ -874,14 +855,7 @@ vec3 farWaterSurface(vec3 light, float seaDepth, float fresnel, vec3 toCamera, f
     water,
     clamp(0.12 + fresnel * 0.28 + thicknessScatter, 0.0, 1.0)
   );
-  // The column the deep haze counts: what the chunk water could measure at
-  // the loaded edge, the sea's own depth by the end of the ramp past it.
-  float edgeDistance = length(vWorldPosition.xz - cameraPosition.xz);
-  float columnDepth = mix(
-    min(seaDepth, ${CHUNK_WATER_DEPTH_REACH}),
-    seaDepth,
-    smoothstep(uFarWaterDepthRamp.x, uFarWaterDepthRamp.y, edgeDistance)
-  );
+  float columnDepth = seaDepth;
   float deepTransmit = farDeepTransmit(columnDepth);
   vec3 deepScatter = uUnderwaterAmbient * vec3(
     ${WATER_OPTICS.deepSurfaceScatterScale.red.toFixed(4)},
@@ -915,7 +889,6 @@ uniform vec3 uSkyTopColor;
 uniform vec3 uSkyMiddleColor;
 uniform float uWaterFresnelStrength;
 // (start, end) of the ramp from the chunk water's depth to the sea's.
-uniform vec2 uFarWaterDepthRamp;
 ${FAR_WATER_FN}
 void main() {
   ${COVER_DISCARD}
@@ -1250,7 +1223,6 @@ export class FarTerrain extends Group {
   };
 
   /** `(start, end)` of the far water's depth ramp past the loaded edge. */
-  private waterDepthRamp: ShaderUniform<Vector2> = { value: new Vector2() };
 
   /** The fade of the mesh about to draw, written per draw. */
   /** Every tile's land and floating-land meshes, drawn as one. */
@@ -1409,7 +1381,6 @@ export class FarTerrain extends Group {
         uSkyTopColor: shared.skyTopColor ?? shared.skyFogTopColor,
         uSkyMiddleColor: shared.skyMiddleColor ?? shared.skyFogMiddleColor,
         uWaterFresnelStrength: shared.waterFresnelStrength ?? { value: 0 },
-        uFarWaterDepthRamp: this.waterDepthRamp,
       },
       side: DoubleSide,
     });
@@ -1592,11 +1563,6 @@ export class FarTerrain extends Group {
     this.updateDepth(position);
     this.updateShadow(started);
     this.updateWater(position, descriptor);
-    const loadedEdge = world.renderRadius * world.chunkSize;
-    this.waterDepthRamp.value.set(
-      loadedEdge,
-      loadedEdge + FAR_WATER_DEPTH_RAMP,
-    );
     this.farEdge.value.set(
       this.options.distance * (1 - this.options.edgeBand),
       this.options.distance,

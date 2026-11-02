@@ -36,6 +36,13 @@ export const WATER_OPTICS = Object.freeze({
   viewExtinctionScale: 0.22,
 
   /**
+   * How much farther the view extinction closes with no sun on the water,
+   * blending to 1 in full sun. Clear-water clarity is a daylight look: by
+   * night it let the seabed stand out across a whole dark ocean.
+   */
+  nightViewExtinctionBoost: 3.5,
+
+  /**
    * Fraction of downwelling extinction applied to the in-scattered color for
    * above-surface views. Full endpoint extinction makes a deep column collapse
    * into an oil-dark patch because much of the visible scatter came from
@@ -1124,9 +1131,9 @@ export class WaterOptics {
   public skyFade = 0;
 
   /**
-   * A/B knob on the underwater view extinction, relative to the baked
-   * `viewExtinctionScale`: 1 is the shipped clarity, 0.35 / 0.22 the
-   * earlier, murkier water.
+   * The underwater view extinction this frame, relative to the baked
+   * `viewExtinctionScale`: 1 under full sun, up to
+   * `nightViewExtinctionBoost` with none.
    */
   public viewExtinctionScale = 1;
 
@@ -1172,6 +1179,12 @@ export class WaterOptics {
       : targetDepth;
 
     getUnderwaterAmbientColor(this.depth, sunStrength, this.ambientColor);
+
+    this.viewExtinctionScale = MathUtils.lerp(
+      WATER_OPTICS.nightViewExtinctionBoost,
+      1,
+      MathUtils.clamp(sunStrength, 0, 1),
+    );
 
     this.skyFade =
       this.submersion *
