@@ -118,6 +118,8 @@ attribute float instanceBoneOffset;
 attribute float instanceHitEffect;
 attribute float instanceEmissive;
 attribute vec3 instanceLightColor;
+const float PART_DEPTH_BIAS = 3e-7;
+
 attribute float partIndex;
 attribute vec3 pivotOffset;
 attribute vec3 vertexColor;
@@ -208,6 +210,11 @@ void main() {
   ${ENTITY_SHADOW_VERTEX_MAIN}
 
   gl_Position = projectionMatrix * viewMatrix * worldPosition;
+  // Parts of one body sit a hair apart or swing through each other, and two
+  // nearly coplanar faces flicker as depth precision and pose change. A few
+  // depth steps per part give every such pair a fixed winner at any distance
+  // and in any pose; a body's real gaps are far wider than this up close.
+  gl_Position.z -= partIndex * PART_DEPTH_BIAS * gl_Position.w;
 }
 `;
 
