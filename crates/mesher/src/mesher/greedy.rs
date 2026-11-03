@@ -474,10 +474,15 @@ pub fn mesh_space_greedy<S: VoxelAccess>(
 
                     if block.is_opaque {
                         let all_neighbors_opaque = VOXEL_NEIGHBORS.iter().all(|&[nx, ny, nz]| {
-                            let id = space.get_voxel(vx + nx, vy + ny, vz + nz);
+                            let at = [vx + nx, vy + ny, vz + nz];
+                            let id = space.get_voxel(at[0], at[1], at[2]);
                             registry
                                 .get_block_by_id(id)
-                                .map(|b| b.is_opaque && !b.is_fluid)
+                                .map(|b| {
+                                    b.is_opaque
+                                        && !b.is_fluid
+                                        && !is_hollow_shell(b, at, space, registry)
+                                })
                                 .unwrap_or(false)
                         });
                         if all_neighbors_opaque {

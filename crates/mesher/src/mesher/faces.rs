@@ -137,6 +137,10 @@ pub(super) fn should_render_face<S: VoxelAccess>(
         None => return n_is_void,
     };
 
+    if is_hollow_shell(n_block_type, [nvx, nvy, nvz], space, registry) {
+        return true;
+    }
+
     let is_opaque = block.is_opaque;
     let is_see_through = block.is_see_through;
 
@@ -707,7 +711,9 @@ pub(super) fn process_face<S: VoxelAccess>(
         return;
     }
 
-    let n_is_empty = n_is_void || n_block_type.is_empty;
+    let n_is_empty = n_is_void
+        || n_block_type.is_empty
+        || is_hollow_shell(n_block_type, [nvx, nvy, nvz], space, registry);
 
     // A see-through block's face pointing at an opaque neighbour is hidden
     // only when it lies on the cell boundary between them. A door leaf

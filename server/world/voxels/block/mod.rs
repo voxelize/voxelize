@@ -27,7 +27,7 @@ pub use voxelize_core::{
     PZ_ROTATION, ROTATION_BYTE_MASK, ROTATION_MASK, STAGE_MASK, Y_ROTATION_MASK, Y_ROT_SEGMENTS,
 };
 pub use voxelize_mesher::{
-    branch_cell, BranchBlocks, BranchCell, BranchKind, BranchLayout, BranchPart, BranchPartKind,
+    branch_cell, BranchBeyond, BranchBlocks, BranchCell, BranchKind, BranchLayout, BranchPart, BranchPartKind,
     BranchSeat, BranchShape, BranchSide, BranchSocket, ConnectedFrame, WideBranchBits,
     WideBranchSection, WideCell,
 };

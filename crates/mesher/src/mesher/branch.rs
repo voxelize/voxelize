@@ -274,6 +274,9 @@ pub struct BranchLayout {
     pub parts: Vec<BranchPart>,
     /// The cell of a wide section this voxel is, if it is one.
     pub wide: Option<WideCell>,
+    /// The sides whose joint runs into a wide cell that draws no wood across
+    /// it, so the end there stays closed ([`branch_layout_at`] fills this).
+    pub uncarried: [bool; SIDES],
 }
 
 /// A cell of a wide section, as its layout needs it.
@@ -504,6 +507,7 @@ impl BranchLayout {
             axis,
             parts,
             wide: None,
+            uncarried: [false; SIDES],
         }
     }
 
@@ -581,6 +585,7 @@ impl BranchLayout {
             axis: 1,
             parts,
             wide: Some(cell),
+            uncarried: [false; SIDES],
         }
     }
 
@@ -636,6 +641,23 @@ impl BranchLayout {
         let (u0, u1) = span(u);
         let (v0, v1) = span(v);
         Some([u0, v0, u1, v1])
+    }
+
+    /// Whether this voxel's wood fills `rect` on the boundary facing a joint
+    /// coming from across `side` (the side as the voxel it comes from sees it).
+    fn carries_joint(&self, side: usize, rect: [i32; 4]) -> bool {
+        let axis = side_axis(side);
+        let [u, v] = cross_axes(axis);
+        self.parts.iter().any(|part| {
+            (if side_is_positive(side) {
+                part.min[axis] == 0
+            } else {
+                part.max[axis] == self.texels_per_block
+            }) && part.min[u] <= rect[0]
+                && part.min[v] <= rect[1]
+                && part.max[u] >= rect[2]
+                && part.max[v] >= rect[3]
+        })
     }
 
     /// Whether the core ends at a free tip toward `side`: the far end of a
@@ -707,6 +729,7 @@ impl BranchLayout {
                             (BranchSide::Socket { .. }, BranchBeyond::SeeThrough) => {
                                 texture = BranchTexture::End;
                             }
+                            _ if self.uncarried[side] => texture = BranchTexture::End,
                             _ => continue,
                         }
                     } else if beyond[side] == BranchBeyond::Opaque {
@@ -763,7 +786,12 @@ impl BranchLayout {
                 if at_boundary && beyond[side] == BranchBeyond::Opaque {
                     continue;
                 }
-                if part.kind != BranchPartKind::Core && at_boundary && axis == part.axis {
+                // An arm's far end is open. Its near end reaches the boundary
+                // only when the slice lies clear of the arm's cross-section
+                // (a corner cell's sliver), and then nothing closes it but
+                // this face.
+                let is_near_end = matches!(part.kind, BranchPartKind::Arm(arm) if arm == side ^ 1);
+                if matches!(part.kind, BranchPartKind::Arm(arm) if arm == side) {
                     continue;
                 }
                 // What presses on this face from the far side: the other
@@ -783,6 +811,9 @@ impl BranchLayout {
                     .map(|(_, box_)| [box_.min[u], box_.min[v], box_.max[u], box_.max[v]])
                     .collect();
                 let mut texture = BranchTexture::Side;
+                if is_near_end && at_boundary {
+                    texture = BranchTexture::End;
+                }
                 if part.kind == BranchPartKind::Core && at_boundary {
                     if axis == 1 {
                         let k = usize::from(positive);
@@ -1013,7 +1044,7 @@ pub struct BranchQuad {
 }
 
 /// The two axes across `axis`, ascending.
-const fn cross_axes(axis: usize) -> [usize; 2] {
+pub(super) const fn cross_axes(axis: usize) -> [usize; 2] {
     match axis {
         0 => [1, 2],
         1 => [0, 2],
@@ -1224,6 +1255,19 @@ pub fn branch_cell<'a, R: Fn(i32, i32, i32) -> u32 + ?Sized, B: BranchBlocks + ?
     })
 }
 
+/// Whether `block` at `voxel` is a shell that lost its core, as a cut through
+/// part of a level leaves it: it lays out nothing, so however opaque its block
+/// reads it hides no face beside it.
+pub(super) fn is_hollow_shell<S: VoxelAccess>(
+    block: &Block,
+    voxel: [i32; 3],
+    space: &S,
+    registry: &Registry,
+) -> bool {
+    let raw_at = |x: i32, y: i32, z: i32| space.get_raw_voxel(x, y, z);
+    block.branch_shell && branch_cell(voxel, &raw_at, registry).is_none()
+}
+
 /// How the branch voxel `cell` at `voxel` sees each of its neighbours.
 fn sides_of<R: Fn(i32, i32, i32) -> u32 + ?Sized, B: BranchBlocks + ?Sized>(
     cell: &BranchCell,
@@ -1339,8 +1383,35 @@ pub fn branch_layout_at<R: Fn(i32, i32, i32) -> u32 + ?Sized, B: BranchBlocks + 
     blocks: &B,
 ) -> Option<(BranchLayout, u32)> {
     let cell = branch_cell(voxel, raw_at, blocks)?;
-    let sides = sides_of(&cell, voxel, raw_at, blocks);
-    let layout = match cell {
+    let mut layout = lay_out(&cell, voxel, raw_at, blocks)?;
+    if matches!(cell, BranchCell::Voxel { .. }) {
+        for side in 0..SIDES {
+            let Some(rect) = layout.joint_rect(side) else {
+                continue;
+            };
+            let [dx, dy, dz] = VOXEL_NEIGHBORS[side];
+            let at = [voxel[0] + dx, voxel[1] + dy, voxel[2] + dz];
+            let Some(wide @ BranchCell::Wide { .. }) = branch_cell(at, raw_at, blocks) else {
+                continue;
+            };
+            let Some(beyond) = lay_out(&wide, at, raw_at, blocks) else {
+                continue;
+            };
+            layout.uncarried[side] = !beyond.carries_joint(side, rect);
+        }
+    }
+    Some((layout, cell.dressed_by()))
+}
+
+/// The layout of `cell` on its own, before what its neighbours draw is read.
+fn lay_out<R: Fn(i32, i32, i32) -> u32 + ?Sized, B: BranchBlocks + ?Sized>(
+    cell: &BranchCell,
+    voxel: [i32; 3],
+    raw_at: &R,
+    blocks: &B,
+) -> Option<BranchLayout> {
+    let sides = sides_of(cell, voxel, raw_at, blocks);
+    Some(match *cell {
         BranchCell::Voxel { shape, raw, .. } => {
             let stage = BlockUtils::extract_stage(raw);
             match shape.kind {
@@ -1349,10 +1420,9 @@ pub fn branch_layout_at<R: Fn(i32, i32, i32) -> u32 + ?Sized, B: BranchBlocks + 
             }
         }
         BranchCell::Wide { shape, .. } => {
-            BranchLayout::wide(shape, wide_cell(&cell, voxel, raw_at, blocks)?, sides)
+            BranchLayout::wide(shape, wide_cell(cell, voxel, raw_at, blocks)?, sides)
         }
-    };
-    Some((layout, cell.dressed_by()))
+    })
 }
 
 /// The faces a branch voxel draws, built on the side and end faces of the
@@ -1381,7 +1451,9 @@ pub(super) fn branch_faces<S: VoxelAccess>(
     };
     let [vx, vy, vz] = voxel;
     let beyond = VOXEL_NEIGHBORS.map(|[dx, dy, dz]| {
-        match registry.get_block_by_id(space.get_voxel(vx + dx, vy + dy, vz + dz)) {
+        let at = [vx + dx, vy + dy, vz + dz];
+        match registry.get_block_by_id(space.get_voxel(at[0], at[1], at[2])) {
+            Some(block) if is_hollow_shell(block, at, space, registry) => BranchBeyond::Other,
             Some(block) if block.is_opaque => BranchBeyond::Opaque,
             Some(block) if block.is_see_through => BranchBeyond::SeeThrough,
             _ => BranchBeyond::Other,

@@ -560,6 +560,7 @@ const TRUNK: u32 = 5;
 const FIN: u32 = 6;
 const SHELL: u32 = 7;
 const INNER: u32 = 8;
+const ROOT: u32 = 9;
 
 fn kind_shape(kind: BranchKind, seat: BranchSeat) -> BranchShape {
     BranchShape {
@@ -658,6 +659,14 @@ fn registry() -> Registry {
             },
         ),
         (
+            ROOT,
+            Block {
+                faces: vec![texture_face("bark", 0.0), texture_face("rings", 0.5)],
+                branch: Some(shape(BranchSeat::Floor)),
+                ..block(ROOT, "Root")
+            },
+        ),
+        (
             SHELL,
             Block {
                 branch_shell: true,
@@ -719,7 +728,14 @@ fn quads_at(words: &[([i32; 3], u32)], at: [i32; 3]) -> Vec<BranchQuad> {
             at[1] + dy,
             at[2] + dz,
         ))) {
-            Some(block) if block.is_opaque => BranchBeyond::Opaque,
+            Some(block) if block.is_opaque => {
+                let next = [at[0] + dx, at[1] + dy, at[2] + dz];
+                if block.branch_shell && branch_cell(next, &raw, &registry).is_none() {
+                    BranchBeyond::Other
+                } else {
+                    BranchBeyond::Opaque
+                }
+            }
             _ => BranchBeyond::Other,
         }
     });
@@ -1277,7 +1293,31 @@ fn wood_texels(words: &[([i32; 3], u32)]) -> std::collections::HashSet<[i64; 3]>
 
 #[test]
 fn the_mesh_closes_the_wood_and_draws_nothing_outside_it() {
-    let words = mixed_bole();
+    assert_mesh_closes(&mixed_bole());
+    assert!(wood_texels(&mixed_bole()).len() > 100_000);
+}
+
+/// A cut that takes a level's core leaves the rest of the level as shells that
+/// draw nothing: the levels over and under them show their cut faces there.
+#[test]
+fn the_mesh_closes_over_shells_that_lost_their_core() {
+    for radius in [20, 24, 40] {
+        let core = [4, 2, 4];
+        let words: Vec<_> = [
+            level([core[0], 1, core[2]], radius, false),
+            level(core, radius, false),
+            level([core[0], 3, core[2]], radius - 4, false),
+        ]
+        .concat()
+        .into_iter()
+        .filter(|&(at, _)| !(at[1] == core[1] && at[0] <= core[0]))
+        .collect();
+        assert_mesh_closes(&words);
+    }
+}
+
+fn assert_mesh_closes(words: &[([i32; 3], u32)]) {
+    let words = words.to_vec();
     let wood = wood_texels(&words);
     let geometries = mesh_lit(&local(&words), |_| SUN);
     let texels = |value: f32| (value * T as f32).round() as i64;
@@ -1339,7 +1379,6 @@ fn the_mesh_closes_the_wood_and_draws_nothing_outside_it() {
             }
         }
     }
-    assert!(wood.len() > 100_000, "{} texels of wood", wood.len());
 }
 
 /// A giant's bole, a square tube narrowing a texel a level, and its
@@ -1436,4 +1475,196 @@ fn a_branch_holds_water_beside_its_wood_until_it_fills_its_voxel() {
             "{kind:?} can lie on its cell's faces"
         );
     }
+}
+
+/// Every texel of wood exposed to air whose face no voxel draws: wood showing
+/// its inside. Whatever covers a face must really be there, so only a drawn
+/// cube (stone, soil) hides one; a shell that lays out nothing hides nothing.
+fn open_faces(words: &[([i32; 3], u32)]) -> Vec<([i64; 3], usize)> {
+    let wood = wood_texels(words);
+    let map: std::collections::HashMap<[i32; 3], u32> = words.iter().copied().collect();
+    let t = i64::from(T);
+    let mut drawn = std::collections::HashSet::new();
+    for &(at, _) in words {
+        for quad in quads_at(words, at) {
+            let axis = quad.side / 2;
+            let [u, v] = cross_axes(axis);
+            let plane = i64::from(at[axis]) * t + i64::from(quad.plane);
+            for a in quad.rect[0]..quad.rect[2] {
+                for b in quad.rect[1]..quad.rect[3] {
+                    drawn.insert((
+                        axis,
+                        plane,
+                        i64::from(at[u]) * t + i64::from(a),
+                        i64::from(at[v]) * t + i64::from(b),
+                    ));
+                }
+            }
+        }
+    }
+    let mut open = Vec::new();
+    for texel in &wood {
+        for axis in 0..3 {
+            let [u, v] = cross_axes(axis);
+            for step in [-1i64, 1] {
+                let mut next = *texel;
+                next[axis] += step;
+                if wood.contains(&next) {
+                    continue;
+                }
+                let voxel = next.map(|value| value.div_euclid(t) as i32);
+                let id = BlockUtils::extract_id(map.get(&voxel).copied().unwrap_or(AIR));
+                if id == STONE || id == SOIL {
+                    continue;
+                }
+                let plane = if step > 0 { next[axis] } else { texel[axis] };
+                if !drawn.contains(&(axis, plane, texel[u], texel[v])) {
+                    open.push((*texel, if step > 0 { axis * 2 } else { axis * 2 + 1 }));
+                }
+            }
+        }
+    }
+    open
+}
+
+#[test]
+fn no_arrangement_of_wood_shows_its_inside() {
+    let root = |radius: u32| ROOT | (stage(radius) << 24);
+    let fin = |radius: u32, height: u32| {
+        WideBranchBits::with_size(FIN | (stage(radius) << 24), height)
+    };
+    let pieces: Vec<(String, u32)> = [1, 4, 8]
+        .iter()
+        .flat_map(|&r| {
+            [
+                (format!("limb{r}"), limb(r)),
+                (format!("root{r}"), root(r)),
+                (format!("fin{r}h12"), fin(r, 12)),
+                (format!("fin{r}h4"), fin(r, 4)),
+            ]
+        })
+        .chain([("soil".to_owned(), SOIL), ("air".to_owned(), AIR)])
+        .collect();
+    let spots: [[i32; 3]; 2] = [[1, 0, 0], [0, 1, 0]];
+    let mut failures: Vec<String> = Vec::new();
+    let mut tried = 0;
+    let centre = [2, 2, 2];
+    for (name_a, a) in &pieces {
+        for (name_b, b) in &pieces {
+            for (name_c, c) in &pieces {
+                if *a == AIR || *a == SOIL {
+                    continue;
+                }
+                tried += 1;
+                let words: Vec<([i32; 3], u32)> = [
+                    (centre, *a),
+                    ([centre[0] + spots[0][0], centre[1], centre[2]], *b),
+                    ([centre[0], centre[1] + spots[1][1], centre[2]], *c),
+                ]
+                .into_iter()
+                .filter(|&(_, word)| word != AIR)
+                .collect();
+                let open = open_faces(&words);
+                if !open.is_empty() {
+                    failures.push(format!(
+                        "{name_a} +x:{name_b} +y:{name_c}: {} open, first {:?}",
+                        open.len(),
+                        open[0]
+                    ));
+                }
+            }
+        }
+    }
+    assert!(
+        failures.is_empty(),
+        "{} of {tried} arrangements are open:\n{}",
+        failures.len(),
+        failures[..failures.len().min(40)].join("\n")
+    );
+}
+
+#[test]
+fn a_cut_through_a_giants_foot_shows_no_inside() {
+    let root = |radius: u32| ROOT | (stage(radius) << 24);
+    let fin = |radius: u32, height: u32| {
+        WideBranchBits::with_size(FIN | (stage(radius) << 24), height)
+    };
+    let mut failures: Vec<String> = Vec::new();
+    let mut tried = 0;
+    for radius in [10, 12, 24] {
+        for upper in [radius, radius - 2] {
+            let reach = wide(radius, T).reach();
+            let core = [8, 4, 8];
+            let mut base: Vec<([i32; 3], u32)> = [
+                level([core[0], 3, core[2]], radius, false),
+                level([core[0], 4, core[2]], radius, false),
+                level([core[0], 5, core[2]], upper, false),
+                vec![([core[0], 6, core[2]], limb(8))],
+            ]
+            .concat();
+            // A root or fin from every cell round the foot, level with it,
+            // a level under it and a level over it: the cuts below only ever
+            // take whole levels or part of one, so each stays beside the wood.
+            let ring = reach + 1;
+            let mut spot = 0;
+            for dx in -ring..=ring {
+                for dz in -ring..=ring {
+                    if i32::max(i32::abs(dx), i32::abs(dz)) != ring {
+                        continue;
+                    }
+                    spot += 1;
+                    let word = match spot % 4 {
+                        0 => root(6),
+                        1 => root(8),
+                        2 => root(3),
+                        _ => fin(3, 10),
+                    };
+                    base.push(([core[0] + dx, 3 + spot % 3, core[2] + dz], word));
+                    // The same piece under and on top of the foot's edge.
+                    let inward = |d: i32| d - d.signum();
+                    base.push(([core[0] + inward(dx), 2, core[2] + inward(dz)], word));
+                    base.push(([core[0] + inward(dx), 6, core[2] + inward(dz)], word));
+                }
+            }
+            let cuts: Vec<(String, Box<dyn Fn([i32; 3]) -> bool>)> = (2..=7)
+                .flat_map(|y| {
+                    let whole: (String, Box<dyn Fn([i32; 3]) -> bool>) =
+                        (format!("y{y}"), Box::new(move |at: [i32; 3]| at[1] == y));
+                    let beyond: (String, Box<dyn Fn([i32; 3]) -> bool>) = (
+                        format!("y{y} x>core"),
+                        Box::new(move |at: [i32; 3]| at[1] == y && at[0] > 8),
+                    );
+                    let short: (String, Box<dyn Fn([i32; 3]) -> bool>) = (
+                        format!("y{y} x<=core"),
+                        Box::new(move |at: [i32; 3]| at[1] == y && at[0] <= 8),
+                    );
+                    [whole, beyond, short]
+                })
+                .collect();
+            for (name, cut) in &cuts {
+                tried += 1;
+                let words: Vec<_> = base.iter().copied().filter(|&(at, _)| !cut(at)).collect();
+                let open = open_faces(&words);
+                if !open.is_empty() {
+                    let voxels: std::collections::BTreeSet<_> = open
+                        .iter()
+                        .map(|(texel, side)| {
+                            (texel.map(|v| v.div_euclid(i64::from(T))), *side)
+                        })
+                        .collect();
+                    failures.push(format!(
+                        "R{radius}/{upper} cut {name}: {} open at {:?}",
+                        open.len(),
+                        voxels.iter().take(5).collect::<Vec<_>>()
+                    ));
+                }
+            }
+        }
+    }
+    assert!(
+        failures.is_empty(),
+        "{} of {tried} cuts are open:\n{}",
+        failures.len(),
+        failures[..failures.len().min(40)].join("\n")
+    );
 }
