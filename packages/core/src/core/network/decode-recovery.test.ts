@@ -3,6 +3,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 const fakes = vi.hoisted(() => {
   const INIT = 1;
+  const REFUSAL = 253;
   const GARBLED = 254;
   const POISON = 255;
 
@@ -35,6 +36,7 @@ const fakes = vi.hoisted(() => {
       const messages = buffers.map((buffer) => {
         const [kind, value] = new Uint8Array(buffer);
         if (kind === GARBLED) return null;
+        if (kind === REFUSAL) return { type: "ERROR", text: String(value) };
         return kind === INIT
           ? { type: "INIT", json: { id: "client" }, text: String(value) }
           : { type: "EVENT", text: String(value) };
@@ -49,7 +51,7 @@ const fakes = vi.hoisted(() => {
     }
   }
 
-  return { FakeDecodeWorker, GARBLED, INIT, POISON };
+  return { FakeDecodeWorker, GARBLED, INIT, POISON, REFUSAL };
 });
 
 vi.mock("./workers/decode-worker.ts?worker&inline", () => ({
@@ -61,7 +63,7 @@ vi.mock("../../libs/setWorkerInterval", () => ({
 
 import { Network } from "./index";
 
-const { FakeDecodeWorker, GARBLED, INIT, POISON } = fakes;
+const { FakeDecodeWorker, GARBLED, INIT, POISON, REFUSAL } = fakes;
 const EVENT = 0;
 
 type NetworkInternals = {
@@ -191,5 +193,21 @@ describe("Network decode recovery", () => {
     expect(network.joinGeneration).toBe(1);
     expect(received).toEqual(["5"]);
     expect(priorityWorker.isTerminated).toBe(true);
+  });
+
+  it("keeps a join refusal whose socket closed before it was decoded", async () => {
+    const { network } = connectedNetwork({});
+    const reasons: string[] = [];
+    network.onDisconnect = () => reasons.push(network.disconnectReason);
+    internals(network).waitingForInit = true;
+
+    internals(network).decodePriority(packet(REFUSAL, 9));
+    network.connected = false;
+    await vi.advanceTimersByTimeAsync(0);
+
+    expect(reasons).toEqual(["9"]);
+    expect(network.isJoinPending).toBe(false);
+    // Torn down, so the reconnect loop has nothing left to retry.
+    expect(network.serverUrl).toBeNull();
   });
 });

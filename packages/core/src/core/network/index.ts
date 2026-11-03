@@ -1156,8 +1156,12 @@ export class Network {
       const { text } = message;
       console.error("[NETWORK] Received ERROR:", text);
       const joinReject = this.joinReject;
+      const wasAlreadyDown = !this.connected;
       this.disconnectReason = text || "";
       this.disconnect();
+      // The socket's close already reported this drop, without a reason, and
+      // `disconnect` only reports a live connection: say it again with one.
+      if (wasAlreadyDown) this.onDisconnect?.();
       joinReject?.(text);
       return;
     }
@@ -1602,16 +1606,23 @@ export class Network {
       // A packet of a session dropped since (rejoined on a fresh socket).
       if (epoch !== this.decodeEpoch) return;
 
+      const messages = e.data as Array<MessageProtocol | null>;
+      const decoded = messages[0];
+
       if (!this.connected) {
+        // A refused join: the server sends its reason and closes at once, so
+        // the close usually beats this decode. It is the answer to the join,
+        // and dropping it would rejoin forever without ever saying why.
+        if (decoded?.type === "ERROR" && this.waitingForInit) {
+          this.onMessage(decoded);
+          return;
+        }
         // Never discard a possible INIT: the join handshake would wedge with
         // `waitingForInit` stuck. Re-queue it; a real teardown clears the
         // queue anyway.
         this.enqueuePacket(buffer);
         return;
       }
-
-      const messages = e.data as Array<MessageProtocol | null>;
-      const decoded = messages[0];
 
       if (
         (decoded?.type === "INIT" || decoded?.type === "ERROR") &&
