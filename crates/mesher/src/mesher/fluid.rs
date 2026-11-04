@@ -12,6 +12,67 @@ pub(super) const FLUID_SURFACE_OFFSET: f32 = 0.005;
 
 pub(super) const WATERLOG_FLUID_INSET: f32 = 0.01;
 
+/// Whether the block a waterlogged voxel holds reaches the plane of this
+/// fluid face, the only place the two can z-fight, so the only face of the
+/// fluid that needs `WATERLOG_FLUID_INSET`.
+///
+/// Insetting every face was the bug this replaces. The top of a waterlogged
+/// voxel meets its neighbours' surface along edges no wall covers, so a top
+/// lowered by the inset opened a slit around every waterlogged voxel in a
+/// pond — a block of leaf litter on the bed drew its outline on the water
+/// above it. A block lying on the bed, or a plant standing through the
+/// surface, has no face on the surface plane and nothing to fight there.
+///
+/// The test reads the block's AABBs, which bound its faces: an AABB side on
+/// the face's plane, over the span of heights the face covers (a fluid top
+/// slopes), is a face that may be coplanar. A block whose shape comes from
+/// its surroundings keeps the inset everywhere, since its registered AABBs
+/// are not the shape it draws.
+pub(super) fn waterlogged_block_meets_face<S: VoxelAccess>(
+    vx: i32,
+    vy: i32,
+    vz: i32,
+    face: &BlockFace,
+    dir: [i32; 3],
+    space: &S,
+    registry: &Registry,
+) -> bool {
+    const PLANE_EPSILON: f32 = 0.02;
+    let Some(block) = registry.get_block_by_id(space.get_voxel(vx, vy, vz)) else {
+        return true;
+    };
+    if block.dynamic_patterns.is_some() || block.branch.is_some() || block.branch_shell {
+        return true;
+    }
+    let axis = if dir[0] != 0 {
+        0
+    } else if dir[1] != 0 {
+        1
+    } else {
+        2
+    };
+    let (face_min, face_max) = face
+        .corners
+        .iter()
+        .map(|corner| corner.pos[axis])
+        .fold((f32::MAX, f32::MIN), |(lo, hi), p| (lo.min(p), hi.max(p)));
+    let rotation = space.get_voxel_rotation(vx, vy, vz);
+    let rotates = block.rotatable || block.y_rotatable;
+    block.aabbs.iter().any(|aabb| {
+        let aabb = if rotates {
+            rotation.rotate_aabb(aabb, block.y_rotatable, true)
+        } else {
+            aabb.clone()
+        };
+        let side = if dir[axis] > 0 {
+            [aabb.max_x, aabb.max_y, aabb.max_z][axis]
+        } else {
+            [aabb.min_x, aabb.min_y, aabb.min_z][axis]
+        };
+        side >= face_min - PLANE_EPSILON && side <= face_max + PLANE_EPSILON
+    })
+}
+
 pub(super) fn get_fluid_effective_height(stage: u32) -> f32 {
     (FLUID_BASE_HEIGHT - (stage as f32 * FLUID_STAGE_DROPOFF)).max(0.1)
 }

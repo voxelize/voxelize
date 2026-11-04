@@ -770,6 +770,139 @@ fn waterlogged_voxel_meshes_the_fluid_it_holds() {
     );
 }
 
+/// Water at the origin beside a waterlogged voxel at `+x`; air elsewhere.
+struct PondEdgeSpace {
+    water: u32,
+    held: u32,
+}
+
+impl VoxelAccess for PondEdgeSpace {
+    fn get_voxel(&self, vx: i32, vy: i32, vz: i32) -> u32 {
+        match (vx, vy, vz) {
+            (0, 0, 0) => self.water,
+            (1, 0, 0) => self.held,
+            _ => 0,
+        }
+    }
+
+    fn get_raw_voxel(&self, vx: i32, vy: i32, vz: i32) -> u32 {
+        self.get_voxel(vx, vy, vz)
+    }
+
+    fn get_voxel_rotation(&self, _vx: i32, _vy: i32, _vz: i32) -> BlockRotation {
+        BlockRotation::PY(0.0)
+    }
+
+    fn get_voxel_stage(&self, _vx: i32, _vy: i32, _vz: i32) -> u32 {
+        0
+    }
+
+    fn get_voxel_waterlogged(&self, vx: i32, vy: i32, vz: i32) -> bool {
+        (vx, vy, vz) == (1, 0, 0)
+    }
+
+    fn get_voxel_fluid_level(&self, _vx: i32, _vy: i32, _vz: i32) -> u32 {
+        0
+    }
+
+    fn get_sunlight(&self, _vx: i32, _vy: i32, _vz: i32) -> u32 {
+        15
+    }
+
+    fn get_torch_light(&self, _vx: i32, _vy: i32, _vz: i32, _color: LightColor) -> u32 {
+        0
+    }
+
+    fn get_all_lights(&self, _vx: i32, _vy: i32, _vz: i32) -> (u32, u32, u32, u32) {
+        (15, 0, 0, 0)
+    }
+
+    fn get_max_height(&self, _vx: i32, _vz: i32) -> u32 {
+        1
+    }
+
+    fn contains(&self, vx: i32, vy: i32, vz: i32) -> bool {
+        (0..=1).contains(&vx) && vy == 0 && vz == 0
+    }
+}
+
+/// A waterlogged voxel whose block lies on the bed (leaf litter) has no face
+/// on the water's surface, so its surface must meet the neighbouring water's
+/// on their shared edge. Insetting it lowered the surface by
+/// `WATERLOG_FLUID_INSET` with no wall between the two, and every such voxel
+/// in a pond drew its outline as a slit on the water.
+#[test]
+fn a_waterlogged_bed_block_keeps_the_surface_level_with_its_neighbours() {
+    const WATER_ID: u32 = 2;
+    const LITTER_ID: u32 = 1;
+
+    let water = Block {
+        is_fluid: true,
+        is_waterlogging_fluid: true,
+        is_see_through: true,
+        is_transparent: [true; 6],
+        faces: six_faces(),
+        ..plain_block(WATER_ID, "Water")
+    };
+    let litter = Block {
+        is_waterloggable: true,
+        is_see_through: true,
+        is_transparent: [true; 6],
+        faces: six_faces(),
+        aabbs: vec![AABB {
+            min_x: 0.0,
+            min_y: 0.0,
+            min_z: 0.0,
+            max_x: 1.0,
+            max_y: 0.0625,
+            max_z: 1.0,
+        }],
+        ..plain_block(LITTER_ID, "Litter")
+    };
+    let air = Block {
+        is_empty: true,
+        aabbs: vec![],
+        ..plain_block(0, "Air")
+    };
+    let mut registry = Registry::new(vec![(0, air), (LITTER_ID, litter), (WATER_ID, water)]);
+    registry.build_cache();
+
+    let space = PondEdgeSpace {
+        water: WATER_ID,
+        held: LITTER_ID,
+    };
+    let geometries = mesh_space_greedy(&[0, 0, 0], &[2, 1, 1], &space, &registry);
+    let shared_edge_heights: Vec<f32> = geometries
+        .iter()
+        .filter(|geometry| geometry.voxel == WATER_ID)
+        .flat_map(|geometry| geometry.positions.chunks_exact(3))
+        .filter(|pos| (pos[0] - 1.0).abs() < 1e-3 && pos[1] > 0.5)
+        .map(|pos| pos[1])
+        .collect();
+    assert!(
+        !shared_edge_heights.is_empty(),
+        "both voxels draw a surface along their shared edge",
+    );
+    let lowest = shared_edge_heights.iter().copied().fold(f32::MAX, f32::min);
+    let highest = shared_edge_heights.iter().copied().fold(f32::MIN, f32::max);
+    assert!(
+        highest - lowest < 1e-3,
+        "the surface over the litter must meet its neighbour's, got {shared_edge_heights:?}",
+    );
+
+    // The litter does lie on the floor plane, where the two can z-fight, so
+    // the fluid's floor there keeps its inset.
+    let litter_floor_inset = geometries
+        .iter()
+        .filter(|geometry| geometry.voxel == WATER_ID)
+        .flat_map(|geometry| geometry.positions.chunks_exact(3))
+        .any(|pos| pos[0] > 1.0 && (pos[1] - WATERLOG_FLUID_INSET).abs() < 1e-3);
+    assert!(
+        litter_floor_inset,
+        "the fluid floor under the litter stays inset",
+    );
+}
+
 #[test]
 fn self_ao_stair_step_edge_vertex_gets_occlusion() {
     let aabbs = stairs_aabbs();
