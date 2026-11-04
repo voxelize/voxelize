@@ -368,6 +368,11 @@ describe("FarTerrain coverage", () => {
     let isLanded = false;
     // In the scene with a section or more but still owing the rest.
     let isPartial = false;
+    // Whether the column still owes meshes once in the scene: false once
+    // it stops owing them with no mesh landing (its grace out).
+    let isOwed = true;
+    // Whether the world drew chunk (0, 0) on the last frame.
+    let isShown = false;
     const chunks = {
       ...world,
       renderRadius: 1,
@@ -376,7 +381,7 @@ describe("FarTerrain coverage", () => {
         if (isLanded || isPartial) callback(0, 0);
       },
       isChunkPending: (cx: number, cz: number) =>
-        !isLanded && cx === 0 && cz === 0,
+        !isLanded && isOwed && cx === 0 && cz === 0,
     };
     const at = new Vector3(8, 120, 8);
     const coveredAt = (cx: number, cz: number) => {
@@ -402,9 +407,18 @@ describe("FarTerrain coverage", () => {
         }),
       );
     };
+    // One frame as the world runs it: its visibility pass asks which
+    // chunks in the scene to hide, then the far layer updates.
+    const frame = () => {
+      isShown = false;
+      chunks.forEachMeshedChunk((cx, cz) => {
+        isShown = !far.hidesChunk(cx, cz, () => chunks.isChunkPending(cx, cz));
+      });
+      far.update(at, chunks);
+    };
     const run = async (done: () => boolean) => {
       for (let i = 0; i < 12 && !done(); i++) {
-        far.update(at, chunks);
+        frame();
         await flush();
         await new Promise((resolve) => setTimeout(resolve, 2));
       }
@@ -413,14 +427,28 @@ describe("FarTerrain coverage", () => {
       isLanded = true;
       isPartial = false;
       chunks.loadedGeneration += 1;
-      far.update(at, chunks);
+      frame();
     };
     const landPart = () => {
       isPartial = true;
       chunks.loadedGeneration += 1;
-      far.update(at, chunks);
+      frame();
     };
-    return { far, coveredAt, reply, run, land, landPart };
+    const outlast = () => {
+      isOwed = false;
+      frame();
+    };
+    return {
+      far,
+      coveredAt,
+      reply,
+      run,
+      land,
+      landPart,
+      outlast,
+      isShown: () => isShown,
+      update: () => far.update(at, chunks),
+    };
   };
 
   it("stands in for a chunk on its way with any tile it draws", async () => {
@@ -458,7 +486,7 @@ describe("FarTerrain coverage", () => {
   });
 
   it("keeps drawing a chunk's column until every section of it has meshed", async () => {
-    const { far, coveredAt, reply, run, land, landPart } = coverage({
+    const { far, coveredAt, reply, run, land, landPart, isShown } = coverage({
       pendingGuardRadius: 0,
     });
     reply(0);
@@ -466,12 +494,51 @@ describe("FarTerrain coverage", () => {
 
     // A first section lands: the chunk is held back and the far layer keeps
     // the column, rather than opening it onto the sky section by section.
+    // Hidden on the very frame it lands: shown then, it flashed through the
+    // stand-in for a frame before the far layer held it.
     landPart();
+    expect(isShown()).toBe(false);
     expect(far.isHeld(0, 0)).toBe(true);
     expect(coveredAt(0, 0)).toBe(0);
 
-    // The last section lands: the two change hands in one update.
+    // The last section lands: the two change hands in one frame.
     land();
+    expect(isShown()).toBe(true);
+    expect(far.isHeld(0, 0)).toBe(false);
+    expect(coveredAt(0, 0)).toBe(255);
+  });
+
+  it("gives a held chunk its column the frame it stops owing meshes, with none landing", async () => {
+    const { far, coveredAt, reply, run, landPart, outlast, isShown } = coverage(
+      { pendingGuardRadius: 0 },
+    );
+    reply(0);
+    await run(() => far.stats.pendingStoodIn === 1);
+    landPart();
+    expect(far.isHeld(0, 0)).toBe(true);
+
+    // Its grace runs out with a section still owed: nothing loads or
+    // meshes, yet the world shows it, so the mask lets go in the same
+    // frame rather than at its next recheck, with both drawing meanwhile.
+    outlast();
+    expect(isShown()).toBe(true);
+    expect(far.isHeld(0, 0)).toBe(false);
+    expect(coveredAt(0, 0)).toBe(255);
+  });
+
+  it("holds no chunk on a frame the world hides none", async () => {
+    const { far, coveredAt, reply, run, landPart, update } = coverage({
+      pendingGuardRadius: 0,
+    });
+    reply(0);
+    await run(() => far.stats.pendingStoodIn === 1);
+    landPart();
+    expect(far.isHeld(0, 0)).toBe(true);
+
+    // A world that culls nothing asks about no chunk and hides none: the
+    // far layer stepping aside is what keeps the column from being drawn
+    // twice.
+    update();
     expect(far.isHeld(0, 0)).toBe(false);
     expect(coveredAt(0, 0)).toBe(255);
   });

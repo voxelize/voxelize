@@ -10182,9 +10182,16 @@ export class World<T = any> extends Scene implements NetIntercept {
 
       // A chunk landing where the far layer draws stays hidden until all
       // of it has meshed, the far layer drawing its column meanwhile
-      // (`FarTerrain.isHeld`); asked live, so the frame it finishes is the
-      // frame it shows and the far layer steps aside.
-      if (this.farTerrain.isHeld(cx, cz) && this.isFarColumnPending(cx, cz)) {
+      // (`FarTerrain.hidesChunk`): asked live, before the far layer's
+      // update, which holds exactly what this hides, so the frame it lands
+      // it hides and the frame it finishes it shows as the far layer steps
+      // aside. A chunk with nothing in the scene has nothing to hide.
+      if (
+        chunk.group.parent &&
+        this.farTerrain.hidesChunk(cx, cz, () =>
+          this.isFarColumnPending(cx, cz),
+        )
+      ) {
         chunk.group.visible = false;
         // Its arena slots draw outside the group, so they hide with it.
         this.applySectionVisibility(chunk, 0);

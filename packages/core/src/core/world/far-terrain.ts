@@ -1164,6 +1164,15 @@ export class FarTerrain extends Group {
   private heldColumns = new Set<string>();
   private settledColumns = new Set<string>();
 
+  /**
+   * The chunks the world hid this frame (`hidesChunk`), which the mask
+   * then holds; null on a frame the world asked about none, when the mask
+   * holds none either. Whether one changed hands since the mask was built.
+   */
+  private hiddenChunks: Set<string> | null = null;
+  private readonly hiddenChunksScratch = new Set<string>();
+  private isHoldChanged = false;
+
   /** Sea depth per texel (0 dry, 255 at DEPTH_RANGE or deeper), around the viewer. */
   private depth = new Uint8Array(DEPTH_TEXELS * DEPTH_TEXELS).fill(255);
 
@@ -1494,7 +1503,9 @@ export class FarTerrain extends Group {
    * pending): the mask covers those within `pendingGuardRadius` of the
    * viewer, so a coarse tile never shows through the walls around it.
    * Further out, a drawn tile over such a column keeps drawing until the
-   * chunk lands instead of opening a hole of sky.
+   * chunk lands instead of opening a hole of sky. A chunk that has landed
+   * there is held for exactly as long as the world hides it, which it
+   * asks `hidesChunk` before this runs each frame.
    */
   update(
     position: Vector3,
@@ -1515,6 +1526,7 @@ export class FarTerrain extends Group {
     this.chunkSize = world.chunkSize;
     if (!descriptor || this.options.distance <= 0) {
       this.visible = false;
+      this.hiddenChunks = null;
       this.stats.isActive = false;
       this.stats.rings = 0;
       this.stats.distance = 0;
@@ -2156,12 +2168,20 @@ export class FarTerrain extends Group {
     const isStandInStale =
       this.coverageStandIns !== this.standInGeneration &&
       this.stats.pendingCovered + this.stats.pendingStoodIn > 0;
+    // The chunks the world hid this frame are the ones held: taken now, so
+    // a frame the world asks about none starts from none.
+    const hidden = this.hiddenChunks;
+    this.hiddenChunks = null;
+    const isHoldChanged =
+      this.isHoldChanged || (hidden?.size ?? 0) !== this.heldColumns.size;
+    this.isHoldChanged = false;
     if (
       !centerMoved &&
       this.coverageGeneration === world.loadedGeneration &&
       this.coverageRadius === world.renderRadius &&
       !isRecheckDue &&
-      !isStandInStale
+      !isStandInStale &&
+      !isHoldChanged
     )
       return;
     this.coverageBuiltAt = now;
@@ -2188,24 +2208,22 @@ export class FarTerrain extends Group {
     this.stats.pendingStoodIn = stoodIn;
     // A chunk landing where the far layer draws keeps the far layer until
     // every section of it has meshed: the world hides it meanwhile
-    // (`isHeld`), and both change hands in one frame instead of the column
-    // opening onto the sky section by section. Only a first landing is
-    // held; a chunk that has settled once keeps drawing through a remesh.
+    // (`hidesChunk`), and both change hands in one frame instead of the
+    // column opening onto the sky section by section. The world's answer
+    // this frame is the hold, so the two never both draw a column, nor
+    // neither. Only a first landing is held; a chunk that has settled once
+    // keeps drawing through a remesh.
     const held = new Set<string>();
     const settled = new Set<string>();
     world.forEachMeshedChunk((x, z) => {
       const key = `${x},${z}`;
-      const wasSettled = this.settledColumns.has(key);
-      const isPending = !wasSettled && world.isChunkPending(x, z);
-      if (
-        isPending &&
-        !this.isGuarded(x, z) &&
-        this.isStoodIn(x, z, world.chunkSize)
-      ) {
+      if (hidden?.has(key)) {
         held.add(key);
         return;
       }
-      if (!isPending) settled.add(key);
+      if (this.settledColumns.has(key) || !world.isChunkPending(x, z)) {
+        settled.add(key);
+      }
       covered.push([x, z]);
     });
     this.heldColumns = held;
@@ -2229,22 +2247,46 @@ export class FarTerrain extends Group {
   }
 
   /**
+   * Whether a loaded chunk is still being held back for the far layer:
+   * landed where the far layer draws and not every section meshed yet, as
+   * of the last `update`.
+   */
+  isHeld(cx: number, cz: number) {
+    return this.visible && this.heldColumns.has(`${cx},${cz}`);
+  }
+
+  /**
+   * Whether the world hides a loaded chunk this frame, asked once per chunk
+   * ahead of `update`, which then holds exactly the chunks hidden here: a
+   * chunk still owing meshes (`isPending`, asked only when it matters)
+   * that landed where the layer draws its column hides until it has
+   * meshed whole. Deciding both in one place is what keeps a column from
+   * being drawn twice: a chunk shown the frame it landed, before the next
+   * update held it, flashed through the stand-in, and one that finished
+   * without a mesh landing (its grace out, a stranded job swept) drew over
+   * the stand-in until the mask's next recheck.
+   */
+  hidesChunk(cx: number, cz: number, isPending: () => boolean): boolean {
+    if (!this.visible) return false;
+    if (!this.hiddenChunks) {
+      this.hiddenChunks = this.hiddenChunksScratch;
+      this.hiddenChunks.clear();
+    }
+    const key = `${cx},${cz}`;
+    const hides =
+      !this.settledColumns.has(key) && this.drawsColumn(cx, cz) && isPending();
+    if (hides) this.hiddenChunks.add(key);
+    if (hides !== this.heldColumns.has(key)) this.isHoldChanged = true;
+    return hides;
+  }
+
+  /**
    * Whether the layer draws the whole of a chunk column, as it does over a
    * column still on its way outside the guard radius. A chunk landing
    * there replaces terrain already on screen, so a host can land it as
    * itself rather than reveal it out of the fog, which would flash over
    * that terrain.
    */
-  /**
-   * Whether a loaded chunk is still being held back for the far layer:
-   * landed where the far layer draws and not every section meshed yet.
-   * The world hides it while this holds (and its column still owes
-   * meshes), so the two swap in one frame.
-   */
-  isHeld(cx: number, cz: number) {
-    return this.visible && this.heldColumns.has(`${cx},${cz}`);
-  }
-
   drawsColumn(cx: number, cz: number) {
     return (
       this.visible &&
