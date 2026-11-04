@@ -241,6 +241,60 @@ describe("WaterDepthPass", () => {
     expect(lifted.geometry.drawRange.count).toBe(0);
   });
 
+  it("links a fluid's depth programs before its water loads, the ones its stand-ins then draw with", () => {
+    const scene = new Scene();
+    const pass = passOver();
+    const water = chunkMaterial();
+    const compiled: { sides: number[]; materials: ShaderMaterial[] } = {
+      sides: [],
+      materials: [],
+    };
+    let bound: unknown = null;
+    let lightsSeen = -1;
+    const renderer = {
+      ...fakeRenderer(),
+      getRenderTarget: () => bound,
+      setRenderTarget: (target: unknown) => {
+        bound = target;
+      },
+      compile: (warm: Scene, _camera: unknown, lightsFrom: Scene) => {
+        // Bound like the pass's own draws, lit like its own scene: none.
+        expect(bound).not.toBeNull();
+        lightsSeen = lightsFrom.children.filter(
+          (child) => (child as { isLight?: boolean }).isLight,
+        ).length;
+        for (const child of warm.children) {
+          const material = (child as Mesh).material as ShaderMaterial;
+          compiled.materials.push(material);
+          compiled.sides.push(material.side);
+        }
+      },
+    };
+
+    pass.compileFor(
+      renderer as unknown as WebGLRenderer,
+      cameraOver(16, 100, -20),
+      [water],
+    );
+    expect(bound).toBeNull();
+    expect(lightsSeen).toBe(0);
+    expect(compiled.sides).toEqual([DoubleSide, BackSide]);
+
+    // The fluid's first water, later: its stand-in draws what was linked.
+    const mesh = sectionMesh(scene, 1, 1, 0);
+    mesh.material = water;
+    pass.addPane(sectionMesh(scene, 0, 1, 0));
+    pass.addWater(mesh);
+    const drawn = fakeRenderer();
+    const drew: ShaderMaterial[] = [];
+    drawn.render = (depthScene: Scene) => {
+      for (const child of depthScene.children)
+        if (child.visible) drew.push((child as Mesh).material as ShaderMaterial);
+    };
+    pass.render(drawn as unknown as WebGLRenderer, cameraOver(16, 100, -20));
+    expect(drew).toEqual([compiled.materials[0]]);
+  });
+
   it("forgets a water mesh and a pane once their geometry is gone", () => {
     const scene = new Scene();
     const state = uniforms();

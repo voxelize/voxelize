@@ -1203,6 +1203,20 @@ export class World<T = any> extends Scene implements NetIntercept {
   }
 
   /**
+   * Links the water depth pass's programs for every fluid chunk material,
+   * so a fluid whose water first loads in play does not link them in a
+   * frame (see `WaterDepthPass.compileFor`). Call it in the load, once the
+   * chunk materials are made.
+   */
+  compileWaterDepthPrograms(renderer: WebGLRenderer, camera: Camera) {
+    const fluids: ShaderMaterial[] = [];
+    for (const material of this.chunkRenderer.materials.values()) {
+      if (material.userData.isFluid === true) fluids.push(material);
+    }
+    this.waterDepth.compileFor(renderer, camera, fluids);
+  }
+
+  /**
    * Call once a frame with the camera the scene is about to render with,
    * before that render. Drawing order-independently, it draws the depth of
    * the water in view (the surface the blended layers are split at, see

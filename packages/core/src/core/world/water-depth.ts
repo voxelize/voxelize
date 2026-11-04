@@ -1,6 +1,6 @@
 import {
   BackSide,
-  type BufferGeometry,
+  BufferGeometry,
   type Camera,
   DepthTexture,
   DoubleSide,
@@ -409,6 +409,44 @@ export class WaterDepthPass {
       standIn.visible = false;
     }
     for (const standIn of this.shown) standIn.visible = true;
+  }
+
+  /**
+   * Links the depth programs of every fluid in `fluids` before any of its
+   * water is in the scene. A stand-in's material is made when its first
+   * water mesh arrives, so a fluid first met in play (a lava lake the
+   * player walks up to) linked its two programs in that frame, and the
+   * GPU process's link held up the frame's next upload for 150-250 ms.
+   * Compiled the way {@link render} draws them: against this pass's own
+   * scene (no lights, no fog) with a render target bound.
+   */
+  compileFor(
+    renderer: WebGLRenderer,
+    camera: Camera,
+    fluids: Iterable<ShaderMaterial>,
+  ) {
+    const warm = new Scene();
+    warm.matrixWorldAutoUpdate = false;
+    const geometry = new BufferGeometry();
+    for (const water of fluids) {
+      for (const material of [
+        this.depthMaterialFor(water),
+        this.exitMaterialFor(water),
+      ]) {
+        const stand = new Mesh(geometry, material);
+        stand.frustumCulled = false;
+        warm.add(stand);
+      }
+    }
+    if (warm.children.length === 0) return;
+    const previousTarget = renderer.getRenderTarget();
+    renderer.setRenderTarget(this.targetOfSize(1, 1));
+    try {
+      renderer.compile(warm, camera, this.scene);
+    } finally {
+      renderer.setRenderTarget(previousTarget);
+      geometry.dispose();
+    }
   }
 
   dispose() {
