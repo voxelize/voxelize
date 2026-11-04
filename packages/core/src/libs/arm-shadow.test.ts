@@ -20,6 +20,7 @@ import {
   ENTITY_SHADOW_VERTEX_MAIN,
   ShaderLightingUniforms,
 } from "../core/world/entity-shadow-uniforms";
+import { LightCones } from "../core/world/light-cones";
 
 import { Arm } from "./arm";
 import { CanvasBox } from "./canvas-box";
@@ -88,6 +89,7 @@ function stubWorld(): World {
     },
     options: { maxLightLevel: 15 },
     csmRenderer: {},
+    lightCones: new LightCones(),
     localLights: {
       options: { maskKnee: 0.25 },
       blockLightOwnership: 0,

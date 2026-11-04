@@ -425,6 +425,11 @@ function makeDraw(
   }
 
   const mesh = new InstancedMesh(shape, material, capacity);
+  // `exemptFromLightCones` (@voxelize/core), by its key: particles are lit
+  // per instance on the CPU (block-light.ts), with no surface pass for a
+  // beam to shade, and too small to read one.
+  mesh.userData.lightConesExempt =
+    "particles: lit per instance on the CPU, too small to read a beam";
   mesh.instanceMatrix.setUsage(DynamicDrawUsage);
   mesh.frustumCulled = false;
   mesh.renderOrder = spec.renderOrder ?? 0;

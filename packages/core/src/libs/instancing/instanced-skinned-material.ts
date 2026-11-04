@@ -12,6 +12,7 @@ import {
   LIGHT_CONES_FUNCTIONS,
   LIGHT_CONES_SCATTER_FRAGMENT,
   LIGHT_CONES_UNIFORM_DECLARATIONS,
+  LightConeUniformBinding,
   LightConeUniforms,
   LightCones,
 } from "../../core/world/light-cones";
@@ -422,6 +423,33 @@ export function makeSharedEntityFogUniformBindings(): Record<
     uConeDirections: fog.lightCones.coneDirections,
     uConeColors: fog.lightCones.coneColors,
     uConeShapes: fog.lightCones.coneShapes,
+  };
+}
+
+let standInLightCones: LightCones | null = null;
+
+/**
+ * The page's light-cone uniforms (the shared entity block's), for a
+ * material outside the instanced pools that shades with the cones through
+ * `injectLightCones`. Before any world has set them, a cone-less stand-in,
+ * so a warmup compile still builds the same program.
+ */
+export function sharedLightConeBindings(): Record<
+  string,
+  LightConeUniformBinding
+> {
+  const cones = sharedEntityFogUniforms?.lightCones;
+  if (!cones) {
+    standInLightCones ??= new LightCones();
+    return standInLightCones.uniformBindings;
+  }
+  return {
+    uConeCount: cones.coneCount,
+    uConeOrigins: cones.coneOrigins,
+    uConeDirections: cones.coneDirections,
+    uConeColors: cones.coneColors,
+    uConeShapes: cones.coneShapes,
+    uConeScatterStyle: cones.coneScatterStyle,
   };
 }
 

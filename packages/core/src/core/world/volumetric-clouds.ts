@@ -30,6 +30,7 @@ import { Coords3 } from "../../types";
 
 import { ORDER_INDEPENDENT_KEY } from "./order-independent-transparency";
 import { SceneDepthCopy } from "./scene-depth-copy";
+import { exemptFromLightCones } from "./light-cones";
 import { markNeverCaster } from "./shadow-casters";
 import { createSkyFogFragment, SKY_FOG_UNIFORM_DECLARATIONS } from "./sky-fog";
 import { driftShift } from "./volumetric-clouds-drift";
@@ -178,6 +179,7 @@ export class VolumetricClouds extends Mesh<BufferGeometry, ShaderMaterial> {
     this.renderOrder = 999_999.25;
     this.visible = false;
     markNeverCaster(this);
+    exemptFromLightCones(this, "clouds sit far past any beam's reach");
 
     this.applyOptions();
     this.regenerate();

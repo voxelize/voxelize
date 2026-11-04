@@ -156,7 +156,7 @@ import { computeFogRange, type WorldFogRange } from "./fog-range";
 import { forwardDraws } from "./forward-draws";
 import { HeldServerUpdates } from "./held-server-updates";
 import { ItemDef, ItemRegistry } from "./items";
-import { LightCones } from "./light-cones";
+import { auditLightCones, LightCones } from "./light-cones";
 import {
   LightBatch,
   LightJob,
@@ -813,6 +813,13 @@ export class World<T = any> extends Scene implements NetIntercept {
    * uniforms at creation.
    */
   public lightCones = new LightCones();
+
+  /**
+   * Every drawn mesh in the world whose material neither takes the light
+   * cones nor is exempt from them: what a flashlight would leave dark.
+   * Empty when every lighting path is covered; the in-world gate for it.
+   */
+  auditLightCones = () => auditLightCones(this);
 
   /**
    * Local light emitters: block-anchored sources scanned out of chunks plus

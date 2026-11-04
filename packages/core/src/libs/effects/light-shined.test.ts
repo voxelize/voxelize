@@ -11,6 +11,7 @@ import {
 import { describe, expect, it } from "vitest";
 
 import type { World } from "../../core";
+import { isLightConesCovered, LightCones } from "../../core/world/light-cones";
 
 import { LightShined } from "./light-shined";
 
@@ -51,6 +52,7 @@ const makeWorld = (
     } as World["chunkRenderer"],
     options: { maxLightLevel: 15 } as World["options"],
     csmRenderer: {} as World["csmRenderer"],
+    lightCones: new LightCones(),
     localLights: {
       options: { maskKnee: 0.25 } as World["localLights"]["options"],
       blockLightOwnership: over.localLight ? 1 : 0,
@@ -329,7 +331,9 @@ describe("LightShined shared materials", () => {
     const copy = secondMesh.material as MeshBasicMaterial;
     copy.onBeforeCompile(shader as never, {} as never);
     expect(calls).toEqual(["own"]);
-    expect(shader.fragmentShader).toContain("diffuseColor.rgb *= lightEffect");
+    expect(shader.fragmentShader).toContain(
+      "diffuseColor.rgb *= lightConeLit(lightEffect)",
+    );
     expect((shader.uniforms as Record<string, unknown>).lightEffect).toBe(
       uniformsOf(second)[0],
     );
@@ -468,6 +472,33 @@ describe("LightShined detached subtrees", () => {
     scene.remove(entity);
     for (let i = 0; i < 5; i++) shined.update();
     expect(counter.raycasts).toBe(5);
+  });
+});
+
+describe("LightShined and the light cones", () => {
+  it("shines the world's flashlights on every material it lights", () => {
+    // A creature once stayed dark in a beam: its light
+    // came from here, the beam only from the chunk and instanced shaders.
+    const { world } = makeWorld();
+    const shined = new LightShined(world);
+    const material = new MeshBasicMaterial();
+    const root = new Object3D();
+    root.add(new Mesh(new BoxGeometry(), material));
+    shined.add(root);
+
+    const shader = {
+      uniforms: {} as Record<string, unknown>,
+      vertexShader:
+        "#include <common>\nvoid main() {\n#include <project_vertex>\n}",
+      fragmentShader:
+        "#include <common>\nvoid main() {\n#include <color_fragment>\n}",
+    };
+    material.onBeforeCompile(shader as never, {} as never);
+    expect(isLightConesCovered(material)).toBe(true);
+    expect(shader.uniforms.uConeCount).toBe(world.lightCones.uniforms.coneCount);
+    expect(shader.vertexShader).toContain("vLightConeWorld =");
+    expect(shader.fragmentShader).toContain("lightConeLit(lightEffect)");
+    expect(shader.fragmentShader).toContain("lightConeScatter(");
   });
 });
 

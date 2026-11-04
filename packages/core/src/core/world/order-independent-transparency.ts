@@ -29,6 +29,8 @@ import {
   ZeroFactor,
 } from "three";
 
+import { exemptFromLightCones } from "./light-cones";
+
 /**
  * The depth weight of a blended fragment, by its distance from the camera
  * in blocks: `scale / (1 + d / nearDistance + (d / farDistance)⁶)`,
@@ -430,6 +432,9 @@ export class OrderIndependentTransparency {
     this.close.name = "OrderIndependent.close";
     this.close.frustumCulled = false;
     this.close.renderOrder = OIT_CLOSE_RENDER_ORDER;
+    for (const pass of [this.open, this.split, this.close]) {
+      exemptFromLightCones(pass, "a full-screen compositing pass, no surface");
+    }
     this.close.onBeforeRender = (renderer, scene, camera) =>
       this.end(renderer, scene as Scene, camera);
     this.close.onAfterRender = () => this.compositeGeometry.setDrawRange(0, 0);

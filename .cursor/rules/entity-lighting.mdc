@@ -13,6 +13,16 @@ every lit thing that is not chunk geometry samples the voxel light field at its 
 - **particles**: `packages/particles/src/block-light.ts` computes the same composition on the CPU (sun, torch channels, water extinction) because particles are unlit. its constants mirror `WATER_OPTICS` and the chunk shader; change one, change the other, and keep a parity test on both.
 - shadows and fog: instanced materials take the shared entity shadow and fog uniform blocks rather than one copy per variant, so a frame's lighting is copied once.
 
+## every lit material takes every dynamic light
+
+a light that only some paths know about lights the ground and leaves the creature on it dark (a flashlight beam once did exactly that to every mob with its own material). the analytic local lights (held torches, flares) ride the CPU entity light above; the light cones (flashlights, headlights) are per pixel and need the shader:
+
+- `LightShined`'s hook already injects them, so a mesh it lights is covered by construction.
+- a material that lights itself (`lightEffectSetup`, its own `uVoxelLight` or instance light, a custom `ShaderMaterial`) calls `injectLightCones(shader, sharedLightConeBindings())` from its `onBeforeCompile`, shades with `lightConeLit(light)`, and calls `markLightConesCovered(material)`. a raw `ShaderMaterial` binds `lightCones.uniformBindings` and calls `lightConeSurface` itself.
+- what should not catch a beam (sky, clouds, full-screen passes, overlays, CPU-lit FX) says so: `exemptFromLightCones(materialOrObject, reason)`.
+- `world.auditLightCones()` lists every drawn mesh that is neither; it must come back empty; a consumer runs it in world as its gate.
+- a new kind of dynamic light joins the same paths: the CPU entity light (`composeEntityLight`) and the shared injector, never one material at a time.
+
 ## instanced skeletons use flat bones
 
 instanced skeletons (`BoneTextureManager` + an instanced skinned material) use FLAT bones: the shader applies each bone's matrix independently about that bone's `pivotOffset` (`out = pivot + M * (v - pivot)`). there is NO parent-child inheritance.

@@ -13,6 +13,7 @@ import { CanvasBox, CanvasBoxOptions } from "../../libs/canvas-box";
 import SkyFragmentShader from "../../shaders/sky/fragment.glsl?raw";
 import SkyVertexShader from "../../shaders/sky/vertex.glsl?raw";
 
+import { exemptFromLightCones } from "./light-cones";
 import { markNeverCaster } from "./shadow-casters";
 import {
   createSkyGlowStatements,
@@ -320,6 +321,7 @@ export class Sky extends CanvasBox {
     this.frustumCulled = false;
     this.renderOrder = -1;
     markNeverCaster(this);
+    exemptFromLightCones(this, "the sky: no beam reaches it");
 
     this.boxLayers.forEach((layer) => {
       layer.renderOrder = -1;

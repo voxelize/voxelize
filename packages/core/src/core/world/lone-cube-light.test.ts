@@ -6,6 +6,7 @@ import {
   loneCubeQuadFlips,
   type LoneCubeNeighborhood,
   relightLoneCube,
+  relightVoxelBox,
 } from "./lone-cube-light";
 import { computeQuadLightTwist } from "./quad-light";
 
@@ -230,5 +231,75 @@ describe("a lone cube lit as the mesher lights it", () => {
     expect(Array.from(words, (word) => word & 0xffff)).toEqual(
       new Array(24).fill(0),
     );
+  });
+});
+
+describe("a box of cubes lit as the cubes it is made of", () => {
+  /** A 2x1x1 box's top and bottom, each one greedy quad across both
+   * cubes. */
+  function mergedTopAndBottom(): Group {
+    const faces = [
+      { dir: [0, 1, 0], corners: CORNERS["0,1,0"] },
+      { dir: [0, -1, 0], corners: CORNERS["0,-1,0"] },
+    ];
+    const positions = faces.flatMap(({ corners }) =>
+      corners.flatMap(([x, y, z]) => [x * 2, y, z]),
+    );
+    const normals = faces.flatMap(({ dir }) => new Array(4).fill(dir).flat());
+    const geometry = new BufferGeometry();
+    geometry.setAttribute(
+      "position",
+      new BufferAttribute(new Float32Array(positions), 3),
+    );
+    geometry.setAttribute(
+      "normal",
+      new BufferAttribute(new Float32Array(normals), 3),
+    );
+    geometry.setAttribute("light", new BufferAttribute(new Int32Array(8), 1));
+    geometry.setIndex(
+      new BufferAttribute(
+        new Uint32Array([0, 1, 2, 2, 1, 3, 4, 5, 6, 6, 5, 7]),
+        1,
+      ),
+    );
+    const group = new Group();
+    group.add(new Mesh(geometry));
+    return group;
+  }
+
+  it("lights each corner of a merged face from its own cube's cell", () => {
+    const lit = (sun: number): LoneCubeNeighborhood => ({
+      isOpaque: () => false,
+      lights: () => [sun, 0, 0, 0],
+      isWet: () => false,
+    });
+    const asked: string[] = [];
+    const box = mergedTopAndBottom();
+    expect(
+      relightVoxelBox(box, (cell) => {
+        asked.push(cell.join(","));
+        return lit(cell[0] === 0 ? 15 : 3);
+      }),
+    ).toBe(2);
+    const words = (box.children[0] as Mesh).geometry.getAttribute("light")
+      .array as Int32Array;
+    // Corners at x = 0 (0, 2) belong to the first cube, x = 2 to the second.
+    expect(Array.from(words, (word) => (word >> 12) & 0xf)).toEqual([
+      15, 3, 15, 3, 3, 15, 3, 15,
+    ]);
+    expect(new Set(asked)).toEqual(new Set(["0,0,0", "1,0,0"]));
+  });
+
+  it("is the lone cube's light for a box of one", () => {
+    const one = boxOf();
+    const other = boxOf();
+    relightLoneCube(one, litCorner);
+    relightVoxelBox(other, () => litCorner);
+    const words = (group: Group) =>
+      Array.from(
+        (group.children[0] as Mesh).geometry.getAttribute("light")
+          .array as Int32Array,
+      );
+    expect(words(other)).toEqual(words(one));
   });
 });

@@ -22,6 +22,7 @@ import {
   Y_ROT_MAP_EIGHT,
   Y_ROT_MAP_FOUR,
 } from "../core/world/block";
+import { exemptFromLightCones } from "../core/world/light-cones";
 import { Coords3 } from "../types";
 import { ChunkUtils, MathUtils } from "../utils";
 
@@ -263,6 +264,7 @@ export class VoxelInteract extends Group {
       ...defaultOptions,
       ...options,
     });
+    exemptFromLightCones(this, "the block-selection overlay, not a surface");
 
     this.setup();
 

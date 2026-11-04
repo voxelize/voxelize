@@ -182,6 +182,25 @@ export function relightLoneCube(
   box: Object3D,
   cells: LoneCubeNeighborhood,
 ): number {
+  return relightVoxelBox(box, () => cells);
+}
+
+const quadCentre = new Vector3();
+const corners = [new Vector3(), new Vector3(), new Vector3(), new Vector3()];
+
+/**
+ * Relights a box of full opaque cubes moving as one (a layer of blocks
+ * falling, say) the way `relightLoneCube` relights one: each quad corner
+ * is lit as the cube it is a corner of, in the cell `cellsAt` describes for
+ * that cube's offset in the box. The neighborhood holds the box's other
+ * cubes as opaque, so a face between two of them stays dark and a corner
+ * beside one occludes. A greedy quad spanning several cubes is lit at its
+ * corners and blends between them, as any merged face does.
+ */
+export function relightVoxelBox(
+  box: Object3D,
+  cellsAt: (cell: readonly [number, number, number]) => LoneCubeNeighborhood,
+): number {
   // The cube's lowest corner, wherever the box laid its geometry out.
   lowest.set(Infinity, Infinity, Infinity);
   box.traverse((object) => {
@@ -224,20 +243,36 @@ export function relightLoneCube(
       }
       const aos = [0, 0, 0, 0];
       const lights = [0, 0, 0, 0];
+      quadCentre.set(0, 0, 0);
       for (let k = 0; k < 4; k++) {
-        corner
+        corners[k]
           .fromBufferAttribute(position, n + k)
           .applyMatrix4(placement)
-          .sub(lowest);
+          .sub(lowest)
+          .round();
+        quadCentre.add(corners[k]);
+      }
+      quadCentre.multiplyScalar(0.25);
+      let isWet = false;
+      for (let k = 0; k < 4; k++) {
+        // The cube this corner belongs to: a hair in from the corner toward
+        // the quad's middle, half a cell behind the face.
+        const at = corners[k];
+        const cell: [number, number, number] = [
+          Math.floor(at.x + (quadCentre.x - at.x) * 1e-3 - dir[0] * 0.5),
+          Math.floor(at.y + (quadCentre.y - at.y) * 1e-3 - dir[1] * 0.5),
+          Math.floor(at.z + (quadCentre.z - at.z) * 1e-3 - dir[2] * 0.5),
+        ];
+        const cells = cellsAt(cell);
         const lit = loneCubeCorner(
           dir,
-          [Math.round(corner.x), Math.round(corner.y), Math.round(corner.z)],
+          [at.x - cell[0], at.y - cell[1], at.z - cell[2]],
           cells,
         );
         aos[k] = lit.ao;
         lights[k] = lit.light;
+        if (k === 0) isWet = cells.isWet(dir[0], dir[1], dir[2]);
       }
-      const isWet = cells.isWet(dir[0], dir[1], dir[2]);
       for (let k = 0; k < 4; k++) {
         const old = words[n + k];
         const isEmissive = (old & EMISSIVE_BIT) !== 0;

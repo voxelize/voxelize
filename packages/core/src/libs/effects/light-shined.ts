@@ -5,6 +5,11 @@ import {
   composeEntityLight,
   EntityLightSample,
 } from "../../core/world/entity-light";
+import {
+  injectLightCones,
+  LightConeUniformBinding,
+  markLightConesCovered,
+} from "../../core/world/light-cones";
 import { blockLightFloodRemainder } from "../../core/world/local-lights";
 import {
   getDownwellingTransmittance,
@@ -77,6 +82,7 @@ const lightEffectHooks = new WeakMap<CompileHook, CompileHook | undefined>();
 const makeLightEffectHook = (
   base: CompileHook | undefined,
   lightUniform: { value: Color },
+  coneBindings: Record<string, LightConeUniformBinding>,
 ): CompileHook => {
   const hook: CompileHook = (shader, renderer) => {
     if (base) {
@@ -84,6 +90,9 @@ const makeLightEffectHook = (
     }
 
     shader.uniforms.lightEffect = lightUniform;
+    // Flashlights and headlights shine on what it lights, per pixel, the
+    // same as on the blocks around it.
+    injectLightCones(shader, coneBindings);
     shader.vertexShader = shader.vertexShader.replace(
       "void main() {",
       `
@@ -102,7 +111,7 @@ const makeLightEffectHook = (
       "#include <color_fragment>",
       `
           #include <color_fragment>
-          diffuseColor.rgb *= lightEffect;
+          diffuseColor.rgb *= lightConeLit(lightEffect);
           `,
     );
   };
@@ -398,7 +407,9 @@ export class LightShined {
     material.onBeforeCompile = makeLightEffectHook(
       baseOnBeforeCompile,
       lightUniform,
+      this.world.lightCones.uniformBindings,
     );
+    markLightConesCovered(material);
     material.needsUpdate = true;
     if (!root.userData.lightUniforms) {
       root.userData.lightUniforms = [];
