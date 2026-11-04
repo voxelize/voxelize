@@ -139,7 +139,7 @@ impl<'a> System<'a> for EntitiesSendingSystem {
                 physics.unregister(body_handle, collider_handle);
             }
 
-            deleted_entities.push((id.clone(), etype.clone(), metadata.clone()));
+            deleted_entities.push((id.clone(), etype.clone(), metadata.to_string()));
         }
 
         physics.entity_to_handlers = new_entity_handlers;
@@ -314,7 +314,7 @@ impl<'a> System<'a> for EntitiesSendingSystem {
                                 client_id,
                                 entity_id,
                                 etype,
-                                json_str.clone(),
+                                json_str.to_string(),
                                 false,
                                 0.0,
                                 now_ms,
@@ -394,7 +394,7 @@ impl<'a> System<'a> for EntitiesSendingSystem {
                                     client_id,
                                     entity_id,
                                     etype,
-                                    json_str.clone(),
+                                    json_str.to_string(),
                                     is_motion_fresh,
                                     distance_sq,
                                     now_ms,
@@ -453,7 +453,7 @@ impl<'a> System<'a> for EntitiesSendingSystem {
                         operation: EntityOperation::Create,
                         id: id.0.clone(),
                         r#type: etype.clone(),
-                        metadata: Some(json_str.clone()),
+                        metadata: Some(json_str.to_string()),
                         motion: None,
                     });
 
@@ -485,7 +485,7 @@ impl<'a> System<'a> for EntitiesSendingSystem {
                         operation: EntityOperation::Create,
                         id: entity_id.clone(),
                         r#type: etype.clone(),
-                        metadata: Some(json_str.clone()),
+                        metadata: Some(json_str.to_string()),
                         motion: None,
                     });
 

@@ -1,7 +1,15 @@
+use std::time::Instant;
+
 use specs::{ReadExpect, System, WriteExpect};
 
-use crate::{BackgroundChunkSaver, Chunks, WorldConfig};
+use crate::{
+    BackgroundChunkSaver, ChunkEviction, ChunkInterests, Chunks, Mesher, Pipeline, WorldConfig,
+};
 
+/// Chunk persistence: hands queued saves to the background saver, records
+/// which of them reached disk, and lets go of chunks nobody is near once
+/// what they hold is safe there ([`ChunkEviction`]). Eviction rides on this
+/// system because every dispatcher already runs it.
 pub struct ChunkSavingSystem;
 
 impl<'a> System<'a> for ChunkSavingSystem {
@@ -9,18 +17,39 @@ impl<'a> System<'a> for ChunkSavingSystem {
         ReadExpect<'a, WorldConfig>,
         WriteExpect<'a, Chunks>,
         ReadExpect<'a, BackgroundChunkSaver>,
+        ReadExpect<'a, ChunkInterests>,
+        WriteExpect<'a, Pipeline>,
+        WriteExpect<'a, Mesher>,
+        WriteExpect<'a, ChunkEviction>,
     );
 
     fn run(&mut self, data: Self::SystemData) {
-        let (config, mut chunks, bg_saver) = data;
+        let (config, mut chunks, bg_saver, interests, mut pipeline, mut mesher, mut eviction) =
+            data;
 
-        if !config.saving {
-            return;
+        for outcome in bg_saver.take_outcomes() {
+            chunks.note_save_outcome(&outcome);
         }
 
-        for save in chunks.take_pending_saves(config.max_saves_per_tick, config.max_save_retries) {
-            bg_saver.queue_save(save);
+        if config.saving {
+            for save in
+                chunks.take_pending_saves(config.max_saves_per_tick, config.max_save_retries)
+            {
+                let (coords, epoch) = (save.coords.clone(), save.epoch);
+                if bg_saver.queue_save(save) {
+                    chunks.note_save_in_flight(&coords, epoch);
+                }
+            }
         }
+
+        eviction.sweep(
+            Instant::now(),
+            &config,
+            &mut chunks,
+            &interests,
+            &mut pipeline,
+            &mut mesher,
+        );
     }
 }
 

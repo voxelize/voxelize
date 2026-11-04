@@ -334,7 +334,7 @@ impl World {
 
                     if let Some(ent) = self.revive_entity(&id, &etype, metadata.to_owned()) {
                         loaded_entities
-                            .insert(id.to_owned(), (etype, ent, metadata.to_string(), true));
+                            .insert(id.to_owned(), (etype, ent, metadata.to_string().into(), true));
                     } else {
                         quarantine_entity_file(
                             &folder,

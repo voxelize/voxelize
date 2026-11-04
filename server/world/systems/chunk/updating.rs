@@ -851,7 +851,13 @@ fn commit_batch(
             continue;
         }
 
+        // A batch of nothing but generator output leaves a clean chunk clean
+        // (`Chunks::generated_writes`).
+        let was_dirty = chunks.is_chunk_save_dirty(&coords);
+        let mut is_all_generated = true;
+
         for (voxel, raw, _lane) in chunk_updates {
+            is_all_generated &= chunks.take_generated_write(&voxel, raw);
             let Vec3(vx, vy, vz) = voxel;
             let raw = resolve_waterlogging(&*chunks, registry, &voxel, raw);
             let updated_id = BlockUtils::extract_id(raw);
@@ -998,6 +1004,12 @@ fn commit_batch(
                 voxel: 0,
                 light: 0,
             });
+        }
+
+        if !was_dirty && is_all_generated {
+            if let Some(chunk) = chunks.raw_mut(&coords) {
+                chunk.is_save_dirty = false;
+            }
         }
     }
 

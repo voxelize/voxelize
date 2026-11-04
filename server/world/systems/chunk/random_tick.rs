@@ -26,6 +26,20 @@ pub fn sample_random_ticks(
     config: &WorldConfig,
     current_tick: u64,
 ) -> usize {
+    sample_random_ticks_at(chunks, registry, interests, config, current_tick, current_tick)
+}
+
+/// One random-tick pass drawn as if at `sample_tick`, scheduling its hits at
+/// `due_tick`. Catch-up passes stand for earlier ticks: drawn at the current
+/// tick, they would land on exactly the positions the live pass just took.
+pub fn sample_random_ticks_at(
+    chunks: &mut Chunks,
+    registry: &Registry,
+    interests: &ChunkInterests,
+    config: &WorldConfig,
+    sample_tick: u64,
+    due_tick: u64,
+) -> usize {
     let speed = config.random_tick_speed;
     if speed == 0 {
         return 0;
@@ -48,7 +62,15 @@ pub fn sample_random_ticks(
     let mut samples_taken = 0usize;
 
     // Snapshot interested coords so we do not hold a borrow across mutation.
-    let interested: Vec<Vec2<i32>> = interests.map.keys().cloned().collect();
+    // Sorted, then started one chunk further along each tick: when the budget
+    // runs out mid-pass, the chunks it misses move on next tick instead of
+    // being the same ones, in hash order, every tick.
+    let mut interested: Vec<Vec2<i32>> = interests.map.keys().cloned().collect();
+    interested.sort_unstable_by_key(|coords| (coords.0, coords.1));
+    if !interested.is_empty() {
+        let start = (sample_tick % interested.len() as u64) as usize;
+        interested.rotate_left(start);
+    }
 
     for coords in interested {
         if samples_taken >= budget {
@@ -85,7 +107,7 @@ pub fn sample_random_ticks(
             for i in 0..n {
                 let (lx, ly_local, lz) = sample_position(
                     seed,
-                    current_tick,
+                    sample_tick,
                     coords.0,
                     coords.1,
                     section as u32,
@@ -111,7 +133,7 @@ pub fn sample_random_ticks(
                 // Schedule at current tick so the same ChunkUpdatingSystem pass
                 // (or the next pop) can run the updater. Earliest-deadline
                 // upsert means a copper neighbor wake still wins if sooner.
-                chunks.mark_voxel_active(&Vec3(vx, vy, vz), current_tick);
+                chunks.mark_voxel_active(&Vec3(vx, vy, vz), due_tick);
             }
         }
     }
@@ -410,5 +432,92 @@ mod tests {
 
         sample_random_ticks(&mut chunks, &registry, &interests, &config, 3);
         assert!(chunks.active_voxel_deadline(&Vec3(2, 2, 2)).is_none());
+    }
+
+    fn filled_chunk(cx: i32, id: u32) -> Chunk {
+        let mut chunk = ready_chunk(cx, 0, 16, 16, 1);
+        for x in 0..16 {
+            for y in 0..16 {
+                for z in 0..16 {
+                    assert!(chunk.set_raw_voxel(cx * 16 + x, y, z, BlockUtils::insert_id(0, id)));
+                }
+            }
+        }
+        chunk
+    }
+
+    /// A catch-up pass stands for an earlier tick: it lands on other cells
+    /// than the live pass just took, and still schedules them now.
+    #[test]
+    fn a_pass_drawn_at_an_earlier_tick_lands_elsewhere_and_is_due_now() {
+        let config = WorldConfig::new()
+            .chunk_size(16)
+            .max_height(16)
+            .sub_chunks(1)
+            .random_tick_speed(4)
+            .max_random_ticks_per_tick(4096)
+            .seed(1)
+            .build();
+        let mut registry = Registry::new();
+        registry.register_block(&growth_block(42));
+        let mut chunks = Chunks::new(&config);
+        chunks.add(filled_chunk(0, 42));
+        let mut interests = ChunkInterests::new();
+        interests.add("tester", &Vec2(0, 0));
+
+        let due_cells = |chunks: &Chunks| {
+            let mut due = 0;
+            for x in 0..16 {
+                for y in 0..16 {
+                    for z in 0..16 {
+                        if chunks.active_voxel_deadline(&Vec3(x, y, z)) == Some(10) {
+                            due += 1;
+                        }
+                    }
+                }
+            }
+            due
+        };
+        sample_random_ticks(&mut chunks, &registry, &interests, &config, 10);
+        let live = due_cells(&chunks);
+        sample_random_ticks_at(&mut chunks, &registry, &interests, &config, 10, 10);
+        assert_eq!(due_cells(&chunks), live, "the same tick redraws the same cells");
+        sample_random_ticks_at(&mut chunks, &registry, &interests, &config, 9, 10);
+        assert!(
+            due_cells(&chunks) > live,
+            "an earlier tick's pass adds cells, all due at the current tick"
+        );
+    }
+
+    /// When the budget covers fewer chunks than are interested, the ones it
+    /// misses change from tick to tick.
+    #[test]
+    fn a_short_budget_takes_turns_between_chunks() {
+        let config = WorldConfig::new()
+            .chunk_size(16)
+            .max_height(16)
+            .sub_chunks(1)
+            .random_tick_speed(1)
+            .max_random_ticks_per_tick(1)
+            .seed(1)
+            .build();
+        let mut registry = Registry::new();
+        registry.register_block(&Block::new("Inert").id(55).build());
+        let mut chunks = Chunks::new(&config);
+        chunks.add(filled_chunk(0, 55));
+        chunks.add(filled_chunk(1, 55));
+        chunks.watch.follow_samples(55);
+        let mut interests = ChunkInterests::new();
+        interests.add("tester", &Vec2(0, 0));
+        interests.add("tester", &Vec2(1, 0));
+
+        let sampled_chunk = |chunks: &mut Chunks, tick: u64| {
+            sample_random_ticks(chunks, &registry, &interests, &config, tick);
+            let changes = chunks.watch.take().changes;
+            assert_eq!(changes.len(), 1);
+            changes[0].voxel.0.div_euclid(16)
+        };
+        let firsts: Vec<i32> = (0..4).map(|tick| sampled_chunk(&mut chunks, tick)).collect();
+        assert_eq!(firsts, vec![0, 1, 0, 1]);
     }
 }

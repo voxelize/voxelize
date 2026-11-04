@@ -85,6 +85,17 @@ impl Mesher {
         self.map.contains(coords)
     }
 
+    /// Whether a mesh for these coords is running or due again. The queue is
+    /// not searched here; callers asking for many coords index it once.
+    pub(crate) fn is_carrying(&self, coords: &Vec2<i32>) -> bool {
+        self.map.contains(coords) || self.pending_remesh.contains(coords)
+    }
+
+    /// Forget an evicted chunk's retry count.
+    pub(crate) fn forget_evicted(&mut self, coords: &Vec2<i32>) {
+        self.stale_load_retries.remove(coords);
+    }
+
     /// A Load result landed for a chunk that was written to since its
     /// dispatch. Says whether to light it again from the live state (true)
     /// or to accept the stale result after `MAX_STALE_LOAD_RETRIES` relights

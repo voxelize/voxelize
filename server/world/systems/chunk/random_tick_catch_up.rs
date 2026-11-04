@@ -19,7 +19,7 @@ use hashbrown::{HashMap, HashSet};
 
 use crate::{ChunkInterests, Chunks, Registry, Vec2, WorldConfig};
 
-use super::sample_random_ticks;
+use super::random_tick::sample_random_ticks_at;
 
 /// Per-world bookkeeping for [`RandomTickCatchUp::observe`] and
 /// [`RandomTickCatchUp::pay`].
@@ -73,12 +73,17 @@ impl RandomTickCatchUp {
         extra_steps: u64,
         budget: usize,
     ) -> usize {
+        // Each pass is drawn at the tick it stands for. Drawn at the current
+        // tick, every pass repeated the live pass's positions, and a farm a
+        // player came back to grew nothing from its catch-up.
         let mut taken = 0;
-        for _ in 0..extra_steps {
+        for step in 1..=extra_steps {
             if taken >= budget {
                 return taken;
             }
-            let samples = sample_random_ticks(chunks, registry, interests, config, current_tick);
+            let at = current_tick.saturating_sub(step);
+            let samples =
+                sample_random_ticks_at(chunks, registry, interests, config, at, current_tick);
             if samples == 0 {
                 break;
             }
@@ -96,7 +101,9 @@ impl RandomTickCatchUp {
             single.add("random-tick-catch-up", &coords);
             let mut left = ticks;
             while left > 0 && taken < budget {
-                let samples = sample_random_ticks(chunks, registry, &single, config, current_tick);
+                let at = current_tick.saturating_sub(left);
+                let samples =
+                    sample_random_ticks_at(chunks, registry, &single, config, at, current_tick);
                 if samples == 0 {
                     left = 0;
                     break;

@@ -95,12 +95,22 @@ impl<'a> System<'a> for ChunkGeneratingSystem {
         /*                          HANDLING PIPELINE RESULTS                         */
         /* -------------------------------------------------------------------------- */
 
-        for (mut chunk, extra_changes) in pipeline.results() {
+        for (mut chunk, mut extra_changes) in pipeline.results() {
+            // A chunk generating again after an eviction already delivered
+            // this stage's writes to its neighbors the first time.
+            if let ChunkStatus::Generating(stage) = chunk.status {
+                if pipeline.is_delivered(&chunk.coords, stage) {
+                    extra_changes.clear();
+                }
+            }
+
             for (voxel, id) in extra_changes {
                 let coords = ChunkUtils::map_voxel_to_chunk(voxel.0, voxel.1, voxel.2, chunk_size);
 
                 if chunks.is_chunk_ready(&coords) {
-                    chunks.update_voxel(&voxel, id);
+                    let write = [(voxel, id)];
+                    chunks.update_generated_voxels(&write);
+                    pipeline.absorb_writes(&coords, &write);
                 } else if mesher.has_chunk(&coords) {
                     // The target's Load pass is lighting a clone taken at
                     // dispatch. As a leftover this write would be baked in
@@ -463,7 +473,8 @@ impl<'a> System<'a> for ChunkGeneratingSystem {
             // edit, instead of being baked in raw and never shown.
             if !is_updating {
                 if let Some(writes) = pipeline.deferred.remove(&coords) {
-                    chunks.update_voxels(&writes);
+                    chunks.update_generated_voxels(&writes);
+                    pipeline.absorb_writes(&coords, &writes);
                 }
             }
         }
@@ -566,7 +577,8 @@ impl<'a> System<'a> for ChunkGeneratingSystem {
                     // (possible only when it was loaded from disk after the
                     // park) is an edit, never a raw write.
                     if let Some(blocks) = pipeline.leftovers.remove(&n_coords) {
-                        chunks.update_voxels(&blocks);
+                        chunks.update_generated_voxels(&blocks);
+                        pipeline.absorb_writes(&n_coords, &blocks);
                     }
                     continue;
                 }
@@ -600,7 +612,7 @@ impl<'a> System<'a> for ChunkGeneratingSystem {
                 continue;
             }
 
-            pipeline.leftovers.remove(&coords);
+            pipeline.absorb_leftovers(&coords);
 
             let chunk = chunks.raw(&coords).unwrap().clone();
             ready_chunks.push((coords, chunk));

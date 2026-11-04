@@ -1,5 +1,5 @@
 use byteorder::{ByteOrder, LittleEndian};
-use crossbeam_channel::{bounded, Receiver, Sender, TryRecvError};
+use crossbeam_channel::{bounded, unbounded, Receiver, Sender, TryRecvError};
 use hashbrown::HashMap;
 use libflate::zlib::Encoder;
 use log::warn;
@@ -36,10 +36,25 @@ pub struct ChunkSaveData {
     pub chunk_id: String,
     pub voxels: Vec<u32>,
     pub height_map: Vec<u32>,
+    /// The chunk's `write_epoch` when these bytes were taken: what landing
+    /// them on disk proves persisted.
+    pub epoch: u64,
+}
+
+/// What became of a save handed to the background thread.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ChunkSaveOutcome {
+    pub coords: Vec2<i32>,
+    pub epoch: u64,
+    pub is_written: bool,
 }
 
 pub struct BackgroundChunkSaver {
     sender: Sender<ChunkSaveData>,
+    /// One outcome per save that reached disk or failed to. A save replaced by
+    /// a newer one for the same chunk before its flush reports nothing; the
+    /// newer one's outcome covers it.
+    outcomes: Receiver<ChunkSaveOutcome>,
     shutdown: Arc<AtomicBool>,
     handle: Option<JoinHandle<()>>,
 }
@@ -47,12 +62,13 @@ pub struct BackgroundChunkSaver {
 impl BackgroundChunkSaver {
     pub fn new(folder: Option<PathBuf>) -> Self {
         let (sender, receiver) = bounded::<ChunkSaveData>(5000);
+        let (outcome_sender, outcomes) = unbounded::<ChunkSaveOutcome>();
         let shutdown = Arc::new(AtomicBool::new(false));
 
         let handle = if let Some(folder) = folder {
             let shutdown_clone = shutdown.clone();
             Some(thread::spawn(move || {
-                Self::background_save_loop(receiver, folder, shutdown_clone);
+                Self::background_save_loop(receiver, outcome_sender, folder, shutdown_clone);
             }))
         } else {
             None
@@ -60,6 +76,7 @@ impl BackgroundChunkSaver {
 
         Self {
             sender,
+            outcomes,
             shutdown,
             handle,
         }
@@ -67,6 +84,7 @@ impl BackgroundChunkSaver {
 
     fn background_save_loop(
         receiver: Receiver<ChunkSaveData>,
+        outcomes: Sender<ChunkSaveOutcome>,
         folder: PathBuf,
         shutdown: Arc<AtomicBool>,
     ) {
@@ -86,21 +104,31 @@ impl BackgroundChunkSaver {
                     thread::sleep(Duration::from_millis(5));
                 }
                 Err(TryRecvError::Disconnected) => {
-                    Self::flush_pending(&mut pending, &folder);
+                    Self::flush_pending(&mut pending, &folder, &outcomes);
                     break;
                 }
             }
 
             if last_flush.elapsed() >= flush_interval && !pending.is_empty() {
-                Self::flush_pending(&mut pending, &folder);
+                Self::flush_pending(&mut pending, &folder, &outcomes);
                 last_flush = Instant::now();
             }
         }
     }
 
-    fn flush_pending(pending: &mut HashMap<Vec2<i32>, ChunkSaveData>, folder: &PathBuf) {
+    fn flush_pending(
+        pending: &mut HashMap<Vec2<i32>, ChunkSaveData>,
+        folder: &PathBuf,
+        outcomes: &Sender<ChunkSaveOutcome>,
+    ) {
         for (_, data) in pending.drain() {
-            Self::save_chunk_to_disk(&data, folder);
+            let is_written = Self::save_chunk_to_disk(&data, folder);
+            // Nobody listening (the world is going away) is not an error.
+            let _ = outcomes.send(ChunkSaveOutcome {
+                coords: data.coords,
+                epoch: data.epoch,
+                is_written,
+            });
         }
     }
 
@@ -114,14 +142,14 @@ impl BackgroundChunkSaver {
         base64::encode(&encoded)
     }
 
-    fn save_chunk_to_disk(data: &ChunkSaveData, folder: &PathBuf) {
+    fn save_chunk_to_disk(data: &ChunkSaveData, folder: &PathBuf) -> bool {
         if let Err(e) = fs::create_dir_all(folder) {
             warn!(
                 "Failed to create chunks directory {}: {}",
                 folder.display(),
                 e
             );
-            return;
+            return false;
         }
 
         let file_data = ChunkFileData {
@@ -135,7 +163,7 @@ impl BackgroundChunkSaver {
             Ok(j) => j,
             Err(e) => {
                 warn!("Failed to serialize chunk data: {}", e);
-                return;
+                return false;
             }
         };
 
@@ -151,31 +179,43 @@ impl BackgroundChunkSaver {
                     tmp_path.display(),
                     e
                 );
-                return;
+                return false;
             }
         };
 
         if file.write_all(json_data.as_bytes()).is_err() {
             let _ = fs::remove_file(&tmp_path);
-            return;
+            return false;
         }
 
         if file.sync_all().is_err() {
             let _ = fs::remove_file(&tmp_path);
-            return;
+            return false;
         }
 
         drop(file);
 
         if fs::rename(&tmp_path, &path).is_err() {
             let _ = fs::remove_file(&tmp_path);
+            return false;
         }
+
+        true
     }
 
-    pub fn queue_save(&self, data: ChunkSaveData) {
+    /// Hand a save to the background thread. Returns whether it was taken: a
+    /// full queue refuses it, and the chunk stays unsaved until queued again.
+    pub fn queue_save(&self, data: ChunkSaveData) -> bool {
         if let Err(e) = self.sender.try_send(data) {
             warn!("Failed to queue chunk save: {}", e);
+            return false;
         }
+        true
+    }
+
+    /// Outcomes of the saves the background thread finished since last asked.
+    pub fn take_outcomes(&self) -> Vec<ChunkSaveOutcome> {
+        self.outcomes.try_iter().collect()
     }
 }
 

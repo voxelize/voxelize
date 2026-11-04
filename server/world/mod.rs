@@ -115,6 +115,8 @@ mod accessors;
 mod client_body;
 mod dispatcher;
 mod handles;
+#[cfg(test)]
+mod eviction_tests;
 mod inbound;
 #[cfg(test)]
 mod lag_comp_wiring_tests;
@@ -460,6 +462,7 @@ impl World {
             chunks.folder().cloned()
         };
         ecs.insert(BackgroundChunkSaver::new(chunk_folder));
+        ecs.insert(ChunkEviction::default());
         ecs.insert(Stats::new(
             config.saving,
             &config.save_dir,

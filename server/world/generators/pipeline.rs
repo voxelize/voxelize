@@ -260,6 +260,19 @@ pub struct Pipeline {
     /// A map of leftover changes from processing chunk stages.
     pub(crate) leftovers: HashMap<Vec2<i32>, Vec<VoxelUpdate>>,
 
+    /// The leftovers each resident chunk took in when it meshed. A generated
+    /// chunk that is evicted gives them back to `leftovers`: the neighbors
+    /// that wrote them do not write them again ([`Pipeline::delivered`]), so
+    /// without them it would come back with half a tree at its border.
+    absorbed: HashMap<Vec2<i32>, Vec<VoxelUpdate>>,
+
+    /// Chunks evicted since the world started, with how many of their stages
+    /// had run. Those stages' cross-chunk writes already reached every target
+    /// (an edit to a ready one, a leftover for the rest), so running them
+    /// again must not write them twice: once over a player's edit, a broken
+    /// leaf or mined ore would come back.
+    delivered: HashMap<Vec2<i32>, usize>,
+
     /// Stage writes aimed at a chunk whose Load pass is in flight. The pass
     /// lit a clone taken at dispatch, so a write landing now would be baked
     /// in raw, unlit and unsent (a leftover); these are replayed through
@@ -299,6 +312,8 @@ impl Pipeline {
             receiver: Arc::new(receiver),
             chunks: HashSet::new(),
             leftovers: HashMap::new(),
+            absorbed: HashMap::new(),
+            delivered: HashMap::new(),
             deferred: HashMap::new(),
             pending_regenerate: HashSet::new(),
             released: HashSet::new(),
@@ -315,6 +330,8 @@ impl Pipeline {
         self.chunks.clear();
         self.queue.clear();
         self.leftovers.clear();
+        self.absorbed.clear();
+        self.delivered.clear();
         self.deferred.clear();
         self.pending_regenerate.clear();
         self.released.clear();
@@ -459,6 +476,63 @@ impl Pipeline {
     /// pass starts with a clean slate and parks again if nobody asks.
     pub(crate) fn clear_demand(&mut self, coords: &Vec2<i32>) {
         self.demanded.remove(coords);
+    }
+
+    /// A chunk is meshing: the leftovers parked for it are now part of its
+    /// voxels, kept aside in case it is evicted and generated again.
+    pub(crate) fn absorb_leftovers(&mut self, coords: &Vec2<i32>) {
+        if let Some(blocks) = self.leftovers.remove(coords) {
+            self.absorbed.entry(coords.to_owned()).or_default().extend(blocks);
+        }
+    }
+
+    /// Generator output written into this chunk after it was ready, kept with
+    /// its absorbed leftovers for the same reason.
+    pub(crate) fn absorb_writes(&mut self, coords: &Vec2<i32>, writes: &[VoxelUpdate]) {
+        self.absorbed
+            .entry(coords.to_owned())
+            .or_default()
+            .extend(writes.iter().cloned());
+    }
+
+    /// Whether the cross-chunk writes of stage `stage` for these coords were
+    /// already delivered before the chunk was evicted.
+    pub(crate) fn is_delivered(&self, coords: &Vec2<i32>, stage: usize) -> bool {
+        self.delivered.get(coords).is_some_and(|stages| stage < *stages)
+    }
+
+    /// Whether anything in flight or waiting to run again still names these
+    /// coords, which then must stay resident. The queue is not searched here;
+    /// callers asking for many coords index it once.
+    pub(crate) fn is_carrying(&self, coords: &Vec2<i32>) -> bool {
+        self.chunks.contains(coords)
+            || self.released.contains(coords)
+            || self.demanded.contains(coords)
+            || self.pending_regenerate.contains(coords)
+            || self.deferred.contains_key(coords)
+    }
+
+    /// Forget an evicted chunk. `stages_run` of its stages had delivered
+    /// their cross-chunk writes; `is_regenerated` says whether it will come
+    /// back through generation rather than from a save, in which case the
+    /// leftovers it absorbed go back to wait for it.
+    pub(crate) fn forget_evicted(
+        &mut self,
+        coords: &Vec2<i32>,
+        stages_run: usize,
+        is_regenerated: bool,
+    ) {
+        self.dropped.remove(coords);
+        let delivered = self.delivered.entry(coords.to_owned()).or_insert(0);
+        *delivered = (*delivered).max(stages_run);
+        let absorbed = self.absorbed.remove(coords);
+        if let Some(mut blocks) = absorbed.filter(|_| is_regenerated) {
+            // Absorbed first, then anything written for it since.
+            if let Some(newer) = self.leftovers.remove(coords) {
+                blocks.extend(newer);
+            }
+            self.leftovers.insert(coords.to_owned(), blocks);
+        }
     }
 
     /// Remove a chunk coordinate from the pipeline.

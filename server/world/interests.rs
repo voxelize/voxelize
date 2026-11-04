@@ -47,6 +47,19 @@ impl ChunkInterests {
         self.map.contains_key(coords)
     }
 
+    /// Whether any client is interested in a chunk within `radius` chunks
+    /// (a square) of `center`.
+    pub fn has_interests_within(&self, center: &Vec2<i32>, radius: i32) -> bool {
+        for dx in -radius..=radius {
+            for dz in -radius..=radius {
+                if self.has_interests(&Vec2(center.0 + dx, center.1 + dz)) {
+                    return true;
+                }
+            }
+        }
+        false
+    }
+
     pub fn has_interests_in_region(&self, center: &Vec2<i32>) -> bool {
         for dx in -1..=1 {
             for dz in -1..=1 {

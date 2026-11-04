@@ -1,6 +1,7 @@
 #[cfg(test)]
 mod branch_waterlog_tests;
 mod current;
+mod evicting;
 mod generating;
 mod random_tick;
 mod random_tick_catch_up;
@@ -12,8 +13,9 @@ mod state_bits_tests;
 mod updating;
 
 pub use current::CurrentChunkSystem;
+pub use evicting::{keep_radius, ChunkEviction, ChunkEvictionStats};
 pub use generating::ChunkGeneratingSystem;
-pub use random_tick::sample_random_ticks;
+pub use random_tick::{sample_random_ticks, sample_random_ticks_at};
 pub use random_tick_catch_up::RandomTickCatchUp;
 pub use requests::ChunkRequestsSystem;
 pub use saving::ChunkSavingSystem;

@@ -126,6 +126,19 @@ pub struct WorldConfig {
     /// waits it out instead of losing the save. Only applies if `saving` is true.
     pub max_save_retries: usize,
 
+    /// How long a chunk must sit outside every client's interest (plus its
+    /// light ring) before the server lets it go, in milliseconds. A chunk that
+    /// comes back is read from disk or generated again, so this trades memory
+    /// for the cost of a revisit. `0` keeps every chunk for the life of the
+    /// world. Default is 60 seconds.
+    pub chunk_eviction_idle_ms: u64,
+
+    /// Resident chunks past which idle chunks are let go oldest first without
+    /// waiting out `chunk_eviction_idle_ms`. Chunks a client can see, edits not
+    /// yet on disk and work in flight are never evicted, so this is a backstop,
+    /// not a hard limit. `0` disables it. Default is 4096 (about 2 GB).
+    pub max_resident_chunks: usize,
+
     /// The amount of ticks per day. Default is 24000 ticks.
     pub time_per_day: u64,
 
@@ -364,6 +377,8 @@ const DEFAULT_MAX_SAVES_PER_TICK: usize = 2;
 /// of ticks, so a save that still cannot read its chunk a full second later
 /// (at the nominal 60Hz tick) is wedged rather than merely waiting.
 const DEFAULT_MAX_SAVE_RETRIES: usize = 60;
+const DEFAULT_CHUNK_EVICTION_IDLE_MS: u64 = 60_000;
+const DEFAULT_MAX_RESIDENT_CHUNKS: usize = 4096;
 const DEFAULT_TICKS_PER_DAY: u64 = 24000;
 const DEFAULT_WATER_LEVEL: usize = 86;
 const DEFAULT_SEED: u32 = 123123123;
@@ -422,6 +437,8 @@ pub struct WorldConfigBuilder {
     max_response_per_tick: usize,
     max_saves_per_tick: usize,
     max_save_retries: usize,
+    chunk_eviction_idle_ms: u64,
+    max_resident_chunks: usize,
     time_per_day: u64,
     water_level: usize,
     seed: u32,
@@ -496,6 +513,8 @@ impl WorldConfigBuilder {
             max_response_per_tick: DEFAULT_MAX_RESPONSE_PER_TICK,
             max_saves_per_tick: DEFAULT_MAX_SAVES_PER_TICK,
             max_save_retries: DEFAULT_MAX_SAVE_RETRIES,
+            chunk_eviction_idle_ms: DEFAULT_CHUNK_EVICTION_IDLE_MS,
+            max_resident_chunks: DEFAULT_MAX_RESIDENT_CHUNKS,
             time_per_day: DEFAULT_TICKS_PER_DAY,
             water_level: DEFAULT_WATER_LEVEL,
             seed: DEFAULT_SEED,
@@ -731,6 +750,20 @@ impl WorldConfigBuilder {
     /// unreadable before the entry is dropped and reported as an error.
     pub fn max_save_retries(mut self, max_save_retries: usize) -> Self {
         self.max_save_retries = max_save_retries;
+        self
+    }
+
+    /// Configure how long a chunk nobody is near stays resident before it is
+    /// evicted, in milliseconds. `0` never evicts. Default is 60 seconds.
+    pub fn chunk_eviction_idle_ms(mut self, chunk_eviction_idle_ms: u64) -> Self {
+        self.chunk_eviction_idle_ms = chunk_eviction_idle_ms;
+        self
+    }
+
+    /// Configure the resident chunk count past which idle chunks are evicted
+    /// without waiting out the idle time. `0` disables it. Default is 4096.
+    pub fn max_resident_chunks(mut self, max_resident_chunks: usize) -> Self {
+        self.max_resident_chunks = max_resident_chunks;
         self
     }
 
@@ -1000,6 +1033,8 @@ impl WorldConfigBuilder {
             max_response_per_tick: self.max_response_per_tick,
             max_saves_per_tick: self.max_saves_per_tick,
             max_save_retries: self.max_save_retries,
+            chunk_eviction_idle_ms: self.chunk_eviction_idle_ms,
+            max_resident_chunks: self.max_resident_chunks,
             time_per_day: self.time_per_day,
             water_level: self.water_level,
             seed: self.seed,

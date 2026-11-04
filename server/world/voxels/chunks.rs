@@ -21,7 +21,7 @@ use crate::{
 
 use super::{
     access::VoxelAccess,
-    background_chunk_saver::{ChunkSaveData, CHUNK_FILE_VERSION},
+    background_chunk_saver::{ChunkSaveData, ChunkSaveOutcome, CHUNK_FILE_VERSION},
     chunk::{Chunk, ChunkRenewal},
     space::{SpaceBuilder, SpaceOptions},
     watch::VoxelWatch,
@@ -49,7 +49,7 @@ impl PartialOrd for ActiveVoxel {
 /// has spent unreadable so far. Entries only ever leave this queue by being
 /// saved or by exhausting `max_save_retries`, which is reported as an error.
 pub(crate) struct PendingChunkSave {
-    coords: Vec2<i32>,
+    pub(crate) coords: Vec2<i32>,
     attempts: usize,
 }
 
@@ -228,6 +228,23 @@ pub struct Chunks {
     /// A list of chunks that are done meshing and ready to be saved, if `config.save` is true.
     pub(crate) to_save: VecDeque<PendingChunkSave>,
 
+    /// Saves handed to the background saver and not yet reported back, with
+    /// the `write_epoch` each carried. Their bytes are not on disk yet, so a
+    /// chunk listed here is never evicted.
+    pub(crate) saves_in_flight: HashMap<Vec2<i32>, u64>,
+
+    /// The `write_epoch` of each resident chunk's newest save that reached
+    /// disk. A dirty chunk whose live epoch still matches holds nothing its
+    /// file lacks, so it can be evicted and read back.
+    pub(crate) persisted_epochs: HashMap<Vec2<i32>, u64>,
+
+    /// Generator output headed for chunks that were already ready (a
+    /// neighbor's later stage reaching over the border), queued on the
+    /// external lane so it is lit and sent like an edit. In a world that does
+    /// not save it is not one: a revisit regenerates it, so committing it
+    /// leaves the chunk as clean as it was and free to be evicted.
+    pub(crate) generated_writes: HashMap<Vec3<i32>, u32>,
+
     pub(crate) active_voxel_heap: BinaryHeap<Reverse<ActiveVoxel>>,
     pub(crate) active_voxel_set: HashMap<Vec3<i32>, u64>,
 
@@ -333,6 +350,10 @@ impl ChunkActivation {
     pub fn cancel(&mut self, coords: &Vec2<i32>) {
         self.delivery.remove(coords);
     }
+    /// Whether an activation for these coords is pending or not yet released.
+    pub fn is_tracking(&self, coords: &Vec2<i32>) -> bool {
+        self.delivery.contains_key(coords)
+    }
     pub fn clear(&mut self) {
         self.pending.clear();
         self.delivery.clear();
@@ -392,6 +413,9 @@ impl Chunks {
         self.updates_staging.clear();
         self.to_send.clear();
         self.to_save.clear();
+        self.saves_in_flight.clear();
+        self.persisted_epochs.clear();
+        self.generated_writes.clear();
         self.active_voxel_heap.clear();
         self.active_voxel_set.clear();
         self.overdue_active_voxels.clear();
@@ -660,7 +684,53 @@ impl Chunks {
             chunk_id: chunk.id.clone(),
             voxels: chunk.voxels.data.clone(),
             height_map: chunk.height_map.data.clone(),
+            epoch: chunk.write_epoch,
         })
+    }
+
+    /// A save of `coords` taken at `epoch` was handed to the background saver.
+    pub(crate) fn note_save_in_flight(&mut self, coords: &Vec2<i32>, epoch: u64) {
+        self.saves_in_flight.insert(coords.to_owned(), epoch);
+    }
+
+    /// The background saver finished a save. A newer save of the same chunk
+    /// still in flight keeps the chunk listed; a written one records its epoch.
+    pub(crate) fn note_save_outcome(&mut self, outcome: &ChunkSaveOutcome) {
+        let ChunkSaveOutcome {
+            coords,
+            epoch,
+            is_written,
+        } = outcome;
+        if self
+            .saves_in_flight
+            .get(coords)
+            .is_some_and(|in_flight| in_flight <= epoch)
+        {
+            self.saves_in_flight.remove(coords);
+        }
+        if *is_written && self.map.contains_key(coords) {
+            let persisted = self.persisted_epochs.entry(coords.to_owned()).or_insert(*epoch);
+            *persisted = (*persisted).max(*epoch);
+        }
+    }
+
+    /// Whether the newest save of this chunk on disk holds everything the
+    /// live chunk does.
+    pub(crate) fn is_persisted(&self, coords: &Vec2<i32>) -> bool {
+        self.raw(coords).is_some_and(|chunk| {
+            !chunk.is_save_dirty || self.persisted_epochs.get(coords) == Some(&chunk.write_epoch)
+        })
+    }
+
+    /// Drop a resident chunk and every entry this map keeps for it. The caller
+    /// has checked nothing still needs it (`systems::chunk::evicting`); the
+    /// next request for these coords reads the save or generates again.
+    pub(crate) fn evict(&mut self, coords: &Vec2<i32>) -> Option<Chunk> {
+        let chunk = self.map.remove(coords)?;
+        self.freshly_created.remove(coords);
+        self.persisted_epochs.remove(coords);
+        self.cache.remove(coords);
+        Some(chunk)
     }
 
     /// Take up to `max_saves` chunks off the save queue, prepared for the
@@ -1066,6 +1136,23 @@ impl Chunks {
         for (voxel, val) in voxels {
             self.update_voxel(voxel, *val);
         }
+    }
+
+    /// Queue generator output for chunks that are already ready. See
+    /// `generated_writes`.
+    pub(crate) fn update_generated_voxels(&mut self, voxels: &[(Vec3<i32>, u32)]) {
+        for (voxel, val) in voxels {
+            if !self.config.saving {
+                self.generated_writes.insert(voxel.to_owned(), *val);
+            }
+            self.update_voxel(voxel, *val);
+        }
+    }
+
+    /// Whether this committed write is the generator's: the value queued by
+    /// `update_generated_voxels` and not replaced by another write since.
+    pub(crate) fn take_generated_write(&mut self, voxel: &Vec3<i32>, raw: u32) -> bool {
+        self.generated_writes.remove(voxel) == Some(raw)
     }
 
     /// Queue a write produced by the world's own simulation (an active

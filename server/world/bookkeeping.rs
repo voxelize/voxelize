@@ -1,3 +1,5 @@
+use std::sync::Arc;
+
 use hashbrown::HashMap;
 use specs::Entity;
 
@@ -6,7 +8,7 @@ use crate::{EntityInterests, QuantizedMotion, Vec3};
 #[derive(Default)]
 pub struct Bookkeeping {
     // id -> (etype, entity, serialized_metadata, persisted)
-    pub(crate) entities: HashMap<String, (String, Entity, String, bool)>,
+    pub(crate) entities: HashMap<String, (String, Entity, Arc<str>, bool)>,
     // entity_id -> position, refreshed by the entities-sending system each tick
     pub(crate) entity_positions: HashMap<String, Vec3<f32>>,
     // entity_id -> last quantized motion sample, the motion lane's change

@@ -1,4 +1,4 @@
-use crate::{between, Registry, Vec3, VoxelAccess};
+use crate::{between, BlockUtils, Registry, Vec3, VoxelAccess};
 
 use super::aabb::AABB;
 
@@ -191,13 +191,17 @@ pub fn sweep(
     for vx in (min_x as i32)..=(max_x as i32) {
         for vz in (min_z as i32)..=(max_z as i32) {
             for vy in (min_y as i32)..=(max_y as i32) {
-                let id = space.get_voxel(vx, vy, vz);
-                let block = registry.get_block_by_id(id);
-                let rotation = block.rotation_of(space.get_raw_voxel(vx, vy, vz));
+                // One raw read serves both the id and the rotation: every
+                // body in every physics step sweeps through here, and the
+                // id read was a second chunk lookup for the same voxel.
+                let raw = space.get_raw_voxel(vx, vy, vz);
+                let block = registry.get_block_by_id(BlockUtils::extract_id(raw));
 
                 if block.is_fluid || block.is_empty || block.is_passable {
                     continue;
                 }
+
+                let rotation = block.rotation_of(raw);
 
                 let aabbs = block.get_aabbs(&Vec3(vx, vy, vz), space, registry);
 

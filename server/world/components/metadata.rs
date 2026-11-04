@@ -1,3 +1,5 @@
+use std::sync::Arc;
+
 use hashbrown::HashMap;
 use serde::{de::DeserializeOwned, Deserialize, Serialize};
 use serde_json::{json, Value};
@@ -16,9 +18,10 @@ const TARGET_POSITION_FIELD: &str = "position";
 
 /// One tick's replication view of an entity's metadata: the full map (CREATE
 /// snapshots, persistence, legacy clients) plus the non-motion subset's
-/// change state (compact clients' metadata lane).
+/// change state (compact clients' metadata lane). The full JSON is shared,
+/// not copied: an unchanged entity hands every tick the same string.
 pub struct MetadataSnapshot {
-    pub full_json: String,
+    pub full_json: Arc<str>,
     pub is_full_updated: bool,
     /// The non-motion subset JSON without the world's on-request keys
     /// (`WorldConfig::on_request_metadata_keys`), present only when it
@@ -29,26 +32,96 @@ pub struct MetadataSnapshot {
     pub updated_requested_non_motion_json: Option<String>,
 }
 
+/// One metadata key as the last snapshot serialized it.
+#[derive(Debug, Clone)]
+struct KeyFragment {
+    value: Value,
+    /// The key, JSON-escaped.
+    key_json: String,
+    /// The value's JSON.
+    json: String,
+    /// `target` only: the JSON with the motion-lane position stripped.
+    non_motion_json: Option<String>,
+    /// The metadata version at which the value last changed.
+    changed_at: u64,
+    /// The version at which what the metadata lanes carry of it changed:
+    /// `changed_at`, except for `target`, whose position alone moving is
+    /// not a metadata-lane change.
+    non_motion_changed_at: u64,
+}
+
+impl KeyFragment {
+    fn new(key: &str, value: &Value, version: u64) -> Self {
+        let non_motion_json = match value {
+            Value::Object(target) if key == TARGET_METADATA_KEY => {
+                let mut stripped = target.clone();
+                stripped.remove(TARGET_POSITION_FIELD);
+                Some(serde_json::to_string(&stripped).unwrap())
+            }
+            _ => None,
+        };
+        Self {
+            value: value.clone(),
+            key_json: serde_json::to_string(key).unwrap(),
+            json: serde_json::to_string(value).unwrap(),
+            non_motion_json,
+            changed_at: version,
+            non_motion_changed_at: version,
+        }
+    }
+
+    /// Take a changed value at `version`, keeping `non_motion_changed_at`
+    /// when the metadata lanes' view of it is the same.
+    fn update(&mut self, key: &str, value: &Value, version: u64) {
+        let previous_non_motion = self.non_motion_json.take();
+        let previous_changed_at = self.non_motion_changed_at;
+        *self = Self::new(key, value, version);
+        if previous_non_motion.is_some() && previous_non_motion == self.non_motion_json {
+            self.non_motion_changed_at = previous_changed_at;
+        }
+    }
+}
+
 /// A list of chunks that the entity is requesting to generate.
 #[derive(Debug, Default, Component, Serialize, Deserialize, Clone)]
 #[storage(VecStorage)]
 pub struct MetadataComp {
     pub map: HashMap<String, Value>,
 
-    /// The last JSON snapshot emitted by `to_cached_str`, used to detect changes.
+    /// Every key's value as last serialized, with its JSON. A snapshot
+    /// compares values against these and re-serializes only the keys that
+    /// changed: an entity whose metadata holds still costs a comparison,
+    /// not a full JSON write, every tick.
     #[serde(skip_serializing)]
     #[serde(skip_deserializing)]
-    last_emitted_json: Option<String>,
+    fragments: HashMap<String, KeyFragment>,
+
+    /// Counts changes to the fragments; each lane remembers the version it
+    /// last emitted at, so it is rebuilt only when one of its own keys
+    /// changed since, whoever else read the metadata in between.
+    #[serde(skip_serializing)]
+    #[serde(skip_deserializing)]
+    version: u64,
+
+    /// The version at which a key last went away.
+    #[serde(skip_serializing)]
+    #[serde(skip_deserializing)]
+    removed_at: u64,
+
+    /// The last JSON snapshot emitted, with the version it was built at.
+    #[serde(skip_serializing)]
+    #[serde(skip_deserializing)]
+    last_emitted_json: Option<(Arc<str>, u64)>,
 
     /// The last non-motion subset emitted by `snapshot_for_replication`.
     #[serde(skip_serializing)]
     #[serde(skip_deserializing)]
-    last_emitted_non_motion_json: Option<String>,
+    last_emitted_non_motion_json: Option<(String, u64)>,
 
     /// The last non-motion subset with the on-request keys emitted.
     #[serde(skip_serializing)]
     #[serde(skip_deserializing)]
-    last_emitted_requested_non_motion_json: Option<String>,
+    last_emitted_requested_non_motion_json: Option<(String, u64)>,
 }
 
 impl MetadataComp {
@@ -60,14 +133,23 @@ impl MetadataComp {
     pub fn from_map(map: HashMap<String, Value>) -> Self {
         Self {
             map,
-            last_emitted_json: None,
-            last_emitted_non_motion_json: None,
-            last_emitted_requested_non_motion_json: None,
+            ..Self::default()
         }
     }
 
     pub fn set_value(&mut self, component: &str, value: Value) {
-        self.map.insert(component.to_owned(), value);
+        // Metadata systems rewrite every key every tick, mostly with the
+        // same value: update in place, without allocating the key again.
+        match self.map.get_mut(component) {
+            Some(existing) => {
+                if *existing != value {
+                    *existing = value;
+                }
+            }
+            None => {
+                self.map.insert(component.to_owned(), value);
+            }
+        }
     }
 
     /// Set a component's metadata (dynamic - sent every update)
@@ -107,22 +189,103 @@ impl MetadataComp {
 
     /// Serialize to JSON, returning whether it changed since the last call.
     pub fn to_cached_str(&mut self) -> (String, bool) {
-        let json_str = self.to_string();
-        let updated = self.last_emitted_json.as_deref() != Some(json_str.as_str());
-
-        if updated {
-            self.last_emitted_json = Some(json_str.clone());
-        }
-
-        (json_str, updated)
+        let (json, is_updated) = self.full_snapshot();
+        (json.to_string(), is_updated)
     }
 
-    /// Serialize the replication shapes with change detection: the full map
-    /// and — only when the full map changed at all — the non-motion subset
-    /// without `on_request_keys`, compared against its own cache, plus (when
-    /// `is_requested` says a client asked for those keys) the subset with
-    /// them, against another. A projection never changes without the full
-    /// map changing, so the common unchanged case costs one serialization.
+    /// Bring `fragments` in line with `map`, re-serializing only the keys
+    /// whose value changed, each stamped with a new version.
+    fn refresh_fragments(&mut self) {
+        for (key, value) in &self.map {
+            match self.fragments.get_mut(key) {
+                Some(fragment) if fragment.value == *value => {}
+                Some(fragment) => {
+                    self.version += 1;
+                    fragment.update(key, value, self.version);
+                }
+                None => {
+                    self.version += 1;
+                    self.fragments
+                        .insert(key.clone(), KeyFragment::new(key, value, self.version));
+                }
+            }
+        }
+        if self.fragments.len() != self.map.len() {
+            let map = &self.map;
+            self.fragments.retain(|key, _| map.contains_key(key));
+            self.version += 1;
+            self.removed_at = self.version;
+        }
+    }
+
+    /// The JSON object of the fragments `is_kept` keeps, keys sorted so the
+    /// output is deterministic; `is_non_motion` takes the target's stripped
+    /// form.
+    fn join_fragments(&self, is_kept: impl Fn(&str) -> bool, is_non_motion: bool) -> String {
+        let mut keys: Vec<&String> = self
+            .fragments
+            .keys()
+            .filter(|key| is_kept(key.as_str()))
+            .collect();
+        keys.sort_unstable();
+        let mut out = String::with_capacity(
+            2 + keys
+                .iter()
+                .map(|key| {
+                    let fragment = &self.fragments[*key];
+                    fragment.key_json.len() + fragment.json.len() + 2
+                })
+                .sum::<usize>(),
+        );
+        out.push('{');
+        for (i, key) in keys.into_iter().enumerate() {
+            let fragment = &self.fragments[key];
+            if i > 0 {
+                out.push(',');
+            }
+            out.push_str(&fragment.key_json);
+            out.push(':');
+            match (&fragment.non_motion_json, is_non_motion) {
+                (Some(stripped), true) => out.push_str(stripped),
+                _ => out.push_str(&fragment.json),
+            }
+        }
+        out.push('}');
+        out
+    }
+
+    /// The full map's JSON and whether it changed since the last snapshot.
+    /// Unchanged metadata hands back the cached JSON without serializing.
+    fn full_snapshot(&mut self) -> (Arc<str>, bool) {
+        self.refresh_fragments();
+        if let Some((json, version)) = &self.last_emitted_json {
+            if *version == self.version {
+                return (json.clone(), false);
+            }
+        }
+        let json: Arc<str> = self.join_fragments(|_| true, false).into();
+        self.last_emitted_json = Some((json.clone(), self.version));
+        (json, true)
+    }
+
+    /// Whether a lane that last emitted at `emitted` (none: never) has a
+    /// key `is_in_lane` keeps that changed since, or lost a key since.
+    fn is_lane_stale(&self, emitted: Option<u64>, is_in_lane: impl Fn(&str) -> bool) -> bool {
+        let Some(emitted) = emitted else {
+            return true;
+        };
+        self.removed_at > emitted
+            || self
+                .fragments
+                .iter()
+                .any(|(key, fragment)| fragment.non_motion_changed_at > emitted && is_in_lane(key))
+    }
+
+    /// Serialize the replication shapes with change detection: the full map,
+    /// and each metadata lane (the non-motion subset without
+    /// `on_request_keys`; with them while `is_requested`) only when one of
+    /// its own keys changed since that lane last went out. The common
+    /// unchanged case serializes nothing and copies nothing.
     ///
     /// Keys a world sends only on request (debug views that change every
     /// tick) would otherwise dirty the subset every tick and resend all of
@@ -132,26 +295,41 @@ impl MetadataComp {
         on_request_keys: &[String],
         is_requested: bool,
     ) -> MetadataSnapshot {
-        let full_json = self.to_string();
-        let is_full_updated = self.last_emitted_json.as_deref() != Some(full_json.as_str());
-        if is_full_updated {
-            self.last_emitted_json = Some(full_json.clone());
-        }
+        let (full_json, is_full_updated) = self.full_snapshot();
+
+        let is_lane_key = |key: &str| !MOTION_METADATA_KEYS.contains(&key);
+        let is_public_key =
+            |key: &str| is_lane_key(key) && !on_request_keys.iter().any(|skipped| skipped == key);
 
         let mut updated_non_motion_json = None;
-        let mut updated_requested_non_motion_json = None;
-        if is_full_updated {
-            let non_motion = self.to_non_motion_string(on_request_keys);
-            if self.last_emitted_non_motion_json.as_deref() != Some(non_motion.as_str()) {
-                self.last_emitted_non_motion_json = Some(non_motion.clone());
+        let emitted = self.last_emitted_non_motion_json.as_ref().map(|(_, v)| *v);
+        if self.is_lane_stale(emitted, is_public_key) {
+            let non_motion = self.join_fragments(is_public_key, true);
+            let is_new = self
+                .last_emitted_non_motion_json
+                .as_ref()
+                .map_or(true, |(last, _)| *last != non_motion);
+            self.last_emitted_non_motion_json = Some((non_motion.clone(), self.version));
+            if is_new {
                 updated_non_motion_json = Some(non_motion);
             }
-            if is_requested && !on_request_keys.is_empty() {
-                let requested = self.to_non_motion_string(&[]);
-                if self.last_emitted_requested_non_motion_json.as_deref()
-                    != Some(requested.as_str())
-                {
-                    self.last_emitted_requested_non_motion_json = Some(requested.clone());
+        }
+
+        let mut updated_requested_non_motion_json = None;
+        if is_requested && !on_request_keys.is_empty() {
+            let emitted = self
+                .last_emitted_requested_non_motion_json
+                .as_ref()
+                .map(|(_, v)| *v);
+            if self.is_lane_stale(emitted, is_lane_key) {
+                let requested = self.join_fragments(is_lane_key, true);
+                let is_new = self
+                    .last_emitted_requested_non_motion_json
+                    .as_ref()
+                    .map_or(true, |(last, _)| *last != requested);
+                self.last_emitted_requested_non_motion_json =
+                    Some((requested.clone(), self.version));
+                if is_new {
                     updated_requested_non_motion_json = Some(requested);
                 }
             }
@@ -163,32 +341,6 @@ impl MetadataComp {
             updated_non_motion_json,
             updated_requested_non_motion_json,
         }
-    }
-
-    /// The metadata map without the motion-lane keys and `skipped_keys`,
-    /// and with the target's high-frequency position field stripped.
-    /// Serialized through `serde_json::Map` (ordered), so the output is
-    /// deterministic.
-    fn to_non_motion_string(&self, skipped_keys: &[String]) -> String {
-        let mut filtered = serde_json::Map::new();
-        for (key, value) in &self.map {
-            if MOTION_METADATA_KEYS.contains(&key.as_str()) {
-                continue;
-            }
-            if skipped_keys.iter().any(|skipped| skipped == key) {
-                continue;
-            }
-            if key == TARGET_METADATA_KEY {
-                if let Value::Object(target) = value {
-                    let mut stripped = target.clone();
-                    stripped.remove(TARGET_POSITION_FIELD);
-                    filtered.insert(key.clone(), Value::Object(stripped));
-                    continue;
-                }
-            }
-            filtered.insert(key.clone(), value.clone());
-        }
-        serde_json::to_string(&filtered).unwrap()
     }
 
     /// Get a clean JSON string with no side-effects.
@@ -220,6 +372,80 @@ impl MetadataComp {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn cached_snapshots_parse_back_to_the_map() {
+        let mut metadata = MetadataComp::new();
+        metadata.set_value("text", json!("a \"quoted\" line"));
+        metadata.set_value("brain", json!({ "heading": 0.25, "running": true }));
+        metadata.set_value(
+            "target",
+            json!({ "targetType": "Players", "position": [1.0, 2.0, 3.0] }),
+        );
+        for step in 0..4 {
+            match step {
+                1 => metadata.set_value("brain", json!({ "heading": -1.5, "running": false })),
+                2 => {
+                    metadata.map.remove("text");
+                }
+                3 => metadata.set_value("new key", json!([1, 2, 3])),
+                _ => {}
+            }
+            let snapshot = metadata.snapshot_for_replication(&[], false);
+            let parsed: HashMap<String, Value> =
+                serde_json::from_str(&snapshot.full_json).unwrap();
+            assert_eq!(parsed, metadata.map, "step {step}");
+        }
+    }
+
+    #[test]
+    fn a_change_another_reader_saw_first_still_reaches_the_metadata_lane() {
+        let mut metadata = MetadataComp::new();
+        metadata.set_value("path", json!([1]));
+        metadata.snapshot_for_replication(&[], false);
+
+        metadata.set_value("path", json!([2]));
+        let (_, updated) = metadata.to_cached_str();
+        assert!(updated);
+        let snapshot = metadata.snapshot_for_replication(&[], false);
+        assert!(!snapshot.is_full_updated);
+        assert_eq!(
+            snapshot.updated_non_motion_json.as_deref(),
+            Some(r#"{"path":[2]}"#)
+        );
+    }
+
+    #[test]
+    fn the_on_request_lane_catches_up_on_changes_made_while_unrequested() {
+        let keys = vec!["debug".to_owned()];
+        let mut metadata = MetadataComp::new();
+        metadata.set_value("debug", json!(1));
+        metadata.snapshot_for_replication(&keys, true);
+
+        metadata.set_value("debug", json!(2));
+        let snapshot = metadata.snapshot_for_replication(&keys, false);
+        assert!(snapshot.updated_requested_non_motion_json.is_none());
+        assert!(snapshot.updated_non_motion_json.is_none());
+
+        let snapshot = metadata.snapshot_for_replication(&keys, true);
+        assert_eq!(
+            snapshot.updated_requested_non_motion_json.as_deref(),
+            Some(r#"{"debug":2}"#)
+        );
+    }
+
+    #[test]
+    fn removing_a_key_is_an_update() {
+        let mut metadata = MetadataComp::new();
+        metadata.set_value("a", json!(1));
+        metadata.set_value("b", json!(2));
+        metadata.snapshot_for_replication(&[], false);
+
+        metadata.map.remove("b");
+        let snapshot = metadata.snapshot_for_replication(&[], false);
+        assert!(snapshot.is_full_updated);
+        assert_eq!(snapshot.updated_non_motion_json.as_deref(), Some(r#"{"a":1}"#));
+    }
 
     #[test]
     fn unchanged_metadata_reports_no_update() {
