@@ -1,3 +1,4 @@
+export * from "./angle-spring";
 export * from "./attack-motion";
 export * from "./damp-position";
 export * from "./death-animation";

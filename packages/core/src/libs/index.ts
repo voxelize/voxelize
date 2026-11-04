@@ -5,6 +5,7 @@ export * from "./arrow";
 export * from "./bounded-lru-map";
 export * from "./canvas-box";
 export * from "./character";
+export * from "./head-led-body";
 export * from "./color-text";
 export * from "./creature";
 export * from "./cull";

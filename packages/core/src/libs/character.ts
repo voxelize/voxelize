@@ -24,6 +24,7 @@ import {
 import { AnimationUtils, MathUtils as VoxMathUtils } from "../utils";
 
 import { BoxLayer, CanvasBox, CanvasBoxOptions } from "./canvas-box";
+import { HeadLedBody, HeadLedBodyOptions } from "./head-led-body";
 import { NameTag, NameTagOptions } from "./nametag";
 import { SpriteText } from "./sprite-text";
 
@@ -238,6 +239,14 @@ export type CharacterOptions = {
   swimExitLerp?: number;
 
   nameTagOptions?: Partial<NameTagOptions>;
+
+  /**
+   * Let the head lead the body ({@link HeadLedBody}): a standing body holds
+   * its heading while the look stays within `reach` of it, and a walking
+   * body faces where it travels, so a watcher turns its head before it
+   * turns its body. Off by default: head and body share every direction.
+   */
+  headLedBody?: HeadLedBodyOptions;
 
   /**
    * Parameters to create the character's head.
@@ -463,6 +472,11 @@ export class Character extends Group {
 
   private _swimBodyDirection = new Quaternion();
 
+  private _headLed: HeadLedBody | null = null;
+
+  /** The yaw of the last horizontal direction `set` streamed. */
+  private _lookYaw: number | null = null;
+
   /**
    * The new head direction of the character. This is used to lerp the character's head rotation.
    */
@@ -654,6 +668,7 @@ export class Character extends Group {
       this.playLegsWalkingAnimation();
     }
 
+    this.leadBodyWithHead(delta);
     this.lerpAll(delta);
     this.refreshShadowSelfBounds();
   }
@@ -709,9 +724,44 @@ export class Character extends Group {
     );
 
     if (dx !== 0 || dz !== 0) {
+      if (this.options.headLedBody) {
+        this._lookYaw = Math.atan2(dx, dz);
+        if (!this._headLed) {
+          this._headLed = new HeadLedBody(this.options.headLedBody);
+          this._headLed.snap(this._lookYaw);
+          this.newBodyDirection.copy(
+            VoxMathUtils.directionToQuaternion(dx, 0, dz),
+          );
+        }
+        return;
+      }
       this.newBodyDirection.copy(VoxMathUtils.directionToQuaternion(dx, 0, dz));
     }
   }
+
+  /**
+   * Under `headLedBody`, turn the body to face the look now (it slerps
+   * there), as a body squares up to strike. Does nothing otherwise.
+   */
+  squareBodyToLook = () => {
+    if (this._headLed && this._lookYaw !== null)
+      this._headLed.snap(this._lookYaw);
+  };
+
+  /** Turn the body after its look (`headLedBody`), ahead of the slerp. */
+  private leadBodyWithHead = (delta: number) => {
+    const lead = this._headLed;
+    if (!lead || this._lookYaw === null) return;
+    const yaw = lead.update(
+      this._lookYaw,
+      this.newPosition.x,
+      this.newPosition.z,
+      delta,
+    );
+    this.newBodyDirection.copy(
+      VoxMathUtils.directionToQuaternion(Math.sin(yaw), 0, Math.cos(yaw)),
+    );
+  };
 
   /**
    * Change the content of the user's nametag. If the nametag is empty, nothing will be rendered.

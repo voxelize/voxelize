@@ -1,3 +1,4 @@
+import type { HeadLookMotion } from "./angle-spring";
 import { shortestYawDelta } from "./yaw";
 
 export const MAX_HEAD_YAW = 0.78;
@@ -20,6 +21,9 @@ export function computeHeadLook(
   newDirectionY: number,
   smoothedHeadYaw: number,
   smoothedHeadPitch: number,
+  /** The head's springs: an eased turn on real time. Without it the head
+   *  closes a fixed share of the gap every frame, which snaps. */
+  motion?: HeadLookMotion,
 ): HeadLookResult {
   let targetYaw: number;
   let targetPitch = 0;
@@ -35,18 +39,27 @@ export function computeHeadLook(
     targetYaw = newDirectionY;
   }
 
-  const headYawDiff = shortestYawDelta(smoothedHeadYaw, targetYaw);
-  const nextSmoothedYaw = smoothedHeadYaw + headYawDiff * HEAD_LOOK_LERP;
+  const nextSmoothedYaw = motion
+    ? motion.yaw.step(smoothedHeadYaw, targetYaw)
+    : smoothedHeadYaw +
+      shortestYawDelta(smoothedHeadYaw, targetYaw) * HEAD_LOOK_LERP;
 
-  let headYawDelta = shortestYawDelta(currentBodyDirectionY, nextSmoothedYaw);
-  headYawDelta = Math.max(-MAX_HEAD_YAW, Math.min(MAX_HEAD_YAW, headYawDelta));
-
-  const pitchDiff = targetPitch - smoothedHeadPitch;
-  let nextSmoothedPitch = smoothedHeadPitch + pitchDiff * HEAD_LOOK_LERP;
-  nextSmoothedPitch = Math.max(
-    -MAX_HEAD_PITCH,
-    Math.min(MAX_HEAD_PITCH, nextSmoothedPitch),
+  const freeYawDelta = shortestYawDelta(currentBodyDirectionY, nextSmoothedYaw);
+  const headYawDelta = Math.max(
+    -MAX_HEAD_YAW,
+    Math.min(MAX_HEAD_YAW, freeYawDelta),
   );
+  // Held at the neck's limit, the turn stops there instead of winding up.
+  if (motion && headYawDelta !== freeYawDelta) motion.yaw.stop();
+
+  const freePitch = motion
+    ? motion.pitch.step(smoothedHeadPitch, targetPitch)
+    : smoothedHeadPitch + (targetPitch - smoothedHeadPitch) * HEAD_LOOK_LERP;
+  const nextSmoothedPitch = Math.max(
+    -MAX_HEAD_PITCH,
+    Math.min(MAX_HEAD_PITCH, freePitch),
+  );
+  if (motion && nextSmoothedPitch !== freePitch) motion.pitch.stop();
 
   return {
     headYawDelta,
