@@ -1164,6 +1164,19 @@ darknessFloor = mix(
   vec3(ambientFloor) * warmTint * downTransmit,
   clamp(torchDominance * 3.0, 0.0, 1.0) * uBlockLightWarmFloor
 );
+// The floor is no light at all, only a minimum to see by, so it should not
+// carry a texture's full albedo: under cover a near-white rock lit by
+// nothing read about three times brighter than grey stone beside it and
+// looked lamp-lit. Out of the sky the floor shows albedo up to a cap, so a
+// pale wall stays the palest rock in the dark without glowing. Faces under
+// open sky keep it whole (sunVisibility 1), and real light still wins.
+// The floor also keeps the vertex occlusion every lit face wears: without
+// it an unlit cave was one flat level, no crevice darker than the wall.
+darknessFloor *= mix(
+  min(1.0, 0.3 / max(texLuma, 1e-4)) * mix(1.0, enhancedAO, 0.8),
+  1.0,
+  sunVisibility
+);
 totalLight = max(totalLight, darknessFloor * faceShade);
 
 // An emissive face is its own light source: it bypasses the lighting model
