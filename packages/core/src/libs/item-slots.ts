@@ -290,7 +290,6 @@ export class ItemSlot<T = number> {
 
   setZoom = (zoom: number) => {
     this.zoom = zoom;
-    this.camera.far = zoom * 3 + 1;
     this.updateCamera();
   };
 
@@ -338,6 +337,15 @@ export class ItemSlot<T = number> {
     );
 
     this.camera.lookAt(0, 0, 0);
+    // Past the far side of the item, whatever the zoom and the angle: the
+    // camera stands zoom x 3.5 along each axis of the view, so the item at
+    // the origin is that far away and a block reaches ~0.87 past it. The
+    // projection is rebuilt here: a far plane of zoom x 3 + 1, short of the
+    // item, stayed unapplied on WebGL (the projection kept the constructor's
+    // far of 10) and clipped every block icon once WebGPU rebuilt it.
+    this.camera.near = 0;
+    this.camera.far = this.camera.position.length() + (this.zoom || 1) * 3 + 1;
+    this.camera.updateProjectionMatrix();
 
     this.lightPosition
       .copy(this.camera.position)
