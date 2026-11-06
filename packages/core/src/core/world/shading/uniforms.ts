@@ -27,6 +27,8 @@ import {
   uniformArray as objectUniformArray,
 } from "three/tsl";
 
+import { ownDepthSampleCount } from "../depth-sample-count";
+
 import { markMaterialPropertyRead } from "./draw-refresh";
 
 /**
@@ -144,7 +146,8 @@ export function placeholderTexture(kind: TextureSlotKind): Texture {
   let texture: Texture;
   switch (kind) {
     case "depth": {
-      texture = new DepthTexture(1, 1);
+      // Single-sample whatever target is bound when it first binds.
+      texture = ownDepthSampleCount(new DepthTexture(1, 1), 0);
       break;
     }
     case "float": {

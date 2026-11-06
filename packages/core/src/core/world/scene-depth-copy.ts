@@ -7,6 +7,8 @@ import {
   type Texture,
 } from "three/webgpu";
 
+import { ownDepthSampleCount } from "./depth-sample-count";
+
 /** The inputs the copy writes for the chunk materials. */
 export type SceneDepthUniforms = {
   sceneDepth: { value: Texture };
@@ -109,7 +111,9 @@ export class SceneDepthCopy {
     copy.minFilter = NearestFilter;
     copy.magFilter = NearestFilter;
     copy.name = "voxelize-scene-depth-copy";
-    this.copy = copy;
+    // As many samples as the target it copies (a multisampled one is
+    // skipped), whatever target is bound when a graph that reads it builds.
+    this.copy = ownDepthSampleCount(copy, source.samples);
     return copy;
   }
 }
