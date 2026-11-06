@@ -1,17 +1,4 @@
 import {
-  type BatchedMesh,
-  type Color,
-  type InstancedMesh,
-  Matrix4,
-  NodeMaterial,
-  type NodeBuilder,
-  type Object3D,
-  type Texture,
-  Vector2,
-  type Vector3,
-  type Vector4,
-} from "three/webgpu";
-import {
   abs,
   attribute,
   batch,
@@ -46,8 +33,22 @@ import {
   vec3,
   vec4,
 } from "three/tsl";
+import {
+  type BatchedMesh,
+  type Color,
+  type InstancedMesh,
+  Matrix4,
+  NodeMaterial,
+  type NodeBuilder,
+  type Object3D,
+  type Texture,
+  Vector2,
+  type Vector3,
+  type Vector4,
+} from "three/webgpu";
 
 import { BLOCK_LIGHT_TRANSFER } from "../block-light-transfer";
+import type { GpuTerrainSections } from "../gpu-terrain-bucket";
 import { type LightConeUniforms, markLightConesCovered } from "../light-cones";
 import { WATER_DEPTH_BIAS_BLOCKS } from "../water-depth-constants";
 import {
@@ -70,6 +71,7 @@ import type {
 } from "./chunk-uniforms";
 import { chunkVertex, type ChunkVaryings } from "./chunk-vertex";
 import { perspectiveDepthToViewZ } from "./conventions";
+import { narrowRefresh } from "./draw-refresh";
 import { farSeam } from "./far-seam";
 import { lightConeShading } from "./light-cones";
 import { type LocalLightInputs, localLightShading } from "./local-lights";
@@ -85,8 +87,6 @@ import {
   type Vec4Node,
 } from "./types";
 import { materialTexture, perDrawInputs, placeholderTexture } from "./uniforms";
-import { narrowRefresh } from "./draw-refresh";
-import type { GpuTerrainSections } from "../gpu-terrain-bucket";
 import { waterCausticWeb } from "./water-caustics";
 import { waterSurface } from "./water-surface";
 
@@ -337,12 +337,39 @@ function gpuSectionOf(object: Object3D | undefined) {
   return { origin: record.xyz, reveal: record.w };
 }
 
+const gpuSectionCasterPositions = new WeakMap<object, Map<string, Vec3Node>>();
+
 /**
  * What a depth pass that overrides a GPU-drawn material moves its vertices
  * with: the section's origin, then the sway, as the material's own vertex
- * stage (`casterPositionNode` for a section drawn by a region arena).
+ * stage (`casterPositionNode` for a section drawn by a region arena). One
+ * node per world, kind, sway and position format, as there: the material
+ * hands it out from its `positionNode`, which three reads into the
+ * material's program key every time it keys the material, and a node made
+ * afresh on each read gave every GPU-drawn material a key of its own (a
+ * program built for each, never shared) and a new one on every rekeying.
  */
 function gpuSectionCasterPosition(
+  shading: ChunkShadingInputs,
+  kind: ChunkMaterialKind,
+  sway: ChunkSwayConstants | null,
+  positionUnits: number,
+): Vec3Node {
+  let nodes = gpuSectionCasterPositions.get(shading);
+  if (!nodes) {
+    nodes = new Map();
+    gpuSectionCasterPositions.set(shading, nodes);
+  }
+  const key = `${kind}|${sway ? JSON.stringify(sway) : "-"}|${positionUnits}`;
+  let node = nodes.get(key);
+  if (!node) {
+    node = makeGpuSectionCasterPosition(shading, kind, sway, positionUnits);
+    nodes.set(key, node);
+  }
+  return node;
+}
+
+function makeGpuSectionCasterPosition(
   shading: ChunkShadingInputs,
   kind: ChunkMaterialKind,
   sway: ChunkSwayConstants | null,
@@ -603,7 +630,9 @@ export class ChunkMaterial extends NodeMaterial {
     if (object.isBatchedMesh) batch(object);
     const gpuSection = this.drawsGpuSections ? gpuSectionOf(object) : null;
     if (gpuSection) {
-      positionLocal.assign(positionLocal.div(positionUnits).add(gpuSection.origin));
+      positionLocal.assign(
+        positionLocal.div(positionUnits).add(gpuSection.origin),
+      );
     }
     if (
       object.isInstancedMesh &&
@@ -621,7 +650,7 @@ export class ChunkMaterial extends NodeMaterial {
     const batchReveal = gpuSection
       ? gpuSection.reveal
       : object.isBatchedMesh &&
-      (object as unknown as { _colorsTexture: unknown })._colorsTexture
+          (object as unknown as { _colorsTexture: unknown })._colorsTexture
         ? batchColor.x
         : float(1);
     vertex.assign(vChunk, vChunkUv, batchReveal);

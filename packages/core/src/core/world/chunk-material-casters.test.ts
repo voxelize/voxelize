@@ -31,6 +31,26 @@ describe("chunk caster displacement", () => {
     expect(swaying.positionNode).not.toBe(a.positionNode);
   });
 
+  it("hands a GPU-drawn material one node, the same on every read", () => {
+    // Its `positionNode` is read into the program key whenever three keys
+    // the material: a node made per read gave every GPU-drawn material a
+    // program of its own, rebuilt on every rekeying.
+    const gpu = (material: ChunkMaterial) => {
+      material.drawsGpuSections = true;
+      return quantized(material);
+    };
+    const a = gpu(new ChunkMaterial(world, { kind: "cutout" }));
+    const b = gpu(new ChunkMaterial(world, { kind: "cutout" }));
+    expect(a.positionNode).toBeTruthy();
+    expect(a.positionNode).toBe(a.positionNode);
+    expect(b.positionNode).toBe(a.positionNode);
+    expect(a.customProgramCacheKey()).toBe(a.customProgramCacheKey());
+    expect(b.customProgramCacheKey()).toBe(a.customProgramCacheKey());
+    // Still apart from a material drawn by a region arena.
+    const arena = quantized(new ChunkMaterial(world, { kind: "cutout" }));
+    expect(arena.positionNode).not.toBe(a.positionNode);
+  });
+
   it("keys the node by world and position format", () => {
     const quant = quantized(new ChunkMaterial(world, { kind: "cutout" }));
     const float = new ChunkMaterial(world, { kind: "cutout" });
