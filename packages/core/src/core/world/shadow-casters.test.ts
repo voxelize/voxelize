@@ -1,6 +1,7 @@
 import {
   BoxGeometry,
   Group,
+  InstancedMesh,
   Mesh,
   MeshBasicNodeMaterial,
   NodeMaterial,
@@ -10,7 +11,11 @@ import {
 } from "three/webgpu";
 import { describe, expect, it } from "vitest";
 
-import { BorrowedCasterScene, overrideStandIns } from "./shadow-casters";
+import {
+  BorrowedCasterScene,
+  overrideStandIns,
+  ownDepthStandIns,
+} from "./shadow-casters";
 
 const depthMaterial = () => {
   const material = new NodeMaterial();
@@ -105,5 +110,28 @@ describe("BorrowedCasterScene.compile", () => {
     expect(seen).toEqual([{ children: 1, override: null, owner: null }]);
     expect(caster.parent).toBe(parent);
     expect(borrowed.scene.children).toEqual([]);
+  });
+});
+
+describe("ownDepthStandIns", () => {
+  it("draws each kind of pool mesh with its own depth material", () => {
+    const geometry = new BoxGeometry();
+    const depth = new MeshBasicNodeMaterial();
+    const pool = new Group();
+    for (let i = 0; i < 3; i++) {
+      const mesh = new InstancedMesh(geometry, new MeshBasicNodeMaterial(), 4);
+      mesh.customDepthMaterial = depth;
+      pool.add(mesh);
+    }
+    // A mesh with no depth material of its own is no pool caster.
+    pool.add(new Mesh(geometry, new MeshBasicNodeMaterial()));
+
+    const objects = ownDepthStandIns([pool]);
+
+    expect(objects).toHaveLength(1);
+    const [standIn] = objects as InstancedMesh[];
+    expect(standIn.isInstancedMesh).toBe(true);
+    expect(standIn.material).toBe(depth);
+    expect(standIn.count).toBe(1);
   });
 });

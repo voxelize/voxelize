@@ -110,15 +110,23 @@ export class BorrowedCasterScene {
     camera: Camera,
     casters: Object3D[],
     overrideMaterial: Material,
+    ownDepthPools: Object3D[] = [],
   ): Promise<void> {
     const standIns = overrideStandIns(casters, overrideMaterial);
-    if (standIns.objects.length === 0) return;
-    this.scene.children = standIns.objects;
+    const own = ownDepthStandIns(ownDepthPools);
+    const objects = [...standIns.objects, ...own];
+    if (objects.length === 0) return;
+    this.scene.children = objects;
     try {
       await renderer.compileAsync(this.scene, camera);
     } finally {
       this.scene.children = this.ownChildren;
       standIns.dispose();
+      for (const standIn of own) {
+        if ((standIn as InstancedMesh).isInstancedMesh) {
+          (standIn as InstancedMesh).dispose();
+        }
+      }
     }
   }
 }
@@ -295,4 +303,35 @@ export function overrideStandIns(
       }
     },
   };
+}
+
+/**
+ * One stand-in per kind of pool mesh under `pools` drawing with its own
+ * depth material (`customDepthMaterial`), as a shadow frame draws a pool:
+ * swapped onto that material, which no override replaces.
+ */
+export function ownDepthStandIns(pools: Object3D[]): Object3D[] {
+  const objects: Object3D[] = [];
+  const seen = new Set<string>();
+  for (const pool of pools) {
+    pool.traverse((child) => {
+      const mesh = child as Mesh;
+      const depth = mesh.customDepthMaterial;
+      if (!mesh.isMesh || !mesh.geometry || !depth) return;
+      const isInstanced = (mesh as InstancedMesh).isInstancedMesh === true;
+      const colors = isInstanced ? (mesh as InstancedMesh).instanceColor : null;
+      const key = `${depth.id}|${isInstanced}|${!!colors}|${layoutOf(mesh.geometry)}`;
+      if (seen.has(key)) return;
+      seen.add(key);
+      const standIn = isInstanced
+        ? new InstancedMesh(mesh.geometry, depth, 1)
+        : new Mesh(mesh.geometry, depth);
+      if (colors) (standIn as InstancedMesh).instanceColor = colors;
+      standIn.name = mesh.name;
+      standIn.frustumCulled = false;
+      standIn.userData = mesh.userData;
+      objects.push(standIn);
+    });
+  }
+  return objects;
 }

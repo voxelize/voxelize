@@ -919,6 +919,8 @@ export class LocalShadowScheduler {
       entities?: Object3D[];
       /** Casters drawn wherever a light is, hidden or not (GPU buckets). */
       always?: Object3D[];
+      /** Instanced pools, drawn with their own depth materials. */
+      pools?: Object3D[];
     } = {},
   ): Promise<void> {
     const twin = this.atlas.makeFormatTwin();
@@ -937,6 +939,7 @@ export class LocalShadowScheduler {
       this.faceCamera,
       roots,
       this.depthMaterial,
+      casters.pools ?? [],
     );
     renderer.setRenderTarget(previousTarget);
     return Promise.all([this.cellClear.prepare(renderer, twin), compiling])
