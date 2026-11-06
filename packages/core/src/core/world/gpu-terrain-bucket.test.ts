@@ -152,6 +152,10 @@ describe("GpuTerrainBucket", () => {
     }
     expect(bucket.mesh.geometry).not.toBe(before);
     expect(bucket.stats.vertexCapacity).toBeGreaterThan(1024);
+    // Bounds come with the geometry, so three never scans its vertices for
+    // them (a 200 ms frame on a bucket of millions).
+    expect(bucket.mesh.geometry.boundingSphere?.radius).toBe(Infinity);
+    expect(bucket.mesh.geometry.boundingBox?.max.x).toBe(Infinity);
     for (let i = 0; i < 6; i++) {
       const slot = state.slots.get(`s${i}`)!;
       expect(state.sectionIds.array[slot.vertexStart]).toBe(slot.id);

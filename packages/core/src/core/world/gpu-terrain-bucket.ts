@@ -24,6 +24,7 @@
  */
 
 import {
+  Box3,
   BufferAttribute,
   BufferGeometry,
   type Camera,
@@ -36,6 +37,7 @@ import {
   type Renderer,
   Sphere,
   StorageBufferAttribute,
+  Vector3,
   Vector4,
 } from "three/webgpu";
 import {
@@ -154,11 +156,28 @@ export type GpuTerrainBucketOptions = {
   culls?: GpuTerrainCulls;
 };
 
+/**
+ * A bucket's geometry, with bounds that hold everything: it draws whatever
+ * its cull packs, anywhere in the world. Without bounds three computes them
+ * the first time it sorts the mesh into a list (frustum culling off or
+ * not), a pass over every vertex the bucket holds: on a bucket grown to
+ * millions of vertices, a 200 ms frame in the shadow cascades.
+ */
+function unboundedGeometry() {
+  const geometry = new BufferGeometry();
+  geometry.boundingSphere = new Sphere(new Vector3(), Infinity);
+  geometry.boundingBox = new Box3(
+    new Vector3(-Infinity, -Infinity, -Infinity),
+    new Vector3(Infinity, Infinity, Infinity),
+  );
+  return geometry;
+}
+
 export class GpuTerrainBucket {
   readonly mesh: Mesh;
   readonly sections: GpuTerrainSections;
 
-  private geometry = new BufferGeometry();
+  private geometry = unboundedGeometry();
   private attributes = new Map<string, BufferAttribute>();
   private sectionIds: BufferAttribute;
   private sourceIndex: StorageBufferAttribute;
@@ -436,16 +455,7 @@ export class GpuTerrainBucket {
     culled.version = this.version;
     culled.viewProjection.copy(viewProjection);
     view.kernels ??= this.buildCull(view);
-    if (!view.isPackedIndexed) {
-      // Made as an index buffer first, so it can be both: a buffer the
-      // cull meets first is made storage and vertex only.
-      (
-        renderer as unknown as {
-          _attributes: { update(a: unknown, type: number): void };
-        }
-      )._attributes.update(view.packed, INDEX_ATTRIBUTE);
-      view.isPackedIndexed = true;
-    }
+    this.makePackedIndexed(renderer, view);
     _frustum.setFromProjectionMatrix(
       viewProjection,
       camera.coordinateSystem,
@@ -461,6 +471,40 @@ export class GpuTerrainBucket {
     const { cull, decide, pack } = view.kernels;
     cull.dispatchSize = this.nextId;
     return [cull, decide, pack];
+  }
+
+  /**
+   * Compiles the cull kernels of the main view and the shadow views' list
+   * without dispatching them, for a load warmup: three builds a compute
+   * pipeline synchronously on its first dispatch, in a frame.
+   */
+  compileCulls(renderer: Renderer): Promise<void> {
+    const kernels: CullKernel[] = [];
+    for (const view of [this.views.main, (this.views.shadow ??= this.makeView())]) {
+      this.makePackedIndexed(renderer, view);
+      const { cull, decide, pack } = (view.kernels ??= this.buildCull(view));
+      kernels.push(cull, decide, pack);
+    }
+    return (
+      renderer as unknown as {
+        compileComputeAsync(nodes: unknown[]): Promise<void>;
+      }
+    ).compileComputeAsync(kernels);
+  }
+
+  /**
+   * Makes a view's packed list an index buffer before anything binds it as
+   * storage, so it can be both: a buffer the cull meets first is made
+   * storage and vertex only.
+   */
+  private makePackedIndexed(renderer: Renderer, view: CullView) {
+    if (view.isPackedIndexed) return;
+    (
+      renderer as unknown as {
+        _attributes: { update(a: unknown, type: number): void };
+      }
+    )._attributes.update(view.packed, INDEX_ATTRIBUTE);
+    view.isPackedIndexed = true;
   }
 
   /** The view `camera` draws: the shadow views' list, or the main one. */
@@ -727,7 +771,7 @@ export class GpuTerrainBucket {
       array.set(attribute.array as Uint8Array);
       return make(array);
     };
-    const geometry = new BufferGeometry();
+    const geometry = unboundedGeometry();
     for (const [name, attribute] of this.attributes) {
       const next = resized(
         attribute,

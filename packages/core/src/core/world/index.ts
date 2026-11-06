@@ -1269,6 +1269,30 @@ export class World<T = any> extends Scene implements NetIntercept {
   }
 
   /**
+   * Makes the shared GPU terrain buckets (the opaque blocks, the cutouts,
+   * the plants and the tufts) and compiles their cull kernels, for a load
+   * warmup that then compiles their draws with the scene. Each is sized for
+   * a whole world's sections; made when its first section lands, the
+   * buffers were allocated and uploaded in one frame, often after the
+   * world showed (a world whose first window holds no leaves). A block's
+   * own bucket is left to its first section: there are many, most rare,
+   * and each starts small.
+   */
+  prepareSharedGpuTerrain(renderer: Renderer): Promise<unknown> {
+    if (!this.options.regionArenas) return Promise.resolve();
+    const compiles: Promise<void>[] = [];
+    for (const bucket of this.batchedArenaBuckets()) {
+      if (!GPU_TERRAIN_BUCKETS.has(bucket)) continue;
+      if (!this.chunkRenderer.materials.has(bucket)) continue;
+      const arenas = this.ensureRegionArenas(bucket);
+      if (arenas instanceof GpuTerrainArenas) {
+        compiles.push(arenas.bucket.compileCulls(renderer));
+      }
+    }
+    return Promise.all(compiles);
+  }
+
+  /**
    * Links the water depth pass's programs for every fluid chunk material,
    * so a fluid whose water first loads in play does not link them in a
    * frame (see `WaterDepthPass.compileFor`). Call it in the load, once the
