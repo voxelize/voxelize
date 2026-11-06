@@ -103,8 +103,16 @@ const WORKGROUP = 64;
  * (see `GpuTerrainBucket.prepareGrowth`).
  */
 const GROW_AHEAD = 0.75;
-/** Each grow makes the buffers half as large again. */
-const GROWTH = 1.5;
+/**
+ * The vertex room a bucket of `vertices` grows to. A grow uploads the whole
+ * bucket again, so a bucket that keeps growing as the player travels (an
+ * ocean's water) must reach its size in few steps: by halves, water on the
+ * island world grew twelve times in a ten-second walk. Past a million
+ * vertices, doubling would allocate hundreds of megabytes at a step, so a
+ * large bucket grows by half.
+ */
+const nextVertexCapacity = (vertices: number) =>
+  vertices < 1 << 20 ? vertices * 2 : Math.ceil(vertices * 1.5);
 /**
  * A list holding more holes than this share of its length, or longer than
  * this share of its room, is repacked whole (see `buildCull`).
@@ -664,7 +672,7 @@ export class GpuTerrainBucket {
     ) {
       return;
     }
-    const vertexCapacity = Math.ceil(this.sectionIds.count * GROWTH);
+    const vertexCapacity = nextVertexCapacity(this.sectionIds.count);
     const indexCapacity = Math.ceil(vertexCapacity * INDEX_PER_VERTEX);
     const sourceIndex = new StorageBufferAttribute(
       new Uint32Array(indexCapacity),
@@ -1135,7 +1143,7 @@ export class GpuTerrainBucket {
     this.nextGrowth = null;
     const vertexCapacity =
       prepared?.vertexCapacity ??
-      Math.max(vertices, Math.ceil(this.sectionIds.count * GROWTH));
+      Math.max(vertices, nextVertexCapacity(this.sectionIds.count));
     const indexCapacity = Math.ceil(vertexCapacity * INDEX_PER_VERTEX);
     const resized = <T extends BufferAttribute>(
       attribute: T,

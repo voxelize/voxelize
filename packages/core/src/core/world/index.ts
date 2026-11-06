@@ -1354,9 +1354,10 @@ export class World<T = any> extends Scene implements NetIntercept {
       const state = stateOf(material, block);
       if (drawn.has(state)) continue;
       drawn.add(state);
+      // Small, unless it is a fluid's: water spans oceans.
       const arenas = this.makeGpuTerrain(
         bucket,
-        GPU_TERRAIN_STAND_IN_CAPACITY,
+        block.isFluid ? undefined : GPU_TERRAIN_STAND_IN_CAPACITY,
         false,
       );
       arenas.bucket.adoptLayout(

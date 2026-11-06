@@ -215,7 +215,7 @@ describe("GpuTerrainBucket", () => {
     // The grow takes it: no cull is built on the frame that dispatches it.
     bucket.setSectionGeometry("s3", section(128), 48, 0, 0);
     bucket.setSectionGeometry("s4", section(128), 64, 0, 0);
-    expect(bucket.stats.vertexCapacity).toBe(1536);
+    expect(bucket.stats.vertexCapacity).toBe(2048);
     expect(state.views.main.kernels).toBe(ahead.kernels);
     expect(state.views.main.packed).toBe(ahead.packed);
     for (let i = 0; i < 5; i++) {
