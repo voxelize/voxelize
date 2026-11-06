@@ -1,3 +1,4 @@
+import { vec4 } from "three/tsl";
 import * as THREE from "three/webgpu";
 import {
   Box3,
@@ -16,8 +17,8 @@ import {
   UnsignedIntType,
   Vector3,
 } from "three/webgpu";
-import { vec4 } from "three/tsl";
 
+import { renderClearing } from "./clearing-render";
 import { boundsIntersectSphere } from "./dynamic-caster-bounds";
 import {
   BorrowedCasterScene,
@@ -857,7 +858,6 @@ export class CSMRenderer {
       this.cascadeFrustum.setFromProjectionMatrix(this.cascadeMatrix);
 
       renderer.setRenderTarget(cascade.renderTarget);
-      renderer.clear();
 
       this.renderCascadeCasters(
         renderer,
@@ -957,7 +957,13 @@ export class CSMRenderer {
       }
     }
 
-    renderer.render(scene, camera);
+    // The cascade starts empty: cleared by this pass's own load ops, not a
+    // pass of its own before it.
+    renderClearing(renderer, scene, camera, {
+      color: true,
+      depth: true,
+      stencil: true,
+    });
 
     for (let h = 0; h < hidden.length; h++) {
       hidden[h].object.visible = hidden[h].visible;

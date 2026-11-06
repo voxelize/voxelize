@@ -228,18 +228,25 @@ export function skyFog(u: SkyFogInputs) {
   };
 
   /**
-   * `color` hazed toward the sky along `ray` by `factor`. A ridge hazed out
-   * entirely is the sky, sun and moon included, so a sun setting behind it
-   * does not vanish in mid-air; one only partly hazed is still a ridge, and
-   * the disc behind it stays hidden. Weighting the disc by the haze itself
-   * put half a moon over half-hazed trees.
+   * `color` hazed toward the sky along `ray` by `factor`. A solid surface
+   * hazed out entirely is the sky, sun and moon included, so a sun setting
+   * behind a ridge does not vanish in mid-air; one only partly hazed is
+   * still a ridge, and the disc behind it stays hidden (weighting the disc
+   * by the haze put half a moon over half-hazed trees). A see-through veil
+   * (`isSolid` false: a cloud) lets the disc through as it hazes, so a sun
+   * low behind the far, hazed deck still burns through it.
    */
-  const haze = (color: Vec3Node, ray: Vec3Node, factor: FloatNode): Vec3Node =>
+  const haze = (
+    color: Vec3Node,
+    ray: Vec3Node,
+    factor: FloatNode,
+    isSolid = true,
+  ): Vec3Node =>
     mix(color, fogTint(ray, true), factor).add(
       discs(ray)
         .mul(u.skyFogStrength)
         .mul(u.fogVerticalBlend.oneMinus())
-        .mul(smoothstep(0.92, 1, factor)),
+        .mul(isSolid ? smoothstep(0.92, 1, factor) : factor),
     ) as Vec3Node;
 
   const underwater = underwaterFog(u);
@@ -249,7 +256,8 @@ export function skyFog(u: SkyFogInputs) {
    * sky's own colour, glow and discs), then the water the camera looks
    * through. `reveal` 0 draws the surface as pure fog tint (the terrain
    * fade-in), 1 fogs it normally. Additive effects (`isEmission`) only
-   * attenuate. `flatDistance` as in {@link fogFactor}.
+   * attenuate. `flatDistance` as in {@link fogFactor}; `isSolid` as in
+   * {@link haze}.
    */
   const apply = (
     color: Vec3Node,
@@ -257,6 +265,7 @@ export function skyFog(u: SkyFogInputs) {
     reveal: FloatNode,
     isEmission = false,
     flatDistance?: FloatNode,
+    isSolid = true,
   ): Vec3Node => {
     const ray = normalize(worldPosition.sub(cameraPosition));
     const factor = mix(
@@ -266,7 +275,7 @@ export function skyFog(u: SkyFogInputs) {
     );
     const fogged = isEmission
       ? color.mul(factor.oneMinus())
-      : haze(color, ray, factor);
+      : haze(color, ray, factor, isSolid);
     return underwater(fogged, worldPosition, isEmission);
   };
 

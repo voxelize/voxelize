@@ -541,10 +541,11 @@ export function createVolumetricCloudMaterial(
       float(1),
       false,
       flatDistance,
+      false,
     );
     const endFade = smoothstep(u.fadeStart, u.maxDistance, meanDistance);
     return vec4(
-      fog.haze(fogged, rd, endFade),
+      fog.haze(fogged, rd, endFade, false),
       alpha.mul(endFade.oneMinus()),
     );
   });

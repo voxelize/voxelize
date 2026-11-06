@@ -1,4 +1,23 @@
 import {
+  cameraFar,
+  cameraNear,
+  clamp,
+  Discard,
+  float,
+  Fn,
+  If,
+  ivec2,
+  max,
+  mrt,
+  output,
+  positionView,
+  pow,
+  renderGroup,
+  screenCoordinate,
+  screenUV,
+  vec4,
+} from "three/tsl";
+import {
   AddEquation,
   AdditiveBlending,
   BlendMode,
@@ -28,30 +47,12 @@ import {
   Vector2,
   Vector4,
 } from "three/webgpu";
-import {
-  cameraFar,
-  cameraNear,
-  clamp,
-  Discard,
-  float,
-  Fn,
-  If,
-  ivec2,
-  max,
-  mrt,
-  output,
-  positionView,
-  pow,
-  renderGroup,
-  screenCoordinate,
-  screenUV,
-  vec4,
-} from "three/tsl";
 
+import { type PassClears, renderClearing } from "./clearing-render";
+import { exemptFromLightCones } from "./light-cones";
 import { perspectiveDepthToViewZ } from "./shading/conventions";
 import type { Vec4Node } from "./shading/types";
 import { passUniform, textureSlot } from "./shading/uniforms";
-import { exemptFromLightCones } from "./light-cones";
 
 /**
  * The depth weight of a blended fragment, by its distance from the camera
@@ -432,7 +433,12 @@ export class OrderIndependentTransparency {
    * texture), its blended layers order-independent. A target that cannot
    * share its depth draws them in list order, and says why once.
    */
-  render(renderer: Renderer, scene: Scene, camera: Camera, target: RenderTarget) {
+  render(
+    renderer: Renderer,
+    scene: Scene,
+    camera: Camera,
+    target: RenderTarget,
+  ) {
     this.frame += 1;
     renderer.setRenderTarget(target);
     const reason = skipReasonOf(renderer, target, camera);
@@ -484,7 +490,11 @@ export class OrderIndependentTransparency {
         // A double-sided item draws in two passes of the list (back faces,
         // then front); its replay draws both sides at once.
         const last = this.lastKept.get(object);
-        if (last?.frame === frame && last.material === material && last.group === group) {
+        if (
+          last?.frame === frame &&
+          last.material === material &&
+          last.group === group
+        ) {
           return;
         }
         if (last) {
@@ -689,14 +699,19 @@ export class OrderIndependentTransparency {
     const clearColor = renderer.getClearColor(scratchColor);
     const clearAlpha = renderer.getClearAlpha();
     renderer.setClearColor(0x000000, 0);
-    renderer.clear(true, false, false);
-    renderer.setClearColor(clearColor, clearAlpha);
     this.setPhase(phase);
     this.isAccumulating = true;
     renderer.setMRT(this.encoder);
-    this.replay(renderer, camera, this.blended, this.blendedCount);
-    renderer.setMRT(null);
-    this.isAccumulating = false;
+    try {
+      // The accumulation starts empty: cleared by the replay's own pass.
+      this.replay(renderer, camera, this.blended, this.blendedCount, {
+        color: true,
+      });
+    } finally {
+      renderer.setClearColor(clearColor, clearAlpha);
+      renderer.setMRT(null);
+      this.isAccumulating = false;
+    }
   }
 
   /** Draws the accumulation over the scene target. */
@@ -722,6 +737,7 @@ export class OrderIndependentTransparency {
     camera: Camera,
     list: RecordedDraw[],
     count: number,
+    clears: PassClears = {},
   ) {
     const marker = this.marker;
     const previous = renderer.getRenderObjectFunction();
@@ -743,7 +759,7 @@ export class OrderIndependentTransparency {
       }
     });
     try {
-      renderer.render(this.markerScene, camera);
+      renderClearing(renderer, this.markerScene, camera, clears);
     } finally {
       // Left installed, it would swallow every later draw: the composite
       // quad first.

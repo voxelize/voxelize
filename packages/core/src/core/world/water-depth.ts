@@ -25,6 +25,7 @@ import { TRANSPARENT_OVER_FLUID_RENDER_ORDER } from "../../common";
 
 import { type ChunkMaterial, forkChunkMaterial } from "./chunk-materials";
 import { makeChunkStandInGeometry } from "./chunk-stand-in";
+import { renderClearing } from "./clearing-render";
 import { forwardDraws } from "./forward-draws";
 import { shareBuffers } from "./see-through-texels";
 import {
@@ -55,7 +56,6 @@ export type WaterDepthUniforms = {
 
 /** Where a chunk mesh's section sits, in sections. */
 export type SectionCoords = [cx: number, level: number, cz: number];
-
 
 /**
  * Bits 18 and 19 of the packed light attribute together: a fluid face
@@ -231,10 +231,7 @@ export class WaterDepthPass {
   }
 
   /** A GPU-drawn fluid's mesh; `cull` packs its sections for a camera. */
-  addGpuWater(
-    mesh: Mesh,
-    cull: (renderer: Renderer, camera: Camera) => void,
-  ) {
+  addGpuWater(mesh: Mesh, cull: (renderer: Renderer, camera: Camera) => void) {
     const water = mesh.material as ChunkMaterial;
     const standIn = new Mesh(mesh.geometry, this.depthMaterialFor(water));
     standIn.matrixAutoUpdate = false;
@@ -292,12 +289,7 @@ export class WaterDepthPass {
    * camera, or one that has moved since, every pane falls back to drawing
    * before the water.
    */
-  prepareDraw(
-    renderer: Renderer,
-    camera: Camera,
-    mesh: Mesh,
-    lifted: Mesh,
-  ) {
+  prepareDraw(renderer: Renderer, camera: Camera, mesh: Mesh, lifted: Mesh) {
     const frame = renderer.info.frame;
     if (frame !== this.checkedFrame) {
       this.checkedFrame = frame;
@@ -320,11 +312,7 @@ export class WaterDepthPass {
    * all the water in view (`"all"`), for `camera`. Call it once a frame,
    * before the scene renders with that camera.
    */
-  render(
-    renderer: Renderer,
-    camera: Camera,
-    scope: "panes" | "all" = "panes",
-  ) {
+  render(renderer: Renderer, camera: Camera, scope: "panes" | "all" = "panes") {
     const state = this.uniforms.waterDepthState;
     for (const standIn of this.shown) standIn.visible = false;
     this.shown = [];
@@ -388,9 +376,7 @@ export class WaterDepthPass {
     const previousAutoClear = renderer.autoClear;
     renderer.setRenderTarget(target);
     renderer.autoClear = false;
-    // A clear honours the depth mask, which the last draw may have left off.
-    renderer.clear(false, true, false);
-    renderer.render(this.scene, camera);
+    renderClearing(renderer, this.scene, camera, { depth: true });
     this.renderExit(renderer, camera, size);
     renderer.autoClear = previousAutoClear;
     renderer.setRenderTarget(previousTarget);
@@ -438,8 +424,7 @@ export class WaterDepthPass {
         Math.floor(size.y),
       );
       renderer.setRenderTarget(target);
-        renderer.clear(false, true, false);
-      renderer.render(this.scene, camera);
+      renderClearing(renderer, this.scene, camera, { depth: true });
       this.uniforms.waterExitDepth.value = target.depthTexture;
       this.uniforms.waterExitReady.value = 1;
     }

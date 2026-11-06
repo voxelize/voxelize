@@ -783,6 +783,7 @@ function createCloudMaterial(
     float(1),
     false,
     flatDistance,
+    false,
   );
   const endFade = smoothstep(shared.endFadeNear, shared.endFadeFar, flatDistance);
   const ray = normalize(positionWorld.sub(cameraPosition));
@@ -795,7 +796,7 @@ function createCloudMaterial(
   // An output node, not a fragment node: the deck blends, and only a
   // material's output reaches the order-independent accumulation.
   material.outputNode = vec4(
-    fog.haze(fogged, ray, endFade),
+    fog.haze(fogged, ray, endFade, false),
     u.cloudAlpha.mul(endFade.oneMinus()),
   );
   return material;
