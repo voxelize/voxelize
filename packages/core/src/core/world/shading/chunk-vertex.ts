@@ -8,6 +8,7 @@ import {
   If,
   int,
   mat3,
+  max,
   mix,
   modelWorldMatrix,
   modelWorldMatrixInverse,
@@ -97,19 +98,21 @@ export type ChunkVaryings = {
   mapUv: Vec2Node;
 };
 
-/** A block's fixed sway (`ChunkSwayConstants`, shading/chunk-material.ts). */
-type SwayConstants = {
-  speed: number;
-  amplitude: number;
-  scale: number;
-  rooted: boolean;
-  yScale: number;
-  isCrossShaded: boolean;
+/**
+ * A block's fixed sway (`ChunkSwayConstants`, shading/chunk-material.ts) as
+ * the graph reads it: values, not constants, so blocks that differ only in
+ * their sway share one program.
+ */
+export type ChunkSwayInputs = {
+  /** Speed, amplitude times scale, y scale, rooted (0 or 1). */
+  motion: Vec4Node;
+  /** 1 for cross-quad shading (fixed sun incidence, no face shade). */
+  crossShading: FloatNode;
 };
 
 export type ChunkDisplaceOptions = {
-  /** A fixed sway baked into the program (a customized block). */
-  sway: SwayConstants | null;
+  /** A customized block's fixed sway. */
+  sway: ChunkSwayInputs | null;
   /** Scales on the fluid swell's amplitude and speed (a crusted fluid). */
   waveScale: { amplitude: FloatNode; speed: FloatNode } | null;
   /** An extra displacement in world blocks. */
@@ -281,18 +284,20 @@ export function chunkVertex(
   };
 
   /** A customized block's fixed sway (`customShaders.sway`). */
-  const fixedSway = (sway: SwayConstants): Vec3Node => {
-    const phase = u.time.mul(0.00002 * sway.speed);
-    const rootScale = sway.rooted ? runHeight : float(1);
+  const fixedSway = (sway: ChunkSwayInputs): Vec3Node => {
+    const { motion } = sway;
+    const phase = u.time.mul(0.00002).mul(motion.x);
+    // A rooted plant bends from the dirt, linearly up its run.
+    const rootScale = mix(1, runHeight, motion.w);
     const noise = simplexNoise3Node(
       vec3(
         blockPosition.x.mul(phase).add(u.windOffset.x),
-        blockPosition.y.mul(phase).mul(sway.yScale),
+        blockPosition.y.mul(phase).mul(motion.z),
         blockPosition.z.mul(phase).add(u.windOffset.y),
       ),
     );
-    const shift = rootScale.mul(sway.scale * sway.amplitude).mul(noise);
-    if (sway.isCrossShaded) crossShading.assign(1);
+    const shift = rootScale.mul(motion.y).mul(noise);
+    crossShading.assign(max(crossShading, sway.crossShading));
     return vec3(shift.mul(2), 0, shift.mul(u.windSpeed).mul(0.5));
   };
 

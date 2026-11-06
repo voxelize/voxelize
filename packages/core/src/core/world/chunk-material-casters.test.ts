@@ -31,6 +31,38 @@ describe("chunk caster displacement", () => {
     expect(swaying.positionNode).not.toBe(a.positionNode);
   });
 
+  it("shares one program and one caster position across sways, each draw reading its own", () => {
+    // A fixed sway is values read per draw, not constants: blocks that differ
+    // only in their sway build one program.
+    const slow = quantized(
+      new ChunkMaterial(world, {
+        kind: "seeThrough",
+        sway: { speed: 0.5, amplitude: 0.05, rooted: true },
+      }),
+    );
+    const fast = quantized(
+      new ChunkMaterial(world, {
+        kind: "seeThrough",
+        sway: { speed: 3, amplitude: 0.2, scale: 2, isCrossShaded: true },
+      }),
+    );
+    expect(fast.variantKey).toBe(slow.variantKey);
+    expect(fast.positionNode).toBe(slow.positionNode);
+    expect(slow._swayMotion.toArray()).toEqual([0.5, 0.05, 1, 1]);
+    expect(fast._swayMotion.toArray()).toEqual([3, 0.4, 1, 0]);
+    expect([slow._swayCrossShading, fast._swayCrossShading]).toEqual([0, 1]);
+    // Still apart from a material that does not sway.
+    const still = quantized(new ChunkMaterial(world, { kind: "seeThrough" }));
+    expect(still.variantKey).not.toBe(slow.variantKey);
+    // A fork keeps its source's sway; a variant change replaces the vector
+    // (a narrow refresh compares it by identity).
+    expect(slow.fork()._swayMotion.toArray()).toEqual([0.5, 0.05, 1, 1]);
+    const before = slow._swayMotion;
+    slow.setVariant({ sway: { speed: 1 } });
+    expect(slow._swayMotion).not.toBe(before);
+    expect(slow._swayMotion.x).toBe(1);
+  });
+
   it("hands a GPU-drawn material one node, the same on every read", () => {
     // Its `positionNode` is read into the program key whenever three keys
     // the material: a node made per read gave every GPU-drawn material a

@@ -28,6 +28,7 @@ import {
   screenCoordinate,
   select,
   smoothstep,
+  uniform,
   varyingProperty,
   vec2,
   vec3,
@@ -44,7 +45,7 @@ import {
   type Texture,
   Vector2,
   type Vector3,
-  type Vector4,
+  Vector4,
 } from "three/webgpu";
 
 import { BLOCK_LIGHT_TRANSFER } from "../block-light-transfer";
@@ -69,9 +70,13 @@ import type {
   ChunkUniforms,
   ShaderLightingUniforms,
 } from "./chunk-uniforms";
-import { chunkVertex, type ChunkVaryings } from "./chunk-vertex";
+import {
+  chunkVertex,
+  type ChunkSwayInputs,
+  type ChunkVaryings,
+} from "./chunk-vertex";
 import { perspectiveDepthToViewZ } from "./conventions";
-import { narrowRefresh } from "./draw-refresh";
+import { markMaterialPropertyRead, narrowRefresh } from "./draw-refresh";
 import { farSeam } from "./far-seam";
 import { lightConeShading } from "./light-cones";
 import { type LocalLightInputs, localLightShading } from "./local-lights";
@@ -279,22 +284,52 @@ type FragmentState = {
 /** A depth-only fork's colour: nothing; one node, so the forks share a graph. */
 const DEPTH_ONLY_COLOR = /*@__PURE__*/ vec4(0);
 
+/** What a drawn chunk mesh's own material holds of its fixed sway. */
+type FixedSwayHolder = { _swayMotion?: Vector4; _swayCrossShading?: number };
+const NO_SWAY_MOTION = /*@__PURE__*/ new Vector4();
+
+/**
+ * A block's fixed sway, read before each draw off the drawn mesh's own
+ * material (`ChunkMaterial._swayMotion`, `_swayCrossShading`): blocks that
+ * differ only in their sway share one program. Read off the mesh, not the
+ * material being drawn, because the depth passes draw through an override
+ * material while the mesh keeps its own: the caster's shadow moves with its
+ * leaves. Its only input is that material property (`narrowRefresh`).
+ */
+const FIXED_SWAY: ChunkSwayInputs = /*@__PURE__*/ (() => {
+  const holder = (object: Object3D | null | undefined) =>
+    (object as { material?: FixedSwayHolder } | null | undefined)?.material;
+  const motion = uniform(new Vector4()).onObjectUpdate(
+    ({ object }) => holder(object)?._swayMotion ?? NO_SWAY_MOTION,
+  );
+  const crossShading = uniform(0).onObjectUpdate(
+    ({ object }) => holder(object)?._swayCrossShading ?? 0,
+  );
+  markMaterialPropertyRead(motion, "_swayMotion");
+  markMaterialPropertyRead(crossShading, "_swayCrossShading");
+  return {
+    motion: motion as unknown as ChunkSwayInputs["motion"],
+    crossShading: crossShading as unknown as ChunkSwayInputs["crossShading"],
+  };
+})();
+
 /**
  * What a depth pass that overrides the material (the sun's cascades, the
  * local lights' shadow faces) moves a swaying chunk's vertices with. three
  * keeps a caster's `positionNode` on its override and nothing of its
  * `setupPosition`, so without one a swaying leaf or plant cast its rest
- * shape while it moved. One node per world, sway and position format: every
- * material of a variant shares it, and with it one depth graph. It reads
- * world uniforms, the geometry and constants only, never the material:
- * built into the override, "the material" is the depth material.
+ * shape while it moved. One node per world, kind, sway or none and position
+ * format: every material of a variant shares it, and with it one depth
+ * graph. It reads world uniforms, the geometry and the drawn mesh's own
+ * material (a fixed sway, `FIXED_SWAY`), never the material being drawn:
+ * built into the override, that is the depth material.
  */
 const casterPositions = new WeakMap<object, Map<string, Vec3Node>>();
 
 function casterPositionNode(
   shading: ChunkShadingInputs,
   kind: ChunkMaterialKind,
-  sway: ChunkSwayConstants | null,
+  hasSway: boolean,
   positionUnits: number,
 ): Vec3Node {
   let nodes = casterPositions.get(shading);
@@ -302,7 +337,7 @@ function casterPositionNode(
     nodes = new Map();
     casterPositions.set(shading, nodes);
   }
-  const key = `${kind}|${sway ? JSON.stringify(sway) : "-"}|${positionUnits}`;
+  const key = `${kind}|${hasSway ? "sway" : "-"}|${positionUnits}`;
   let node = nodes.get(key);
   if (!node) {
     node = Fn((builder: NodeBuilder) => {
@@ -314,7 +349,11 @@ function casterPositionNode(
           positionUnits: float(positionUnits),
         },
       );
-      vertex.displace({ sway, waveScale: null, hook: null });
+      vertex.displace({
+      sway: hasSway ? FIXED_SWAY : null,
+      waveScale: null,
+      hook: null,
+    });
       return positionLocal;
     })() as unknown as Vec3Node;
     nodes.set(key, node);
@@ -352,7 +391,7 @@ const gpuSectionCasterPositions = new WeakMap<object, Map<string, Vec3Node>>();
 function gpuSectionCasterPosition(
   shading: ChunkShadingInputs,
   kind: ChunkMaterialKind,
-  sway: ChunkSwayConstants | null,
+  hasSway: boolean,
   positionUnits: number,
 ): Vec3Node {
   let nodes = gpuSectionCasterPositions.get(shading);
@@ -360,10 +399,10 @@ function gpuSectionCasterPosition(
     nodes = new Map();
     gpuSectionCasterPositions.set(shading, nodes);
   }
-  const key = `${kind}|${sway ? JSON.stringify(sway) : "-"}|${positionUnits}`;
+  const key = `${kind}|${hasSway ? "sway" : "-"}|${positionUnits}`;
   let node = nodes.get(key);
   if (!node) {
-    node = makeGpuSectionCasterPosition(shading, kind, sway, positionUnits);
+    node = makeGpuSectionCasterPosition(shading, kind, hasSway, positionUnits);
     nodes.set(key, node);
   }
   return node;
@@ -372,7 +411,7 @@ function gpuSectionCasterPosition(
 function makeGpuSectionCasterPosition(
   shading: ChunkShadingInputs,
   kind: ChunkMaterialKind,
-  sway: ChunkSwayConstants | null,
+  hasSway: boolean,
   positionUnits: number,
 ): Vec3Node {
   return Fn((builder: NodeBuilder) => {
@@ -390,7 +429,11 @@ function makeGpuSectionCasterPosition(
         positionLocal.div(float(positionUnits)).add(section.origin),
       );
     }
-    vertex.displace({ sway, waveScale: null, hook: null });
+    vertex.displace({
+      sway: hasSway ? FIXED_SWAY : null,
+      waveScale: null,
+      hook: null,
+    });
     return positionLocal;
   })() as unknown as Vec3Node;
 }
@@ -456,10 +499,18 @@ export class ChunkMaterial extends NodeMaterial {
   // unbuilt material alike: they share one graph.
   private _fragmentState: FragmentState | null = null;
 
+  /** The fixed sway's speed, amplitude times scale, y scale and rooted (0
+   *  or 1), and its cross shading, as `FIXED_SWAY` reads them per draw
+   *  (underscored: three's material key reads every other number as
+   *  on/off). */
+  _swayMotion = new Vector4();
+  _swayCrossShading = 0;
+
   constructor(shading: ChunkShadingInputs, options: ChunkMaterialOptions) {
     super();
     this.shading = shading;
     this.variant = ChunkMaterial.resolveVariant(options);
+    this.applySway();
     this.hookValues = { ...(options.hooks?.values ?? {}) };
     // Its lighting takes the light cones per pixel.
     markLightConesCovered(this);
@@ -490,13 +541,18 @@ export class ChunkMaterial extends NodeMaterial {
       return gpuSectionCasterPosition(
         this.shading,
         hooks?.displace ? "opaque" : kind,
-        hooks?.displace ? null : sway,
+        !hooks?.displace && sway !== null,
         this.positionUnits,
       );
     }
     if (depthOnly || hooks?.displace) return null;
     if (kind !== "cutout" && !sway) return null;
-    return casterPositionNode(this.shading, kind, sway, this.positionUnits);
+    return casterPositionNode(
+      this.shading,
+      kind,
+      sway !== null,
+      this.positionUnits,
+    );
   }
 
   /**
@@ -564,8 +620,24 @@ export class ChunkMaterial extends NodeMaterial {
     if (options.hooks !== undefined) {
       this.hookValues = { ...(options.hooks?.values ?? {}) };
     }
+    this.applySway();
     this.applyDepthOnly();
     this.needsUpdate = true;
+  }
+
+  private applySway() {
+    const { sway } = this.variant;
+    // A new vector, never one changed in place: a narrow refresh compares
+    // the property by identity.
+    this._swayMotion = sway
+      ? new Vector4(
+          sway.speed,
+          sway.scale * sway.amplitude,
+          sway.yScale,
+          sway.rooted ? 1 : 0,
+        )
+      : new Vector4();
+    this._swayCrossShading = sway?.isCrossShaded ? 1 : 0;
   }
 
   private applyDepthOnly() {
@@ -576,9 +648,9 @@ export class ChunkMaterial extends NodeMaterial {
   /** The program this material compiles to: same key, same program. */
   get variantKey(): string {
     const { kind, sway, hooks, depthOnly } = this.chunkOptions;
-    const swayKey = sway
-      ? `${sway.speed},${sway.amplitude},${sway.scale},${sway.rooted ? 1 : 0},${sway.yScale},${sway.isCrossShaded ? 1 : 0}`
-      : "-";
+    // The sway's values are read per draw (`FIXED_SWAY`): one program for
+    // every sway.
+    const swayKey = sway ? "sway" : "-";
     return `${kind}|${swayKey}|${hooks?.key ?? "-"}|${depthOnly ? "depth" : "color"}`;
   }
 
@@ -613,6 +685,8 @@ export class ChunkMaterial extends NodeMaterial {
     this.waterDepthSide = source.waterDepthSide;
     this.positionUnits = source.positionUnits;
     this.hookValues = { ...source.hookValues };
+    this._swayMotion = source._swayMotion.clone();
+    this._swayCrossShading = source._swayCrossShading;
     this.cutsSolidTexels = source.cutsSolidTexels;
     this.solidTexelCut = source.solidTexelCut;
     // A GPU bucket's forks (its water's depth draws) read its sections too.
@@ -656,7 +730,7 @@ export class ChunkMaterial extends NodeMaterial {
     }
 
     vertex.displace({
-      sway,
+      sway: sway ? FIXED_SWAY : null,
       waveScale: hooks?.wave ?? null,
       hook: hooks?.displace ?? null,
     });
@@ -872,7 +946,11 @@ export class ChunkMaterial extends NodeMaterial {
     const prepared = hooks?.prepare?.({ v, uniforms: this.shading });
 
     const crossShading =
-      kind === "cutout" ? v.crossShading : float(sway?.isCrossShaded ? 1 : 0);
+      kind === "cutout"
+        ? v.crossShading
+        : sway
+          ? FIXED_SWAY.crossShading
+          : float(0);
     const voxelLight = bilinearVoxelLight(v).toVar("voxelLight");
     const sunExposure = voxelLight.w;
     const normal = v.worldNormal;

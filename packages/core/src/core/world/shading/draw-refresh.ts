@@ -27,7 +27,9 @@ const REFRESH_NONE = 0;
 const REFRESH_SHARED = 1;
 const REFRESH_FULL = 2;
 
-/** Marks a per-object callback as reading only `material[property]`. */
+/** Marks a per-object callback (or a uniform it updates) as reading only
+ *  `material[property]` of the material drawn: the draw's own material,
+ *  which a chunk mesh's material is in the passes that refresh narrowly. */
 export function markMaterialPropertyRead(node: object, property: string) {
   (node as { readsMaterialProperty?: string }).readsMaterialProperty = property;
 }
@@ -143,6 +145,8 @@ export function graphInputsOf(renderObject: RenderObject): GraphInputs | null {
     }
     if (node.readsMaterialProperty !== undefined) {
       properties.push(node.readsMaterialProperty);
+      // A uniform it writes (a fixed sway's) changes with that property.
+      fed.add(node);
       continue;
     }
     if (readsWorldMatrixOnly(node)) {
