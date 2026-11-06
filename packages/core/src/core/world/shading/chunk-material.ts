@@ -536,6 +536,20 @@ export class ChunkMaterial extends NodeMaterial {
   }
 
   /**
+   * Whether the program never reads the side it draws, so one program
+   * serves every side: a three patched to honour it leaves the side out of
+   * the program key, and the back and front passes of a double-sided
+   * see-through draw share one build instead of building the same code
+   * twice (unpatched three ignores it). The fluid surface reads
+   * `frontFacing` (in air only its outward face draws), so a fluid's sides
+   * are two programs. The patch throws if a material that says so reads its
+   * side.
+   */
+  get isSideAgnosticProgram(): boolean {
+    return this.variant.kind !== "fluid";
+  }
+
+  /**
    * Rebuild this material's program for another kind, sway or hooks (a
    * game customizing a block). Meshes keep the material; the next draw
    * picks up the new program.
