@@ -1,13 +1,12 @@
 import {
+  CanvasTarget,
   DirectionalLight,
   Object3D,
   OrthographicCamera,
-  SRGBColorSpace,
+  type Renderer,
   Scene,
-  Vector2,
   Vector3,
-  WebGLRenderer,
-} from "three";
+} from "three/webgpu";
 
 import { CameraPerspective } from "../common";
 
@@ -63,8 +62,8 @@ const defaultOptions: PortraitOptions = {
  * This class allows you to render a single THREE.js object to a canvas element.
  * This is useful for generating images of objects for use in the game. However, there
  * are performance bottlenecks that you should be aware of:
- * - The THREE.js renderer is shared between all instances of this class. This is because
- *   there is a limit to how many webgl contexts can be created.
+ * - Every portrait draws with the page's one renderer ({@link Portrait.useRenderer}),
+ *   into its own canvas through a canvas target of that renderer.
  * - Each individual portrait has their own render loop. This means that if you have a lto
  *   of portraits, you will be rendering a lot of frames per second. This can be mitigated
  *   by either using the renderOnce parameter or utilizing the {@link ItemSlots} class, which
@@ -77,17 +76,16 @@ const defaultOptions: PortraitOptions = {
  * ```
  */
 export class Portrait {
-  private static _renderer: WebGLRenderer | null = null;
+  /** The page's renderer; portraits draw nothing until one is given. */
+  public static renderer: Renderer | null = null;
 
-  public static get renderer(): WebGLRenderer {
-    if (!Portrait._renderer) {
-      Portrait._renderer = new WebGLRenderer({
-        antialias: false,
-        failIfMajorPerformanceCaveat: false,
-      });
-    }
-    return Portrait._renderer;
+  /** Draws every portrait with `renderer`, the page's one renderer. */
+  public static useRenderer(renderer: Renderer) {
+    Portrait.renderer = renderer;
   }
+
+  /** This portrait's canvas as a target of the page's renderer. */
+  private canvasTarget: CanvasTarget;
 
   /**
    * Parameters to create this portrait with.
@@ -130,8 +128,6 @@ export class Portrait {
       throw new Error("A target object is required for portraits.");
     }
 
-    Portrait.renderer.outputColorSpace = SRGBColorSpace;
-
     const { width, height, zoom, perspective, lightRotationOffset } =
       (this.options = {
         ...defaultOptions,
@@ -141,6 +137,7 @@ export class Portrait {
     this.canvas = document.createElement("canvas");
     this.canvas.width = width;
     this.canvas.height = height;
+    this.canvasTarget = new CanvasTarget(this.canvas);
 
     this.scene = new Scene();
 
@@ -195,6 +192,7 @@ export class Portrait {
 
     this.scene.remove(this.object);
     this.object = null;
+    this.canvasTarget.dispose();
   };
 
   /**
@@ -205,31 +203,18 @@ export class Portrait {
 
     const renderer = Portrait.renderer;
     const { renderOnce } = this.options;
+    if (!renderer) return;
 
-    // Get the renderer's sizes
-    const { width, height } = renderer.getSize(new Vector2(0, 0));
-
-    if (width !== this.canvas.width || height !== this.canvas.height) {
-      renderer.setSize(this.canvas.width, this.canvas.height);
+    const previousCanvas = renderer.getCanvasTarget();
+    const previousTarget = renderer.getRenderTarget();
+    renderer.setCanvasTarget(this.canvasTarget);
+    renderer.setRenderTarget(null);
+    try {
+      renderer.render(this.scene, this.camera);
+    } finally {
+      renderer.setRenderTarget(previousTarget);
+      renderer.setCanvasTarget(previousCanvas);
     }
-
-    renderer.render(this.scene, this.camera);
-
-    const rendererCanvas = renderer.domElement;
-    const ctx = this.canvas.getContext("2d");
-
-    ctx.globalCompositeOperation = "copy";
-    ctx.drawImage(
-      rendererCanvas,
-      0,
-      rendererCanvas.height - height,
-      width,
-      height,
-      0,
-      0,
-      width,
-      height,
-    );
 
     if (renderOnce) {
       this.dispose();

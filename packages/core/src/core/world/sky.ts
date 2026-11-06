@@ -3,22 +3,42 @@ import {
   Color,
   DodecahedronGeometry,
   Mesh,
-  MeshBasicMaterial,
-  ShaderMaterial,
+  type MeshBasicNodeMaterial,
+  NodeMaterial,
+  type UniformNode,
   Vector2,
   Vector3,
-} from "three";
+} from "three/webgpu";
+import {
+  cameraPosition,
+  diffuseColor,
+  dot,
+  exp,
+  float,
+  Fn,
+  fwidth,
+  If,
+  max,
+  mix,
+  normalize,
+  output,
+  positionWorld,
+  pow,
+  refract,
+  smoothstep,
+  sqrt,
+  step,
+  vec3,
+  vec4,
+} from "three/tsl";
 
 import { CanvasBox, CanvasBoxOptions } from "../../libs/canvas-box";
-import SkyFragmentShader from "../../shaders/sky/fragment.glsl?raw";
-import SkyVertexShader from "../../shaders/sky/vertex.glsl?raw";
 
 import { exemptFromLightCones } from "./light-cones";
 import { markNeverCaster } from "./shadow-casters";
-import {
-  createSkyGlowStatements,
-  SKY_GLOW_UNIFORM_DECLARATIONS,
-} from "./sky-fog";
+import { skyGlow, type SkyGlowInputs } from "./shading/sky-fog";
+import type { FloatNode, Vec3Node, Vec4Node } from "./shading/types";
+import { ownUniform } from "./shading/uniforms";
 import { WATER_OPTICS } from "./water-optics";
 
 export type SkyShadingCycleData = {
@@ -60,57 +80,67 @@ export type SkyOptions = {
 
 /**
  * The sky's own light, drawn by the dome and by every fogged surface from
- * one set of uniform objects (`createSkyGlowStatements`), so the haze in
- * front of a sunset wears exactly the light of the sky behind it. Colours
- * are linear and already scaled by their strength; all black, the default,
- * adds nothing. The world keeps `sunDirection` on the drawn disc each frame
+ * one set of uniform nodes (`skyGlow`), so the haze in front of a sunset
+ * wears exactly the light of the sky behind it. Colours are linear and
+ * already scaled by their strength; all black, the default, adds nothing.
+ * The world keeps `sunDirection` on the drawn disc each frame
  * (`getSunDiscDirection`); a host paints the colours.
  */
 export type SkyGlowUniforms = {
   /** Toward the sun's disc, never clamped or tilted; the moon is opposite. */
-  sunDirection: { value: Vector3 };
+  sunDirection: UniformNode<"vec3", Vector3>;
   /** The broad aura round the sun and the band along the horizon under it. */
-  color: { value: Color };
+  color: UniformNode<"vec3", Color>;
   /** The halo the haze scatters round the sun's disc. */
-  sunHaloColor: { value: Color };
+  sunHaloColor: UniformNode<"vec3", Color>;
   /** The halo round the moon's disc. */
-  moonHaloColor: { value: Color };
+  moonHaloColor: UniformNode<"vec3", Color>;
   /**
    * The discs as the host draws them in the sky (colour times how much of
    * it shows), for the fog to carry: terrain hides the drawn disc by depth
    * even where its haze has made it the sky's own colour.
    */
-  sunDiscColor: { value: Color };
-  moonDiscColor: { value: Color };
+  sunDiscColor: UniformNode<"vec3", Color>;
+  moonDiscColor: UniformNode<"vec3", Color>;
   /** The discs' angular radii in radians: x the sun, y the moon. */
-  discRadii: { value: Vector2 };
+  discRadii: UniformNode<"vec2", Vector2>;
 };
 
 export const createSkyGlowUniforms = (): SkyGlowUniforms => ({
-  sunDirection: { value: new Vector3(0, 1, 0) },
-  color: { value: new Color(0, 0, 0) },
-  sunHaloColor: { value: new Color(0, 0, 0) },
-  moonHaloColor: { value: new Color(0, 0, 0) },
-  sunDiscColor: { value: new Color(0, 0, 0) },
-  moonDiscColor: { value: new Color(0, 0, 0) },
-  discRadii: { value: new Vector2(0.07, 0.07) },
+  sunDirection: ownUniform(new Vector3(0, 1, 0)),
+  color: ownUniform(new Color(0, 0, 0)),
+  sunHaloColor: ownUniform(new Color(0, 0, 0)),
+  moonHaloColor: ownUniform(new Color(0, 0, 0)),
+  sunDiscColor: ownUniform(new Color(0, 0, 0)),
+  moonDiscColor: ownUniform(new Color(0, 0, 0)),
+  discRadii: ownUniform(new Vector2(0.07, 0.07)),
 });
 
-/** The glow as a shader binds it; black for a host that paints none. */
-export const bindSkyGlowUniforms = (
-  glow: SkyGlowUniforms = createSkyGlowUniforms(),
-) => ({
-  uSkyGlowSunDirection: glow.sunDirection,
-  uSkyGlowColor: glow.color,
-  uSkySunHaloColor: glow.sunHaloColor,
-  uSkyMoonHaloColor: glow.moonHaloColor,
-  uSkySunDiscColor: glow.sunDiscColor,
-  uSkyMoonDiscColor: glow.moonDiscColor,
-  uSkyDiscRadii: glow.discRadii,
-});
+/** The glow as `skyGlow` reads it, veiled by `directSunlight`. */
+export const skyGlowInputsOf = (
+  glow: SkyGlowUniforms,
+  directSunlight: FloatNode,
+): SkyGlowInputs =>
+  ({
+    skyGlowSunDirection: glow.sunDirection,
+    skyGlowColor: glow.color,
+    skySunHaloColor: glow.sunHaloColor,
+    skyMoonHaloColor: glow.moonHaloColor,
+    skySunDiscColor: glow.sunDiscColor,
+    skyMoonDiscColor: glow.moonDiscColor,
+    skyDiscRadii: glow.discRadii,
+    directSunlight,
+  }) as unknown as SkyGlowInputs;
 
-/** Marks where the dome's shader takes the glow statements. */
-const SKY_GLOW_INCLUDE = "#include <sky_glow>";
+/** The dome gradient's ramp exponents: toward the top, toward the void. */
+const SKY_EXPONENT = 0.6;
+const SKY_EXPONENT_2 = 1.2;
+
+/**
+ * The disc seen through the surface, in radians of the sky above: smaller
+ * than the disc in the air, as the window squeezes the whole sky into it.
+ */
+const SNELL_SUN_RADIUS = 0.03;
 
 const defaultOptions: SkyOptions = {
   dimension: 2000,
@@ -161,21 +191,6 @@ export function getVisibleDiscDirection(
 }
 
 /**
- * The dome's fragment shader with the sky's glow spliced in: the same
- * statements the fog runs, along the dome's own view ray.
- */
-export function composeSkyFragmentShader(): string {
-  if (!SkyFragmentShader.includes(SKY_GLOW_INCLUDE)) {
-    throw new Error(`Sky: the dome shader lost its ${SKY_GLOW_INCLUDE} line`);
-  }
-  return `${SKY_GLOW_UNIFORM_DECLARATIONS}
-${SkyFragmentShader.replace(
-  SKY_GLOW_INCLUDE,
-  createSkyGlowStatements("normalize(skyPosition)", "skyGlow"),
-)}`;
-}
-
-/**
  * Sky consists of both a large dodecahedron used to render the 3-leveled sky gradient and a {@link CanvasBox} that renders custom sky textures (
  * for a sky box) within the dodecahedron sky.
  *
@@ -205,67 +220,57 @@ export class Sky extends CanvasBox {
   /**
    * The top color of the sky gradient. Change this by calling {@link Sky.setTopColor}.
    */
-  public uTopColor: {
-    value: Color;
-  };
+  public uTopColor = ownUniform(new Color("#222"));
 
   /**
    * The middle color of the sky gradient. Change this by calling {@link Sky.setMiddleColor}.
    */
-  public uMiddleColor: {
-    value: Color;
-  };
+  public uMiddleColor = ownUniform(new Color("#222"));
 
   /**
    * The bottom color of the sky gradient. Change this by calling {@link Sky.setBottomColor}.
    */
-  public uBottomColor: {
-    value: Color;
-  };
+  public uBottomColor = ownUniform(new Color("#222"));
 
-  public uSkyOffset: {
-    value: number;
-  };
+  public uSkyOffset = ownUniform(0);
 
-  public uVoidOffset: {
-    value: number;
-  };
+  public uVoidOffset = ownUniform(1200);
 
-  public uTextureBloomThreshold: {
-    value: number;
-  };
+  public uTextureBloomThreshold = ownUniform(
+    defaultOptions.textureBloomThreshold,
+  );
 
-  public uTextureBloomIntensity: {
-    value: number;
-  };
+  public uTextureBloomIntensity = ownUniform(
+    defaultOptions.textureBloomIntensity,
+  );
 
   /**
    * The ambient water color the sky gradient fades toward while the camera
    * is submerged.
    */
-  public uUnderwaterAmbient = { value: new Color(0, 0, 0) };
+  public uUnderwaterAmbient = ownUniform(new Color(0, 0, 0));
 
   /**
    * How much of the sky gradient is replaced by the underwater ambient,
    * driven by camera depth.
    */
-  public uUnderwaterFade = { value: 0 };
+  public uUnderwaterFade = ownUniform(0);
 
   /**
    * 1 while the camera is under water: the dome then shows the sky only
    * through the Snell window, refracted, and the water's in-scatter
    * everywhere else.
    */
-  public uUnderwaterSubmerged = { value: 0 };
+  public uUnderwaterSubmerged = ownUniform(0);
 
   /** The celestial disc's direction, colour and light, for the refracted
    * disc the dome draws inside the Snell window. */
-  public uCelestialDirection = { value: new Vector3(0, 1, 0) };
-  public uSunColor = { value: new Color(1, 1, 1) };
-  public uSunlightIntensity = { value: 1 };
+  public uCelestialDirection = ownUniform(new Vector3(0, 1, 0));
+  public uSunColor = ownUniform(new Color(1, 1, 1));
+  public uSunlightIntensity = ownUniform(1);
   /** The share of the disc's light that reaches the world as a beam (the
    * chunk renderer's `directSunlight`): a veiled disc is not drawn. */
-  public uDirectSunlight = { value: 1 };
+  public uDirectSunlight = ownUniform(1);
 
   /**
    * The sky's own light (see {@link SkyGlowUniforms}). The world shares these
@@ -275,10 +280,10 @@ export class Sky extends CanvasBox {
 
   public shadingData: SkyShadingCycleData[] = [];
 
-  private textureBloomMaterials = new WeakSet<MeshBasicMaterial>();
+  private textureBloomMaterials = new WeakSet<MeshBasicNodeMaterial>();
 
-  /** The gradient dome (`createSkyShading`), the sky's own ShaderMaterial. */
-  private shading: Mesh<DodecahedronGeometry, ShaderMaterial> | null = null;
+  /** The gradient dome (`createSkyShading`). */
+  private shading: Mesh<DodecahedronGeometry, NodeMaterial> | null = null;
 
   /**
    * Create a new sky instance.
@@ -310,12 +315,8 @@ export class Sky extends CanvasBox {
 
     this.glow = glow;
 
-    this.uTextureBloomThreshold = {
-      value: this.options.textureBloomThreshold,
-    };
-    this.uTextureBloomIntensity = {
-      value: this.options.textureBloomIntensity,
-    };
+    this.uTextureBloomThreshold.value = this.options.textureBloomThreshold;
+    this.uTextureBloomIntensity.value = this.options.textureBloomIntensity;
 
     this.boxMaterials.forEach((m) => (m.depthWrite = false));
     this.frustumCulled = false;
@@ -518,66 +519,18 @@ export class Sky extends CanvasBox {
   };
 
   /**
-   * Create the dodecahedron sky gradient.
+   * Create the dodecahedron sky gradient: the two-ramp gradient, the sky's
+   * own glow, and under water the Snell window.
    */
   private createSkyShading = () => {
-    const {
-      color: { top, middle, bottom },
-      skyOffset,
-      voidOffset,
-    } = {
-      color: {
-        top: "#222",
-        middle: "#222",
-        bottom: "#222",
-      },
-      skyOffset: 0,
-      voidOffset: 1200,
-    };
-
-    this.uTopColor = {
-      value: new Color(top),
-    };
-    this.uMiddleColor = {
-      value: new Color(middle),
-    };
-    this.uBottomColor = {
-      value: new Color(bottom),
-    };
-    this.uSkyOffset = {
-      value: skyOffset,
-    };
-    this.uVoidOffset = {
-      value: voidOffset,
-    };
-
     const shadingGeometry = new DodecahedronGeometry(this.options.dimension, 2);
-    const shadingMaterial = new ShaderMaterial({
-      uniforms: {
-        uTopColor: this.uTopColor,
-        uMiddleColor: this.uMiddleColor,
-        uBottomColor: this.uBottomColor,
-        uSkyOffset: this.uSkyOffset,
-        uVoidOffset: this.uVoidOffset,
-        uExponent: { value: 0.6 },
-        uExponent2: { value: 1.2 },
-        uUnderwaterAmbient: this.uUnderwaterAmbient,
-        uUnderwaterFade: this.uUnderwaterFade,
-        uUnderwaterSubmerged: this.uUnderwaterSubmerged,
-        uUnderwaterInScatterTilt: {
-          value: WATER_OPTICS.underwaterInScatterTilt,
-        },
-        uCelestialDirection: this.uCelestialDirection,
-        uSunColor: this.uSunColor,
-        uSunlightIntensity: this.uSunlightIntensity,
-        uDirectSunlight: this.uDirectSunlight,
-        ...bindSkyGlowUniforms(this.glow),
-      },
-      vertexShader: SkyVertexShader,
-      fragmentShader: composeSkyFragmentShader(),
-      depthWrite: false,
-      side: BackSide,
-    });
+    const shadingMaterial = new NodeMaterial();
+    shadingMaterial.name = "sky-dome";
+    shadingMaterial.fragmentNode = this.skyDomeColor();
+    shadingMaterial.depthWrite = false;
+    shadingMaterial.side = BackSide;
+    shadingMaterial.fog = false;
+    shadingMaterial.lights = false;
     const shadingMesh = new Mesh(shadingGeometry, shadingMaterial);
     shadingMesh.renderOrder = -1;
     shadingMesh.frustumCulled = false;
@@ -586,6 +539,82 @@ export class Sky extends CanvasBox {
     this.attach(shadingMesh);
     this.shading = shadingMesh;
   };
+
+  private skyDomeColor(): Vec4Node {
+    const glow = skyGlow(skyGlowInputsOf(this.glow, this.uDirectSunlight));
+    return Fn(() => {
+      // Sky colours are view-relative. Sampling absolute world coordinates
+      // makes the gradient collapse around the origin when a camera-centred
+      // dome crosses it, producing a radial seam far from (0, 0, 0).
+      const skyPosition = positionWorld.sub(cameraPosition);
+      const viewDir = normalize(skyPosition).toVar("skyViewDir");
+      const h = normalize(skyPosition.add(this.uSkyOffset)).y;
+      const h2 = normalize(skyPosition.add(this.uVoidOffset)).y;
+      const upper = mix(
+        this.uMiddleColor,
+        this.uTopColor,
+        max(pow(max(h, 0), SKY_EXPONENT), 0),
+      );
+      const color = mix(
+        upper,
+        this.uBottomColor,
+        max(pow(max(h2.negate(), 0), SKY_EXPONENT_2), 0),
+      )
+        // The sky's own light toward its discs, the same light every fogged
+        // surface tints toward (sky-fog.ts), so the haze and the sky agree.
+        .add(glow.glow(viewDir))
+        .toVar("skyColor");
+
+      // From under water the sky only reaches the eye through the Snell
+      // window: a ray within the critical angle of straight up leaves the
+      // water bent away from the vertical, so the whole sky, horizon to
+      // zenith, shows squeezed into that cone, with the sun at its
+      // refracted place. Every other ray is reflected back down and sees
+      // only the water's in-scatter, which is also what any ray that meets
+      // no geometry near the horizon must read as (past the loaded surface,
+      // over a drop-off), never a pale horizon band. Depth dims the window
+      // toward the in-scatter. The disc's edge width is taken up front,
+      // outside the branches, where every pixel still runs it.
+      const airDir = refract(viewDir, vec3(0, -1, 0), 1.333).toVar("skyAirDir");
+      const sunCos = dot(airDir, this.uCelestialDirection);
+      const sunAngle = sqrt(max(sunCos.mul(-2).add(2), 0)).toVar("skySunAngle");
+      const sunEdge = fwidth(sunAngle).mul(1.5).toVar("skySunEdge");
+      If(this.uUnderwaterSubmerged.greaterThan(0.5), () => {
+        const inScatter = this.uUnderwaterAmbient.mul(
+          viewDir.y.mul(WATER_OPTICS.underwaterInScatterTilt).add(1),
+        );
+        const underColor = inScatter.toVar("skyUnderColor");
+        If(viewDir.y.greaterThan(0).and(dot(airDir, airDir).greaterThan(0.5)), () => {
+          // The same glowing disc as in the air: a soft-edged core and a
+          // halo around it, not a hard sticker.
+          const sunDisc = smoothstep(
+            float(SNELL_SUN_RADIUS).sub(sunEdge),
+            float(SNELL_SUN_RADIUS).add(sunEdge),
+            sunAngle,
+          )
+            .oneMinus()
+            .mul(step(0, sunCos));
+          const sunGlow = exp(sunAngle.div(SNELL_SUN_RADIUS).mul(-0.9))
+            .mul(0.6)
+            .add(pow(max(sunCos, 0), 48));
+          const windowSky = mix(
+            this.uMiddleColor,
+            this.uTopColor,
+            pow(max(airDir.y, 0), SKY_EXPONENT),
+          ).add(
+            this.uSunColor
+              .mul(this.uSunlightIntensity)
+              .mul(this.uDirectSunlight)
+              .mul(sunDisc.mul(2.2).add(sunGlow.mul(0.35))),
+          );
+          const transmit = pow(airDir.y.oneMinus(), 5).mul(0.98).add(0.02).oneMinus();
+          underColor.assign(mix(inScatter, windowSky, transmit));
+        });
+        color.assign(mix(underColor, inScatter, this.uUnderwaterFade));
+      });
+      return vec4(color, 1);
+    })() as unknown as Vec4Node;
+  }
 
   /**
    * Frees the box's layers (geometry, face canvases and materials, atlas)
@@ -601,6 +630,10 @@ export class Sky extends CanvasBox {
     }
   }
 
+  /**
+   * Painted sky texels past the bloom threshold glow, so a painted sun or
+   * aurora feeds the bloom like the light it depicts.
+   */
   private applyTextureBloomToMaterials = () => {
     this.boxLayers.forEach((layer) => {
       layer.renderOrder = -1;
@@ -608,39 +641,24 @@ export class Sky extends CanvasBox {
 
       layer.materials.forEach((material) => {
         material.depthWrite = false;
+        // The sky is what the world's fog fades into, never fogged itself.
+        material.fog = false;
 
         if (this.textureBloomMaterials.has(material)) {
           return;
         }
 
-        const originalOnBeforeCompile = material.onBeforeCompile;
-        material.onBeforeCompile = (shader, renderer) => {
-          originalOnBeforeCompile(shader, renderer);
-          shader.uniforms.uSkyTextureBloomThreshold =
-            this.uTextureBloomThreshold;
-          shader.uniforms.uSkyTextureBloomIntensity =
-            this.uTextureBloomIntensity;
-          shader.fragmentShader = shader.fragmentShader
-            .replace(
-              "void main() {",
-              `
-uniform float uSkyTextureBloomThreshold;
-uniform float uSkyTextureBloomIntensity;
-
-void main() {
-`,
-            )
-            .replace(
-              "#include <map_fragment>",
-              `
-#include <map_fragment>
-float skyTextureBloomLuminance = dot(diffuseColor.rgb, vec3(0.2126, 0.7152, 0.0722));
-float skyTextureBloomMask = smoothstep(uSkyTextureBloomThreshold, 1.0, skyTextureBloomLuminance) * diffuseColor.a;
-diffuseColor.rgb *= 1.0 + skyTextureBloomMask * uSkyTextureBloomIntensity;
-`,
-            );
-        };
-        material.onBeforeCompile.toString = () => "sky-texture-bloom-shader";
+        const base = (material.outputNode ?? output) as unknown as Vec4Node;
+        const luminance = dot(diffuseColor.rgb, vec3(0.2126, 0.7152, 0.0722));
+        const mask = smoothstep(
+          this.uTextureBloomThreshold,
+          1,
+          luminance,
+        ).mul(diffuseColor.a);
+        material.outputNode = vec4(
+          (base.rgb as Vec3Node).mul(mask.mul(this.uTextureBloomIntensity).add(1)),
+          base.a,
+        );
         material.needsUpdate = true;
         this.textureBloomMaterials.add(material);
       });

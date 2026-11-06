@@ -1,4 +1,4 @@
-import { Camera, Material, Object3D, Scene, WebGLRenderer } from "three";
+import { Camera, Material, Object3D, Scene, Renderer } from "three/webgpu";
 
 /**
  * Draws a list of casters that live elsewhere in the scene graph, without
@@ -21,6 +21,23 @@ import { Camera, Material, Object3D, Scene, WebGLRenderer } from "three";
  * subtree to be refreshed (`refreshMatrices`), as a pass that draws casters
  * alone must when nothing walked the graph this frame.
  */
+const shadowViews = new WeakSet<Camera>();
+
+/**
+ * Marks a camera that draws shadow depth (a sun cascade, a torch's face).
+ * GPU-drawn terrain keeps a packed list of its own for such views, so the
+ * main view's list outlives a cascade drawn between two frames of it.
+ */
+export function markShadowView<T extends Camera>(camera: T): T {
+  shadowViews.add(camera);
+  return camera;
+}
+
+/** Whether `camera` was marked with {@link markShadowView}. */
+export function isShadowView(camera: Camera): boolean {
+  return shadowViews.has(camera);
+}
+
 export class BorrowedCasterScene {
   readonly scene = new Scene();
 
@@ -41,7 +58,7 @@ export class BorrowedCasterScene {
    * a scratch scene that updates itself) used to do.
    */
   render(
-    renderer: WebGLRenderer,
+    renderer: Renderer,
     camera: Camera,
     casters: Object3D[],
     overrideMaterial: Material | null,
@@ -53,9 +70,16 @@ export class BorrowedCasterScene {
     }
     this.scene.children = casters;
     this.scene.overrideMaterial = overrideMaterial;
+    // Into the target as it is: the casters join what the pass drew before
+    // them (a cascade's whole static world). A render that cleared first
+    // left a near cascade holding these casters alone, and no terrain, tree
+    // or house shadowed anything near the player.
+    const autoClear = renderer.autoClear;
+    renderer.autoClear = false;
     try {
       renderer.render(this.scene, camera);
     } finally {
+      renderer.autoClear = autoClear;
       this.scene.children = this.ownChildren;
       this.scene.overrideMaterial = null;
     }

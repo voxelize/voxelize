@@ -5,13 +5,13 @@ import {
   Scene,
   Vector3,
   BoxBufferGeometry,
-  MeshBasicMaterial,
+  MeshBasicNodeMaterial,
   Mesh,
-  MeshNormalMaterial,
+  MeshNormalNodeMaterial,
   PlaneBufferGeometry,
   DoubleSide,
-} from "three";
-import { OrbitControls } from "three/examples/jsm/controls/OrbitControls";
+} from "three/webgpu";
+import { OrbitControls } from "three/addons/controls/OrbitControls";
 
 import { Engine } from "../../dist";
 
@@ -66,13 +66,13 @@ const engine = new Engine(
 
 const floor = new Mesh(
   new PlaneBufferGeometry(100, 100),
-  new MeshBasicMaterial({ color: "#112233", side: DoubleSide }),
+  new MeshBasicNodeMaterial({ color: "#112233", side: DoubleSide }),
 );
 floor.position.y = 1;
 floor.rotateX(Math.PI / 2);
 scene.add(floor);
 
-const mat = new MeshNormalMaterial();
+const mat = new MeshNormalNodeMaterial();
 const renderAABB = (aabb) => {
   const geo = new BoxBufferGeometry(aabb.width, aabb.height, aabb.depth);
   const mesh = new Mesh(geo, mat);

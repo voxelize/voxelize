@@ -2,21 +2,16 @@ import {
   Group,
   Matrix3,
   Matrix4,
-  ShaderMaterial,
+  RenderTarget,
   Texture,
-  Uniform,
   Vector3,
-  WebGLRenderTarget,
-} from "three";
+} from "three/webgpu";
 import { describe, expect, it, vi } from "vitest";
 
 import type { Coords3 } from "../../types";
 
-import {
-  type CustomChunkShaderMaterial,
-  forkVoxelBoxMaterial,
-} from "./chunk-materials";
-import { SHADER_LIGHTING_CHUNK_SHADERS } from "./shaders";
+import { ChunkMaterial, forkVoxelBoxMaterial } from "./chunk-materials";
+import type { ChunkShadingInputs } from "./shading/chunk-material";
 import { VoxelBoxTexelFrame, voxelBoxTexelFrame } from "./voxel-box";
 
 const ORIGIN: Coords3 = [37, 4, -12];
@@ -123,63 +118,59 @@ describe("a voxel box's texel frame", () => {
   });
 });
 
+// The world's shading inputs are only read when a program builds.
+const shading = { id: 1 } as unknown as ChunkShadingInputs;
+
 describe("a voxel box's materials", () => {
   it("share every live uniform and the atlas with the chunks and turn the frame on", () => {
-    const source = new ShaderMaterial({
-      fragmentShader: SHADER_LIGHTING_CHUNK_SHADERS.fragment,
-      vertexShader: SHADER_LIGHTING_CHUNK_SHADERS.vertex,
-      uniforms: {
-        uTime: new Uniform(1),
-        map: new Uniform(new Texture()),
-        uGreedyFrame: new Uniform(new Matrix4()),
-        uHasGreedyFrame: new Uniform(0),
-      },
-    }) as CustomChunkShaderMaterial;
-    source.map = source.uniforms.map.value;
+    const source = new ChunkMaterial(shading, { kind: "opaque" });
+    source.map = new Texture();
     const frame = new VoxelBoxTexelFrame(ORIGIN, new Group());
     const own = forkVoxelBoxMaterial(source, frame);
 
-    expect(own.uniforms.uTime).toBe(source.uniforms.uTime);
-    expect(own.uniforms.map).toBe(source.uniforms.map);
+    // The same world inputs (time, light, shadows) and the same program.
+    expect(own.shading).toBe(source.shading);
+    expect(own.variantKey).toBe(source.variantKey);
+    expect(own.customProgramCacheKey()).toBe(source.customProgramCacheKey());
     expect(own.map).toBe(source.map);
-    expect(own.fragmentShader).toBe(source.fragmentShader);
-    expect(own.vertexShader).toBe(source.vertexShader);
-    expect(own.uniforms.uGreedyFrame).toBe(frame);
-    expect(own.uniforms.uHasGreedyFrame.value).toBe(1);
-    expect(source.uniforms.uHasGreedyFrame.value).toBe(0);
+    // The fork holds the frame itself, read as `greedyFrame.value` each draw.
+    expect(own.greedyFrame).toBe(frame);
+    expect(own.hasGreedyFrame).toBe(1);
+    expect(source.hasGreedyFrame).toBe(0);
+    expect(source.greedyFrame).not.toBe(own.greedyFrame);
   });
 
-  it("are forked without copying the uniforms they share", () => {
-    const shadowMap = new WebGLRenderTarget(4, 4).texture;
-    const source = new ShaderMaterial({
-      uniforms: {
-        uShadowMap0: new Uniform(shadowMap),
-        map: new Uniform(new Texture()),
-      },
-    }) as CustomChunkShaderMaterial;
-    source.map = source.uniforms.map.value;
+  it("are forked without copying the textures they share", () => {
+    const shadowMap = new RenderTarget(4, 4).texture;
+    const source = new ChunkMaterial(shading, { kind: "opaque" });
+    source.map = shadowMap;
     const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
     try {
       const own = forkVoxelBoxMaterial(
         source,
         new VoxelBoxTexelFrame(ORIGIN, new Group()),
       );
-      expect(own.uniforms.uShadowMap0).toBe(source.uniforms.uShadowMap0);
-      expect(source.uniforms.uShadowMap0.value).toBe(shadowMap);
+      expect(own.map).toBe(shadowMap);
+      expect(source.map).toBe(shadowMap);
       expect(warn).not.toHaveBeenCalled();
     } finally {
       warn.mockRestore();
     }
   });
 
-  it("read a greedy face's texels through the frame in the chunk shader", () => {
-    const fragment = SHADER_LIGHTING_CHUNK_SHADERS.fragment;
-    expect(fragment).toContain("uniform mat4 uGreedyFrame;");
-    expect(fragment).toContain("uniform float uHasGreedyFrame;");
-    expect(fragment).toContain(
-      "greedyFaceUv(greedyNormal, fract(greedyPosition))",
+  it("follow the box as it moves after the fork", () => {
+    const { hinge, box } = boxAt({ angle: 0 });
+    const source = new ChunkMaterial(shading, { kind: "opaque" });
+    const own = forkVoxelBoxMaterial(
+      source,
+      new VoxelBoxTexelFrame(ORIGIN, box),
     );
-    expect(fragment).toContain("greedyFaceUv(greedyNormal, greedyPosition)");
-    expect(fragment).not.toMatch(/greedyFaceUv\(vWorldNormal/);
+    hinge.quaternion.setFromAxisAngle(new Vector3(0, 0, 1), 1.1);
+    hinge.updateMatrixWorld(true);
+    const point = POINTS[2];
+    expectClose(
+      point.clone().applyMatrix4(box.matrixWorld).applyMatrix4(own.greedyFrame.value),
+      point.clone().add(new Vector3(...ORIGIN)),
+    );
   });
 });

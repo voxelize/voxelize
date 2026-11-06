@@ -1,5 +1,5 @@
 import type { GeometryProtocol } from "@voxelize/protocol";
-import { type Group, Matrix4, type Object3D } from "three";
+import { type Group, Matrix4, type Object3D } from "three/webgpu";
 
 import type { BudgetedWorkOutcome } from "../../libs/instancing/frame-budget";
 import type { Coords3 } from "../../types";

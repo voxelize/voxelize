@@ -1,4 +1,4 @@
-import { Timer, Vector3 } from "three";
+import { Timer, Vector3 } from "three/webgpu";
 
 import { RigidControls } from "../core/controls";
 import { Inputs } from "../core/inputs";

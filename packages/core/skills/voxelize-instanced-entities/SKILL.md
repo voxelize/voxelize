@@ -68,8 +68,7 @@ await roster.warm({ budgetMs: 40 });
 // every frame
 entities.update();
 roster.update(deltaTime, renderer);
-world.updateShaderLighting(camera, playerPosition);
-roster.updateShadowUniforms(world.chunkRenderer.shaderLightingUniforms);
+world.updateShaderLighting(camera, playerPosition); // also lights every entity's shadow
 world.renderShadowMaps(renderer, [...otherCasters, ...roster.listShadowCasterPools()]);
 ```
 

@@ -7,7 +7,7 @@ import {
   PointLight,
   Quaternion,
   Vector3,
-} from "three";
+} from "three/webgpu";
 
 import { computeVoxelLightColor } from "./block-light";
 import { ParticleEmitter } from "./emitter";
@@ -31,7 +31,6 @@ const DEFAULT_OPTIONS: ParticleSystemOptions = {
   capacityPerLayer: 768,
   maxFlashLights: 4,
   bloomExemptLayer: PARTICLE_BLOOM_EXEMPT_LAYER,
-  isQuadSinglePass: true,
   softLayerRenderOrder: 0,
 };
 
@@ -86,7 +85,6 @@ export class ParticleSystem {
   private flashCursor = 0;
   private readonly capacityPerLayer: number;
   private readonly bloomExemptLayer: number;
-  private readonly isQuadSinglePass: boolean;
   private readonly softLayerRenderOrder: number;
 
   private readonly scratchColor = new Color();
@@ -111,7 +109,6 @@ export class ParticleSystem {
       capacityPerLayer,
       maxFlashLights,
       bloomExemptLayer,
-      isQuadSinglePass,
       softLayerRenderOrder,
     } = {
       ...DEFAULT_OPTIONS,
@@ -119,7 +116,6 @@ export class ParticleSystem {
     };
     this.capacityPerLayer = capacityPerLayer;
     this.bloomExemptLayer = bloomExemptLayer;
-    this.isQuadSinglePass = isQuadSinglePass;
     this.softLayerRenderOrder = softLayerRenderOrder;
     for (let i = 0; i < maxFlashLights; i += 1) {
       const light = new PointLight(WHITE, 0, 0);
@@ -342,7 +338,6 @@ export class ParticleSystem {
       physics: config.physics ?? null,
       isCutout,
       bloomExemptLayer: isBloomExempt ? this.bloomExemptLayer : null,
-      isSinglePass: this.isQuadSinglePass,
       renderOrder: isCutout ? 0 : this.softLayerRenderOrder,
     });
     this.layers.set(key, layer);

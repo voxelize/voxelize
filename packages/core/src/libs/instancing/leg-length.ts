@@ -1,4 +1,4 @@
-import type * as THREE from "three";
+import type * as THREE from "three/webgpu";
 
 /// Fraction of the mesh height above its lowest vertex still counted as the
 /// soles: the box feet of every walker end on one flat face.

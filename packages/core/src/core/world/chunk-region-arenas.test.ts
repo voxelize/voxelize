@@ -3,12 +3,12 @@ import {
   BufferAttribute,
   BufferGeometry,
   Group,
-  MeshBasicMaterial,
-} from "three";
+  MeshBasicNodeMaterial,
+} from "three/webgpu";
 import { describe, expect, it } from "vitest";
 
-import { CustomChunkShaderMaterial } from "./chunk-materials";
-import { ChunkRegionArenas } from "./chunk-region-arenas";
+import { ChunkMaterial } from "./chunk-materials";
+import { ChunkRegionArenas, setSectionBounds } from "./chunk-region-arenas";
 
 /** `quads` unit quads in a row, the shape a section's opaque bucket takes. */
 const sectionGeometry = (quads: number) => {
@@ -37,7 +37,7 @@ const makeArenas = (
       indexPerVertexRatio: 1.5,
     },
     64,
-    () => new MeshBasicMaterial() as unknown as CustomChunkShaderMaterial,
+    () => new MeshBasicNodeMaterial() as unknown as ChunkMaterial,
     parent,
     1,
     onRegionMesh,
@@ -131,5 +131,43 @@ describe("ChunkRegionArenas pages", () => {
     arenas.dispose();
     expect(events[3]).toEqual([second, false]);
     expect(parent.children).toEqual([]);
+  });
+});
+
+describe("ChunkRegionArenas pages in an area", () => {
+  it("collects the pages of every region over the chunk range, and only those", () => {
+    const parent = new Group();
+    const arenas = makeArenas(parent);
+    // Regions are 4x4 chunks: (1,1) and (2,3) share region 0,0; (9,1) is
+    // region 2,0; (-3,1) is region -1,0.
+    arenas.setSectionGeometry(1, 1, 0, sectionGeometry(2), 16, 0, 16);
+    arenas.setSectionGeometry(2, 3, 0, sectionGeometry(2), 16, 0, 16);
+    arenas.setSectionGeometry(9, 1, 0, sectionGeometry(2), 16, 0, 16);
+    arenas.setSectionGeometry(-3, 1, 0, sectionGeometry(2), 16, 0, 16);
+    const near: unknown[] = [];
+    arenas.collectPagesIn(0, 3, 0, 3, near as never);
+    expect(near).toHaveLength(1);
+    const wide: unknown[] = [];
+    arenas.collectPagesIn(-1, 8, 0, 1, wide as never);
+    expect(wide).toHaveLength(3);
+    for (const mesh of wide) expect(parent.children).toContain(mesh);
+  });
+});
+
+
+describe("setSectionBounds", () => {
+  it("bounds a section from its positions, as the batch's slot takes them", () => {
+    const geometry = new BufferGeometry();
+    geometry.setAttribute(
+      "position",
+      new BufferAttribute(new Uint16Array([4, 9, 2, 0, 10, 3, 7, 0, 6, 1, 5, 0]), 4),
+    );
+    setSectionBounds(geometry);
+    expect(geometry.boundingBox!.min.toArray()).toEqual([4, 1, 2]);
+    expect(geometry.boundingBox!.max.toArray()).toEqual([10, 9, 7]);
+    // The sphere holds the box.
+    const sphere = geometry.boundingSphere!;
+    expect(sphere.containsPoint(geometry.boundingBox!.min)).toBe(true);
+    expect(sphere.containsPoint(geometry.boundingBox!.max)).toBe(true);
   });
 });

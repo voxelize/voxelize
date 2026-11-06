@@ -5,8 +5,8 @@ import { biomeTintAttribute } from "./biome-tint";
 const tinted = new Uint32Array([0x80000000]);
 function color(field: Uint8Array, x: number, z: number) {
   return Array.from(
-    biomeTintAttribute(new Float32Array([x, 3, z]), tinted, field, 16).array,
-  );
+biomeTintAttribute(new Float32Array([x, 3, z]), tinted, field, 16).array,
+).slice(0, 3);
 }
 describe("continuous regional material color", () => {
   it("shares an edge at every height and preserves intermediate colors", () => {
@@ -32,19 +32,19 @@ describe("continuous regional material color", () => {
     const field = new Uint8Array(12).fill(128);
     expect(
       Array.from(
-        biomeTintAttribute(
+biomeTintAttribute(
           new Float32Array([8, 3, 8]),
           new Uint32Array([0]),
           field,
           16,
         ).array,
-      ),
+).slice(0, 3),
     ).toEqual([0, 0, 0]);
     expect(
       Array.from(
-        biomeTintAttribute(new Float32Array([8, 3, 8]), tinted, undefined, 16)
+biomeTintAttribute(new Float32Array([8, 3, 8]), tinted, undefined, 16)
           .array,
-      ),
+).slice(0, 3),
     ).toEqual([0, 0, 0]);
     expect(color(field, 8, 8)).toEqual([128, 128, 128]);
   });
@@ -58,9 +58,9 @@ describe("continuous regional material color", () => {
       ]);
       expect(
         Array.from(
-          biomeTintAttribute(new Float32Array([8, 3, 8]), tabled, field, 16)
+biomeTintAttribute(new Float32Array([8, 3, 8]), tabled, field, 16)
             .array,
-        ),
+).slice(0, 3),
       ).toEqual([0, 0, 0]);
     }
     // A tinted plant run at its highest code still takes the field.
@@ -69,9 +69,9 @@ describe("continuous regional material color", () => {
     ]);
     expect(
       Array.from(
-        biomeTintAttribute(new Float32Array([8, 3, 8]), tallest, field, 16)
+biomeTintAttribute(new Float32Array([8, 3, 8]), tallest, field, 16)
           .array,
-      ),
+).slice(0, 3),
     ).not.toEqual([0, 0, 0]);
   });
   it("decodes quantized, biased coordinates identically and handles plant jitter", () => {
@@ -86,7 +86,9 @@ describe("continuous regional material color", () => {
       256,
       2,
     );
-    expect(Array.from(packed.array)).toEqual(color(field, 8, 5));
+    expect(Array.from(
+packed.array,
+).slice(0, 3)).toEqual(color(field, 8, 5));
     expect(color(field, -0.1, 0)).toEqual(color(field, 0, 0));
     expect(color(field, 16.1, 16)).toEqual(color(field, 16, 16));
   });

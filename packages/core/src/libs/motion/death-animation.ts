@@ -1,4 +1,4 @@
-import type { Vector3 } from "three";
+import type { Vector3 } from "three/webgpu";
 
 const TIP_END = 300;
 const POOF_TIME = 500;

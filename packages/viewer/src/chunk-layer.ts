@@ -15,6 +15,7 @@ import {
   POSITION_BLOCK_BIAS,
   SHARED_OPAQUE_MATERIAL_KEY,
   type CSMRenderer,
+  BYTE_VECTOR_STRIDE,
 } from "@voxelize/core";
 import {
   Box3,
@@ -27,9 +28,9 @@ import {
   Scene,
   Sphere,
   Vector3,
-  type WebGLRenderer,
-  type WebGLRenderTarget,
-} from "three";
+  type Renderer,
+  type RenderTarget,
+} from "three/webgpu";
 
 import { chunkKey, chunksAround } from "./lod";
 import type { ViewerMaterials } from "./materials";
@@ -252,9 +253,9 @@ export class ChunkLayer {
    * once the programs are ready (in parallel where the browser can).
    */
   async warm(
-    renderer: WebGLRenderer,
+    renderer: Renderer,
     camera: Camera,
-    target: WebGLRenderTarget,
+    target: RenderTarget,
     scene: Scene,
   ) {
     const holder = new Scene();
@@ -262,8 +263,7 @@ export class ChunkLayer {
     for (const material of new Set(
       this.materials.chunkRenderer.materials.values(),
     )) {
-      const quantized =
-        material.defines?.POSITION_UNITS_PER_BLOCK !== undefined;
+      const quantized = material.userData.isQuantized === true;
       const geometry = new BufferGeometry();
       geometry.setAttribute(
         "position",
@@ -287,15 +287,13 @@ export class ChunkLayer {
       );
       geometry.setAttribute(
         "biomeTint",
-        new BufferAttribute(new Uint8Array(9), 3, true),
+        new BufferAttribute(new Uint8Array(12), BYTE_VECTOR_STRIDE, true),
       );
       geometry.setAttribute(
         "normal",
-        new BufferAttribute(
-          quantized ? new Int8Array(9) : new Float32Array(9),
-          3,
-          quantized,
-        ),
+        quantized
+          ? new BufferAttribute(new Int8Array(12), BYTE_VECTOR_STRIDE, true)
+          : new BufferAttribute(new Float32Array(9), 3),
       );
       geometry.setIndex(new BufferAttribute(new Uint32Array([0, 1, 2]), 1));
       const page = new PoolPage(1, 3, 3, material);
@@ -492,11 +490,13 @@ export class ChunkLayer {
     geometry.setAttribute("lightTwist", new BufferAttribute(g.lightTwist, 4));
     geometry.setAttribute(
       "biomeTint",
-      new BufferAttribute(g.biomeTint, 3, true),
+      new BufferAttribute(g.biomeTint, BYTE_VECTOR_STRIDE, true),
     );
     geometry.setAttribute(
       "normal",
-      new BufferAttribute(g.normals, 3, g.quantized),
+      g.quantized
+        ? new BufferAttribute(g.normals, BYTE_VECTOR_STRIDE, true)
+        : new BufferAttribute(g.normals, 3),
     );
     geometry.setIndex(new BufferAttribute(g.indices, 1));
     // The pool culls each section by its geometry's bounds, in the units

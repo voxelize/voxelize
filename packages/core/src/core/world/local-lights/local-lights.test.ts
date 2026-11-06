@@ -1,23 +1,14 @@
-import { Vector3 } from "three";
-import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { Vector3 } from "three/webgpu";
+import { describe, expect, it } from "vitest";
 
 import {
   BLOCK_LIGHT_TRANSFER,
-  BLOCK_LIGHT_TUNING,
   blockLightAdapt,
   blockLightCurve,
   blockLightCurveRGB,
   localLightFalloff,
   maskedWindowDistance,
-  setBlockLightTuning,
 } from "../block-light-transfer";
-import {
-  SHADER_LIGHTING_CHUNK_SHADERS,
-  SHADER_LIGHTING_CROSS_CHUNK_SHADERS,
-  SHADER_LIGHTING_FLUID_CHUNK_SHADERS,
-  SHADER_LIGHTING_SEE_THROUGH_CHUNK_SHADERS,
-  stripLocalLightsFromFragment,
-} from "../shaders";
 
 import { LightClusterGrid } from "./clustering";
 import {
@@ -28,9 +19,8 @@ import {
 } from "./registry";
 import { BlockProfileTable, EmitterBlock, SectionTracker } from "./scan";
 import {
+  BLOCK_LIGHT_OWNERSHIP_GAIN,
   blockLightFloodRemainder,
-  LOCAL_LIGHTS_FUNCTIONS,
-  LOCAL_LIGHTS_UNIFORM_DECLARATIONS,
 } from "./shader";
 import {
   BlockLightProfile,
@@ -99,7 +89,6 @@ const makeGrid = (
     maxClusteredLights: number;
     maxLightsPerCell: number;
     analyticRadius: number;
-    temporalStability: boolean;
     highResolutionLightsPerCell: number;
   }> = {},
 ) =>
@@ -112,7 +101,6 @@ const makeGrid = (
     selectionHysteresis: 1.2,
     maskKnee: 2 / 15,
     fluidSpecularStrength: 1,
-    temporalStability: overrides.temporalStability ?? true,
     slotFadeMs: 320,
     ...(overrides.highResolutionLightsPerCell !== undefined && {
       highResolutionLightsPerCell: overrides.highResolutionLightsPerCell,
@@ -403,15 +391,6 @@ describe("LightClusterGrid selection", () => {
 });
 
 describe("block-light ownership", () => {
-  // These pin the legacy model's numbers (smoothstep flood, 1.2 gain,
-  // (1 - n^2)^2 kernel); the new transfer has its own suite below.
-  beforeEach(() =>
-    setBlockLightTuning({ curve: false, toneMap: false, kernel: false }),
-  );
-  afterEach(() =>
-    setBlockLightTuning({ curve: true, toneMap: true, kernel: true }),
-  );
-
   const makeSample = () => ({
     color: [0, 0, 0] as [number, number, number],
     count: 0,
@@ -469,9 +448,9 @@ describe("block-light ownership", () => {
     grid.update(0, 0, 0, makeStats());
 
     const sample = makeSample();
-    grid.sampleIrradiance([9, 4, 4], sample); // 5 blocks out: falloff 0.5625
+    grid.sampleIrradiance([9, 4, 4], sample); // 5 blocks out
     const luma = 0.2126 * 1 + 0.7152 * 0.8 + 0.0722 * 0.5;
-    expect(sample.claim).toBeCloseTo(0.5625 * luma, 6);
+    expect(sample.claim).toBeCloseTo(localLightFalloff(5, 10) * luma, 6);
   });
 
   it("claims nothing where no selected light reaches", () => {
@@ -523,9 +502,8 @@ describe("block-light ownership", () => {
     const rim = makeSample();
     grid.sampleIrradiance([80, 4, 4], rim); // 8 inside, 16-block band: 0.5
 
-    const dist = 20;
-    const norm = dist / 32;
-    const falloff = (1 - norm * norm) ** 2;
+    // The rim point is 20 blocks from the light, the deep one at it.
+    const falloff = localLightFalloff(20, 32) / localLightFalloff(0, 32);
     expect(deep.windowFade).toBe(1);
     expect(rim.windowFade).toBeCloseTo(0.5, 6);
     // Color rides the fade; the claim is the raw unfaded coverage.
@@ -545,7 +523,7 @@ describe("block-light ownership", () => {
     grid.update(0, 0, 0, makeStats());
 
     const floodLevel = 0.6; // constant hypothetical flood under the line
-    const floodVisible = floodLevel * floodLevel * (3 - 2 * floodLevel);
+    const floodVisible = blockLightCurve(floodLevel);
     const combinedAt = (x: number) => {
       const sample = makeSample();
       grid.sampleIrradiance([x, 4, 4], sample);
@@ -561,18 +539,19 @@ describe("block-light ownership", () => {
       return lum + remainder * floodVisible;
     };
 
-    // 4-block steps from deep coverage through the fade band, across the
-    // hard boundary (95.9 → 96.1), and out into pure flood.
-    const line = [80, 84, 88, 92, 95.9, 96.1, 100];
+    // 4-block steps through the fade band (its outer half, past the
+    // kernel's hot core), across the hard boundary (95.9 → 96.1), and out
+    // into pure flood.
+    const line = [88, 92, 95.9, 96.1, 100];
     const combined = line.map(combinedAt);
     for (let n = 1; n < combined.length; n++) {
       expect(Math.abs(combined[n] - combined[n - 1])).toBeLessThan(0.09);
     }
     // The hard boundary itself: the faded-to-zero inside must equal the
     // flood-only outside to numerical noise.
-    expect(Math.abs(combined[4] - combined[5])).toBeLessThan(0.02);
+    expect(Math.abs(combined[2] - combined[3])).toBeLessThan(0.02);
     // And the far side is exactly the legacy flood.
-    expect(combined[6]).toBeCloseTo(floodVisible, 6);
+    expect(combined[4]).toBeCloseTo(floodVisible, 6);
   });
 
   it("clears clustered CPU and GPU state synchronously on zero-cap tiers", () => {
@@ -654,7 +633,7 @@ describe("block-light ownership", () => {
     const luma = 0.2126 * 1 + 0.7152 * 0.8 + 0.0722 * 0.5;
     // Held ranks are the eight strongest (intensities 10..3, 52); the
     // overflow brings the dropped two (2 and 1), 55 in all.
-    expect(sample.claim).toBeCloseTo(55 * luma, 4);
+    expect(sample.claim).toBeCloseTo(55 * luma * localLightFalloff(0, 4), 4);
   });
 
   it("mirrors the shader's flood-remainder curve on the CPU", () => {
@@ -674,24 +653,27 @@ describe("block-light ownership", () => {
         windowFade: 1,
       }),
     ).toBe(0);
-    // smoothstep(0.5) = 0.5; ratio = 0.2 × 1.5 / 0.5 = 0.6 → remainder 0.4.
+    // ratio = claim × gain / curve(flood), remainder 1 - ratio.
+    const ratio = (0.05 * BLOCK_LIGHT_OWNERSHIP_GAIN) / blockLightCurve(0.5);
+    expect(ratio).toBeGreaterThan(0.1);
+    expect(ratio).toBeLessThan(0.9);
     expect(
       blockLightFloodRemainder({
-        scaledClaim: 0.2,
+        scaledClaim: 0.05,
         floodLevel: 0.5,
         windowFade: 1,
       }),
-    ).toBeCloseTo(0.4, 6);
+    ).toBeCloseTo(1 - ratio, 6);
     // Monotone: more claim, less flood.
     expect(
       blockLightFloodRemainder({
-        scaledClaim: 0.3,
+        scaledClaim: 0.08,
         floodLevel: 0.5,
         windowFade: 1,
       }),
     ).toBeLessThan(
       blockLightFloodRemainder({
-        scaledClaim: 0.1,
+        scaledClaim: 0.03,
         floodLevel: 0.5,
         windowFade: 1,
       }),
@@ -741,72 +723,6 @@ describe("block-light ownership", () => {
     expect(lights.blockLightOwnership).toBe(1);
     lights.dispose();
   });
-
-  it("compiles the ownership blend into the chunk shader", () => {
-    expect(LOCAL_LIGHTS_UNIFORM_DECLARATIONS).toContain(
-      "uniform float uLocalOwnership;",
-    );
-    // The surface function owns the remainder computation…
-    expect(LOCAL_LIGHTS_FUNCTIONS).toContain("out float llFloodRemainder");
-    expect(LOCAL_LIGHTS_FUNCTIONS).toContain("llClaim * uLocalOwnership");
-    expect(LOCAL_LIGHTS_FUNCTIONS).toContain(
-      "mix(1.0, llRemainderOwned, llWindowFade)",
-    );
-    // …the analytic output rides the same rim fade as its claim, diffuse
-    // and specular alike, so nothing stacks on the partially returned flood…
-    expect(LOCAL_LIGHTS_FUNCTIONS).toContain("return llTotal * llWindowFade;");
-    expect(LOCAL_LIGHTS_FUNCTIONS).toContain(
-      "return llTotal * (uLocalSpecularStrength * llWindowFade);",
-    );
-    // …and the chunk fragment scales the legacy flood term by it. The
-    // unscaled legacy expression must be gone: covered fragments cannot
-    // receive both the flood term and the analytic term.
-    const fragment = SHADER_LIGHTING_CHUNK_SHADERS.fragment;
-    expect(fragment).toContain(
-      "smoothTorch * (uBlockLightGain * llFloodRemainder)",
-    );
-    expect(fragment).not.toContain("smoothTorch * uBlockLightGain;");
-    // The cluster blend is guarded for bit-exactness at zero lights:
-    // 1.0 - (1.0 - t) is not an IEEE identity, so the blend must not run
-    // at all when nothing is clustered.
-    expect(fragment).toContain("if (uClusteredLightCount != 0) {");
-    expect(fragment).toContain(
-      "1.0 - (1.0 - totalLight) * (1.0 - clusterLight)",
-    );
-  });
-
-  it("strips to a true local-lights-never-existed program", () => {
-    // The render-diff harness (scripts/render-off-parity.mjs) compiles this
-    // stripped fragment in the live client and requires byte-identical
-    // output against the shipped program at the off tier. Here: every
-    // local-lights token must be gone from every shipped variant, the
-    // legacy flood expressions must be back, and the layers local lights
-    // must not touch — CSM, emissive faces, cones — must survive.
-    const variants = {
-      opaque: SHADER_LIGHTING_CHUNK_SHADERS,
-      fluid: SHADER_LIGHTING_FLUID_CHUNK_SHADERS,
-      seeThrough: SHADER_LIGHTING_SEE_THROUGH_CHUNK_SHADERS,
-      cross: SHADER_LIGHTING_CROSS_CHUNK_SHADERS,
-    };
-    const forbidden =
-      /uLightGrid|uLightData|uLocalOwnership|uLocalMaskKnee|uLocalShadow|uLocalSpecularStrength|uLocalLightDebugMode|uClusteredLightCount|uAir|uRoomFill|localLight|llFlood|llClaim|llWindowFade|clusterLight/;
-    for (const [name, variant] of Object.entries(variants)) {
-      const stripped = stripLocalLightsFromFragment(variant.fragment);
-      expect(stripped, name).not.toMatch(forbidden);
-      expect(stripped, name).toContain(
-        "vec3 torchLight = smoothTorch * uBlockLightGain;",
-      );
-      expect(stripped, name).toContain(
-        "float torchBrightness = max(max(smoothTorch.r, smoothTorch.g), smoothTorch.b);",
-      );
-      // Untouched layers survive the strip.
-      expect(stripped, name).toContain("getShadow");
-      expect(stripped, name).toContain("vEmissive");
-      expect(stripped, name).toContain("lightConeSurface");
-      // And the strip actually removed something on every variant.
-      expect(stripped.length, name).toBeLessThan(variant.fragment.length);
-    }
-  });
 });
 
 const makeChunk = (minX: number, minZ: number) => ({
@@ -854,16 +770,21 @@ const makeTable = (profiles: [number, BlockLightProfile][] = []) =>
   );
 
 describe("tight analytic kernel", () => {
-  afterEach(() => setBlockLightTuning({ tightKernel: true }));
+  /** The step-7 kernel it replaced: a core of 0.3 x range, gain 2. */
+  const wideFalloff = (dist: number, range: number) => {
+    const n2 = (dist / range) ** 2;
+    const window = (1 - n2 * n2) * (1 - n2 * n2);
+    const core = 0.3 * range;
+    return (2 * window) / (1 + (dist * dist) / (core * core));
+  };
 
   it("falls off across a small room instead of lighting it evenly", () => {
     // A warm fixed light of range 14: the floor beside it against a far
     // corner of a small room.
     const near = localLightFalloff(1, 14);
     const far = localLightFalloff(6, 14);
-    setBlockLightTuning({ tightKernel: false });
-    const wideNear = localLightFalloff(1, 14);
-    const wideFar = localLightFalloff(6, 14);
+    const wideNear = wideFalloff(1, 14);
+    const wideFar = wideFalloff(6, 14);
     expect(near / far).toBeGreaterThan(1.5 * (wideNear / wideFar));
     // Darker across the room, with no hot disc beside the source.
     expect(far).toBeLessThan(wideFar);
@@ -872,8 +793,6 @@ describe("tight analytic kernel", () => {
 });
 
 describe("lamplight white balance", () => {
-  afterEach(() => setBlockLightTuning({ adaptation: true }));
-
   it("leaves daylight alone and turns a flame's orange toward warm", () => {
     const out: [number, number, number] = [0, 0, 0];
     expect(blockLightAdapt(1, 0.485, 0, 0, out)).toEqual([1, 0.485, 0]);
@@ -887,8 +806,6 @@ describe("lamplight white balance", () => {
       0.2126 + 0.7152 * 0.485,
       5,
     );
-    setBlockLightTuning({ adaptation: false });
-    expect(blockLightAdapt(1, 0.485, 0, 1, out)).toEqual([1, 0.485, 0]);
   });
 });
 
@@ -901,17 +818,6 @@ describe("masked window distance", () => {
     expect(localLightFalloff(maskedWindowDistance(dist, 6, 6, 0), 12)).toBe(0);
     // Along an axis the two distances agree and nothing changes.
     expect(maskedWindowDistance(5, 0, 5, 0)).toBe(5);
-  });
-
-  it("falls back to the Euclidean window behind the diamond switch", () => {
-    setBlockLightTuning({ diamond: false });
-    try {
-      expect(maskedWindowDistance(Math.hypot(6, 6), 6, 6, 0)).toBeCloseTo(
-        Math.hypot(6, 6),
-      );
-    } finally {
-      setBlockLightTuning({ diamond: true });
-    }
   });
 });
 
@@ -944,23 +850,6 @@ describe("BlockProfileTable", () => {
     // A dead channel stays dead.
     blockLightCurveRGB(5 / 15, 0, 0, out);
     expect(out[1]).toBe(0);
-    // The per-channel curve behind the switch.
-    setBlockLightTuning({});
-    BLOCK_LIGHT_TUNING.hueLevels.value = 0;
-    blockLightCurveRGB(12 / 15, 7 / 15, 2 / 15, out);
-    expect(out[1]).toBeCloseTo(blockLightCurve(7 / 15), 5);
-    BLOCK_LIGHT_TUNING.hueLevels.value = BLOCK_LIGHT_TRANSFER.hueLevels;
-  });
-
-  it("keeps the legacy channel ratio behind the analyticHue switch", () => {
-    setBlockLightTuning({ analyticHue: false });
-    try {
-      const color = makeTable().profileFor(TORCH.id)?.descriptor.color;
-      if (!color) throw new Error("expected a derived color");
-      expect(color[1]).toBeCloseTo(9 / 14);
-    } finally {
-      setBlockLightTuning({ analyticHue: true });
-    }
   });
 
   it("lets a declared profile override the defaults", () => {
@@ -1229,9 +1118,10 @@ describe("block-light transfer (new model)", () => {
     // .37, .14) — the hue walk is roughly halved.
     expect(ratioAt(2) / ratioAt(0)).toBeGreaterThan(0.85);
     expect(ratioAt(4) / ratioAt(0)).toBeGreaterThan(0.65);
-    setBlockLightTuning({ curve: false });
-    const legacyWalk = ratioAt(4) / ratioAt(0);
-    setBlockLightTuning({ curve: true });
+    // The legacy smoothstep flood walked the hue more than 1.6 times as far.
+    const smooth = (l: number) => l * l * (3 - 2 * l);
+    const legacyWalk =
+      smooth(3 / 15) / smooth(8 / 15) / (smooth(7 / 15) / smooth(12 / 15));
     expect(ratioAt(4) / ratioAt(0)).toBeGreaterThan(legacyWalk * 1.6);
     // Even steps: no plateau then cliff. Each level loses a similar share.
     const levels = [15, 13, 11, 9, 7, 5].map((l) => blockLightCurve(l / 15));
@@ -1306,18 +1196,6 @@ describe("temporal stability (lights never pop as the camera moves)", () => {
     expect([...seen][0].split(",")).toHaveLength(4);
   });
 
-  it("reproduces the legacy pop: camera-ranked cells change as it walks", () => {
-    const registry = new LightSourceRegistry(16);
-    crowdCell(registry);
-    const grid = makeGrid(registry, {
-      maxLightsPerCell: 4,
-      temporalStability: false,
-    });
-    const seen = new Set<string>();
-    walk(grid, -40, 40, () => seen.add(fullWeightSet(grid)));
-    expect(seen.size).toBeGreaterThan(1);
-  });
-
   it("fades a light out of the selection instead of dropping it", () => {
     const registry = new LightSourceRegistry(8);
     const near = registry.add(
@@ -1348,21 +1226,6 @@ describe("temporal stability (lights never pop as the camera moves)", () => {
     // A 320 ms fade at 16 ms frames, smoothstepped: well under a fifth of
     // the range in any one frame — never 255 to 0.
     expect(largestStep).toBeLessThan(40);
-
-    const legacy = makeGrid(registry, {
-      maxClusteredLights: 1,
-      temporalStability: false,
-    });
-    previous = -1;
-    largestStep = 0;
-    walk(legacy, -10, 90, () => {
-      const weight = weightOfNear(legacy);
-      if (previous >= 0) {
-        largestStep = Math.max(largestStep, Math.abs(weight - previous));
-      }
-      previous = weight;
-    });
-    expect(largestStep).toBe(255);
   });
 
   it("crossfades the lights a cell sheds when the resolution gate engages", () => {
@@ -1449,35 +1312,31 @@ describe("temporal stability (lights never pop as the camera moves)", () => {
       claim: 0,
       windowFade: 1,
     };
-    const largestFadeStep = (temporalStability: boolean) => {
-      const grid = makeGrid(registry, {
-        analyticRadius: 96,
-        temporalStability,
-      });
-      const stats = makeStats();
-      let previous = -1;
-      let largest = 0;
-      // A quarter block per frame, across the camera-cell boundary at x=8,
-      // sampling a point in the rim band.
-      for (let x = 4; x <= 12; x += 0.25) {
-        grid.update(x, 4, 4, stats);
-        grid.sampleIrradiance([88, 4, 4], sample);
-        if (previous >= 0) {
-          largest = Math.max(largest, Math.abs(sample.windowFade - previous));
-        }
-        previous = sample.windowFade;
+    const grid = makeGrid(registry, { analyticRadius: 96 });
+    const stats = makeStats();
+    let previous = -1;
+    let largest = 0;
+    // A quarter block per frame, across the camera-cell boundary at x=8,
+    // sampling a point in the rim band.
+    for (let x = 4; x <= 12; x += 0.25) {
+      grid.update(x, 4, 4, stats);
+      grid.sampleIrradiance([88, 4, 4], sample);
+      if (previous >= 0) {
+        largest = Math.max(largest, Math.abs(sample.windowFade - previous));
       }
-      return largest;
-    };
-    expect(largestFadeStep(true)).toBeLessThanOrEqual(0.25 / 16 + 1e-9);
-    expect(largestFadeStep(false)).toBeGreaterThanOrEqual(0.4);
+      previous = sample.windowFade;
+    }
+    // The rim moves with the camera, not with the window's cells: a quarter
+    // block of travel moves it at most a quarter block of the 16-block band.
+    expect(largest).toBeLessThanOrEqual(0.25 / 16 + 1e-9);
   });
 });
 
-describe("switching the stable layer on and off", () => {
+describe("cell texels as the window scrolls", () => {
   it("leaves no texel behind that a later pass would hand to another light", () => {
-    // Legacy then stable (and back): every nonzero slot after a switch must
-    // be one this layer wrote for a cell the light really reaches.
+    // Walking the window across a lit field: every nonzero slot, steady or
+    // fading out, must be one this layer wrote for a cell the light really
+    // reaches.
     const registry = new LightSourceRegistry(64);
     for (let i = 0; i < 24; i++) {
       registry.add(
@@ -1532,12 +1391,10 @@ describe("switching the stable layer on and off", () => {
         grid.update(x, 4, 0, stats, (now += 16));
       }
     };
-    grid.setTemporalStability(false);
     walk(-60, 0);
-    grid.setTemporalStability(true);
+    assertEveryTexelReaches();
     walk(0, 60);
     assertEveryTexelReaches();
-    grid.setTemporalStability(false);
     walk(60, 120);
     assertEveryTexelReaches();
   });

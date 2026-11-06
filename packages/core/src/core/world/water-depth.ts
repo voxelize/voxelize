@@ -13,21 +13,18 @@ import {
   type Object3D,
   type PerspectiveCamera,
   RedFormat,
+  type Renderer,
+  RenderTarget,
   Scene,
-  ShaderMaterial,
   type Texture,
   UnsignedByteType,
   Vector2,
-  type WebGLRenderer,
-  WebGLRenderTarget,
-} from "three";
+} from "three/webgpu";
 
 import { TRANSPARENT_OVER_FLUID_RENDER_ORDER } from "../../common";
 
-import {
-  type CustomChunkShaderMaterial,
-  forkChunkMaterial,
-} from "./chunk-materials";
+import { type ChunkMaterial, forkChunkMaterial } from "./chunk-materials";
+import { makeChunkStandInGeometry } from "./chunk-stand-in";
 import { forwardDraws } from "./forward-draws";
 import { shareBuffers } from "./see-through-texels";
 import {
@@ -36,11 +33,11 @@ import {
   WATER_DEPTH_SIDE_BEHIND,
   WATER_DEPTH_SIDE_FRONT,
   WATER_DEPTH_UNKNOWN,
-} from "./shaders";
+} from "./water-depth-constants";
 
 /** The uniforms every chunk material shares with the pass. */
 export type WaterDepthUniforms = {
-  waterDepth: { value: Texture | null };
+  waterDepth: { value: Texture };
   waterDepthState: { value: number };
   /** The size of the target the panes draw into, to turn pixels into UVs. */
   waterDepthViewport: { value: Vector2 };
@@ -52,14 +49,13 @@ export type WaterDepthUniforms = {
    * section of water with a pane face in view. Read by the window's own
    * fragments for the run of water they show.
    */
-  waterExitDepth: { value: Texture | null };
+  waterExitDepth: { value: Texture };
   waterExitReady: { value: number };
 };
 
 /** Where a chunk mesh's section sits, in sections. */
 export type SectionCoords = [cx: number, level: number, cz: number];
 
-const DEPTH_ONLY_FRAGMENT = "void main() {}";
 
 /**
  * Bits 18 and 19 of the packed light attribute together: a fluid face
@@ -70,7 +66,11 @@ const FLUID_PANE_BITS = (1 << 18) | (1 << 19);
 /** Whether a water mesh has a face against a window. */
 export function holdsPaneFaces(geometry: BufferGeometry): boolean {
   const lights = geometry.getAttribute("light")?.array;
-  if (!lights) return false;
+  return lights ? lightsHoldPaneFaces(lights) : false;
+}
+
+/** {@link holdsPaneFaces} for a geometry's packed light words. */
+export function lightsHoldPaneFaces(lights: ArrayLike<number>): boolean {
   for (let i = 0; i < lights.length; i++) {
     if ((lights[i] & FLUID_PANE_BITS) === FLUID_PANE_BITS) return true;
   }
@@ -149,18 +149,25 @@ export class WaterDepthPass {
   /** Each water mesh's stand-in in the depth scene, by section. */
   private readonly water = new Map<string, Map<Mesh, Mesh>>();
   private readonly panes = new Map<Mesh, Pane>();
-  private readonly depthMaterials = new WeakMap<Material, ShaderMaterial>();
-  private readonly exitMaterials = new WeakMap<Material, ShaderMaterial>();
+  /**
+   * GPU-drawn water (`gpu-terrain-bucket.ts`): every section of a fluid in
+   * one mesh, whose stand-in shares its geometry and culls it for this
+   * pass's camera before drawing. Its sections hold no pane faces (those
+   * keep their own meshes, and the exit pass with them).
+   */
+  private readonly buckets = new Map<Mesh, Mesh>();
+  private readonly depthMaterials = new WeakMap<Material, ChunkMaterial>();
+  private readonly exitMaterials = new WeakMap<Material, ChunkMaterial>();
   /** Per section, how many of its water meshes have a face against a window. */
   private readonly windowed = new Map<string, number>();
   /** Every section around a windowed one; rebuilt when `windowed` changes. */
   private exitSections: Set<string> | null = null;
   private readonly forks = new WeakMap<
     Material,
-    { behind: CustomChunkShaderMaterial; front: CustomChunkShaderMaterial }
+    { behind: ChunkMaterial; front: ChunkMaterial }
   >();
-  private target: WebGLRenderTarget | null = null;
-  private exitTarget: WebGLRenderTarget | null = null;
+  private target: RenderTarget | null = null;
+  private exitTarget: RenderTarget | null = null;
   private drawnCamera: Camera | null = null;
   private readonly drawnView = new Matrix4();
   private readonly drawnProjection = new Matrix4();
@@ -182,7 +189,7 @@ export class WaterDepthPass {
   addWater(mesh: Mesh) {
     const [cx, level, cz] = this.sectionOf(mesh);
     const key = sectionKey(cx, level, cz);
-    const water = mesh.material as ShaderMaterial;
+    const water = mesh.material as ChunkMaterial;
     const standIn = new Mesh(mesh.geometry, this.depthMaterialFor(water));
     standIn.userData = {
       depthMaterial: standIn.material,
@@ -223,15 +230,39 @@ export class WaterDepthPass {
     });
   }
 
+  /** A GPU-drawn fluid's mesh; `cull` packs its sections for a camera. */
+  addGpuWater(
+    mesh: Mesh,
+    cull: (renderer: Renderer, camera: Camera) => void,
+  ) {
+    const water = mesh.material as ChunkMaterial;
+    const standIn = new Mesh(mesh.geometry, this.depthMaterialFor(water));
+    standIn.matrixAutoUpdate = false;
+    standIn.matrixWorldAutoUpdate = false;
+    standIn.frustumCulled = false;
+    standIn.visible = false;
+    // Its depth material places vertices by the bucket's section records.
+    standIn.userData.gpuTerrain = mesh.userData.gpuTerrain;
+    standIn.onBeforeRender = (renderer, _scene, camera) =>
+      cull(renderer as unknown as Renderer, camera);
+    this.scene.add(standIn);
+    this.buckets.set(mesh, standIn);
+  }
+
+  removeGpuWater(mesh: Mesh) {
+    const standIn = this.buckets.get(mesh);
+    if (!standIn) return;
+    this.scene.remove(standIn);
+    this.buckets.delete(mesh);
+  }
+
   /**
    * A blended see-through mesh: it takes the fork that keeps what is behind
    * the water, and a child that draws the rest after the water. Returns the
    * child.
    */
   addPane(mesh: Mesh): Mesh {
-    const { behind, front } = this.forksOf(
-      mesh.material as CustomChunkShaderMaterial,
-    );
+    const { behind, front } = this.forksOf(mesh.material as ChunkMaterial);
     mesh.material = behind;
 
     const source = mesh.geometry;
@@ -262,12 +293,12 @@ export class WaterDepthPass {
    * before the water.
    */
   prepareDraw(
-    renderer: WebGLRenderer,
+    renderer: Renderer,
     camera: Camera,
     mesh: Mesh,
     lifted: Mesh,
   ) {
-    const frame = renderer.info.render.frame;
+    const frame = renderer.info.frame;
     if (frame !== this.checkedFrame) {
       this.checkedFrame = frame;
       this.checkRender(renderer, camera);
@@ -290,7 +321,7 @@ export class WaterDepthPass {
    * before the scene renders with that camera.
    */
   render(
-    renderer: WebGLRenderer,
+    renderer: Renderer,
     camera: Camera,
     scope: "panes" | "all" = "panes",
   ) {
@@ -336,6 +367,16 @@ export class WaterDepthPass {
         this.shown.push(standIn);
       }
     }
+    if (scope === "all" || this.near.size > 0) {
+      for (const [mesh, standIn] of this.buckets) {
+        if (!isShown(mesh)) continue;
+        // A bucket swaps its geometry when it grows.
+        standIn.geometry = mesh.geometry;
+        standIn.matrixWorld.copy(mesh.matrixWorld);
+        standIn.visible = true;
+        this.shown.push(standIn);
+      }
+    }
     if (this.shown.length === 0) {
       state.value = WATER_DEPTH_DRY;
       return;
@@ -348,7 +389,6 @@ export class WaterDepthPass {
     renderer.setRenderTarget(target);
     renderer.autoClear = false;
     // A clear honours the depth mask, which the last draw may have left off.
-    renderer.state.buffers.depth.setMask(true);
     renderer.clear(false, true, false);
     renderer.render(this.scene, camera);
     this.renderExit(renderer, camera, size);
@@ -368,7 +408,7 @@ export class WaterDepthPass {
    * which the frame's own depth answers. Water with no window near draws
    * nothing here, so an open sea costs no second pass.
    */
-  private renderExit(renderer: WebGLRenderer, camera: Camera, size: Vector2) {
+  private renderExit(renderer: Renderer, camera: Camera, size: Vector2) {
     if (this.windowed.size === 0) return;
     if (!this.exitSections) {
       this.exitSections = new Set();
@@ -398,8 +438,7 @@ export class WaterDepthPass {
         Math.floor(size.y),
       );
       renderer.setRenderTarget(target);
-      renderer.state.buffers.depth.setMask(true);
-      renderer.clear(false, true, false);
+        renderer.clear(false, true, false);
       renderer.render(this.scene, camera);
       this.uniforms.waterExitDepth.value = target.depthTexture;
       this.uniforms.waterExitReady.value = 1;
@@ -420,15 +459,20 @@ export class WaterDepthPass {
    * Compiled the way {@link render} draws them: against this pass's own
    * scene (no lights, no fog) with a render target bound.
    */
-  compileFor(
-    renderer: WebGLRenderer,
+  async compileFor(
+    renderer: Renderer,
     camera: Camera,
-    fluids: Iterable<ShaderMaterial>,
+    fluids: Iterable<ChunkMaterial>,
   ) {
     const warm = new Scene();
     warm.matrixWorldAutoUpdate = false;
-    const geometry = new BufferGeometry();
+    const geometries: BufferGeometry[] = [];
     for (const water of fluids) {
+      // The water's own vertex layout: a pipeline is keyed by it.
+      const geometry = makeChunkStandInGeometry({
+        isQuantized: water.userData.isQuantized === true,
+      });
+      geometries.push(geometry);
       for (const material of [
         this.depthMaterialFor(water),
         this.exitMaterialFor(water),
@@ -442,10 +486,10 @@ export class WaterDepthPass {
     const previousTarget = renderer.getRenderTarget();
     renderer.setRenderTarget(this.targetOfSize(1, 1));
     try {
-      renderer.compile(warm, camera, this.scene);
+      await renderer.compileAsync(warm, camera, this.scene);
     } finally {
       renderer.setRenderTarget(previousTarget);
-      geometry.dispose();
+      for (const geometry of geometries) geometry.dispose();
     }
   }
 
@@ -456,7 +500,7 @@ export class WaterDepthPass {
     this.exitTarget = null;
   }
 
-  private checkRender(renderer: WebGLRenderer, camera: Camera) {
+  private checkRender(renderer: Renderer, camera: Camera) {
     const state = this.uniforms.waterDepthState;
     if (state.value === WATER_DEPTH_UNKNOWN) return;
     if (
@@ -500,50 +544,36 @@ export class WaterDepthPass {
    * water face is the surface's top from above and its underside from
    * below, where the water itself draws back faces.
    */
-  private depthMaterialFor(water: ShaderMaterial) {
+  private depthMaterialFor(water: ChunkMaterial) {
     const cached = this.depthMaterials.get(water);
     if (cached) return cached;
-    const depth = new ShaderMaterial({
-      vertexShader: water.vertexShader,
-      fragmentShader: DEPTH_ONLY_FRAGMENT,
-      uniforms: water.uniforms,
-      defines: { ...water.defines },
-      vertexColors: water.vertexColors,
-      side: DoubleSide,
-      colorWrite: false,
-    });
-    // The same map as the water compiles the shared vertex stage alike.
-    (depth as unknown as CustomChunkShaderMaterial).map = (
-      water as CustomChunkShaderMaterial
-    ).map;
-    Object.assign(depth.defaultAttributeValues, water.defaultAttributeValues);
+    const depth = water.fork();
+    depth.setVariant({ depthOnly: true });
+    depth.side = DoubleSide;
+    depth.transparent = false;
+    depth.depthWrite = true;
     this.depthMaterials.set(water, depth);
     return depth;
   }
 
   /** {@link depthMaterialFor}, drawing only the water's back faces. */
-  private exitMaterialFor(water: ShaderMaterial) {
+  private exitMaterialFor(water: ChunkMaterial) {
     const cached = this.exitMaterials.get(water);
     if (cached) return cached;
-    const exit = this.depthMaterialFor(water).clone();
-    exit.uniforms = water.uniforms;
+    const exit = this.depthMaterialFor(water).fork();
     exit.side = BackSide;
-    (exit as unknown as CustomChunkShaderMaterial).map = (
-      water as CustomChunkShaderMaterial
-    ).map;
-    Object.assign(exit.defaultAttributeValues, water.defaultAttributeValues);
     this.exitMaterials.set(water, exit);
     return exit;
   }
 
-  private forksOf(material: CustomChunkShaderMaterial) {
+  private forksOf(material: ChunkMaterial) {
     let forks = this.forks.get(material);
     if (!forks) {
       const behind = forkChunkMaterial(material);
-      behind.uniforms.uWaterDepthSide = { value: WATER_DEPTH_SIDE_BEHIND };
+      behind.waterDepthSide = WATER_DEPTH_SIDE_BEHIND;
       forwardDraws(behind, material);
       const front = forkChunkMaterial(material);
-      front.uniforms.uWaterDepthSide = { value: WATER_DEPTH_SIDE_FRONT };
+      front.waterDepthSide = WATER_DEPTH_SIDE_FRONT;
       forwardDraws(front, material);
       forks = { behind, front };
       this.forks.set(material, forks);
@@ -556,7 +586,7 @@ function makeDepthTarget(width: number, height: number) {
   const depthTexture = new DepthTexture(width, height, FloatType);
   depthTexture.minFilter = NearestFilter;
   depthTexture.magFilter = NearestFilter;
-  return new WebGLRenderTarget(width, height, {
+  return new RenderTarget(width, height, {
     format: RedFormat,
     type: UnsignedByteType,
     depthBuffer: true,

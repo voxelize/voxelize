@@ -1,4 +1,4 @@
-import { Matrix4, Mesh, Quaternion, Vector3 } from "three";
+import { Matrix4, Mesh, Quaternion, Vector3 } from "three/webgpu";
 
 import { Coords3 } from "../../types";
 import { BlockUtils } from "../../utils";

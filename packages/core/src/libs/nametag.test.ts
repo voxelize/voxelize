@@ -1,4 +1,4 @@
-import { PerspectiveCamera, Scene } from "three";
+import { PerspectiveCamera, Scene } from "three/webgpu";
 import {
   afterEach,
   beforeAll,
@@ -175,5 +175,25 @@ describe("NameTag distance behaviour", () => {
     expect(frame(tag, 1000)).toBe(true);
     expect(tag.material.opacity).toBe(1);
     expect(tag.material.depthTest).toBe(false);
+  });
+});
+
+describe("NameTag painting", () => {
+  it("paints its label once, at its next matrix update, however many properties were set", () => {
+    const tag = new NameTag("Steve", { fontFace: "monospace", color: "#fff" });
+    expect(tag.material.map).toBeFalsy();
+    tag.backgroundColor = "#00000066";
+    tag.strokeColor = "#ff0";
+    tag.updateMatrixWorld();
+    const painted = tag.material.map;
+    expect(painted).toBeTruthy();
+    // Nothing changed since: no repaint, no new texture.
+    tag.updateMatrixWorld();
+    expect(tag.material.map).toBe(painted);
+    // A change repaints on the next update, not on the set.
+    tag.text = "Alex";
+    expect(tag.material.map).toBe(painted);
+    tag.updateMatrixWorld();
+    expect(tag.material.map).not.toBe(painted);
   });
 });

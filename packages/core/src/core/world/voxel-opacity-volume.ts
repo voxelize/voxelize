@@ -5,7 +5,7 @@ import {
   RedFormat,
   UnsignedByteType,
   Vector3,
-} from "three";
+} from "three/webgpu";
 
 import type { Chunk } from "./chunk";
 import type { Registry } from "./registry";

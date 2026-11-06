@@ -1,15 +1,28 @@
-import * as THREE from "three";
+import * as THREE from "three/webgpu";
+import {
+  dot,
+  mat3,
+  modelWorldMatrix,
+  normalGeometry,
+  normalize,
+  output,
+  positionWorld,
+  select,
+  vec3,
+  vec4,
+} from "three/tsl";
 
 import { Inputs } from "../core/inputs";
 import {
-  createEntityShadowUniforms,
-  ENTITY_SHADOW_FRAGMENT_PARS,
-  ENTITY_SHADOW_VERTEX_MAIN,
-  ENTITY_SHADOW_VERTEX_PARS,
-  EntityShadowUniforms,
-  ShaderLightingUniforms,
-  updateEntityShadowUniforms,
+  createEntityShadowBody,
+  materialShadowBody,
+  setShadowBody,
+  sharedEntityShadowUniforms,
 } from "../core/world/entity-shadow-uniforms";
+import { entityLightOriginalOf } from "../core/world/shading/entity-light";
+import { entityShadow } from "../core/world/shading/entity-shadow";
+import type { Vec4Node } from "../core/world/shading/types";
+import { ownUniform } from "../core/world/shading/uniforms";
 import { AnimationUtils } from "../utils";
 
 import { CanvasBox } from "./canvas-box";
@@ -75,7 +88,7 @@ export type ArmOptions = {
   minOccluderDepth?: number;
   /**
    * How far the viewmodel reaches into the world, as a share of the
-   * distance it is drawn at: placed with {@link Arm.updateShadowUniforms},
+   * distance it is drawn at: placed with {@link Arm.updateShadowBody},
    * its shadows are looked up at that scale about the eye, so a block drawn
    * two blocks down the screen is shaded where a hand would hold it.
    */
@@ -237,9 +250,12 @@ export class Arm extends THREE.Group {
   private dippedObject: THREE.Object3D | null = null;
   private dipShift = 0;
 
-  /** One block every held object's shadowed material reads. */
-  private heldObjectShadowUniforms: EntityShadowUniforms =
-    createEntityShadowUniforms();
+  /**
+   * The body the arm and whatever it holds are shaded as: where the
+   * viewmodel is held in the world and what of the player's own body it
+   * ignores ({@link updateShadowBody}).
+   */
+  readonly shadowBody = createEntityShadowBody();
 
   /**
    * The arm's own copy of each material a held object arrives with, set up
@@ -258,8 +274,8 @@ export class Arm extends THREE.Group {
   private heldMaterialListeners = new Map<THREE.Material, () => void>();
 
   private shadowSelfBounds: THREE.Vector4 | null = null;
-  private readonly noShadowSelfBounds = new THREE.Vector4();
-  private readonly shadowWorldMatrix = new THREE.Matrix4();
+  /** No bounds: radius 0 (a Vector4 starts at w = 1, a unit sphere). */
+  private readonly noShadowSelfBounds = new THREE.Vector4(0, 0, 0, 0);
 
   public heldLightColor = new THREE.Color(1, 1, 1);
 
@@ -326,7 +342,7 @@ export class Arm extends THREE.Group {
   }
 
   /**
-   * Copy the frame's lighting into the arm's and the held object's shadows.
+   * Places the arm's and the held object's shadows for this frame.
    *
    * @param viewToWorld Where the viewmodel's scene sits in the world: the eye
    * camera's world matrix times the viewmodel camera's inverse. The
@@ -336,48 +352,32 @@ export class Arm extends THREE.Group {
    * shades any of its faces. A vector instead offsets the viewmodel's own,
    * unrotated frame into the world.
    */
-  updateShadowUniforms(
-    lightingUniforms: ShaderLightingUniforms,
-    viewToWorld?: THREE.Matrix4 | THREE.Vector3,
-  ): void {
+  updateShadowBody(viewToWorld?: THREE.Matrix4 | THREE.Vector3): void {
     const receiveArmShadows = this.shouldReceiveArmShadows();
-    const receiveHeldObjectShadows = this.shouldReceiveHeldObjectShadows();
-    if (!receiveArmShadows && !receiveHeldObjectShadows) return;
+    if (!receiveArmShadows && !this.shouldReceiveHeldObjectShadows()) return;
 
-    const minDepth = this.options.minOccluderDepth ?? 0.0;
+    const body = this.shadowBody;
     const isPlaced = viewToWorld instanceof THREE.Matrix4;
+    body.minOccluderDepth = this.options.minOccluderDepth ?? 0.0;
+    body.selfBounds = this.shadowSelfBounds ?? this.noShadowSelfBounds;
+    body.ignoresSelf = isPlaced ? 1 : 0;
     if (isPlaced) {
       const reach = this.options.shadowReach ?? 1;
-      this.shadowWorldMatrix
+      body.worldMatrix
         .copy(viewToWorld)
         .multiply(shadowReachScale.makeScale(reach, reach, reach));
+      body.worldOffset.set(0, 0, 0);
+    } else {
+      body.worldMatrix.identity();
+      if (viewToWorld) body.worldOffset.copy(viewToWorld);
     }
-
-    const apply = (uniforms: EntityShadowUniforms) => {
-      updateEntityShadowUniforms(uniforms, lightingUniforms);
-      uniforms.uMinOccluderDepth.value = minDepth;
-      uniforms.uShadowSelfBounds.value =
-        this.shadowSelfBounds ?? this.noShadowSelfBounds;
-      uniforms.uShadowIgnoresSelf.value = isPlaced ? 1 : 0;
-      if (isPlaced) {
-        uniforms.uShadowWorldMatrix.value.copy(this.shadowWorldMatrix);
-        uniforms.uWorldOffset.value.set(0, 0, 0);
-      } else {
-        uniforms.uShadowWorldMatrix.value.identity();
-        if (viewToWorld) uniforms.uWorldOffset.value.copy(viewToWorld);
-      }
-    };
 
     if (receiveArmShadows) {
       this.traverse((child) => {
-        if (child instanceof CanvasBox && child.shadowUniforms) {
-          apply(child.shadowUniforms);
+        if (child instanceof CanvasBox && child.shadowBody && child.shadowBody !== body) {
+          child.setShadowBody(body);
         }
       });
-    }
-
-    if (receiveHeldObjectShadows) {
-      apply(this.heldObjectShadowUniforms);
     }
   }
 
@@ -573,27 +573,21 @@ export class Arm extends THREE.Group {
   }
 
   private heldMaterialFor = (material: THREE.Material): THREE.Material => {
-    if (material.type !== "MeshBasicMaterial") return material;
+    if (material.type !== "MeshBasicNodeMaterial") return material;
     if (isSelfIlluminated(material)) return material;
     if (this.ownHeldMaterials.has(material)) return material;
     const cached = this.heldMaterials.get(material);
     if (cached) return cached;
 
-    // A clone copies flags but not compile hooks, so it must not pass as
-    // set up; a hook the source was built with comes along, an effect's
-    // wrapper does not.
-    const own = material.clone();
-    const isSetUpElsewhere =
-      material.userData.heldObjectLighting === true ||
-      material.userData.lightEffectSetup === true;
-    delete own.userData.heldObjectLighting;
-    delete own.userData.lightEffectSetup;
-    if (
-      !isSetUpElsewhere &&
-      Object.prototype.hasOwnProperty.call(material, "onBeforeCompile")
-    ) {
-      own.onBeforeCompile = material.onBeforeCompile;
+    // The copy starts from the material's own nodes: a light the world's
+    // effect composed into the source (LightShined) does not come along.
+    const own = material.clone() as THREE.NodeMaterial;
+    const original = entityLightOriginalOf(material as THREE.NodeMaterial);
+    if (original) {
+      own.colorNode = original.colorNode;
+      own.outputNode = original.outputNode;
     }
+    delete own.userData.heldObjectLighting;
     if (this.shouldReceiveHeldObjectShadows()) this.setUpHeldShadow(own);
     else this.setUpHeldLighting(own);
 
@@ -622,108 +616,60 @@ export class Arm extends THREE.Group {
     this.heldMaterials = new WeakMap();
   };
 
-  /** The program key for a held material, kept apart per hook it wraps. */
-  private heldProgramKey(material: THREE.Material, name: string): string {
-    return Object.prototype.hasOwnProperty.call(material, "onBeforeCompile")
-      ? `${name}|${material.onBeforeCompile.toString()}`
-      : name;
+  /** The held items' light colour, one node every held material reads. */
+  private heldLightNode = ownUniform(this.heldLightColor);
+
+  /**
+   * The held output over each base output node (null: three's own), lit or
+   * lit and shadowed: one node per base, so held items whose materials
+   * share an output share one graph and a new item builds none.
+   */
+  private readonly heldOutputs = {
+    lit: new WeakMap<object, Vec4Node>(),
+    shadowed: new WeakMap<object, Vec4Node>(),
+  };
+
+  private heldOutput(
+    material: THREE.NodeMaterial,
+    isShadowed: boolean,
+  ): Vec4Node {
+    const cache = isShadowed ? this.heldOutputs.shadowed : this.heldOutputs.lit;
+    const key = (material.outputNode as object | null) ?? output;
+    const cached = cache.get(key);
+    if (cached) return cached;
+    const base = key as unknown as Vec4Node;
+    let lit = base.xyz.mul(this.heldLightNode);
+    if (isShadowed) {
+      const body = materialShadowBody();
+      const shadow = entityShadow(sharedEntityShadowUniforms, body);
+      // Item shapes carry no normals, and a zero vector does not normalize.
+      const raw = mat3(body.worldMatrix).mul(
+        mat3(modelWorldMatrix).mul(normalGeometry),
+      );
+      const normal = select(
+        dot(raw, raw).greaterThan(0),
+        normalize(raw),
+        vec3(0, 1, 0),
+      );
+      lit = lit.mul(shadow.within(normal, positionWorld));
+    }
+    const node = vec4(lit, base.w) as unknown as Vec4Node;
+    cache.set(key, node);
+    return node;
   }
 
-  private setUpHeldLighting(material: THREE.Material): void {
+  /** A held item lit by the light at the arm (no shadow). */
+  private setUpHeldLighting(material: THREE.NodeMaterial): void {
     material.userData.heldObjectLighting = true;
-    material.userData.lightEffectSetup = true;
-
-    const key = this.heldProgramKey(material, "held-object-lighting-shader");
-    const lightColorRef = this.heldLightColor;
-    const oldOnBeforeCompile = material.onBeforeCompile;
-    material.onBeforeCompile = (shader, renderer) => {
-      if (oldOnBeforeCompile) {
-        oldOnBeforeCompile(shader, renderer);
-      }
-
-      shader.uniforms.uLightColor = { value: lightColorRef };
-
-      shader.fragmentShader = shader.fragmentShader
-        .replace(
-          "#include <common>",
-          `#include <common>
-uniform vec3 uLightColor;
-`,
-        )
-        .replace(
-          "#include <dithering_fragment>",
-          `#include <dithering_fragment>
-gl_FragColor.rgb *= uLightColor;
-`,
-        );
-    };
-
-    material.onBeforeCompile.toString = () => key;
+    material.outputNode = this.heldOutput(material, false) as never;
     material.needsUpdate = true;
   }
 
-  private setUpHeldShadow(material: THREE.Material): void {
-    const shadowUniforms = this.heldObjectShadowUniforms;
+  /** A held item lit by the light at the arm, under the sun's shadow. */
+  private setUpHeldShadow(material: THREE.NodeMaterial): void {
     material.userData.heldObjectLighting = true;
-    material.userData.lightEffectSetup = true;
-
-    const key = this.heldProgramKey(material, "held-object-shadow-shader");
-    const lightColorRef = this.heldLightColor;
-    const oldOnBeforeCompile = material.onBeforeCompile;
-    material.onBeforeCompile = (shader, renderer) => {
-      if (oldOnBeforeCompile) {
-        oldOnBeforeCompile(shader, renderer);
-      }
-
-      Object.assign(shader.uniforms, shadowUniforms);
-      shader.uniforms.uLightColor = { value: lightColorRef };
-
-      shader.vertexShader = shader.vertexShader
-        .replace(
-          "#include <uv_pars_vertex>",
-          `#include <uv_pars_vertex>
-${ENTITY_SHADOW_VERTEX_PARS}
-varying vec3 vHeldShadowNormal;
-varying vec3 vHeldShadowPosition;
-`,
-        )
-        .replace(
-          "#include <worldpos_vertex>",
-          `#include <worldpos_vertex>
-vec4 worldPosition = modelMatrix * vec4(transformed, 1.0);
-${ENTITY_SHADOW_VERTEX_MAIN}
-// Item shapes carry no normals, and a zero vector does not normalize.
-vec3 heldShadowNormal = mat3(uShadowWorldMatrix) * mat3(modelMatrix) * normal;
-vHeldShadowNormal = dot(heldShadowNormal, heldShadowNormal) > 0.0
-  ? normalize(heldShadowNormal)
-  : vec3(0.0, 1.0, 0.0);
-vHeldShadowPosition = shadowWorldPos.xyz;
-`,
-        );
-
-      shader.fragmentShader = shader.fragmentShader
-        .replace(
-          "#include <common>",
-          `#include <common>
-${ENTITY_SHADOW_FRAGMENT_PARS}
-uniform vec3 uLightColor;
-varying vec3 vHeldShadowNormal;
-varying vec3 vHeldShadowPosition;
-`,
-        )
-        .replace(
-          "#include <dithering_fragment>",
-          `#include <dithering_fragment>
-float shadow = getEntityShadowAt(
-  normalize(vHeldShadowNormal),
-  vHeldShadowPosition
-);
-gl_FragColor.rgb *= shadow * uLightColor;
-`,
-        );
-    };
-
-    material.onBeforeCompile.toString = () => key;
+    setShadowBody(material, this.shadowBody);
+    material.outputNode = this.heldOutput(material, true) as never;
     material.needsUpdate = true;
   }
 

@@ -1,4 +1,4 @@
-import { Matrix4, PerspectiveCamera, Vector3 } from "three";
+import { Matrix4, PerspectiveCamera, Vector3 } from "three/webgpu";
 import { describe, expect, it } from "vitest";
 
 import {

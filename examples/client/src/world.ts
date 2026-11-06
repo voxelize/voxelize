@@ -1,6 +1,6 @@
 import { AABB } from "@voxelize/aabb";
 import * as VOXELIZE from "@voxelize/core";
-import * as THREE from "three";
+import * as THREE from "three/webgpu";
 
 import TestImage from "./assets/cat.jpeg";
 import LolImage from "./assets/lol.jpeg";
@@ -241,7 +241,7 @@ export async function setupWorld(world: VOXELIZE.World) {
   //   300
   // );
 
-  world.customizeMaterialShaders(
+  world.customizeMaterial(
     "Grass",
     null,
     VOXELIZE.customShaders.sway({
@@ -249,7 +249,7 @@ export async function setupWorld(world: VOXELIZE.World) {
     }),
   );
 
-  world.customizeMaterialShaders(
+  world.customizeMaterial(
     "Oak Leaves",
     null,
     VOXELIZE.customShaders.sway({

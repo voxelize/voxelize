@@ -1,4 +1,4 @@
-import { Box3, Group, InstancedMesh, Object3D } from "three";
+import { Box3, Group, InstancedMesh, Object3D } from "three/webgpu";
 
 /**
  * World-space bounds of every live instance in an instanced-pool group,

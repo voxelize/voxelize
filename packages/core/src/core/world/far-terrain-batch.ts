@@ -33,7 +33,7 @@ import {
   Matrix4,
   Sphere,
   Vector3,
-} from "three";
+} from "three/webgpu";
 
 import { FAR_POSITION_SIZE, type FarMeshData } from "./far-terrain-mesh";
 import { StaticBatchedMesh } from "./static-batched-mesh";

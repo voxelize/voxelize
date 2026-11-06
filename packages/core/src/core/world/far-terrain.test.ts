@@ -1,17 +1,9 @@
-import {
-  Color,
-  DataTexture,
-  Mesh,
-  ShaderMaterial,
-  Vector3,
-  Vector4,
-} from "three";
+import { DataTexture, Vector3 } from "three/webgpu";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
+import { ChunkRenderer } from "./chunk-renderer";
+import type { FarTerrainUniforms } from "./shading/far-terrain";
 import {
-  CHUNK_DAYLIGHT,
-  CHUNK_WATER_FRESNEL,
-  CHUNK_WATER_TINT,
   FAR_TERRAIN_METHOD,
   FarBuiltTile,
   FarTerrain,
@@ -24,46 +16,19 @@ import {
   FarMeshInput,
 } from "./far-terrain-mesh";
 import { FarFaceLook, FarTerrainDescriptor } from "./far-terrain-tiles";
-import {
-  SHADER_LIGHTING_CHUNK_SHADERS,
-  SHADER_LIGHTING_FLUID_CHUNK_SHADERS,
-} from "./shaders";
 
 vi.mock("./workers/far-terrain-worker.ts?worker&inline", () => ({
   default: class {},
 }));
 
-const shared = (): FarTerrainSharedUniforms => ({
-  fogColor: { value: new Color() },
-  fogNear: { value: 0 },
-  fogFar: { value: 1 },
-  fogHeightOrigin: { value: 0 },
-  fogHeightDensity: { value: 0 },
-  fogVerticalBlend: { value: 0 },
-  skyFogTopColor: { value: new Color() },
-  skyFogMiddleColor: { value: new Color() },
-  skyFogBottomColor: { value: new Color() },
-  skyFogOffset: { value: 0 },
-  skyFogVoidOffset: { value: 0 },
-  skyFogExponent: { value: 1 },
-  skyFogExponent2: { value: 1 },
-  skyFogDimension: { value: 1 },
-  skyFogStrength: { value: 0 },
-  sunlightIntensity: { value: 1 },
-  minLightLevel: { value: 0 },
-  baseAmbient: { value: 0 },
-  faceShades: { value: { x: 1, y: 1, z: 1, w: 1 } },
-  cameraSubmersion: { value: 0 },
-  cameraWaterPlaneY: { value: 0 },
-  underwaterAmbient: { value: new Color() },
-  underwaterViewScale: { value: 1 },
-  sunDirection: { value: new Vector3(0, 1, 0) },
-  sunColor: { value: new Color(1, 1, 1) },
-  ambientColor: { value: new Color(1, 1, 1) },
-  farCoverMask: { value: null },
-  farCover: { value: new Vector4() },
-  farSeam: { value: 0 },
-});
+/** The world's own uniform nodes, as the world hands them to the far layer. */
+const shared = (): FarTerrainSharedUniforms => {
+  const renderer = new ChunkRenderer();
+  return {
+    ...renderer.uniforms,
+    ...renderer.shaderLightingUniforms,
+  } as FarTerrainSharedUniforms;
+};
 
 // One level of 3-sample tiles: every tile 4 blocks wide at step 2.
 const descriptor: FarTerrainDescriptor = {
@@ -640,12 +605,14 @@ describe("FarTerrain water", () => {
     );
     // Tiles here are 4 blocks wide and a texel 8: the dry one well away.
     far.onMethodReply(FAR_TERRAIN_METHOD, tileReply(10, 0));
-    const water = far.children.find(
-      (child): child is Mesh => child.name === "far-terrain-water",
-    );
-    const material = must(water).material as ShaderMaterial;
-    const window = material.uniforms.uFarDepth.value as Vector4;
-    const map = material.uniforms.uFarDepthMap.value as DataTexture;
+    // What the far water reads: the depth map and its window.
+    const uniforms = (
+      far as unknown as {
+        uniforms: FarTerrainUniforms;
+      }
+    ).uniforms;
+    const window = uniforms.depthWindow.value;
+    const map = uniforms.depthMap.value as DataTexture;
     const depth = map.image.data as Uint8Array;
     const at = (x: number, z: number) =>
       depth[
@@ -670,111 +637,5 @@ describe("FarTerrain water", () => {
       }),
     );
     expect(at(1, 1)).toBe(Math.round(((86.875 - 60) / 32) * 255));
-  });
-});
-
-/**
- * Names declared twice in one scope of a shader: GLSL rejects the program,
- * and three.js then draws nothing for it, which reads as a hole rather than
- * an error. vitest has no GL, so this walks the scopes by braces.
- */
-const redeclared = (source: string) => {
-  const scopes: Set<string>[] = [new Set()];
-  const found: string[] = [];
-  const token =
-    /[{}]|\b(?:float|int|bool|vec[234]|ivec[234]|mat[234]|sampler2D|sampler2DArray)\s+([A-Za-z_]\w*)\s*(?=[=;[])/g;
-  for (const match of source.matchAll(token)) {
-    if (match[0] === "{") scopes.push(new Set());
-    else if (match[0] === "}") scopes.pop();
-    else {
-      const scope = scopes[scopes.length - 1];
-      if (scope.has(match[1])) found.push(match[1]);
-      scope.add(match[1]);
-    }
-  }
-  return found;
-};
-
-describe("far shaders", () => {
-  it("declare no name twice in one scope", async () => {
-    const far = new FarTerrain(shared(), {
-      distance: 256,
-      buildMesh: syncBuild,
-      faceLook: () => grass,
-    });
-    far.configure(descriptor);
-    far.onMethodReply(FAR_TERRAIN_METHOD, tileReply());
-    await settle(far, () => landMeshes(far).length > 0);
-    const water = far.children.find(
-      (child): child is Mesh => child.name === "far-terrain-water",
-    );
-    const materials = [must(water).material, far.batch.material].map(
-      (material) => material as ShaderMaterial,
-    );
-    expect(materials.length).toBeGreaterThan(1);
-    for (const material of materials) {
-      expect(redeclared(material.fragmentShader)).toEqual([]);
-      expect(redeclared(material.vertexShader)).toEqual([]);
-    }
-  });
-
-  it("tells a name declared twice in one scope from a nested shadow", () => {
-    expect(
-      redeclared("void main() { float depth = 1.0; float depth = 2.0; }"),
-    ).toEqual(["depth"]);
-    expect(
-      redeclared("void main() { float d = 1.0; if (true) { float d = 2.0; } }"),
-    ).toEqual([]);
-  });
-});
-
-describe("CHUNK_WATER_FRESNEL", () => {
-  it("is the chunk water's top-face Fresnel, floor and ceiling", () => {
-    const fluid = SHADER_LIGHTING_FLUID_CHUNK_SHADERS.fragment;
-    expect(fluid).toContain(
-      `float fresnelBase = mix(0.01, ${CHUNK_WATER_FRESNEL.base}, topWaterFace);`,
-    );
-    expect(fluid).toContain(
-      `float fresnelMax = mix(0.22, ${CHUNK_WATER_FRESNEL.max}, topWaterFace);`,
-    );
-  });
-});
-
-describe("CHUNK_WATER_TINT", () => {
-  it("is the chunk water's tint share, near, far and with distance", () => {
-    const fluid = SHADER_LIGHTING_FLUID_CHUNK_SHADERS.fragment;
-    const t = CHUNK_WATER_TINT;
-    for (const literal of [
-      `float depthFactor = 1.0 - exp(-distToCamera * ${t.perBlock});`,
-      `vec3 shallowWater = mix(baseWater, waterTint, ${t.near});`,
-      `vec3 deepWater = mix(baseWater, waterTint, ${t.far});`,
-      `max(depthFactor, verticalDepthFactor) * ${t.reach});`,
-    ]) {
-      expect(fluid).toContain(literal);
-    }
-  });
-});
-
-describe("CHUNK_DAYLIGHT", () => {
-  // The far layer lights an open face with these literals; the chunk
-  // fragment must still carry every one of them where the far layer read it.
-  const chunk = SHADER_LIGHTING_CHUNK_SHADERS.fragment;
-  const d = CHUNK_DAYLIGHT;
-
-  it("is the chunk fragment's open-sky daylight, term for term", () => {
-    for (const literal of [
-      `max(rawNdotL * ${d.sunWrap.scale} + ${d.sunWrap.bias}, 0.0)`,
-      `smoothstep(${d.brightTexture.from}, ${d.brightTexture.to}, texLuma)`,
-      `mix(1.0, ${d.brightTextureSun}, isBrightTex)`,
-      `uAmbientColor * ${d.groundAmbient}`,
-      `mix(${d.shadedAmbient}, 1.0, shadow)`,
-      `uAmbientColor * ${d.bounce} * (1.0 - shadow)`,
-      `vec3(${d.starlight}) * sunVisibility`,
-      `vec3 coolTint = vec3(${d.daylightBalance})`,
-      `(totalLight * (${d.toneMap.a} * totalLight + ${d.toneMap.b}))`,
-      `(totalLight * (${d.toneMap.c} * totalLight + ${d.toneMap.d}) + ${d.toneMap.e})`,
-    ]) {
-      expect(chunk).toContain(literal);
-    }
   });
 });

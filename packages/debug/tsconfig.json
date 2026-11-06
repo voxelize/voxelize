@@ -7,7 +7,7 @@
     "baseUrl": "./src",
     "rootDir": "./src",
     "module": "esnext",
-    "moduleResolution": "node",
+    "moduleResolution": "bundler",
     "resolveJsonModule": true,
     "strict": true,
     "noImplicitAny": true,

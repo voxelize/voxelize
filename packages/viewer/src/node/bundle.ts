@@ -158,6 +158,36 @@ export async function bundlePage(
   const started = Date.now();
   const prefix = options.assetPrefix ?? "/asset";
   let assets = 0;
+  // An alias naming a package's directory pins that one copy, subpaths
+  // included (`three` -> `three/webgpu`, `three/tsl`): esbuild's own alias
+  // would read `three/webgpu` as a file under the directory and miss the
+  // package's `exports`, so these resolve as imports made from where the
+  // package is installed. Aliases to files stay esbuild's.
+  const packageAliases = Object.entries(options.alias ?? {}).filter(
+    ([, target]) => fs.existsSync(path.join(target, "package.json")),
+  );
+  const fileAliases = Object.fromEntries(
+    Object.entries(options.alias ?? {}).filter(
+      ([name]) => !packageAliases.some(([pinned]) => pinned === name),
+    ),
+  );
+  const pinnedPackagesPlugin = {
+    name: "viewer-pinned-packages",
+    setup(build: import("esbuild").PluginBuild) {
+      for (const [name, target] of packageAliases) {
+        const escaped = name.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+        const installedFrom = path.dirname(path.dirname(target));
+        build.onResolve({ filter: new RegExp(`^${escaped}(/.*)?$`) }, (args) => {
+          if (args.pluginData?.pinned) return undefined;
+          return build.resolve(args.path, {
+            kind: args.kind,
+            resolveDir: installedFrom,
+            pluginData: { pinned: true },
+          });
+        });
+      }
+    },
+  };
   const assetsPlugin = {
     name: "viewer-assets",
     setup(build: import("esbuild").PluginBuild) {
@@ -218,15 +248,14 @@ export async function bundlePage(
     target: "es2022",
     sourcemap: options.sourcemap === false ? false : ("inline" as const),
     minify: options.minify ?? false,
-    alias: options.alias,
+    alias: fileAliases,
     define: {
       "process.env.NODE_ENV": JSON.stringify("development"),
       ...options.define,
     },
-    plugins: [assetsPlugin],
+    plugins: [pinnedPackagesPlugin, assetsPlugin],
     logLevel: "silent" as const,
     jsx: "automatic" as const,
-    loader: { ".glsl": "text" as const },
   };
   const app = path.join(options.outDir, "app.js");
   const worker = path.join(options.outDir, "viewer-worker.js");

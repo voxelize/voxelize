@@ -2,12 +2,12 @@ import {
   BoxGeometry,
   Material,
   Mesh,
-  MeshBasicMaterial,
+  MeshBasicNodeMaterial,
   Object3D,
   PerspectiveCamera,
   Sprite,
-  SpriteMaterial,
-} from "three";
+  SpriteNodeMaterial,
+} from "three/webgpu";
 import { describe, expect, it } from "vitest";
 
 import {
@@ -54,7 +54,7 @@ const item = (
 };
 
 const chunkMesh = (label: string, renderOrder: number, depthWrite = false) => {
-  const material = new MeshBasicMaterial({ transparent: true, depthWrite });
+  const material = new MeshBasicNodeMaterial({ transparent: true, depthWrite });
   return item(
     label,
     new Mesh(new BoxGeometry(), material),
@@ -68,7 +68,7 @@ const effect = (
   position: [number, number, number],
   renderOrder = 0,
 ) => {
-  const material = new SpriteMaterial({ transparent: true, depthWrite: false });
+  const material = new SpriteNodeMaterial({ transparent: true, depthWrite: false });
   return item(label, new Sprite(material), material, renderOrder, position);
 };
 

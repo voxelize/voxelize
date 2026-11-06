@@ -10,19 +10,19 @@ import {
   LinearFilter,
   LinearMipmapLinearFilter,
   Mesh,
+  type NodeMaterial,
   NearestFilter,
   PlaneGeometry,
   RedFormat,
   RepeatWrapping,
   RGBAFormat,
-  ShaderMaterial,
   SRGBColorSpace,
   Texture,
   UnsignedByteType,
   Vector2,
   Vector3,
   Vector4,
-} from "three";
+} from "three/webgpu";
 
 import { WorkerPool } from "../../libs/worker-pool";
 
@@ -50,11 +50,7 @@ import {
   FarMeshData,
   FarMeshInput,
 } from "./far-terrain-mesh";
-import {
-  FAR_SEAM_FUNCTIONS,
-  FAR_SEAM_UNIFORM_DECLARATIONS,
-  farSeamScale,
-} from "./far-terrain-seam";
+import { farSeamScale } from "./far-terrain-seam";
 import { FAR_SHADOW_NONE, type FarShadowInput } from "./far-terrain-shadow";
 import {
   buildCoverageMask,
@@ -69,24 +65,15 @@ import {
   meanLinearRgb,
   pendingChunksWithin,
 } from "./far-terrain-tiles";
-import { bindSkyGlowUniforms, type SkyGlowUniforms } from "./sky";
 import {
-  createSkyAtmosphereFragment,
-  createSkyGlowStatements,
-  SKY_FOG_UNIFORM_DECLARATIONS,
-} from "./sky-fog";
-import {
-  createSurfaceWeatherUniforms,
-  SURFACE_WEATHER_FAR_ALBEDO_FRAGMENT,
-  SURFACE_WEATHER_FAR_DECLARATIONS,
-  type SurfaceWeatherUniforms,
-} from "./surface-weather";
+  createFarLandMaterial,
+  createFarSeabedMaterial,
+  createFarTerrainUniforms,
+  createFarWaterMaterial,
+  type FarTerrainSharedUniforms,
+  type FarTerrainUniforms,
+} from "./shading/far-terrain";
 import { AtlasTexture } from "./textures";
-import {
-  createUnderwaterFogFragment,
-  WATER_DOWNWELLING_EXTINCTION_GLSL,
-  WATER_OPTICS,
-} from "./water-optics";
 import FarTerrainWorker from "./workers/far-terrain-worker.ts?worker&inline";
 
 /** The method a client calls for far-terrain tiles, and its reply's name. */
@@ -114,14 +101,11 @@ const DEPTH_RANGE = 32;
 const DEPTH_RECENTER = 256;
 
 /**
- * The far sun shadows: blocks a shadow may reach along the ground, the
- * blocks its edge softens over and the lift that keeps a surface clear of
- * its own texel's line, and how far the sun turns (as a unit vector) or how
- * long passes before the lines are cast again.
+ * The far sun shadows: blocks a shadow may reach along the ground, and how
+ * far the sun turns (as a unit vector) or how long passes before the lines
+ * are cast again. Their softening is the shading's (shading/far-terrain.ts).
  */
 const FAR_SHADOW_REACH = 512;
-const FAR_SHADOW_SOFT = "1.5";
-const FAR_SHADOW_BIAS = "1.0";
 const FAR_SHADOW_SUN_TURN = 0.004;
 const FAR_SHADOW_MIN_INTERVAL_MS = 400;
 
@@ -129,75 +113,12 @@ const FAR_SHADOW_MIN_INTERVAL_MS = 400;
 const PLAN_MOVE_BLOCKS = 4;
 const PLAN_MAX_AGE_MS = 500;
 
-/** Blocks of sea below which the far water plane leaves the land's top be. */
-const FAR_SEA_MIN_DEPTH = "0.25";
-
-type ShaderUniform<T> = { value: T };
-
-/** Uniforms the far layer shares with the chunk shader, by reference. */
-export type FarTerrainSharedUniforms = {
-  fogColor: ShaderUniform<Color>;
-  fogNear: ShaderUniform<number>;
-  fogFar: ShaderUniform<number>;
-  fogHeightOrigin: ShaderUniform<number>;
-  fogHeightDensity: ShaderUniform<number>;
-  fogVerticalBlend: ShaderUniform<number>;
-  skyFogTopColor: ShaderUniform<Color>;
-  skyFogMiddleColor: ShaderUniform<Color>;
-  skyFogBottomColor: ShaderUniform<Color>;
-  skyFogOffset: ShaderUniform<number>;
-  skyFogVoidOffset: ShaderUniform<number>;
-  skyFogExponent: ShaderUniform<number>;
-  skyFogExponent2: ShaderUniform<number>;
-  skyFogDimension: ShaderUniform<number>;
-  skyFogStrength: ShaderUniform<number>;
-  sunlightIntensity: ShaderUniform<number>;
-  /** The share of the sun reaching the world as a beam (the weather's). */
-  directSunlight?: ShaderUniform<number>;
-  /** The sky's own light, so the far hills haze into the glow behind them. */
-  skyGlow?: SkyGlowUniforms;
-  minLightLevel: ShaderUniform<number>;
-  baseAmbient: ShaderUniform<number>;
-  faceShades: ShaderUniform<{ x: number; y: number; z: number; w: number }>;
-  cameraSubmersion: ShaderUniform<number>;
-  cameraWaterPlaneY: ShaderUniform<number>;
-  underwaterAmbient: ShaderUniform<Color>;
-  underwaterViewScale: ShaderUniform<number>;
-  sunDirection: ShaderUniform<Vector3>;
-  sunColor: ShaderUniform<Color>;
-  ambientColor: ShaderUniform<Color>;
-  /**
-   * The sky the chunk water mirrors and how strongly it does, so the far
-   * sea mirrors the same sky; without them it mirrors none.
-   */
-  skyTopColor?: ShaderUniform<Color>;
-  skyMiddleColor?: ShaderUniform<Color>;
-  waterFresnelStrength?: ShaderUniform<number>;
-  /**
-   * The chunk water's tint, which its surface takes more of with distance;
-   * without it the far water keeps its own colour at every distance.
-   */
-  waterTint?: ShaderUniform<Color>;
-  /**
-   * The chunk shader's side of the seam, written here: the coverage mask,
-   * its placement `(originCx, originCz, chunkSize, texels)` and the seam
-   * band's ramp scale (0 while the layer is off).
-   */
-  farCoverMask: ShaderUniform<Texture | null>;
-  farCover: ShaderUniform<Vector4>;
-  farSeam: ShaderUniform<number>;
-  /**
-   * The weather on surfaces the chunks draw (surface-weather.ts), so the
-   * far land wears the same coat and wet ground; without them it wears
-   * none.
-   */
-  surfaceWeather?: SurfaceWeatherUniforms["surfaceWeather"];
-  surfaceWeatherMap?: SurfaceWeatherUniforms["surfaceWeatherMap"];
-  surfaceWeatherWindow?: SurfaceWeatherUniforms["surfaceWeatherWindow"];
-  surfaceWeatherLine?: SurfaceWeatherUniforms["surfaceWeatherLine"];
-  surfaceCoatColor?: SurfaceWeatherUniforms["surfaceCoatColor"];
-  surfaceWind?: SurfaceWeatherUniforms["surfaceWind"];
-};
+export type { FarTerrainSharedUniforms };
+export {
+  CHUNK_DAYLIGHT,
+  CHUNK_WATER_FRESNEL,
+  CHUNK_WATER_TINT,
+} from "./shading/far-terrain";
 
 /** A tile's meshes, built off the main thread. */
 export type FarBuiltTile = {
@@ -447,499 +368,8 @@ export type FarTerrainStats = {
   faceLookMs: number;
 };
 
-const VERTEX_SHADER = `
-#include <batching_pars_vertex>
-attribute vec2 aFarColumn;
-attribute vec4 aFarMaterial;
-attribute vec4 aFarTint;
-varying vec3 vWorldPosition;
-varying float vFarOcclusion;
-flat varying vec4 vFarMaterial;
-flat varying vec2 vFarColumn;
-flat varying vec3 vFarTint;
-flat varying float vFarStep;
-flat varying vec2 vFarFade;
-void main() {
-  #include <batching_vertex>
-  vec4 local = vec4(position, 1.0);
-  #ifdef USE_BATCHING
-    local = batchingMatrix * local;
-  #endif
-  vec4 worldPosition = modelMatrix * local;
-  // The tile's fade, from its instance colour (far-terrain-batch): its
-  // opacity, and whether it is the one dissolving in.
-  #ifdef USE_BATCHING_COLOR
-    vec4 fade = getBatchingColor(getIndirectIndex(gl_DrawID));
-    vFarFade = vec2(fade.r, fade.g > 0.5 ? 1.0 : -1.0);
-  #else
-    vFarFade = vec2(1.0);
-  #endif
-  vWorldPosition = worldPosition.xyz;
-  vFarMaterial = aFarMaterial;
-  vFarOcclusion = aFarMaterial.z / 255.0;
-  vFarColumn = aFarColumn;
-  vFarTint = aFarTint.rgb * (1.0 / 128.0);
-  vFarStep = aFarTint.a;
-  gl_Position = projectionMatrix * viewMatrix * worldPosition;
-}
-`;
-
-const WATER_VERTEX_SHADER = `
-varying vec3 vWorldPosition;
-void main() {
-  vec4 worldPosition = modelMatrix * vec4(position, 1.0);
-  vWorldPosition = worldPosition.xyz;
-  gl_Position = projectionMatrix * viewMatrix * worldPosition;
-}
-`;
-
-/**
- * The chunk fragment's daylight terms for an open face in full sun (the
- * block after `#include <envmap_fragment>` in shaders.ts: no shadow, no
- * occlusion, no block light), as the literals both shaders carry. The chunk
- * shader is the source of truth; far-terrain.test.ts reads it and fails when
- * either side changes alone.
- */
-export const CHUNK_DAYLIGHT = {
-  /** `max(rawNdotL * 0.85 + 0.15, 0.0)`: the wrapped sun. */
-  sunWrap: { scale: "0.85", bias: "0.15" },
-  /** `smoothstep(0.75, 0.95, texLuma)`: how bright a texture counts as. */
-  brightTexture: { from: "0.75", to: "0.95" },
-  /** `mix(1.0, 0.7, isBrightTex)`: the sun a bright texture keeps. */
-  brightTextureSun: "0.7",
-  /** `uAmbientColor * 0.4`: the sky ambient a face looking down gets. */
-  groundAmbient: "0.4",
-  /** `mix(0.72, 1.0, shadow)`: the sky ambient a shaded face keeps. */
-  shadedAmbient: "0.72",
-  /** `uAmbientColor * 0.04 * (1.0 - shadow)`: light bounced into shade. */
-  bounce: "0.04",
-  /** `vec3(0.025, 0.03, 0.04) * sunVisibility`: starlight under open sky. */
-  starlight: "0.025, 0.03, 0.04",
-  /** `vec3 coolTint = vec3(1.0, 1.0, 1.0)`: daylight white balance. */
-  daylightBalance: "1.0, 1.0, 1.0",
-  /** The ACES fit `(x (2.51 x + 0.03)) / (x (2.43 x + 0.59) + 0.14)`. */
-  toneMap: { a: "2.51", b: "0.03", c: "2.43", d: "0.59", e: "0.14" },
-} as const;
-
-const D = CHUNK_DAYLIGHT;
-
-/**
- * What a crown's inside keeps of the light on its leaves: the leaves deeper
- * in a canopy, seen through the gaps of those outside them.
- */
-const FAR_CROWN_INSIDE = "0.75";
-
-/**
- * How a crown's leaves lose the sun with depth below its top: the share lit
- * falls off over `depth` blocks toward `floor`, measured against generated
- * trees in loaded chunks at the same pose (far-terrain-textures.ts with
- * RENDER_RADIUS=16).
- */
-const FAR_CROWN_SUN = { depth: "8.0", floor: "0.35" } as const;
-
-/** The face kinds as GLSL integer constants. */
-const KIND_GLSL = Object.entries(FAR_FACE_KIND)
-  .map(
-    ([name, value]) => `const int FAR_KIND_${name.toUpperCase()} = ${value};`,
-  )
-  .join("\n");
-
-/**
- * Light an albedo as the chunk shader lights an open face in sun
- * ({@link CHUNK_DAYLIGHT}), with `occlusion` where the chunks have their
- * vertex occlusion and `shadow` (1 lit, 0 shaded) where they have their
- * shadow cascades: a shaded face loses the sun and keeps
- * `CHUNK_DAYLIGHT.shadedAmbient` of the sky, plus the bounce. Then wear
- * the chunks' sky fog and thin into it across the outer `uFarEdge` band.
- */
-const lightAndFog = (afterLight = "") => `
-  float NdotL = max(dot(normal, uSunDirection) * ${D.sunWrap.scale} + ${D.sunWrap.bias}, 0.0);
-  float brightTexture = smoothstep(${D.brightTexture.from}, ${D.brightTexture.to}, dot(albedo, vec3(0.2126, 0.7152, 0.0722)));
-  vec3 sun = uSunColor * NdotL * shadow * uSunlightIntensity * mix(1.0, ${D.brightTextureSun}, brightTexture);
-  float hemisphere = normal.y * 0.5 + 0.5;
-  vec3 skyAmbient = mix(uAmbientColor * ${D.groundAmbient}, uAmbientColor, hemisphere)
-    * mix(${D.shadedAmbient}, 1.0, shadow);
-  vec3 bounce = uAmbientColor * ${D.bounce} * (1.0 - shadow) * uSunlightIntensity;
-  float ambientFloor = max(uMinLightLevel + uBaseAmbient, 0.0);
-  vec3 globalAmbient = vec3(${D.starlight}) + uAmbientColor * ambientFloor;
-  vec3 weights = abs(normal);
-  weights /= max(weights.x + weights.y + weights.z, 0.0001);
-  float verticalShade = normal.y > 0.0 ? uFaceShades.w : uFaceShades.z;
-  float faceShade = weights.x * uFaceShades.x + weights.z * uFaceShades.y + weights.y * verticalShade;
-  vec3 light = (skyAmbient + sun + bounce + globalAmbient) * vec3(${D.daylightBalance}) * occlusion * faceShade;
-  light = (light * (${D.toneMap.a} * light + ${D.toneMap.b})) / (light * (${D.toneMap.c} * light + ${D.toneMap.d}) + ${D.toneMap.e});
-  light = max(light, vec3(ambientFloor) * faceShade);
-
-  gl_FragColor = vec4(albedo * light, 1.0);
-  ${afterLight}
-  ${createSkyAtmosphereFragment()}
-  gl_FragColor.rgb = mix(
-    gl_FragColor.rgb,
-    fogTint,
-    smoothstep(uFarEdge.x, uFarEdge.y, horizontal) * (1.0 - uCameraSubmersion)
-  );
-  ${createUnderwaterFogFragment(false)}
-`;
-
-const COMMON_DECLARATIONS = `
-${SKY_FOG_UNIFORM_DECLARATIONS}
-uniform vec3 uAmbientColor;
-uniform float uMinLightLevel;
-uniform float uBaseAmbient;
-uniform vec4 uFaceShades;
-uniform float uRingOuter;
-uniform vec2 uRingCenter;
-uniform vec2 uFarEdge;
-uniform sampler2D uFarShadowMap;
-uniform vec4 uFarShadow;
-${FAR_SEAM_UNIFORM_DECLARATIONS}
-varying vec3 vWorldPosition;
-${FAR_SEAM_FUNCTIONS}
-
-// The sun on a point as the far land and canopy toward the sun let it
-// through (far-terrain-shadow): 1 above the shadow line over its texel, 0
-// below it, softened across a couple of blocks since a texel is eight.
-float farTerrainSun(vec3 p) {
-  if (uFarShadow.w <= 0.0) return 1.0;
-  vec2 uv = (p.xz - uFarShadow.xy) / (uFarShadow.z * uFarShadow.w);
-  if (any(lessThan(uv, vec2(0.0))) || any(greaterThan(uv, vec2(1.0)))) return 1.0;
-  float line = texture2D(uFarShadowMap, uv).r;
-  return smoothstep(line - ${FAR_SHADOW_SOFT}, line + ${FAR_SHADOW_SOFT}, p.y + ${FAR_SHADOW_BIAS});
-}
-`;
-
-/**
- * Hide under every chunk that draws real terrain, except the pixels the
- * chunk's outer half yields across the seam band (far-terrain-seam), and
- * past the reach, measured from the viewer the tiles were picked around.
- */
-const COVER_DISCARD = `
-  vec2 farTexel = farCoverTexel(vWorldPosition.xz);
-  if (farCoverInside(farTexel) && farCoverHard(farTexel) > 0.5) {
-    if (uFarSeam <= 0.0 || farSeamWeight(farTexel) > farSeamDither(gl_FragCoord.xy)) discard;
-  }
-  float horizontal = length(vWorldPosition.xz - uRingCenter);
-  if (horizontal >= uRingOuter) discard;
-`;
-
-/**
- * The land: each face's block picked from the class table by what the
- * face is (a top picks one of its flat covers per cell, a wall shows the
- * strata down from its column's ground, a crown its leaves), with the
- * climate tint on the faces that take it. A cell of `vFarStep` blocks wears
- * its block's 16 texels across the whole cell, as one big block: a cell
- * subtends about the same angle at every level (far-terrain-lod), so the
- * texels stay a pixel or two wide out to the reach instead of filtering
- * down to the face's mean, and the distant land keeps its pixel grain.
- */
-const LAND_FRAGMENT_SHADER = `
-precision highp sampler2DArray;
-${COMMON_DECLARATIONS}
-uniform highp sampler2DArray uFarLayers;
-uniform highp sampler2D uFarMaterials;
-flat varying vec2 vFarFade;
-flat varying float vFarStep;
-varying float vFarOcclusion;
-flat varying vec4 vFarMaterial;
-flat varying vec2 vFarColumn;
-flat varying vec3 vFarTint;
-${KIND_GLSL}
-${SURFACE_WEATHER_FAR_DECLARATIONS}
-
-float farCoverHash(vec2 cell) {
-  uvec2 q = uvec2(ivec2(floor(cell)));
-  uint h = (q.x * 0x8da6b343u) ^ (q.y * 0xd8163841u);
-  h = (h ^ (h >> 13u)) * 0x5bd1e995u;
-  h ^= h >> 15u;
-  return float(h & 0xffffffu) / 16777216.0;
-}
-
-// The sun on a crown's outer leaves, as the leaves above let it through:
-// the chunks' cascades shade a canopy's lower leaves and its underside
-// wholly. Each block is lit or shaded on its own, dappled, until blocks
-// shrink under a few pixels and take the share lit instead.
-float farCrownSun(vec3 p, vec3 normal, float tip, float blockFootprint) {
-  if (normal.y < -0.5) return 0.0;
-  float depth = max(tip - p.y, 0.0);
-  float lit = mix(${FAR_CROWN_SUN.floor}, 1.0, exp(-depth / ${FAR_CROWN_SUN.depth}));
-  vec3 block = floor(p - normal * 0.5);
-  float dapple = step(farCoverHash(vec2(block.x + block.y * 31.0, block.z - block.y * 17.0)), lit);
-  return mix(dapple, lit, smoothstep(0.25, 0.5, blockFootprint));
-}
-
-vec4 farLayerTexel(float code, vec2 uv, vec2 dx, vec2 dy) {
-  bool tinted = code >= ${FAR_TINTED_LAYER}.0;
-  float layer = tinted ? code - ${FAR_TINTED_LAYER}.0 : code;
-  vec4 texel = textureGrad(uFarLayers, vec3(uv, max(layer, 0.0)), dx, dy);
-  return tinted ? vec4(texel.rgb * vFarTint, texel.a) : texel;
-}
-
-vec3 farLayerColor(float code, vec2 uv, vec2 dx, vec2 dy) {
-  return farLayerTexel(code, uv, dx, dy).rgb;
-}
-
-void main() {
-  // A tile dissolving in draws the pixels under its opacity; one
-  // dissolving out the rest, so a swap never shows both or neither.
-  float fadeDither = farSeamDither(gl_FragCoord.xy);
-  if (vFarFade.y > 0.0 ? fadeDither >= vFarFade.x : fadeDither < 1.0 - vFarFade.x) discard;
-  ${COVER_DISCARD}
-
-  vec3 normal = normalize(cross(dFdx(vWorldPosition), dFdy(vWorldPosition)));
-  if (dot(normal, cameraPosition - vWorldPosition) < 0.0) normal = -normal;
-
-  int cls = int(vFarMaterial.x + 0.5);
-  int kind = int(vFarMaterial.y + 0.5);
-  vec4 m0 = texelFetch(uFarMaterials, ivec2(0, cls), 0);
-  vec4 m1 = texelFetch(uFarMaterials, ivec2(1, cls), 0);
-  vec4 m2 = texelFetch(uFarMaterials, ivec2(2, cls), 0);
-
-  vec3 p = vWorldPosition;
-  // In cells, a wall's rows counted down from its column's ground so the
-  // top cell's side starts at the ground, as a block's does.
-  float step = max(vFarStep, 1.0);
-  vec3 c = vec3(p.x, p.y - vFarColumn.x, p.z) / step;
-  bool isFlat = abs(normal.y) > 0.5;
-  // The chunk mesher's face orientation (greedyFaceUv), unwrapped.
-  vec2 uv = isFlat
-    ? (normal.y > 0.0 ? vec2(-c.x, c.z) : vec2(c.x, -c.z))
-    : (abs(normal.x) > 0.5
-        ? vec2(normal.x > 0.0 ? -c.z : c.z, c.y)
-        : vec2(normal.z > 0.0 ? c.x : -c.x, c.y));
-  vec2 dx = dFdx(uv);
-  vec2 dy = dFdy(uv);
-  float blockFootprint = max(length(dFdx(p)), length(dFdy(p)));
-
-  vec3 albedo;
-  float shadow = 1.0;
-  if (kind == FAR_KIND_TOP) {
-    // Flat covers are whole cells of their own, chosen per cell. Once a
-    // cell shrinks under a couple of pixels the choice would sparkle, so
-    // the covers blend in by share instead.
-    float choice = farCoverHash(c.xz);
-    float code = choice < m1.x ? m0.y : choice < m1.y ? m0.z : choice < m1.z ? m0.w : m0.x;
-    vec3 chosen = farLayerColor(code, uv, dx, dy);
-    float footprint = max(length(dx), length(dy));
-    float blend = smoothstep(0.35, 0.8, footprint);
-    if (blend > 0.0) {
-      vec3 mixed = farLayerColor(m0.x, uv, dx, dy) * (1.0 - m1.z);
-      if (m1.x > 0.0) mixed += farLayerColor(m0.y, uv, dx, dy) * m1.x;
-      if (m1.y > m1.x) mixed += farLayerColor(m0.z, uv, dx, dy) * (m1.y - m1.x);
-      if (m1.z > m1.y) mixed += farLayerColor(m0.w, uv, dx, dy) * (m1.z - m1.y);
-      chosen = mix(chosen, mixed, blend);
-    }
-    albedo = chosen;
-  } else if (kind == FAR_KIND_CROWN) {
-    // A crown's class is its species': leaves on every face, see-through
-    // where the leaves are. Through a gap shows the crown's far side from
-    // within, in the canopy's own shade, and through a gap there whatever
-    // stands behind the tree, as through a leaf block's gaps.
-    vec4 leaves = farLayerTexel(m0.x, uv, dx, dy);
-    // A gap under a few pixels wide winks in and out as the view moves, so
-    // the cut eases off as the texels shrink and the gap shows its shade.
-    float texelFootprint = max(length(dx), length(dy)) * ${FAR_LAYER_SIZE}.0;
-    if (leaves.a < 0.5 * (1.0 - smoothstep(0.3, 0.6, texelFootprint))) discard;
-    if (gl_FrontFacing) {
-      albedo = leaves.rgb;
-      shadow = farCrownSun(p, normal, vFarColumn.y, blockFootprint);
-    } else {
-      albedo = leaves.rgb * ${FAR_CROWN_INSIDE};
-      shadow = 0.0;
-    }
-  } else if (kind == FAR_KIND_TRUNK) {
-    albedo = farLayerColor(m2.y, uv, dx, dy);
-  } else if (kind == FAR_KIND_BOTTOM) {
-    albedo = farLayerColor(m2.z, uv, dx, dy);
-  } else {
-    // A wall: the ground block's side for its top cell, the side block for
-    // the cells sideDepth blocks reach into, and the deep block below.
-    float depth = -c.y;
-    float code = depth < 1.0 ? m2.x : depth < 1.0 + ceil(m1.w / step) ? m2.y : m2.z;
-    albedo = farLayerColor(code, uv, dx, dy);
-  }
-${SURFACE_WEATHER_FAR_ALBEDO_FRAGMENT}
-  float occlusion = vFarOcclusion;
-  shadow = min(shadow, farTerrainSun(p));
-  ${lightAndFog()}
-}
-`;
-
-/**
- * The chunk water's Fresnel on a top face (`fresnelBase` and `fresnelMax`
- * in shaders.ts, at `topWaterFace` 1), as the literals both shaders carry;
- * far-terrain.test.ts fails when either side changes alone.
- */
-export const CHUNK_WATER_FRESNEL = { base: "0.04", max: "0.56" };
-
-/**
- * How much of its tint the chunk water's colour takes with distance
- * (`shallowWater`, `deepWater` and `depthFactor` in shaders.ts, on a top
- * face where the vertical term is 0): `near` up close, toward `far` as
- * `1 - exp(-distance * perBlock)` grows, scaled by `reach`, as the literals
- * both shaders carry; far-terrain.test.ts fails when either side changes
- * alone.
- */
-export const CHUNK_WATER_TINT = {
-  near: "0.1",
-  far: "0.28",
-  perBlock: "0.008",
-  reach: "0.72",
-} as const;
-
-/**
- * What a sea floor's own cover (seagrass, kelp, the gravel and clay patches,
- * the shade between them) leaves of its bare top's colour: over a polar
- * bay and a sea lagoon the loaded floor, drawn without its water, averaged
- * 0.68 of the sand top the far layer paints it with, lit alike.
- */
-const FAR_SEABED_COVER = "0.68";
-
-/**
- * The far water, seen from above by the chunk water's own optics (the
- * refraction branch of its top face in shaders.ts), so the two agree where
- * the loaded chunks end: the sea floor dimmed over the path down and back,
- * the water's colour growing with thickness and toward grazing angles, past
- * a few blocks the deep in-scatter of the diver's fog colour, the sky
- * mirrored by the same Fresnel, and the floor showing through what the
- * surface leaves to the blend. The depth comes from the far tiles' own
- * floor heights; `uWaterColor` is the colour the chunk water lays over a
- * floor (its lit texture, toward its tint).
- */
-const FAR_WATER_FN = `
-float farWaterFresnel(float cosView) {
-  float fresnel = ${CHUNK_WATER_FRESNEL.base}
-    + uWaterFresnelStrength * pow(1.0 - clamp(cosView, 0.0, 1.0), 5.0);
-  return clamp(fresnel, 0.01, ${CHUNK_WATER_FRESNEL.max})
-    * ${WATER_OPTICS.distantFresnelFactor.toFixed(4)};
-}
-vec3 farSkyMirror(vec3 toCamera) {
-  vec3 reflectDir = reflect(-toCamera, vec3(0.0, 1.0, 0.0));
-  float skyH = normalize(reflectDir * uSkyFogDimension + uSkyFogOffset).y;
-  ${createSkyGlowStatements("reflectDir", "mirroredSkyGlow")}
-  return mix(uSkyMiddleColor, uSkyTopColor, pow(max(skyH, 0.0), uSkyFogExponent))
-    + mirroredSkyGlow;
-}
-vec3 farSeabed() {
-  return uSeabedColor * ${FAR_SEABED_COVER};
-}
-float farDeepTransmit(float seaDepth) {
-  return exp(
-    -max(seaDepth - ${WATER_OPTICS.deepSurfaceClearDepth.toFixed(4)}, 0.0)
-    * ${WATER_OPTICS.deepSurfaceExtinction.toFixed(4)}
-  );
-}
-// The lit surface as the chunk water draws it: the lit floor seen through
-// the column (dimmed over the path down and back, under the water's colour
-// as it thickens and toward grazing views), the water's colour taking more
-// of its tint with distance, the deep body's in-scatter (daylight let down
-// through the surface, not lit again), the sky mirror, and all of it over
-// the lit floor by the surface's opacity, which the deep body and grazing
-// views close.
-vec3 farWaterSurface(vec3 light, float seaDepth, float fresnel, vec3 toCamera, float viewDistance) {
-  float floorDepth = min(seaDepth, ${WATER_OPTICS.floorAbsorptionMaxDepth.toFixed(4)});
-  vec3 floorShade = exp(
-    -${WATER_DOWNWELLING_EXTINCTION_GLSL}
-    * floorDepth
-    * ${WATER_OPTICS.floorAbsorptionPathScale.toFixed(4)}
-  ) * ${WATER_OPTICS.wetFloorDarken.toFixed(4)};
-  float thicknessScatter = (1.0 - exp(
-    -floorDepth * ${WATER_OPTICS.shallowScatterDensity.toFixed(4)}
-  )) * ${WATER_OPTICS.shallowScatterMaxMix.toFixed(4)};
-  vec3 floorLit = farSeabed() * light;
-  float tintShare = ${CHUNK_WATER_TINT.near}
-    + (${CHUNK_WATER_TINT.far} - ${CHUNK_WATER_TINT.near})
-    * (1.0 - exp(-viewDistance * ${CHUNK_WATER_TINT.perBlock})) * ${CHUNK_WATER_TINT.reach};
-  vec3 water = mix(uWaterColor * light, uWaterTint, tintShare);
-  vec3 color = mix(
-    floorLit * floorShade,
-    water,
-    clamp(0.12 + fresnel * 0.28 + thicknessScatter, 0.0, 1.0)
-  );
-  float columnDepth = seaDepth;
-  float deepTransmit = farDeepTransmit(columnDepth);
-  vec3 deepScatter = uUnderwaterAmbient * vec3(
-    ${WATER_OPTICS.deepSurfaceScatterScale.red.toFixed(4)},
-    ${WATER_OPTICS.deepSurfaceScatterScale.green.toFixed(4)},
-    ${WATER_OPTICS.deepSurfaceScatterScale.blue.toFixed(4)}
-  ) * exp(
-    -${WATER_DOWNWELLING_EXTINCTION_GLSL}
-    * min(columnDepth, 16.0)
-    * ${WATER_OPTICS.aboveSurfaceScatterDepthScale.toFixed(4)}
-  );
-  color = mix(deepScatter, color, deepTransmit);
-  color = mix(color, farSkyMirror(toCamera), fresnel);
-  float alpha = mix(
-    ${WATER_OPTICS.refractedSurfaceAlphaFloor.toFixed(4)},
-    1.0,
-    fresnel * fresnel * ${WATER_OPTICS.fresnelAlphaStrength.toFixed(4)}
-  );
-  alpha = 1.0 - (1.0 - alpha) * deepTransmit;
-  return mix(floorLit, color, alpha);
-}
-`;
-
-const WATER_FRAGMENT_SHADER = `
-${COMMON_DECLARATIONS}
-uniform vec3 uWaterColor;
-uniform vec3 uWaterTint;
-uniform vec3 uSeabedColor;
-uniform sampler2D uFarDepthMap;
-uniform vec4 uFarDepth;
-uniform vec3 uSkyTopColor;
-uniform vec3 uSkyMiddleColor;
-uniform float uWaterFresnelStrength;
-// (start, end) of the ramp from the chunk water's depth to the sea's.
-${FAR_WATER_FN}
-void main() {
-  ${COVER_DISCARD}
-  vec3 normal = vec3(0.0, 1.0, 0.0);
-  vec2 depthUv = (vWorldPosition.xz - uFarDepth.xy) / (uFarDepth.z * uFarDepth.w);
-  float seaDepth = texture2D(uFarDepthMap, depthUv).r * ${DEPTH_RANGE}.0;
-  // No sea where the tiles stand at or above it. A lake or shore level
-  // with the sea has its own top an eighth of a block over this plane, and
-  // a few hundred blocks out the depth buffer cannot part them: the two
-  // fought in bands, the sea's side painted as the sand of a zero depth.
-  bool inMap = all(greaterThanEqual(depthUv, vec2(0.0))) && all(lessThanEqual(depthUv, vec2(1.0)));
-  if (inMap && seaDepth < ${FAR_SEA_MIN_DEPTH}) discard;
-  vec3 toCamera = normalize(cameraPosition - vWorldPosition);
-  float fresnel = farWaterFresnel(toCamera.y);
-  vec3 albedo = farSeabed();
-  float occlusion = 1.0;
-  float shadow = farTerrainSun(vWorldPosition);
-  ${lightAndFog(
-    "gl_FragColor.rgb = farWaterSurface(light, seaDepth, fresnel, toCamera, length(cameraPosition - vWorldPosition));",
-  )}
-}
-`;
-
 /** Blocks under the far water plane the seabed behind it lies. */
 const FAR_SEABED_DROP = DEPTH_RANGE;
-
-/**
- * The floor under the far water, for the chunk water to see through. Where
- * the loaded chunks end over open water, a view into their water runs out
- * of their floor before it reaches the bottom: the chunk water composites
- * what is behind it (its refraction capture), and there the far layer had
- * nothing, so a band of sky tinted blue ran along the loaded edge, as wide
- * as the water is deep and the view is low. This plane, past the loaded
- * chunks and deep enough for any sea the depth map holds, is that floor:
- * the seabed's colour, lit as the chunks light an open floor in sun. From
- * above it stays under the far water and the far land, and from under the
- * water (where the far layer is fog anyway) it draws nothing.
- */
-const SEABED_FRAGMENT_SHADER = `
-${COMMON_DECLARATIONS}
-uniform vec3 uSeabedColor;
-void main() {
-  ${COVER_DISCARD}
-  if (uCameraSubmersion > 0.5) discard;
-  vec3 normal = vec3(0.0, 1.0, 0.0);
-  vec3 albedo = uSeabedColor * ${FAR_SEABED_COVER};
-  float occlusion = 1.0;
-  float shadow = 1.0;
-  ${lightAndFog()}
-}
-`;
 
 type ResidentTile = {
   data: FarTileData;
@@ -1112,13 +542,16 @@ export class FarTerrain extends Group {
 
   private materialsTexture: DataTexture;
 
-  private landMaterial: ShaderMaterial;
+  /** The layer's own uniforms: its textures, windows, ring and colours. */
+  private uniforms: FarTerrainUniforms;
 
-  private waterMaterial: ShaderMaterial;
+  private landMaterial: NodeMaterial;
+
+  private waterMaterial: NodeMaterial;
 
   private water: Mesh;
 
-  private seabedMaterial: ShaderMaterial;
+  private seabedMaterial: NodeMaterial;
 
   private seabed: Mesh;
 
@@ -1196,9 +629,9 @@ export class FarTerrain extends Group {
   private shadowTexture: DataTexture;
 
   /** `(originX, originZ, blocks per texel, texels)` the shadow lines cover; w 0 while there are none. */
-  private shadowWindow: ShaderUniform<Vector4> = {
-    value: new Vector4(0, 0, DEPTH_BLOCKS_PER_TEXEL, 0),
-  };
+  private get shadowWindow() {
+    return this.uniforms.shadowWindow;
+  }
 
   /** The heights and sun the last shadow job ran on, and whether one is out. */
   private shadowedVersion = -1;
@@ -1207,15 +640,19 @@ export class FarTerrain extends Group {
   private isShadowing = false;
 
   /** `(originX, originZ, blocks per texel, texels)` of the depth map. */
-  private depthWindow: ShaderUniform<Vector4> = {
-    value: new Vector4(0, 0, DEPTH_BLOCKS_PER_TEXEL, DEPTH_TEXELS),
-  };
+  private get depthWindow() {
+    return this.uniforms.depthWindow;
+  }
 
   private depthCenter: [number, number] | null = null;
 
-  private seabedColor: ShaderUniform<Color> = { value: new Color() };
+  private get seabedColor() {
+    return this.uniforms.seabedColor;
+  }
 
-  private waterColor: ShaderUniform<Color> = { value: new Color() };
+  private get waterColor() {
+    return this.uniforms.waterColor;
+  }
 
   private skyTop: [number, number, number];
 
@@ -1224,12 +661,14 @@ export class FarTerrain extends Group {
   private chunkSize = 16;
 
   /** Horizontal centre the reach is measured from, shared by every material. */
-  private ringCenter: ShaderUniform<Vector2> = { value: new Vector2() };
+  private get ringCenter() {
+    return this.uniforms.ringCenter;
+  }
 
   /** `(start, end)` of the band across which the layer thins into haze. */
-  private farEdge: ShaderUniform<Vector2> = {
-    value: new Vector2(Infinity, Infinity),
-  };
+  private get farEdge() {
+    return this.uniforms.farEdge;
+  }
 
   /** `(start, end)` of the far water's depth ramp past the loaded edge. */
 
@@ -1292,8 +731,6 @@ export class FarTerrain extends Group {
     this.shadowTexture.magFilter = LinearFilter;
     this.shadowTexture.minFilter = LinearFilter;
     this.shadowTexture.needsUpdate = true;
-    this.seabedColor.value.set(this.options.waterColor);
-    this.waterColor.value.set(this.options.waterColor);
 
     this.layersTexture = new DataArrayTexture(
       new Uint8Array(FAR_LAYER_SIZE * FAR_LAYER_SIZE * 4).fill(128),
@@ -1309,90 +746,30 @@ export class FarTerrain extends Group {
       FloatType,
     );
 
-    const common = () => ({
-      uFogColor: shared.fogColor,
-      uFogNear: shared.fogNear,
-      uFogFar: shared.fogFar,
-      uFogHeightOrigin: shared.fogHeightOrigin,
-      uFogHeightDensity: shared.fogHeightDensity,
-      uFogVerticalBlend: shared.fogVerticalBlend,
-      uSkyFogTopColor: shared.skyFogTopColor,
-      uSkyFogMiddleColor: shared.skyFogMiddleColor,
-      uSkyFogBottomColor: shared.skyFogBottomColor,
-      uSkyFogOffset: shared.skyFogOffset,
-      uSkyFogVoidOffset: shared.skyFogVoidOffset,
-      uSkyFogExponent: shared.skyFogExponent,
-      uSkyFogExponent2: shared.skyFogExponent2,
-      uSkyFogDimension: shared.skyFogDimension,
-      uSkyFogStrength: shared.skyFogStrength,
-      uChunkReveal: { value: 1 },
-      uCameraSubmersion: shared.cameraSubmersion,
-      uCameraWaterPlaneY: shared.cameraWaterPlaneY,
-      uUnderwaterAmbient: shared.underwaterAmbient,
-      uUnderwaterViewScale: shared.underwaterViewScale,
-      uSunDirection: shared.sunDirection,
-      uSunColor: shared.sunColor,
-      uSunlightIntensity: shared.sunlightIntensity,
-      uDirectSunlight: shared.directSunlight ?? { value: 1 },
-      ...bindSkyGlowUniforms(shared.skyGlow),
-      uAmbientColor: shared.ambientColor,
-      uMinLightLevel: shared.minLightLevel,
-      uBaseAmbient: shared.baseAmbient,
-      uFaceShades: shared.faceShades,
-      uFarCoverMask: shared.farCoverMask,
-      uFarCover: shared.farCover,
-      uFarSeam: shared.farSeam,
-      uRingOuter: { value: 0 },
-      uRingCenter: this.ringCenter,
-      uFarEdge: this.farEdge,
+    this.uniforms = createFarTerrainUniforms({
+      layers: this.layersTexture,
+      materials: this.materialsTexture,
+      shadow: this.shadowTexture,
+      depth: this.depthTexture,
     });
+    this.uniforms.shadowWindow.value.set(0, 0, DEPTH_BLOCKS_PER_TEXEL, 0);
+    this.uniforms.depthWindow.value.set(
+      0,
+      0,
+      DEPTH_BLOCKS_PER_TEXEL,
+      DEPTH_TEXELS,
+    );
+    this.seabedColor.value.set(this.options.waterColor);
+    this.waterColor.value.set(this.options.waterColor);
 
-    // The weather the chunks wear, by reference; a host that shares none
-    // gets the inert defaults, and the land wears none.
-    const weatherDefaults = createSurfaceWeatherUniforms();
-    this.landMaterial = new ShaderMaterial({
-      vertexShader: VERTEX_SHADER,
-      fragmentShader: LAND_FRAGMENT_SHADER,
-      uniforms: {
-        ...common(),
-        uSurfaceWeather:
-          shared.surfaceWeather ?? weatherDefaults.surfaceWeather,
-        uSurfaceWeatherMap:
-          shared.surfaceWeatherMap ?? weatherDefaults.surfaceWeatherMap,
-        uSurfaceWeatherWindow:
-          shared.surfaceWeatherWindow ?? weatherDefaults.surfaceWeatherWindow,
-        uSurfaceWeatherLine:
-          shared.surfaceWeatherLine ?? weatherDefaults.surfaceWeatherLine,
-        uSurfaceCoatColor:
-          shared.surfaceCoatColor ?? weatherDefaults.surfaceCoatColor,
-        uSurfaceWind: shared.surfaceWind ?? weatherDefaults.surfaceWind,
-        uFarLayers: { value: this.layersTexture },
-        uFarShadowMap: { value: this.shadowTexture },
-        uFarShadow: this.shadowWindow,
-        uFarMaterials: { value: this.materialsTexture },
-      },
-      side: DoubleSide,
-    });
+    this.landMaterial = createFarLandMaterial(shared, this.uniforms);
     this.batch = new FarBatch(this.landMaterial);
     this.add(this.batch.root);
-    this.waterMaterial = new ShaderMaterial({
-      vertexShader: WATER_VERTEX_SHADER,
-      fragmentShader: WATER_FRAGMENT_SHADER,
-      uniforms: {
-        ...common(),
-        uWaterColor: this.waterColor,
-        uWaterTint: shared.waterTint ?? this.waterColor,
-        uSeabedColor: this.seabedColor,
-        uFarDepthMap: { value: this.depthTexture },
-        uFarShadowMap: { value: this.shadowTexture },
-        uFarShadow: this.shadowWindow,
-        uFarDepth: this.depthWindow,
-        uSkyTopColor: shared.skyTopColor ?? shared.skyFogTopColor,
-        uSkyMiddleColor: shared.skyMiddleColor ?? shared.skyFogMiddleColor,
-        uWaterFresnelStrength: shared.waterFresnelStrength ?? { value: 0 },
-      },
-      side: DoubleSide,
-    });
+    this.waterMaterial = createFarWaterMaterial(
+      shared,
+      this.uniforms,
+      DEPTH_RANGE,
+    );
     this.water = new Mesh(new PlaneGeometry(1, 1), this.waterMaterial);
     this.water.name = "far-terrain-water";
     this.water.rotation.x = -Math.PI / 2;
@@ -1401,18 +778,7 @@ export class FarTerrain extends Group {
     this.water.frustumCulled = false;
     this.water.visible = false;
     this.add(this.water);
-    this.seabedMaterial = new ShaderMaterial({
-      vertexShader: WATER_VERTEX_SHADER,
-      fragmentShader: SEABED_FRAGMENT_SHADER,
-      uniforms: {
-        ...common(),
-        uRingOuter: this.waterMaterial.uniforms.uRingOuter,
-        uSeabedColor: this.seabedColor,
-        uFarShadowMap: { value: this.shadowTexture },
-        uFarShadow: this.shadowWindow,
-      },
-      side: DoubleSide,
-    });
+    this.seabedMaterial = createFarSeabedMaterial(shared, this.uniforms);
     // Rides the water plane, `FAR_SEABED_DROP` below it (the plane's local
     // z is world up).
     this.seabed = new Mesh(this.water.geometry, this.seabedMaterial);
@@ -1541,8 +907,7 @@ export class FarTerrain extends Group {
       world.chunkSize,
       this.options.seamBand,
     );
-    this.landMaterial.uniforms.uRingOuter.value = this.options.distance;
-    this.waterMaterial.uniforms.uRingOuter.value = this.options.distance;
+    this.uniforms.ringOuter.value = this.options.distance;
 
     let plan = this.plan;
     if (
@@ -1979,7 +1344,7 @@ export class FarTerrain extends Group {
     layers.anisotropy = 8;
     layers.needsUpdate = true;
     this.layersTexture = layers;
-    this.landMaterial.uniforms.uFarLayers.value = layers;
+    this.uniforms.layers.value = layers;
 
     this.materialsTexture.dispose();
     const rows = new DataTexture(
@@ -1993,7 +1358,7 @@ export class FarTerrain extends Group {
     rows.minFilter = NearestFilter;
     rows.needsUpdate = true;
     this.materialsTexture = rows;
-    this.landMaterial.uniforms.uFarMaterials.value = rows;
+    this.uniforms.materials.value = rows;
 
     this.skyClass = skyClass ?? 0;
     // Faces paint from the table at draw time; tiles bake only class

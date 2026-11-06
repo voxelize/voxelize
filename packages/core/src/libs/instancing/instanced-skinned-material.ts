@@ -1,29 +1,66 @@
-import * as THREE from "three";
+import * as THREE from "three/webgpu";
+import type { Node } from "three/webgpu";
+import {
+  abs,
+  attribute,
+  diffuseColor,
+  dot,
+  float,
+  floor,
+  If,
+  int,
+  ivec2,
+  mat3,
+  mat4,
+  max,
+  min,
+  mix,
+  mod,
+  modelWorldMatrix,
+  normalGeometry,
+  normalize,
+  normalLocal,
+  positionGeometry,
+  positionLocal,
+  referenceAttribute,
+  select,
+  transformNormal,
+  uv,
+  varyingProperty,
+  vec2,
+  vec3,
+  vec4,
+} from "three/tsl";
 
 import {
   createEntityShadowUniforms,
-  ENTITY_SHADOW_BOUNDS_VERTEX_FUNCTIONS,
-  ENTITY_SHADOW_FRAGMENT_PARS,
-  ENTITY_SHADOW_VERTEX_MAIN,
-  ENTITY_SHADOW_VERTEX_PARS,
-  EntityShadowUniforms,
+  type EntityShadowUniforms,
+  sharedEntityShadowUniforms,
 } from "../../core/world/entity-shadow-uniforms";
 import {
-  LIGHT_CONES_FUNCTIONS,
-  LIGHT_CONES_SCATTER_FRAGMENT,
-  LIGHT_CONES_UNIFORM_DECLARATIONS,
-  LightConeUniformBinding,
-  LightConeUniforms,
+  type LightConeUniforms,
   LightCones,
+  markLightConesCovered,
 } from "../../core/world/light-cones";
 import {
-  bindSkyGlowUniforms,
-  type SkyGlowUniforms,
-} from "../../core/world/sky";
+  entityShadow,
+  shadowBoundsToWorld,
+} from "../../core/world/shading/entity-shadow";
+import { lightConeShading } from "../../core/world/shading/light-cones";
+import { skyFog, type SkyFogInputs } from "../../core/world/shading/sky-fog";
 import {
-  SKY_FOG_COMMON_UNIFORM_DECLARATIONS,
-  SKY_FOG_FRAGMENT,
-} from "../../core/world/sky-fog";
+  type FloatNode,
+  type Mat4Node,
+  materialValue,
+  type Vec2Node,
+  type Vec3Node,
+  type Vec4Node,
+} from "../../core/world/shading/types";
+import {
+  materialTexture,
+  ownUniform,
+  perDrawInputs,
+} from "../../core/world/shading/uniforms";
 
 export type EntityFaceShades = readonly [
   number,
@@ -35,13 +72,13 @@ export type EntityFaceShades = readonly [
 ];
 
 /// One brightness per axis direction, in the shader's face order
-/// (`getFaceIndex`): +x, -x, +y, -y, +z, -z. The shader blends them over
+/// (`faceIndexOf`): +x, -x, +y, -y, +z, -z. The shading blends them over
 /// world axes by squared normal components, so an animating or yawing body
 /// shifts shade smoothly instead of popping at 45 degrees.
 ///
 /// Top-anchored at 1.0, so a top face in full sun keeps its painted
 /// brightness and a pale coat cannot clip past white. Flanks and bellies
-/// drop toward the chunk shader's face grammar without going that far:
+/// drop toward the chunk shading's face grammar without going that far:
 /// chunk-strength contrast on an entity-sized body reads as dirt, not light.
 export const DEFAULT_ENTITY_FACE_SHADES: EntityFaceShades = [
   0.86, 0.78, 1, 0.6, 0.94, 0.72,
@@ -63,8 +100,7 @@ export interface InstancedSkinnedMaterialOptions {
   /**
    * One face of one part that glows at full albedo when an instance's
    * `instanceEmissive` attribute is set (e.g. a headlight lens).
-   * Face indices follow the shader's getFaceIndex order:
-   * 0=+x, 1=-x, 2=+y, 3=-y, 4=+z, 5=-z.
+   * Face indices follow `faceIndexOf`: 0=+x, 1=-x, 2=+y, 3=-y, 4=+z, 5=-z.
    */
   emissiveFace?: {
     partIndex: number;
@@ -72,24 +108,24 @@ export interface InstancedSkinnedMaterialOptions {
     color: THREE.Color;
   };
   /**
-   * Whether the material shares the live scene's atmosphere uniforms (fog,
-   * sky fog, underwater submersion, light cones). In-world entities want
-   * true; offscreen studio renders (portraits, thumbnails) want false, or a
-   * bake taken while the camera is underwater ships tinted forever. The
-   * local fallback uniforms are neutral at portrait range.
+   * Whether the material reads the live world's atmosphere (fog, sky fog,
+   * underwater submersion, light cones). In-world entities want true;
+   * offscreen studio renders (portraits, thumbnails) want false, or a bake
+   * taken while the camera is underwater ships tinted forever. The local
+   * fallback values are neutral at portrait range.
    *
-   * It also decides the shadow uniforms: bound materials share the one
+   * It also decides the shadow inputs: bound materials share the one
    * {@link sharedEntityShadowUniforms} block the world lighting is copied
-   * into once a frame; studio materials keep a private, never-updated block,
-   * so a portrait renderer never binds the world's shadow maps.
+   * into once a frame; studio materials share one never-updated block of
+   * their own, so a portrait renderer never binds the world's shadow maps.
    */
   isEnvironmentBound?: boolean;
   /**
    * Slack in blocks around the drawn geometry's bounding sphere, which
-   * bounds each instance's own body for its shadows (`uShadowSelfSphere`):
-   * room for limbs that swing past their rest pose and for the body's own
-   * shadow imprint, which is redrawn only every few frames as it moves.
-   * Defaults to {@link ENTITY_SHADOW_SELF_BOUNDS_MARGIN}.
+   * bounds each instance's own body for its shadows: room for limbs that
+   * swing past their rest pose and for the body's own shadow imprint, which
+   * is redrawn only every few frames as it moves. Defaults to
+   * {@link ENTITY_SHADOW_SELF_BOUNDS_MARGIN}.
    */
   shadowSelfBoundsMargin?: number;
   /** Per-axis face brightness; {@link DEFAULT_ENTITY_FACE_SHADES} if unset. */
@@ -99,363 +135,255 @@ export interface InstancedSkinnedMaterialOptions {
 /** {@link InstancedSkinnedMaterialOptions.shadowSelfBoundsMargin}'s default. */
 export const ENTITY_SHADOW_SELF_BOUNDS_MARGIN = 0.15;
 
+
 /**
- * The shadow uniform block every in-world instanced entity material shares.
- * One block per warmed variant would need the frame's lighting (three
- * matrices, two colors, eight scalars) copied into each, empty variants
- * included; shared, the copy is one `updateEntityShadowUniforms` call a
- * frame. Nothing writes these uniforms per material (per-object offsets live
- * on CanvasBox, not here), which is what makes sharing them safe.
+ * The live world's atmosphere for entity materials: its sky fog, the
+ * camera's water, and the light cones. The same nodes the chunks read.
  */
-export const sharedEntityShadowUniforms: EntityShadowUniforms =
-  createEntityShadowUniforms();
-
-const vertexShader = `
-precision highp float;
-
-attribute vec4 skinIndex;
-attribute vec4 skinWeight;
-attribute float instanceBoneOffset;
-attribute float instanceHitEffect;
-attribute float instanceEmissive;
-attribute vec3 instanceLightColor;
-const float PART_DEPTH_BIAS = 3e-7;
-
-attribute float partIndex;
-attribute vec3 pivotOffset;
-attribute vec3 vertexColor;
-
-uniform sampler2D uBoneTexture;
-uniform float uBoneTextureWidth;
-uniform float uBoneTextureHeight;
-uniform float uBonesPerInstance;
-uniform float uTime;
-uniform vec4 uShadowSelfSphere;
-uniform float uShadowSelfBoundsMargin;
-
-${ENTITY_SHADOW_VERTEX_PARS}
-
-${ENTITY_SHADOW_BOUNDS_VERTEX_FUNCTIONS}
-
-varying vec4 vShadowSelfBounds;
-varying vec2 vUv;
-varying float vHitEffect;
-varying float vEmissive;
-varying vec3 vLightColor;
-varying vec3 vNormal;
-varying vec3 vLocalNormal;
-varying float vPartIndex;
-varying vec3 vWorldNormal;
-varying vec3 vWorldPosition;
-varying vec3 vOrigNormal;
-varying vec3 vVertexColor;
-
-mat4 getBoneMatrix(float boneIdx) {
-  float globalBoneIdx = instanceBoneOffset + boneIdx;
-  float pixelIdx = globalBoneIdx * 4.0;
-
-  float row = floor(pixelIdx / uBoneTextureWidth);
-  float col = mod(pixelIdx, uBoneTextureWidth);
-
-  vec2 uv0 = vec2((col + 0.5) / uBoneTextureWidth, (row + 0.5) / uBoneTextureHeight);
-  vec2 uv1 = vec2((col + 1.5) / uBoneTextureWidth, (row + 0.5) / uBoneTextureHeight);
-  vec2 uv2 = vec2((col + 2.5) / uBoneTextureWidth, (row + 0.5) / uBoneTextureHeight);
-  vec2 uv3 = vec2((col + 3.5) / uBoneTextureWidth, (row + 0.5) / uBoneTextureHeight);
-
-  vec4 col0 = texture2D(uBoneTexture, uv0);
-  vec4 col1 = texture2D(uBoneTexture, uv1);
-  vec4 col2 = texture2D(uBoneTexture, uv2);
-  vec4 col3 = texture2D(uBoneTexture, uv3);
-
-  return mat4(col0, col1, col2, col3);
-}
-
-void main() {
-  vUv = uv;
-  vHitEffect = instanceHitEffect;
-  vEmissive = instanceEmissive;
-  vLightColor = instanceLightColor;
-  vPartIndex = partIndex;
-  vOrigNormal = normal;
-  vVertexColor = vertexColor;
-
-  mat4 boneMatX = getBoneMatrix(skinIndex.x);
-  mat4 boneMatY = getBoneMatrix(skinIndex.y);
-  mat4 boneMatZ = getBoneMatrix(skinIndex.z);
-  mat4 boneMatW = getBoneMatrix(skinIndex.w);
-
-  mat4 skinMatrix = boneMatX * skinWeight.x
-                  + boneMatY * skinWeight.y
-                  + boneMatZ * skinWeight.z
-                  + boneMatW * skinWeight.w;
-
-  vec3 localPos = position - pivotOffset;
-  vec4 skinnedPosition = skinMatrix * vec4(localPos, 1.0);
-  skinnedPosition.xyz += pivotOffset;
-
-  mat3 skinNormalMatrix = mat3(skinMatrix);
-  vec3 skinnedNormal = normalize(skinNormalMatrix * normal);
-
-  vLocalNormal = skinnedNormal;
-
-  mat3 instanceNormalMatrix = mat3(instanceMatrix);
-  vNormal = normalize(instanceNormalMatrix * skinnedNormal);
-  vWorldNormal = vNormal;
-
-  vec4 worldPosition = instanceMatrix * skinnedPosition;
-  vWorldPosition = worldPosition.xyz;
-  vShadowSelfBounds = entityShadowBoundsToWorld(instanceMatrix, uShadowSelfSphere);
-  // Radius 0 means no bounds yet, and has to stay 0 (unbounded).
-  if (vShadowSelfBounds.w > 0.0) vShadowSelfBounds.w += uShadowSelfBoundsMargin;
-
-  ${ENTITY_SHADOW_VERTEX_MAIN}
-
-  gl_Position = projectionMatrix * viewMatrix * worldPosition;
-  // Parts of one body sit a hair apart or swing through each other, and two
-  // nearly coplanar faces flicker as depth precision and pose change. A few
-  // depth steps per part give every such pair a fixed winner at any distance
-  // and in any pose; a body's real gaps are far wider than this up close.
-  gl_Position.z -= partIndex * PART_DEPTH_BIAS * gl_Position.w;
-}
-`;
-
-const fragmentShader = `
-precision highp float;
-
-uniform sampler2D uColorMap;
-uniform vec3 uColor;
-uniform float uOpacity;
-uniform vec3 uHitColor;
-uniform float uMaxBrightness;
-uniform bool uUseFaceUV;
-uniform bool uUseVertexColor;
-uniform float uAtlasCols;
-uniform float uAtlasRows;
-uniform float uPartCount;
-uniform bool uReceiveShadows;
-uniform float uEmissivePartIndex;
-uniform float uEmissiveFaceIndex;
-uniform vec3 uEmissiveColor;
-uniform vec3 uFaceShadesPos;
-uniform vec3 uFaceShadesNeg;
-
-${SKY_FOG_COMMON_UNIFORM_DECLARATIONS}
-
-${LIGHT_CONES_UNIFORM_DECLARATIONS}
-
-${ENTITY_SHADOW_FRAGMENT_PARS}
-
-varying vec4 vShadowSelfBounds;
-varying vec2 vUv;
-varying float vHitEffect;
-varying float vEmissive;
-varying vec3 vLightColor;
-varying vec3 vNormal;
-varying vec3 vLocalNormal;
-varying float vPartIndex;
-varying vec3 vWorldNormal;
-varying vec3 vWorldPosition;
-varying vec3 vOrigNormal;
-varying vec3 vVertexColor;
-
-int getFaceIndex(vec3 normal) {
-  vec3 absNormal = abs(normal);
-  float maxComp = max(absNormal.x, max(absNormal.y, absNormal.z));
-
-  if (absNormal.x >= maxComp - 0.01) {
-    return normal.x > 0.0 ? 0 : 1;
-  }
-  else if (absNormal.y >= maxComp - 0.01) {
-    return normal.y > 0.0 ? 2 : 3;
-  }
-  else {
-    return normal.z > 0.0 ? 4 : 5;
-  }
-}
-
-float faceShade(vec3 worldNormal) {
-  vec3 positives = max(worldNormal, 0.0);
-  vec3 negatives = max(-worldNormal, 0.0);
-  positives *= positives;
-  negatives *= negatives;
-  float coverage = dot(positives + negatives, vec3(1.0));
-  float shade = dot(positives, uFaceShadesPos) + dot(negatives, uFaceShadesNeg);
-  return shade / max(coverage, 0.0001);
-}
-
-${LIGHT_CONES_FUNCTIONS}
-
-vec2 getFaceUV(vec2 baseUV, vec3 normal) {
-  if (!uUseFaceUV) {
-    return baseUV;
-  }
-
-  int faceIdx = getFaceIndex(normal);
-
-  float totalCells = uAtlasCols * uAtlasRows;
-  float cellsPerPart = 6.0;
-  float partStartCell = vPartIndex * cellsPerPart;
-  float globalCellIdx = partStartCell + float(faceIdx);
-
-  float col = mod(globalCellIdx, uAtlasCols);
-  float row = floor(globalCellIdx / uAtlasCols);
-
-  vec2 cellScale = vec2(1.0 / uAtlasCols, 1.0 / uAtlasRows);
-  vec2 flippedUV = vec2(baseUV.x, 1.0 - baseUV.y);
-  vec2 paddedUV = mix(vec2(0.03), vec2(0.97), flippedUV);
-  vec2 scaledUV = paddedUV * cellScale;
-  vec2 offset = vec2(col / uAtlasCols, row / uAtlasRows);
-
-  return scaledUV + offset;
-}
-
-void main() {
-  vec2 finalUV = getFaceUV(vUv, vOrigNormal);
-  vec4 texColor = texture2D(uColorMap, finalUV);
-
-  vec3 color = texColor.rgb * uColor;
-  if (uUseVertexColor) {
-    color *= vVertexColor;
-  }
-  vec3 albedo = color;
-
-  vec3 clampedLight = min(vLightColor, vec3(uMaxBrightness));
-  color *= clampedLight;
-  color *= faceShade(vWorldNormal);
-
-  if (uReceiveShadows) {
-    // Each instance is bounded by its own body, so a face turned from the
-    // sun is not shaded by the body it belongs to, while a deck or a
-    // canopy past those bounds still shades it.
-    float shadow = getEntityShadowWithin(
-      normalize(vWorldNormal),
-      vWorldPosition,
-      vShadowSelfBounds
-    );
-    color *= shadow;
-  }
-
-  color += albedo * lightConeSurface(vWorldPosition, vWorldNormal);
-
-  // Emissive face (e.g. a lit headlight lens): full albedo boosted past the
-  // scene lighting, immune to darkness and shadows.
-  if (uEmissivePartIndex >= 0.0
-      && abs(vPartIndex - uEmissivePartIndex) < 0.5
-      && vEmissive > 0.5
-      && getFaceIndex(vOrigNormal) == int(uEmissiveFaceIndex)) {
-    color = albedo * uEmissiveColor;
-  }
-
-  color = mix(color, uHitColor, vHitEffect);
-
-  gl_FragColor = vec4(color, texColor.a * uOpacity);
-
-  if (gl_FragColor.a < 0.01) discard;
-
-  ${SKY_FOG_FRAGMENT}
-
-  ${LIGHT_CONES_SCATTER_FRAGMENT}
-}
-`;
-
-export type EntityFogUniforms = {
-  fogNear: { value: number };
-  fogFar: { value: number };
-  fogColor: { value: THREE.Color };
-  fogHeightOrigin: { value: number };
-  fogHeightDensity: { value: number };
-  fogVerticalBlend?: { value: number };
-  skyFogTopColor: { value: THREE.Color };
-  skyFogMiddleColor: { value: THREE.Color };
-  skyFogBottomColor: { value: THREE.Color };
-  skyFogOffset: { value: number };
-  skyFogVoidOffset: { value: number };
-  skyFogExponent: { value: number };
-  skyFogExponent2: { value: number };
-  skyFogDimension: { value: number };
-  skyFogStrength: { value: number };
-  cameraSubmersion: { value: number };
-  cameraWaterPlaneY: { value: number };
-  underwaterAmbient: { value: THREE.Color };
-  waterLevel: { value: number };
-  /** The share of the sun reaching the world as a beam (the weather's). */
-  directSunlight: { value: number };
-  /** The sky's own light (`world.sky.glow`); black when absent. */
-  skyGlow?: SkyGlowUniforms;
+export type EntityFogUniforms = SkyFogInputs & {
   lightCones: LightConeUniforms;
 };
 
 let sharedEntityFogUniforms: EntityFogUniforms | null = null;
 
+/** The world whose atmosphere entity materials made from now on read. */
 export function setSharedEntityFogUniforms(fog: EntityFogUniforms): void {
   sharedEntityFogUniforms = fog;
 }
 
-export function makeSharedEntityFogUniformBindings(): Record<
-  string,
-  THREE.IUniform
-> | null {
-  const fog = sharedEntityFogUniforms;
-  if (!fog) return null;
-  return {
-    uFogNear: fog.fogNear,
-    uFogFar: fog.fogFar,
-    uFogColor: fog.fogColor,
-    uFogHeightOrigin: fog.fogHeightOrigin,
-    uFogHeightDensity: fog.fogHeightDensity,
-    uFogVerticalBlend: fog.fogVerticalBlend ?? { value: 0 },
-    uSkyFogTopColor: fog.skyFogTopColor,
-    uSkyFogMiddleColor: fog.skyFogMiddleColor,
-    uSkyFogBottomColor: fog.skyFogBottomColor,
-    uSkyFogOffset: fog.skyFogOffset,
-    uSkyFogVoidOffset: fog.skyFogVoidOffset,
-    uSkyFogExponent: fog.skyFogExponent,
-    uSkyFogExponent2: fog.skyFogExponent2,
-    uSkyFogDimension: fog.skyFogDimension,
-    uSkyFogStrength: fog.skyFogStrength,
-    uCameraSubmersion: fog.cameraSubmersion,
-    uCameraWaterPlaneY: fog.cameraWaterPlaneY,
-    uUnderwaterAmbient: fog.underwaterAmbient,
-    uDirectSunlight: fog.directSunlight,
-    ...bindSkyGlowUniforms(fog.skyGlow),
-    uConeCount: fog.lightCones.coneCount,
-    uConeOrigins: fog.lightCones.coneOrigins,
-    uConeDirections: fog.lightCones.coneDirections,
-    uConeColors: fog.lightCones.coneColors,
-    uConeShapes: fog.lightCones.coneShapes,
-  };
+/** The live world's atmosphere, or null before any world set it. */
+export function sharedEntityFog(): EntityFogUniforms | null {
+  return sharedEntityFogUniforms;
 }
 
 let standInLightCones: LightCones | null = null;
 
 /**
- * The page's light-cone uniforms (the shared entity block's), for a
- * material outside the instanced pools that shades with the cones through
- * `injectLightCones`. Before any world has set them, a cone-less stand-in,
- * so a warmup compile still builds the same program.
+ * The page's light cones (the shared entity block's), for a material
+ * outside the instanced pools that shades with them. Before any world has
+ * set them, a cone-less stand-in, so a warmup builds the same program.
  */
-export function sharedLightConeBindings(): Record<
-  string,
-  LightConeUniformBinding
-> {
+export function sharedLightCones(): LightConeUniforms {
   const cones = sharedEntityFogUniforms?.lightCones;
-  if (!cones) {
-    standInLightCones ??= new LightCones();
-    return standInLightCones.uniformBindings;
-  }
-  return {
-    uConeCount: cones.coneCount,
-    uConeOrigins: cones.coneOrigins,
-    uConeDirections: cones.coneDirections,
-    uConeColors: cones.coneColors,
-    uConeShapes: cones.coneShapes,
-    uConeScatterStyle: cones.coneScatterStyle,
-  };
+  if (cones) return cones;
+  standInLightCones ??= new LightCones();
+  return standInLightCones.uniforms;
 }
 
-export class InstancedSkinnedMaterial extends THREE.ShaderMaterial {
+let studioFog: EntityFogUniforms | null = null;
+let studioShadowUniforms: EntityShadowUniforms | null = null;
+
+/**
+ * Atmosphere values for materials not bound to the world: clear air at
+ * portrait range, dry, no cones. One block for them all, never written, so
+ * every studio variant shares one graph.
+ */
+function studioAtmosphere(): EntityFogUniforms {
+  studioFog ??= {
+    fogColor: ownUniform(new THREE.Color("#B1CCFD")),
+    fogNear: ownUniform(100),
+    fogFar: ownUniform(200),
+    fogHeightOrigin: ownUniform(80),
+    fogHeightDensity: ownUniform(0.005),
+    fogVerticalBlend: ownUniform(0),
+    skyFogTopColor: ownUniform(new THREE.Color(0.4, 0.6, 0.9)),
+    skyFogMiddleColor: ownUniform(new THREE.Color(0.7, 0.8, 0.95)),
+    skyFogBottomColor: ownUniform(new THREE.Color(0.15, 0.18, 0.25)),
+    skyFogOffset: ownUniform(0),
+    skyFogVoidOffset: ownUniform(1200),
+    skyFogExponent: ownUniform(0.6),
+    skyFogExponent2: ownUniform(1.2),
+    skyFogDimension: ownUniform(2000),
+    skyFogStrength: ownUniform(1.0),
+    skyGlowSunDirection: ownUniform(new THREE.Vector3(0, 1, 0)),
+    skyGlowColor: ownUniform(new THREE.Color(0, 0, 0)),
+    skySunHaloColor: ownUniform(new THREE.Color(0, 0, 0)),
+    skyMoonHaloColor: ownUniform(new THREE.Color(0, 0, 0)),
+    skySunDiscColor: ownUniform(new THREE.Color(0, 0, 0)),
+    skyMoonDiscColor: ownUniform(new THREE.Color(0, 0, 0)),
+    skyDiscRadii: ownUniform(new THREE.Vector2(0.07, 0.07)),
+    cameraSubmersion: ownUniform(0),
+    cameraWaterPlaneY: ownUniform(0),
+    underwaterAmbient: ownUniform(new THREE.Color(0, 0, 0)),
+    underwaterViewScale: ownUniform(1),
+    directSunlight: ownUniform(1),
+    lightCones: new LightCones().uniforms,
+  } as unknown as EntityFogUniforms;
+  return studioFog;
+}
+
+/** The shadow inputs of materials not bound to the world: never written. */
+function studioShadows(): EntityShadowUniforms {
+  studioShadowUniforms ??= createEntityShadowUniforms();
+  return studioShadowUniforms;
+}
+
+/**
+ * A stable name for each uniform block a family's graph reads, for its key:
+ * a graph built on one world's atmosphere must not serve another's.
+ */
+const blockIds = new WeakMap<object, number>();
+let blockCount = 0;
+function blockId(block: object): number {
+  let id = blockIds.get(block);
+  if (id === undefined) {
+    id = ++blockCount;
+    blockIds.set(block, id);
+  }
+  return id;
+}
+
+
+/**
+ * A skinned instance's bone matrix `boneIndex`: four texels of the bone
+ * texture, read at integer coordinates (exact, no filtering).
+ */
+function boneMatrix(
+  bones: THREE.TextureNode,
+  width: FloatNode,
+  offset: FloatNode,
+  boneIndex: FloatNode,
+): Mat4Node {
+  const pixel = offset.add(boneIndex).mul(4);
+  const row = int(floor(pixel.div(width)));
+  const col = int(mod(pixel, width));
+  const column = (i: number) =>
+    bones.load(ivec2(col.add(i), row)) as unknown as Vec4Node;
+  return mat4(column(0), column(1), column(2), column(3));
+}
+
+/** The geometry's skin, applied to the rest position and normal. */
+function skin(
+  bones: THREE.TextureNode,
+  width: FloatNode,
+  boneOffset: FloatNode,
+) {
+  const index = attribute("skinIndex", "vec4") as unknown as Vec4Node;
+  const weight = attribute("skinWeight", "vec4") as unknown as Vec4Node;
+  const matrix = boneMatrix(bones, width, boneOffset, index.x)
+    .mul(weight.x)
+    .add(boneMatrix(bones, width, boneOffset, index.y).mul(weight.y))
+    .add(boneMatrix(bones, width, boneOffset, index.z).mul(weight.z))
+    .add(boneMatrix(bones, width, boneOffset, index.w).mul(weight.w));
+  const pivot = attribute("pivotOffset", "vec3") as unknown as Vec3Node;
+  const position = matrix
+    .mul(vec4(positionGeometry.sub(pivot), 1))
+    .xyz.add(pivot);
+  const normal = normalize(mat3(matrix).mul(normalGeometry));
+  return { position, normal };
+}
+
+/**
+ * The instance's own matrix, bound per object. three's `instancedMesh`
+ * falls back to a per-object program when a geometry has more than a few
+ * attributes (it counts attributes, not the buffers they share), and the
+ * packed pools have twelve in three buffers; binding it here keeps every
+ * pool on one program.
+ */
+const instanceMatrixOf = () =>
+  referenceAttribute("instanceMatrix", "mat4") as unknown as Mat4Node;
+
+/** Moves the skinned body into its instance's place. */
+function placeInstance(withNormal: boolean): Mat4Node {
+  const matrix = instanceMatrixOf();
+  positionLocal.assign(matrix.mul(vec4(positionLocal, 1)).xyz);
+  if (withNormal) normalLocal.assign(transformNormal(normalLocal, matrix));
+  return matrix;
+}
+
+/** A body's face from its rest normal: 0=+x, 1=-x, 2=+y, 3=-y, 4=+z, 5=-z. */
+function faceIndexOf(normal: Vec3Node): FloatNode {
+  const a = abs(normal);
+  const peak = max(a.x, max(a.y, a.z)).sub(0.01);
+  return select(
+    a.x.greaterThanEqual(peak),
+    select(normal.x.greaterThan(0), float(0), float(1)),
+    select(
+      a.y.greaterThanEqual(peak),
+      select(normal.y.greaterThan(0), float(2), float(3)),
+      select(normal.z.greaterThan(0), float(4), float(5)),
+    ),
+  );
+}
+
+/** The drawn material's skin: its bone texture and its texture's width. */
+function skinOf(material: { boneTexture: THREE.DataTexture; boneTextureWidth: number }) {
+  return skin(
+    materialTexture("float", material, "boneTexture"),
+    materialValue("boneTextureWidth", "float"),
+    attribute("instanceBoneOffset", "float") as unknown as FloatNode,
+  );
+}
+
+let white: THREE.DataTexture | null = null;
+
+/** The face atlas of a material made without one. */
+function whiteTexture(): THREE.DataTexture {
+  if (!white) {
+    white = new THREE.DataTexture(new Uint8Array([255, 255, 255, 255]), 1, 1);
+    white.needsUpdate = true;
+  }
+  return white;
+}
+
+const vUv = varyingProperty("vec2", "vEntityUv");
+const vRestNormal = varyingProperty("vec3", "vEntityRestNormal");
+const vWorldPosition = varyingProperty("vec3", "vEntityWorldPosition");
+const vWorldNormal = varyingProperty("vec3", "vEntityWorldNormal");
+/** (hit effect, emissive, part index, unused) */
+const vInstance = varyingProperty("vec4", "vEntityInstance");
+const vLightColor = varyingProperty("vec3", "vEntityLightColor");
+const vVertexColor = varyingProperty("vec3", "vEntityVertexColor");
+const vSelfBounds = varyingProperty("vec4", "vEntitySelfBounds");
+
+/** Parts sit a hair apart; a few depth steps per part give each pair a winner. */
+const PART_DEPTH_BIAS = 3e-7;
+
+/**
+ * Every instanced, skinned entity (creatures, boats, drops): bones from a
+ * shared texture, each instance's light, hit flash and emissive face from
+ * its own attributes, the body's face atlas, and the world's sun shadow,
+ * cones and fog. Its program is one per option set; what varies per
+ * material is uniform.
+ */
+export class InstancedSkinnedMaterial extends THREE.NodeMaterial {
+  static override get type() {
+    return "InstancedSkinnedMaterial";
+  }
+
   public shadowUniforms: EntityShadowUniforms;
+
+  // Per-material inputs, plain values read before each draw: every variant
+  // (one material per creature kind and coat) shares one graph.
+  boneTexture: THREE.DataTexture;
+  boneTextureWidth: number;
+  boneTextureHeight: number;
+  bonesPerInstance: number;
+  /** The drawn geometry's bounding sphere, which bounds each body. */
+  readonly shadowSelfSphere = new THREE.Vector4(0, 0, 0, 0);
+  shadowSelfBoundsMargin: number;
+  colorMap: THREE.Texture;
+  readonly tint: THREE.Color;
+  opacityValue: number;
+  readonly hitColor = new THREE.Color(1, 0, 0);
+  maxBrightness = 1.0;
+  receiveShadowsValue: number;
+  // The atlas grid, the face shades and the emissive face: numbers, so
+  // bodies that differ only in them share a graph.
+  readonly atlasGrid = new THREE.Vector2(6, 5);
+  /** +x, +y, +z and -x, -y, -z face brightness (`faceShades`). */
+  readonly faceShadesPositive = new THREE.Vector3();
+  readonly faceShadesNegative = new THREE.Vector3();
+  /** (part, face) of the emissive face (`emissiveFace`). */
+  readonly emissiveFace = new THREE.Vector2(-1, -1);
+  readonly emissiveColor = new THREE.Color();
+  readonly perDrawNode = perDrawInputs;
+
   private shadowSelfGeometry: THREE.BufferGeometry | null = null;
+  /** Set while building: setupModelViewProjection runs after setupPosition. */
+  private hasPartIndex = false;
+  private readonly options: InstancedSkinnedMaterialOptions;
+  private readonly atmosphere: EntityFogUniforms;
 
   constructor(
     boneTexture: THREE.DataTexture,
@@ -464,104 +392,198 @@ export class InstancedSkinnedMaterial extends THREE.ShaderMaterial {
     bonesPerInstance: number,
     options: InstancedSkinnedMaterialOptions = {},
   ) {
-    const defaultTexture = new THREE.DataTexture(
-      new Uint8Array([255, 255, 255, 255]),
-      1,
-      1,
-    );
-    defaultTexture.needsUpdate = true;
-    const faceShades = options.faceShades ?? DEFAULT_ENTITY_FACE_SHADES;
-
+    super();
+    this.options = options;
     const isEnvironmentBound = options.isEnvironmentBound ?? true;
-    const shadowUniforms = isEnvironmentBound
+    this.shadowUniforms = isEnvironmentBound
       ? sharedEntityShadowUniforms
-      : createEntityShadowUniforms();
-    const fogBindings = isEnvironmentBound
-      ? makeSharedEntityFogUniformBindings() ?? {}
-      : {};
+      : studioShadows();
+    this.atmosphere =
+      (isEnvironmentBound ? sharedEntityFogUniforms : null) ??
+      studioAtmosphere();
 
-    super({
-      vertexShader,
-      fragmentShader,
-      uniforms: {
-        uBoneTexture: { value: boneTexture },
-        uBoneTextureWidth: { value: boneTextureWidth },
-        uBoneTextureHeight: { value: boneTextureHeight },
-        uBonesPerInstance: { value: bonesPerInstance },
-        uTime: { value: 0 },
-        uShadowSelfSphere: { value: new THREE.Vector4(0, 0, 0, 0) },
-        uShadowSelfBoundsMargin: {
-          value:
-            options.shadowSelfBoundsMargin ?? ENTITY_SHADOW_SELF_BOUNDS_MARGIN,
-        },
-        uColorMap: { value: options.map ?? defaultTexture },
-        uColor: { value: options.color ?? new THREE.Color(1, 1, 1) },
-        uOpacity: { value: options.opacity ?? 1.0 },
-        uHitColor: { value: new THREE.Color(1, 0, 0) },
-        uMaxBrightness: { value: 1.0 },
-        uUseFaceUV: { value: options.useFaceUV ?? false },
-        uUseVertexColor: { value: options.useVertexColor ?? false },
-        uAtlasCols: { value: options.atlasGridCols ?? 6 },
-        uAtlasRows: { value: options.atlasGridRows ?? 5 },
-        uPartCount: { value: options.partCount ?? 5 },
-        uReceiveShadows: { value: options.receiveShadows ?? false },
-        uEmissivePartIndex: { value: options.emissiveFace?.partIndex ?? -1 },
-        uEmissiveFaceIndex: { value: options.emissiveFace?.faceIndex ?? -1 },
-        uEmissiveColor: {
-          value: options.emissiveFace?.color ?? new THREE.Color(0, 0, 0),
-        },
-        uFaceShadesPos: {
-          value: new THREE.Vector3(faceShades[0], faceShades[2], faceShades[4]),
-        },
-        uFaceShadesNeg: {
-          value: new THREE.Vector3(faceShades[1], faceShades[3], faceShades[5]),
-        },
-        uFogColor: { value: new THREE.Color("#B1CCFD") },
-        uFogNear: { value: 100 },
-        uFogFar: { value: 200 },
-        uFogHeightOrigin: { value: 80 },
-        uFogHeightDensity: { value: 0.005 },
-        uSkyFogTopColor: { value: new THREE.Color(0.4, 0.6, 0.9) },
-        uSkyFogMiddleColor: { value: new THREE.Color(0.7, 0.8, 0.95) },
-        uSkyFogBottomColor: { value: new THREE.Color(0.15, 0.18, 0.25) },
-        uSkyFogOffset: { value: 0 },
-        uSkyFogVoidOffset: { value: 1200 },
-        uSkyFogExponent: { value: 0.6 },
-        uSkyFogExponent2: { value: 1.2 },
-        uSkyFogDimension: { value: 2000 },
-        uSkyFogStrength: { value: 1.0 },
-        uCameraSubmersion: { value: 0 },
-        uCameraWaterPlaneY: { value: 0 },
-        uUnderwaterAmbient: { value: new THREE.Color(0, 0, 0) },
-        uDirectSunlight: { value: 1 },
-        uChunkReveal: { value: 1 },
-        ...new LightCones().uniformBindings,
-        ...shadowUniforms,
-        ...fogBindings,
-      },
-      transparent: options.transparent ?? false,
-      side: options.side ?? THREE.FrontSide,
-      depthWrite: options.depthWrite ?? true,
+    this.boneTexture = boneTexture;
+    this.boneTextureWidth = boneTextureWidth;
+    this.boneTextureHeight = boneTextureHeight;
+    this.bonesPerInstance = bonesPerInstance;
+    this.shadowSelfBoundsMargin =
+      options.shadowSelfBoundsMargin ?? ENTITY_SHADOW_SELF_BOUNDS_MARGIN;
+    this.colorMap = options.map ?? whiteTexture();
+    this.tint = options.color ?? new THREE.Color(1, 1, 1);
+    this.opacityValue = options.opacity ?? 1.0;
+    this.receiveShadowsValue = options.receiveShadows ? 1 : 0;
+    this.atlasGrid.set(options.atlasGridCols ?? 6, options.atlasGridRows ?? 5);
+    const shades = options.faceShades ?? DEFAULT_ENTITY_FACE_SHADES;
+    this.faceShadesPositive.set(shades[0], shades[2], shades[4]);
+    this.faceShadesNegative.set(shades[1], shades[3], shades[5]);
+    if (options.emissiveFace) {
+      this.emissiveFace.set(
+        options.emissiveFace.partIndex,
+        options.emissiveFace.faceIndex,
+      );
+      this.emissiveColor.copy(options.emissiveFace.color);
+    }
+
+    // Its lighting takes the light cones per pixel.
+    markLightConesCovered(this);
+    this.transparent = options.transparent ?? false;
+    this.side = options.side ?? THREE.FrontSide;
+    this.depthWrite = options.depthWrite ?? true;
+    this.fog = false;
+    this.lights = false;
+  }
+
+  override customProgramCacheKey(): string {
+    const o = this.options;
+    return [
+      "instanced-skinned",
+      o.useFaceUV ? 1 : 0,
+      o.useVertexColor ? 1 : 0,
+      o.emissiveFace ? 1 : 0,
+      blockId(this.shadowUniforms),
+      blockId(this.atmosphere),
+      super.customProgramCacheKey(),
+    ].join("|");
+  }
+
+  override setupPosition(builder: THREE.NodeBuilder) {
+    const object = builder.object as THREE.InstancedMesh;
+    const has = (name: string) => builder.geometry.hasAttribute(name);
+    this.hasPartIndex = has("partIndex");
+    const skinned = skinOf(this);
+    positionLocal.assign(skinned.position);
+    normalLocal.assign(skinned.normal);
+    const instance = object.isInstancedMesh ? placeInstance(true) : null;
+
+    vUv.assign(uv());
+    vRestNormal.assign(normalGeometry);
+    vWorldPosition.assign(modelWorldMatrix.mul(vec4(positionLocal, 1)).xyz);
+    vWorldNormal.assign(normalize(mat3(modelWorldMatrix).mul(normalLocal)));
+    vInstance.assign(
+      vec4(
+        attribute("instanceHitEffect", "float"),
+        has("instanceEmissive") ? attribute("instanceEmissive", "float") : float(0),
+        has("partIndex") ? attribute("partIndex", "float") : float(0),
+        0,
+      ),
+    );
+    vLightColor.assign(attribute("instanceLightColor", "vec3"));
+    vVertexColor.assign(has("vertexColor") ? attribute("vertexColor", "vec3") : vec3(1));
+
+    // Each instance is bounded by its own body (the geometry's sphere in
+    // the instance's space, plus slack); radius 0 means no bounds yet.
+    vSelfBounds.assign(
+      instance
+        ? shadowBoundsToWorld(
+            modelWorldMatrix.mul(instance),
+            materialValue("shadowSelfSphere", "vec4"),
+            materialValue("shadowSelfBoundsMargin", "float"),
+          )
+        : vec4(0),
+    );
+    return positionLocal;
+  }
+
+  /**
+   * Parts of one body sit a hair apart or swing through each other, and two
+   * nearly coplanar faces flicker as depth precision and pose change: a few
+   * depth steps per part give every such pair a fixed winner.
+   */
+  override setupModelViewProjection() {
+    const clip = super.setupModelViewProjection() as unknown as Vec4Node;
+    const part = this.hasPartIndex
+      ? (attribute("partIndex", "float") as unknown as FloatNode)
+      : float(0);
+    return vec4(
+      clip.xy,
+      clip.z.sub(part.mul(PART_DEPTH_BIAS).mul(clip.w)),
+      clip.w,
+    ) as unknown as ReturnType<THREE.NodeMaterial["setupModelViewProjection"]>;
+  }
+
+  override setupDiffuseColor() {
+    const o = this.options;
+    let uvNode: Vec2Node = vUv as unknown as Vec2Node;
+    if (o.useFaceUV) {
+      const grid = materialValue("atlasGrid", "vec2");
+      const cell = vInstance.z.mul(6).add(faceIndexOf(vRestNormal as unknown as Vec3Node));
+      const col = mod(cell, grid.x);
+      const row = floor(cell.div(grid.x));
+      const flipped = vec2(uvNode.x, uvNode.y.oneMinus());
+      const padded = mix(vec2(0.03), vec2(0.97), flipped);
+      uvNode = padded.div(grid).add(vec2(col, row).div(grid));
+    }
+    const texel = materialTexture("color", this, "colorMap").sample(uvNode);
+    let albedo: Vec3Node = texel.rgb.mul(materialValue("tint", "color"));
+    if (o.useVertexColor) albedo = albedo.mul(vVertexColor);
+    const alpha = texel.a.mul(materialValue("opacityValue", "float"));
+    alpha.lessThan(0.01).discard();
+    diffuseColor.assign(vec4(albedo, alpha));
+  }
+
+  override setupLighting() {
+    const o = this.options;
+    const albedo = diffuseColor.rgb as unknown as Vec3Node;
+    const normal = vWorldNormal as unknown as Vec3Node;
+    const position = vWorldPosition as unknown as Vec3Node;
+
+    const positives = max(normal, 0);
+    const negatives = max(normal.negate(), 0);
+    const p2 = positives.mul(positives);
+    const n2 = negatives.mul(negatives);
+    const coverage = dot(p2.add(n2), vec3(1));
+    const faceShade = dot(p2, materialValue("faceShadesPositive", "vec3"))
+      .add(dot(n2, materialValue("faceShadesNegative", "vec3")))
+      .div(max(coverage, 0.0001));
+
+    const color = albedo
+      .mul(min(vLightColor, vec3(materialValue("maxBrightness", "float"))))
+      .mul(faceShade)
+      .toVar("entityColor");
+    If(materialValue("receiveShadowsValue", "float").greaterThan(0.5), () => {
+      // A face turned from the sun is not shaded by the body it belongs to,
+      // while a deck or a canopy past the body's bounds still shades it.
+      color.mulAssign(
+        entityShadow(this.shadowUniforms).within(
+          normalize(normal),
+          position,
+          vSelfBounds as unknown as Vec4Node,
+        ),
+      );
     });
+    color.addAssign(albedo.mul(lightConeShading(this.atmosphere.lightCones).surface(position, normal)));
 
-    this.shadowUniforms = shadowUniforms;
-    const defaultAttributeValues = this
-      .defaultAttributeValues as typeof this.defaultAttributeValues & {
-      vertexColor: [number, number, number];
-      instanceEmissive: [number];
-    };
-    defaultAttributeValues.vertexColor = [1, 1, 1];
-    defaultAttributeValues.instanceEmissive = [0];
+    if (o.emissiveFace) {
+      // An emissive face (a lit headlight lens): full albedo boosted past
+      // the scene lighting, immune to darkness and shadows.
+      const face = materialValue("emissiveFace", "vec2");
+      If(
+        abs(vInstance.z.sub(face.x))
+          .lessThan(0.5)
+          .and(vInstance.y.greaterThan(0.5))
+          .and(abs(faceIndexOf(vRestNormal as unknown as Vec3Node).sub(face.y)).lessThan(0.5)),
+        () => {
+          color.assign(albedo.mul(materialValue("emissiveColor", "color")));
+        },
+      );
+    }
+    return mix(color, materialValue("hitColor", "color"), vInstance.x);
+  }
+
+  override setupOutput(builder: THREE.NodeBuilder, outputNode: Vec4Node) {
+    const position = vWorldPosition as unknown as Vec3Node;
+    const fogged = skyFog(this.atmosphere).apply(outputNode.rgb, position, float(1));
+    const lit = lightConeShading(this.atmosphere.lightCones).applyScatter(fogged, position);
+    return super.setupOutput(builder, vec4(lit, outputNode.a));
   }
 
   /**
    * Bounds every instance by the geometry about to be drawn: its bounding
-   * sphere, in the space the instance matrix carries into the world, fills
-   * `uShadowSelfSphere`. Three keeps the sphere on the geometry, so this
-   * costs one measurement per geometry, ever.
+   * sphere, in the space the instance matrix carries into the world. three
+   * keeps the sphere on the geometry, so this measures once per geometry.
    */
   override onBeforeRender(
-    _renderer: THREE.WebGLRenderer,
+    _renderer: unknown,
     _scene: THREE.Scene,
     _camera: THREE.Camera,
     geometry: THREE.BufferGeometry,
@@ -570,142 +592,99 @@ export class InstancedSkinnedMaterial extends THREE.ShaderMaterial {
     this.shadowSelfGeometry = geometry;
     if (!geometry.boundingSphere) geometry.computeBoundingSphere();
     const sphere = geometry.boundingSphere;
-    const target = this.uniforms.uShadowSelfSphere.value as THREE.Vector4;
+    const target = this.shadowSelfSphere;
     if (sphere && Number.isFinite(sphere.radius) && sphere.radius > 0) {
-      target.set(
-        sphere.center.x,
-        sphere.center.y,
-        sphere.center.z,
-        sphere.radius,
-      );
+      target.set(sphere.center.x, sphere.center.y, sphere.center.z, sphere.radius);
     } else {
       target.set(0, 0, 0, 0);
     }
-    // A material drawn for more than one geometry has to re-upload.
-    this.uniformsNeedUpdate = true;
-  }
-
-  setTime(time: number): void {
-    this.uniforms.uTime.value = time;
   }
 
   setMaxBrightness(maxBrightness: number): void {
-    this.uniforms.uMaxBrightness.value = maxBrightness;
+    this.maxBrightness = maxBrightness;
   }
 
   updateBoneTexture(texture: THREE.DataTexture): void {
-    this.uniforms.uBoneTexture.value = texture;
+    this.boneTexture = texture;
   }
 
   setReceiveShadows(receive: boolean): void {
-    this.uniforms.uReceiveShadows.value = receive;
+    this.receiveShadowsValue = receive ? 1 : 0;
+  }
+
+  /** The face atlas (`options.map`), swapped in place. */
+  setColorMap(map: THREE.Texture): void {
+    this.colorMap = map;
   }
 }
 
-const depthVertexShader = `
-precision highp float;
+/**
+ * The depth an instanced, skinned body casts into the sun's cascades: the
+ * same skinning, depth alone. With `alphaCutMap` (an atlas the mesh's uvs
+ * address directly), empty texels cast nothing, so a cut-out fin shadows
+ * as its outline rather than its bounding quad.
+ */
+export class InstancedSkinnedDepthMaterial extends THREE.NodeMaterial {
+  static override get type() {
+    return "InstancedSkinnedDepthMaterial";
+  }
 
-#ifdef USE_ALPHA_CUT
-varying vec2 vUv;
-#endif
+  boneTexture: THREE.DataTexture;
+  boneTextureWidth: number;
+  readonly alphaCutMap: THREE.Texture | null;
+  readonly perDrawNode = perDrawInputs;
 
-attribute vec4 skinIndex;
-attribute vec4 skinWeight;
-attribute float instanceBoneOffset;
-attribute vec3 pivotOffset;
-
-uniform sampler2D uBoneTexture;
-uniform float uBoneTextureWidth;
-uniform float uBoneTextureHeight;
-
-mat4 getBoneMatrix(float boneIdx) {
-  float globalBoneIdx = instanceBoneOffset + boneIdx;
-  float pixelIdx = globalBoneIdx * 4.0;
-
-  float row = floor(pixelIdx / uBoneTextureWidth);
-  float col = mod(pixelIdx, uBoneTextureWidth);
-
-  vec2 uv0 = vec2((col + 0.5) / uBoneTextureWidth, (row + 0.5) / uBoneTextureHeight);
-  vec2 uv1 = vec2((col + 1.5) / uBoneTextureWidth, (row + 0.5) / uBoneTextureHeight);
-  vec2 uv2 = vec2((col + 2.5) / uBoneTextureWidth, (row + 0.5) / uBoneTextureHeight);
-  vec2 uv3 = vec2((col + 3.5) / uBoneTextureWidth, (row + 0.5) / uBoneTextureHeight);
-
-  vec4 col0 = texture2D(uBoneTexture, uv0);
-  vec4 col1 = texture2D(uBoneTexture, uv1);
-  vec4 col2 = texture2D(uBoneTexture, uv2);
-  vec4 col3 = texture2D(uBoneTexture, uv3);
-
-  return mat4(col0, col1, col2, col3);
-}
-
-void main() {
-  mat4 boneMatX = getBoneMatrix(skinIndex.x);
-  mat4 boneMatY = getBoneMatrix(skinIndex.y);
-  mat4 boneMatZ = getBoneMatrix(skinIndex.z);
-  mat4 boneMatW = getBoneMatrix(skinIndex.w);
-
-  mat4 skinMatrix = boneMatX * skinWeight.x
-                  + boneMatY * skinWeight.y
-                  + boneMatZ * skinWeight.z
-                  + boneMatW * skinWeight.w;
-
-  vec3 localPos = position - pivotOffset;
-  vec4 skinnedPosition = skinMatrix * vec4(localPos, 1.0);
-  skinnedPosition.xyz += pivotOffset;
-
-  vec4 worldPosition = instanceMatrix * skinnedPosition;
-
-  #ifdef USE_ALPHA_CUT
-  vUv = uv;
-  #endif
-
-  gl_Position = projectionMatrix * viewMatrix * worldPosition;
-}
-`;
-
-const depthFragmentShader = `
-precision highp float;
-
-#include <packing>
-
-#ifdef USE_ALPHA_CUT
-uniform sampler2D uAlphaMap;
-varying vec2 vUv;
-#endif
-
-void main() {
-  #ifdef USE_ALPHA_CUT
-  if (texture2D(uAlphaMap, vUv).a < 0.5) discard;
-  #endif
-  gl_FragColor = packDepthToRGBA(gl_FragCoord.z);
-}
-`;
-
-export class InstancedSkinnedDepthMaterial extends THREE.ShaderMaterial {
-  /// `alphaCutMap`: an atlas the mesh's UVs address directly (packed-UV
-  /// surfaces only), whose empty texels cast no shadow, so a cut-out fin
-  /// shadows as its outline rather than its bounding quad.
   constructor(
     boneTexture: THREE.DataTexture,
     boneTextureWidth: number,
-    boneTextureHeight: number,
+    _boneTextureHeight: number,
     alphaCutMap?: THREE.Texture,
   ) {
-    super({
-      vertexShader: depthVertexShader,
-      fragmentShader: depthFragmentShader,
-      uniforms: {
-        uBoneTexture: { value: boneTexture },
-        uBoneTextureWidth: { value: boneTextureWidth },
-        uBoneTextureHeight: { value: boneTextureHeight },
-        ...(alphaCutMap ? { uAlphaMap: { value: alphaCutMap } } : {}),
-      },
-      defines: alphaCutMap ? { USE_ALPHA_CUT: "" } : {},
-      side: THREE.DoubleSide,
-    });
+    super();
+    this.boneTexture = boneTexture;
+    this.boneTextureWidth = boneTextureWidth;
+    this.alphaCutMap = alphaCutMap ?? null;
+    this.side = THREE.DoubleSide;
+    this.colorWrite = false;
+    this.fog = false;
+    this.lights = false;
+    if (this.alphaCutMap) {
+      // The cut texels leave no depth behind.
+      this.colorNode = alphaCutColor();
+      this.alphaTest = 0.5;
+    } else {
+      this.fragmentNode = depthOnlyColor;
+    }
+  }
+
+  override customProgramCacheKey(): string {
+    return `instanced-skinned-depth|${this.alphaCutMap ? 1 : 0}|${super.customProgramCacheKey()}`;
+  }
+
+  override setupPosition(builder: THREE.NodeBuilder) {
+    const object = builder.object as THREE.InstancedMesh;
+    positionLocal.assign(skinOf(this).position);
+    if (object.isInstancedMesh) placeInstance(false);
+    return positionLocal;
   }
 
   updateBoneTexture(texture: THREE.DataTexture): void {
-    this.uniforms.uBoneTexture.value = texture;
+    this.boneTexture = texture;
   }
+}
+
+/** A depth-only body's colour: nothing, it writes depth alone. */
+const depthOnlyColor = /*@__PURE__*/ vec4(0);
+
+let alphaCut: Vec4Node | null = null;
+
+/** The cut-out body's colour: the drawn material's atlas alpha at its uvs. */
+function alphaCutColor(): Vec4Node {
+  alphaCut ??= vec4(
+    1,
+    1,
+    1,
+    materialValue("alphaCutMap", "texture").a,
+  );
+  return alphaCut;
 }

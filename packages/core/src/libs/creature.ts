@@ -6,7 +6,7 @@ import {
   MathUtils,
   Quaternion,
   Vector3,
-} from "three";
+} from "three/webgpu";
 
 import { MathUtils as VoxMathUtils } from "../utils";
 

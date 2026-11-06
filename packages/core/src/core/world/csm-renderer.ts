@@ -1,4 +1,4 @@
-import * as THREE from "three";
+import * as THREE from "three/webgpu";
 import {
   Box3,
   Camera,
@@ -6,23 +6,24 @@ import {
   Frustum,
   Group,
   Matrix4,
-  MeshDepthMaterial,
+  NodeMaterial,
   Object3D,
   OrthographicCamera,
-  RGBADepthPacking,
+  type Renderer,
+  RenderTarget,
   Scene,
   Texture,
   UnsignedIntType,
   Vector3,
-  WebGLRenderTarget,
-  WebGLRenderer,
-} from "three";
+} from "three/webgpu";
+import { vec4 } from "three/tsl";
 
 import { boundsIntersectSphere } from "./dynamic-caster-bounds";
 import {
   BorrowedCasterScene,
   isMarkedNeverCaster,
   isNonCasterEffect,
+  markShadowView,
 } from "./shadow-casters";
 
 export interface CSMConfig {
@@ -88,7 +89,7 @@ export interface CSMConfig {
 }
 
 interface Cascade {
-  renderTarget: WebGLRenderTarget;
+  renderTarget: RenderTarget;
   camera: OrthographicCamera;
   matrix: Matrix4;
   split: number;
@@ -168,7 +169,7 @@ export class CSMRenderer {
   // stationary cameras have always seen.
   private renderLightDirection = new Vector3(0, -1, 0.3).normalize();
   private frustum = new Frustum();
-  private depthMaterial: MeshDepthMaterial;
+  private depthMaterial: NodeMaterial;
   private lastCameraPosition = new Vector3();
   private lastViewProjection = new Matrix4();
   private isCameraStill = false;
@@ -191,7 +192,6 @@ export class CSMRenderer {
 
   private cascadeFrustum = new Frustum();
   private cascadeMatrix = new Matrix4();
-  private entityBatchScene = new Scene();
   private hiddenObjects: VisibilitySnapshot[] = [];
   private hiddenEntities: VisibilitySnapshot[] = [];
   private activePoolsScratch: Group[] = [];
@@ -199,15 +199,12 @@ export class CSMRenderer {
     Object3D,
     THREE.Material | THREE.Material[]
   >();
-  private originalEntityParents = new Map<Object3D, Object3D | null>();
 
   /**
-   * Draw each near dynamic caster exactly once per near cascade, from a
-   * borrowed caster list, instead of once in the whole-scene pass and again
-   * through a reparented batch (performance audit fix 3). Off restores the
-   * old path verbatim for A/B timing.
+   * Each near dynamic caster draws exactly once per near cascade, from a
+   * borrowed caster list (`renderCascadeCasters`), never once in the
+   * whole-scene pass and again through a reparented batch.
    */
-  private isSingleCasterPass = true;
   private casterBatch = new BorrowedCasterScene();
   private batchCasters: Object3D[] = [];
   private poolSwapStack: Object3D[] = [];
@@ -225,12 +222,10 @@ export class CSMRenderer {
   /** Whether a host's {@link hideNonCasters} is in effect right now. */
   private isHidingNonCasters = false;
   /**
-   * Objects that are never casters at all, whatever the A/B switch says:
-   * hidden by {@link hideNonCasters} even with the exclusion off. See
-   * {@link addNeverCaster}.
+   * Objects that are never casters at all: hidden by
+   * {@link hideNonCasters}. See {@link addNeverCaster}.
    */
   private neverCasters: Object3D[] = [];
-  private isExcludingNonCasters = true;
   private hiddenNonCasters: Object3D[] = [];
 
   private frustumCenter = new Vector3();
@@ -252,12 +247,7 @@ export class CSMRenderer {
   constructor(config: Partial<CSMConfig> = {}) {
     this.config = { ...defaultConfig, ...config };
 
-    this.depthMaterial = new MeshDepthMaterial({
-      depthPacking: RGBADepthPacking,
-      polygonOffset: this.config.isDepthPolygonOffsetEnabled,
-      polygonOffsetFactor: this.config.depthPolygonOffsetFactor,
-      polygonOffsetUnits: this.config.depthPolygonOffsetUnits,
-    });
+    this.depthMaterial = makeCasterDepthMaterial(this.config);
     this.initCascades();
   }
 
@@ -277,12 +267,13 @@ export class CSMRenderer {
     for (let i = 0; i < cascades; i++) {
       const size = i === 0 ? shadowMapSize : farShadowMapSize;
 
-      const renderTarget = new WebGLRenderTarget(size, size, {
+      const renderTarget = new RenderTarget(size, size, {
         depthTexture: new DepthTexture(size, size),
       });
       renderTarget.depthTexture.type = UnsignedIntType;
 
       const camera = new OrthographicCamera(-1, 1, 1, -1, 0.1, 1000);
+      markShadowView(camera);
 
       this.cascades.push({
         renderTarget,
@@ -596,33 +587,6 @@ export class CSMRenderer {
   }
 
   /**
-   * A/B switch for the single caster pass (on by default). Off draws near
-   * entities and pools the old way: once in the whole-scene pass with the
-   * generic depth material (instanced pools in their bind pose) and again,
-   * on entity-refresh frames, through a reparented batch.
-   */
-  setSingleCasterPass(isEnabled: boolean) {
-    this.isSingleCasterPass = isEnabled;
-  }
-
-  get singleCasterPass(): boolean {
-    return this.isSingleCasterPass;
-  }
-
-  /**
-   * A/B switch for {@link hideNonCasters} (on by default). Off draws
-   * see-through scene effects and registered exclusions into every depth
-   * pass, as before the audit.
-   */
-  setNonCasterExclusion(isEnabled: boolean) {
-    this.isExcludingNonCasters = isEnabled;
-  }
-
-  get nonCasterExclusion(): boolean {
-    return this.isExcludingNonCasters;
-  }
-
-  /**
    * Keep `object` (and its subtree) out of every whole-scene depth pass.
    * Unlike {@link addSkipShadowObject} this needs no material flag, so a
    * group can be excluded — the instanced-pool root is registered here
@@ -691,7 +655,6 @@ export class CSMRenderer {
         child.visible = false;
       }
     }
-    if (!this.isExcludingNonCasters) return;
     for (const object of this.shadowExclusions) {
       if (object.visible) {
         hidden.push(object);
@@ -716,13 +679,30 @@ export class CSMRenderer {
   }
 
   render(
-    renderer: WebGLRenderer,
+    renderer: Renderer,
     scene: Scene,
     entities?: Object3D[],
     maxEntityShadowDistance = ENTITY_SHADOW_DISTANCE,
     instancePools?: Group[],
     poolBounds?: readonly (Box3 | null)[],
   ) {
+    // A fit's matrix is what receivers sample the map with, so the scratch
+    // camera projects as the renderer draws the cascades. three sets a
+    // camera's clip convention on its first draw, and the scratch camera is
+    // never drawn: left at WebGL's (-1..1 depth), every receiver's depth sat
+    // nearer the sun than the map's (0..1) and nothing on the ground was
+    // ever shadowed. Fits made in the other convention are redone.
+    const system = renderer.coordinateSystem;
+    if (system !== undefined && this.fitCamera.coordinateSystem !== system) {
+      this.fitCamera.coordinateSystem = system;
+      this.fitCamera.updateProjectionMatrix();
+      for (const cascade of this.cascades) {
+        cascade.camera.coordinateSystem = system;
+        cascade.camera.updateProjectionMatrix();
+      }
+      this.markAllCascadesDirty();
+    }
+
     // Invisible shadows are not worth a depth pass; marked flags stay put
     // and drain when the strength comes back.
     if (this.currentShadowStrength <= this.config.shadowStrengthRenderFloor) {
@@ -823,24 +803,9 @@ export class CSMRenderer {
       }
     }
 
-    const isSingleCasterPass = this.isSingleCasterPass;
     const poolOriginalMaterials = this.poolOriginalMaterials;
     poolOriginalMaterials.clear();
     this.arePoolDepthMaterialsSwapped = false;
-    if (
-      !isSingleCasterPass &&
-      this.shouldRenderEntityShadows &&
-      activePools.length > 0
-    ) {
-      for (const pool of activePools) {
-        pool.traverse((child) => {
-          if (child instanceof THREE.Mesh && child.customDepthMaterial) {
-            poolOriginalMaterials.set(child, child.material);
-            child.material = child.customDepthMaterial;
-          }
-        });
-      }
-    }
 
     scene.overrideMaterial = this.depthMaterial;
 
@@ -894,87 +859,16 @@ export class CSMRenderer {
       renderer.setRenderTarget(cascade.renderTarget);
       renderer.clear();
 
-      if (isSingleCasterPass) {
-        this.renderCascadeCasters(
-          renderer,
-          scene,
-          cascade.camera,
-          i < NEAR_CASTER_CASCADES,
-          entities,
-          maxEntityShadowDistance,
-          instancePools,
-          activePools,
-        );
-        this.cascadeNeedsRender[i] = false;
-        if (i > 0) {
-          hasRenderedFarCascade = true;
-        }
-        continue;
-      }
-
-      const hiddenEntities = this.hiddenEntities;
-      hiddenEntities.length = 0;
-      if (i >= 2 && entities) {
-        for (const entity of entities) {
-          if (entity.visible) {
-            hiddenEntities.push({ object: entity, visible: true });
-            entity.visible = false;
-          }
-        }
-      }
-      if (i >= 2 && instancePools) {
-        for (const pool of instancePools) {
-          if (pool.visible) {
-            hiddenEntities.push({ object: pool, visible: true });
-            pool.visible = false;
-          }
-        }
-      }
-
-      renderer.render(scene, cascade.camera);
-
-      for (const { object, visible } of hiddenEntities) {
-        object.visible = visible;
-      }
-
-      if (this.shouldRenderEntityShadows && activePools.length > 0 && i < 2) {
-        scene.overrideMaterial = null;
-        for (const pool of activePools) {
-          renderer.render(pool, cascade.camera);
-        }
-        scene.overrideMaterial = this.depthMaterial;
-      }
-
-      if (this.shouldRenderEntityShadows && entities && i < 2) {
-        const maxDistSq = maxEntityShadowDistance * maxEntityShadowDistance;
-        const originalParents = this.originalEntityParents;
-        originalParents.clear();
-        for (const entity of entities) {
-          if (entity.userData.castsShadow === false) continue;
-          const distSq = entity.position.distanceToSquared(
-            this.lastCameraPosition,
-          );
-          if (distSq >= maxDistSq) continue;
-          if (!this.cascadeFrustum.containsPoint(entity.position)) continue;
-          originalParents.set(entity, entity.parent);
-          this.entityBatchScene.add(entity);
-        }
-        if (this.entityBatchScene.children.length > 0) {
-          this.entityBatchScene.overrideMaterial = this.depthMaterial;
-          renderer.render(this.entityBatchScene, cascade.camera);
-          this.entityBatchScene.overrideMaterial = null;
-          for (const [entity, originalParent] of originalParents) {
-            if (originalParent) {
-              originalParent.add(entity);
-            } else {
-              this.entityBatchScene.remove(entity);
-            }
-          }
-          this.entityBatchScene.children.length = 0;
-          originalParents.clear();
-        }
-      }
-
+      this.renderCascadeCasters(
+        renderer,
+        scene,
+        cascade.camera,
+        i < NEAR_CASTER_CASCADES,
+        entities,
+        maxEntityShadowDistance,
+        instancePools,
+        activePools,
+      );
       this.cascadeNeedsRender[i] = false;
       if (i > 0) {
         hasRenderedFarCascade = true;
@@ -1015,7 +909,7 @@ export class CSMRenderer {
    * bind-pose pool silhouettes changes.
    */
   private renderCascadeCasters(
-    renderer: WebGLRenderer,
+    renderer: Renderer,
     scene: Scene,
     camera: OrthographicCamera,
     isNearCascade: boolean,
@@ -1169,8 +1063,33 @@ export class CSMRenderer {
    * shader warmup compiles it against each kind of caster (plain, instanced,
    * batched) so no depth program is built on a frame the player sees.
    */
-  get casterDepthMaterial(): MeshDepthMaterial {
+  /**
+   * The clip-space convention the cascade cameras project with (three sets
+   * it to the renderer's on first draw), for depth spans measured in the
+   * stored map.
+   */
+  get cascadeCoordinateSystem() {
+    return this.cascades[0]?.camera.coordinateSystem;
+  }
+
+  get casterDepthMaterial(): NodeMaterial {
     return this.depthMaterial;
+  }
+
+  /**
+   * What a cascade draws its casters with, beyond the target: an
+   * orthographic camera (a pipeline is keyed by the camera's kind), the
+   * world scene for the static pass, and `casterScene` for the casters a
+   * near cascade draws from its borrowed list.
+   */
+  get casterView(): { camera: OrthographicCamera; casterScene: Scene } | null {
+    const camera = this.cascades[0]?.camera;
+    return camera ? { camera, casterScene: this.casterBatch.scene } : null;
+  }
+
+  /** A cascade's target: what a caster's depth pipeline is built for. */
+  get casterTarget(): RenderTarget | null {
+    return this.cascades[0]?.renderTarget ?? null;
   }
 
   getDebugState(): {
@@ -1213,4 +1132,21 @@ export class CSMRenderer {
     this.depthMaterial.dispose();
     this.cascades = [];
   }
+}
+
+/**
+ * What every static caster draws into a cascade with: depth alone (the
+ * chunk shading reads the cascade's depth texture), no colour written,
+ * lifted off the receiver by the configured polygon offset.
+ */
+function makeCasterDepthMaterial(config: CSMConfig): NodeMaterial {
+  const material = new NodeMaterial();
+  material.name = "voxelize-csm-depth";
+  material.fragmentNode = vec4(0);
+  material.colorWrite = false;
+  material.fog = false;
+  material.polygonOffset = config.isDepthPolygonOffsetEnabled;
+  material.polygonOffsetFactor = config.depthPolygonOffsetFactor;
+  material.polygonOffsetUnits = config.depthPolygonOffsetUnits;
+  return material;
 }

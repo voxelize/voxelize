@@ -1,10 +1,10 @@
 import { AABB } from "@voxelize/aabb";
-import { ShaderMaterial, Texture, Uniform, WebGLRenderTarget } from "three";
+import { MeshBasicMaterial, RenderTarget, Texture } from "three/webgpu";
 import { describe, expect, it, vi } from "vitest";
 
 import type { Block } from "./block";
 import {
-  type CustomChunkShaderMaterial,
+  ChunkMaterial,
   SHARED_CUTOUT_CUBE_MATERIAL_KEY,
   SHARED_CUTOUT_MATERIAL_KEY,
   SHARED_CUTOUT_PLANT_MATERIAL_KEY,
@@ -16,6 +16,11 @@ import {
   sharedCutoutBlending,
   sharedFaceCustomizationError,
 } from "./chunk-materials";
+import type { ChunkShadingInputs } from "./shading/chunk-material";
+
+// The world's shading inputs are only read when a program builds; forking
+// and copying never touch them, so an identity stands in for them here.
+const shading = { id: 1 } as unknown as ChunkShadingInputs;
 
 const solidShape = (overrides: Partial<Block> = {}): Block =>
   ({
@@ -76,35 +81,43 @@ describe("solid-shaped block material batching", () => {
   });
 
   it("isolates custom shader edits while continuing to follow world lighting", () => {
-    const source = new ShaderMaterial({
-      uniforms: { sunlight: new Uniform(1), map: new Uniform(new Texture()) },
-    }) as CustomChunkShaderMaterial;
-    source.map = source.uniforms.map.value;
+    const source = new ChunkMaterial(shading, { kind: "opaque" });
+    source.map = new Texture();
+    source.chunkReveal = 0.5;
     const own = forkChunkMaterial(source);
-    own.vertexShader = "custom shader";
-    own.uniforms.tint = new Uniform(0.5);
-    source.uniforms.sunlight.value = 0.2;
-    expect(source.vertexShader).not.toBe(own.vertexShader);
-    expect(source.uniforms).not.toHaveProperty("tint");
-    expect(own.uniforms.sunlight.value).toBe(0.2);
+    // Same program and the very same world inputs (uniform nodes), so a
+    // change to the world's lighting reaches both.
+    expect(own).not.toBe(source);
+    expect(own.shading).toBe(source.shading);
+    expect(own.variantKey).toBe(source.variantKey);
     expect(own.map).toBe(source.map);
-    expect(own.uniforms.map.value).toBe(source.map);
+    expect(own.chunkReveal).toBe(0.5);
+    // A shader edit on the fork stays on the fork.
+    own.setVariant({ sway: { amplitude: 0.3 }, hooks: { key: "custom" } });
+    expect(own.variantKey).not.toBe(source.variantKey);
+    expect(source.chunkOptions.hooks).toBeNull();
+    expect(source.chunkOptions.sway).toBeNull();
+    // Per-material values are its own copies.
+    own.chunkReveal = 1;
+    own.surfaceOpenLight.set(0, 0);
+    expect(source.chunkReveal).toBe(0.5);
+    expect(source.surfaceOpenLight.x).not.toBe(0);
   });
 
   it("forks a material reading a render target without trying to copy it", () => {
-    const sceneColor = new Uniform(new WebGLRenderTarget(4, 4).texture);
-    const source = new ShaderMaterial({
-      uniforms: { uSceneColor: sceneColor },
-    }) as CustomChunkShaderMaterial;
+    const sceneColor = new RenderTarget(4, 4).texture;
+    const source = new ChunkMaterial(shading, { kind: "fluid" });
+    source.map = sceneColor;
+    const placeholder = new ChunkMaterial(shading, { kind: "fluid" }).map;
+    const placeholderImage = placeholder.image;
     const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
     try {
-      source.clone();
-      expect(warn).toHaveBeenCalledOnce();
-      warn.mockClear();
       const own = forkChunkMaterial(source);
       expect(warn).not.toHaveBeenCalled();
-      expect(own.uniforms.uSceneColor).toBe(sceneColor);
-      expect(source.uniforms.uSceneColor).toBe(sceneColor);
+      expect(own.map).toBe(sceneColor);
+      expect(source.map).toBe(sceneColor);
+      // The shared placeholder was not overwritten by a deep copy.
+      expect(placeholder.image).toBe(placeholderImage);
     } finally {
       warn.mockRestore();
     }
@@ -224,11 +237,11 @@ describe("shared cutout blending", () => {
 });
 
 describe("face shader customization on a shared bucket", () => {
-  const plant = new ShaderMaterial();
-  const own = new ShaderMaterial();
+  const plant = new MeshBasicMaterial();
+  const own = new MeshBasicMaterial();
   const materials = new Map([
     [SHARED_CUTOUT_PLANT_MATERIAL_KEY, plant],
-    [SHARED_OPAQUE_MATERIAL_KEY, new ShaderMaterial()],
+    [SHARED_OPAQUE_MATERIAL_KEY, new MeshBasicMaterial()],
     ["40001-one", own],
   ]);
 

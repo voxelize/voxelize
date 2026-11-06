@@ -443,12 +443,6 @@ if (shouldRun("fallback")) {
   await view([OX + 11, OY + 6, OZ - 9], [OX, OY + 1, OZ + 2]);
   await shot("fallback_more_lights_than_slots");
 
-  // Context loss: full recovery, caches rebuilt lazily.
-  await bench("loseContext");
-  await sleep(5000);
-  await shot("fallback_context_restored");
-  await logStats("context-restored");
-
   await bench("placeBlock", OX - 4, OY, OZ - 8, "air");
   await bench("placeBlock", OX + 6, OY, OZ - 6, "air");
   await bench("placeBlock", OX + 8, OY, OZ + 2, "air");

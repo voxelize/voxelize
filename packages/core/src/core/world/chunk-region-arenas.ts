@@ -1,14 +1,18 @@
 import {
   BatchedMesh,
+  Box3,
+  type BufferAttribute,
   BufferGeometry,
   Color,
+  type InterleavedBufferAttribute,
   Matrix4,
   Object3D,
   Quaternion,
+  Sphere,
   Vector3,
-} from "three";
+} from "three/webgpu";
 
-import { CustomChunkShaderMaterial } from "./chunk-materials";
+import { ChunkMaterial } from "./chunk-materials";
 import { StaticBatchedMesh } from "./static-batched-mesh";
 import { POSITION_BLOCK_BIAS } from "./vertex-quantization";
 import { ChunkRegionArenasOptions } from "./world-options";
@@ -24,6 +28,52 @@ const _scale = new Vector3();
 // its first section and the shader program variant is fixed at load instead
 // of recompiling mid-play the first time a fade fires.
 const _sectionColor = new Color(1, 1, 1);
+const _sectionBox = new Box3();
+const _sectionSphere = new Sphere();
+
+/**
+ * Gives a section's geometry its bounds from one pass over its position
+ * array. A batch copies a geometry's own bounds into its slot; without
+ * them it takes them from the slot's vertices through the index, twice
+ * (box, then sphere) and through three's attribute accessors: ~0.3 ms a
+ * section, twice a frame while flying into new land. The sphere is the
+ * box's, a little larger than the tightest, which culls and sorts alike.
+ */
+export function setSectionBounds(geometry: BufferGeometry) {
+  const position = geometry.getAttribute("position") as BufferAttribute;
+  if (
+    (position as unknown as InterleavedBufferAttribute)
+      .isInterleavedBufferAttribute ||
+    position.normalized
+  ) {
+    geometry.boundingBox = null;
+    geometry.boundingSphere = null;
+    return;
+  }
+  const array = position.array;
+  const size = position.itemSize;
+  let minX = Infinity;
+  let minY = Infinity;
+  let minZ = Infinity;
+  let maxX = -Infinity;
+  let maxY = -Infinity;
+  let maxZ = -Infinity;
+  for (let o = 0, end = position.count * size; o < end; o += size) {
+    const x = array[o];
+    const y = array[o + 1];
+    const z = array[o + 2];
+    if (x < minX) minX = x;
+    if (x > maxX) maxX = x;
+    if (y < minY) minY = y;
+    if (y > maxY) maxY = y;
+    if (z < minZ) minZ = z;
+    if (z > maxZ) maxZ = z;
+  }
+  _sectionBox.min.set(minX, minY, minZ);
+  _sectionBox.max.set(maxX, maxY, maxZ);
+  geometry.boundingBox = _sectionBox;
+  geometry.boundingSphere = _sectionBox.getBoundingSphere(_sectionSphere);
+}
 
 type ArenaPage = {
   mesh: BatchedMesh;
@@ -79,7 +129,7 @@ export class ChunkRegionArenas {
   constructor(
     private options: ChunkRegionArenasOptions,
     private maxSectionsPerRegion: number,
-    private getMaterial: () => CustomChunkShaderMaterial,
+    private getMaterial: () => ChunkMaterial,
     private parent: Object3D,
     private positionUnitsPerBlock: number,
     /**
@@ -109,6 +159,7 @@ export class ChunkRegionArenas {
     const sectionKey = `${cx},${cz},${level}`;
     const existing = this.sections.get(sectionKey);
 
+    setSectionBounds(geometry);
     if (
       existing &&
       vertexCount <= existing.reservedVertexCount &&
@@ -244,6 +295,33 @@ export class ChunkRegionArenas {
     );
     _scale.setScalar(1 / this.positionUnitsPerBlock);
     return _transform.compose(_position, _rotation.identity(), _scale);
+  }
+
+  /**
+   * The page meshes of every region holding a chunk column in
+   * `minCx..maxCx` x `minCz..maxCz`, pushed onto `out`: what a depth pass
+   * confined to that area (a local light's shadow faces) draws of this
+   * bucket. Each page culls its own sections against the pass's camera.
+   */
+  collectPagesIn(
+    minCx: number,
+    maxCx: number,
+    minCz: number,
+    maxCz: number,
+    out: Object3D[],
+  ) {
+    const { regionSizeInChunks } = this.options;
+    const minRx = Math.floor(minCx / regionSizeInChunks);
+    const maxRx = Math.floor(maxCx / regionSizeInChunks);
+    const minRz = Math.floor(minCz / regionSizeInChunks);
+    const maxRz = Math.floor(maxCz / regionSizeInChunks);
+    for (let rx = minRx; rx <= maxRx; rx++) {
+      for (let rz = minRz; rz <= maxRz; rz++) {
+        const region = this.regions.get(`${rx},${rz}`);
+        if (!region) continue;
+        for (const page of region.pages) out.push(page.mesh);
+      }
+    }
   }
 
   private regionKeyFor(cx: number, cz: number) {

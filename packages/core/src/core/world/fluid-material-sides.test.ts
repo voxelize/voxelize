@@ -1,4 +1,4 @@
-import { BackSide, DoubleSide, FrontSide, MeshBasicMaterial } from "three";
+import { BackSide, DoubleSide, FrontSide, MeshBasicNodeMaterial } from "three/webgpu";
 import { describe, expect, it } from "vitest";
 
 import { setFluidMaterialSides } from "./chunk-materials";
@@ -7,7 +7,7 @@ const WATER = 1;
 const LAVA = 2;
 
 function fluidMaterial(blockId?: number) {
-  const material = new MeshBasicMaterial({ side: FrontSide });
+  const material = new MeshBasicNodeMaterial({ side: FrontSide });
   material.userData.isFluid = true;
   if (blockId !== undefined) material.userData.fluidBlockId = blockId;
   return material;
@@ -19,7 +19,7 @@ describe("setFluidMaterialSides", () => {
   it("turns only water to its back side while the camera is under it", () => {
     const water = fluidMaterial(WATER);
     const lava = fluidMaterial(LAVA);
-    const glass = new MeshBasicMaterial({ side: DoubleSide });
+    const glass = new MeshBasicNodeMaterial({ side: DoubleSide });
 
     setFluidMaterialSides([water, lava, glass], true, isWater);
 

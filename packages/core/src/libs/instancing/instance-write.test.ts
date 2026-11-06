@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 
-import * as THREE from "three";
+import * as THREE from "three/webgpu";
 import { describe, it } from "vitest";
 
 import { writeInstanceColor, writeInstanceMatrix } from "./instance-write";
@@ -8,7 +8,7 @@ import { writeInstanceColor, writeInstanceMatrix } from "./instance-write";
 const makeMesh = () =>
   new THREE.InstancedMesh(
     new THREE.BufferGeometry(),
-    new THREE.MeshBasicMaterial(),
+    new THREE.MeshBasicNodeMaterial(),
     4,
   );
 
@@ -59,5 +59,37 @@ describe("writeInstanceColor", () => {
 
     writeInstanceColor(attribute, 1, 0.5, 1, 1);
     assert.equal(attribute.version, 1);
+  });
+});
+
+describe("markInstanceChanged", () => {
+  it("uploads one span over the instances written, not the whole pool", () => {
+    const mesh = makeMesh();
+    const matrix = new THREE.Matrix4().makeTranslation(1, 2, 3);
+    writeInstanceMatrix(mesh, 1, matrix);
+    assert.deepEqual(mesh.instanceMatrix.updateRanges, [
+      { start: 16, count: 16 },
+    ]);
+    matrix.makeTranslation(4, 5, 6);
+    writeInstanceMatrix(mesh, 3, matrix);
+    assert.deepEqual(mesh.instanceMatrix.updateRanges, [
+      { start: 16, count: 48 },
+    ]);
+    writeInstanceMatrix(mesh, 0, matrix);
+    assert.deepEqual(mesh.instanceMatrix.updateRanges, [
+      { start: 0, count: 64 },
+    ]);
+  });
+
+  it("marks the shared buffer of a packed attribute", () => {
+    const buffer = new THREE.InstancedInterleavedBuffer(new Float32Array(5 * 4), 5);
+    const light = new THREE.InterleavedBufferAttribute(buffer, 3, 1);
+    const version = buffer.version;
+    writeInstanceColor(light, 2, 0.5, 0.25, 1);
+    assert.deepEqual(buffer.updateRanges, [{ start: 11, count: 3 }]);
+    assert.equal(buffer.version, version + 1);
+    assert.equal(buffer.array[11], 0.5);
+    writeInstanceColor(light, 2, 0.5, 0.25, 1);
+    assert.equal(buffer.version, version + 1);
   });
 });

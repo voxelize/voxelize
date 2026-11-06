@@ -4,8 +4,8 @@ import {
   Group,
   InstancedMesh,
   Matrix4,
-  MeshBasicMaterial,
-} from "three";
+  MeshBasicNodeMaterial,
+} from "three/webgpu";
 import { describe, expect, it } from "vitest";
 
 import {
@@ -17,7 +17,7 @@ const makePool = (positions: [number, number, number][], capacity = 8) => {
   const pool = new Group();
   const mesh = new InstancedMesh(
     new BufferGeometry(),
-    new MeshBasicMaterial(),
+    new MeshBasicNodeMaterial(),
     capacity,
   );
   const zero = new Matrix4().makeScale(0, 0, 0);

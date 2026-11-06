@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 
-import { Color } from "three";
+import { Color } from "three/webgpu";
 import { test } from "vitest";
 
 import {

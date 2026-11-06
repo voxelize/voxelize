@@ -6,7 +6,7 @@ import {
   RepeatWrapping,
   RGBAFormat,
   UnsignedByteType,
-} from "three";
+} from "three/webgpu";
 
 /**
  * How the water surface's tileable slope map is baked. The fragment shader

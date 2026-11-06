@@ -174,8 +174,6 @@ export class LocalLights {
   showDebugOverlay(parent: Object3D): void;
   hideDebugOverlay(): void;
 
-  /** Re-upload GPU textures after `webglcontextrestored`; CPU state is truth. */
-  onContextRestored(): void;
   /** Start a fresh peak-cost window (benchmark harnesses). */
   resetPeakStats(): void;
 

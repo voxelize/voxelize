@@ -1,4 +1,4 @@
-import { BatchedMesh, MeshBasicMaterial, Object3D } from "three";
+import { BatchedMesh, MeshBasicNodeMaterial, Object3D } from "three/webgpu";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { ChunkLayer, type ChunkShadowCasters } from "./chunk-layer";
@@ -68,9 +68,9 @@ function recorder() {
 describe("a chunk layer's arenas", () => {
   it("draws neighbouring chunks of a material as one batch, keeps water out of the shadow maps, and reuses slots after eviction", () => {
     vi.stubGlobal("Worker", StubWorker);
-    const water = new MeshBasicMaterial();
+    const water = new MeshBasicNodeMaterial();
     water.userData.skipShadow = true;
-    const stone = new MeshBasicMaterial();
+    const stone = new MeshBasicNodeMaterial();
     const materials = {
       keyTables: () => ({
         blockKeys: {},

@@ -25,13 +25,13 @@
     "@voxelize/physics-engine": "workspace:*"
   },
   "devDependencies": {
-    "@types/three": "^0.182.0",
+    "@types/three": "^0.187.0",
     "cross-env": "^7.0.3",
-    "three": "^0.183.0",
+    "three": "^0.187.0",
     "tsup": "^5.12.9",
     "typescript": "^5.4.5"
   },
   "peerDependencies": {
-    "three": ">=0.150.0"
+    "three": ">=0.187.0"
   }
 }

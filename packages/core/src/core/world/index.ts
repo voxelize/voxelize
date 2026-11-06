@@ -29,23 +29,24 @@ import {
   Material,
   Matrix4,
   Mesh,
-  MeshBasicMaterial,
-  MeshStandardMaterial,
+  MeshBasicNodeMaterial,
+  MeshStandardNodeMaterial,
   Object3D,
   type PerspectiveCamera,
   SRGBColorSpace,
   Scene,
-  ShaderMaterial,
   Sphere,
   Texture,
   MathUtils as ThreeMathUtils,
   Uniform,
   Vector2,
+  Vector4,
+  WebGLCoordinateSystem,
   Vector3,
-  WebGLRenderer,
-  type WebGLRenderTarget,
-} from "three";
-import { mergeGeometries } from "three/examples/jsm/utils/BufferGeometryUtils.js";
+  type Renderer,
+  type RenderTarget,
+} from "three/webgpu";
+import { mergeGeometries } from "three/addons/utils/BufferGeometryUtils.js";
 
 import {
   TRANSPARENT_SORT,
@@ -73,6 +74,7 @@ import {
 import { Coords2, Coords3 } from "../../types";
 import {
   BlockUtils,
+  callbackRenderer,
   ChunkUtils,
   LightColor,
   LightUtils,
@@ -81,17 +83,27 @@ import {
   formatSuggestion,
 } from "../../utils";
 
-function computeFlatNormals(geometry: BufferGeometry) {
-  const pos = (geometry.getAttribute("position") as BufferAttribute).array;
+/** Flat normals from `positions`, three-wide (a quantized geometry's
+ * position attribute is four-wide: vertex-layout.ts). */
+function computeFlatNormals(
+  geometry: BufferGeometry,
+  positions: ArrayLike<number>,
+) {
   const idx = geometry.getIndex();
   if (!idx || idx.count < 3) return;
   geometry.setAttribute(
     "normal",
-    new BufferAttribute(computeNormalsFromBuffers(pos, idx.array), 3),
+    new BufferAttribute(computeNormalsFromBuffers(positions, idx.array), 3),
   );
 }
 
 import { biomeTintAttribute, biomeTintAttributeAt } from "./biome-tint";
+import {
+  BYTE_VECTOR_STRIDE,
+  POSITION_STRIDE,
+  packQuantizedPositions,
+  padByteVectors,
+} from "./vertex-layout";
 import {
   Block,
   BlockDynamicPattern,
@@ -114,27 +126,47 @@ import {
 } from "./chunk-geometry-merge";
 import { ChunkIdReplacementReport } from "./chunk-id-replacements";
 import {
-  CustomChunkShaderMaterial,
+  ChunkMaterial,
   SEE_THROUGH_ALPHA_TEST,
   SHARED_CUTOUT_CUBE_MATERIAL_KEY,
   SHARED_CUTOUT_PLANT_MATERIAL_KEY,
   SHARED_OPAQUE_MATERIAL_KEY,
   SHARED_TUFTS_MATERIAL_KEY,
-  applyQuantizedPositionDefine,
   forkChunkMaterial,
   forkVoxelBoxMaterial,
   isOwnTextureFace,
   loadChunkMaterials,
   makeChunkMaterialKey,
-  makeChunkShaderMaterial,
+  makeChunkMaterial,
   makeOwnFaceTexture,
   setFluidMaterialSides,
   setOwnFaceTexture,
   sharedCutoutMaterialKeyFor,
   sharedFaceCustomizationError,
 } from "./chunk-materials";
+import {
+  type ChunkMaterialOptions,
+  type ChunkShadingInputs,
+  isChunkMaterial,
+} from "./shading/chunk-material";
+import {
+  shadowDepthPerBlock,
+  sharedEntityShadowUniforms,
+  updateEntityShadowUniforms,
+} from "./entity-shadow-uniforms";
+import {
+  type ArrayUniform,
+  arrayUniform,
+  type ChunkUniforms,
+} from "./shading/chunk-uniforms";
+import { type SkyFogInputs, worldFogNode } from "./shading/sky-fog";
 import { computeNormalsFromBuffers } from "./chunk-normals";
 import { ChunkRegionArenas } from "./chunk-region-arenas";
+import {
+  GpuTerrainArenas,
+  GpuTerrainBucket,
+  GpuTerrainCulls,
+} from "./gpu-terrain-bucket";
 import { ChunkRenderer, makeSceneColorTexture } from "./chunk-renderer";
 import {
   ChunkRequestCandidate,
@@ -206,7 +238,6 @@ import {
 } from "./see-through-texels";
 import { ShaderClock, windAt } from "./shader-clock";
 import {
-  SHADER_LIGHTING_CHUNK_SHADERS,
   WATER_DEPTH_BIAS_BLOCKS,
 } from "./shaders";
 import { singlePassWhenOneFacing } from "./single-pass-sides";
@@ -250,7 +281,7 @@ import {
 } from "./voxel-box";
 import type { VoxelDelta } from "./voxel-delta";
 import { stateBitsOf, withStateBits } from "./voxel-state";
-import { WaterDepthPass } from "./water-depth";
+import { lightsHoldPaneFaces, WaterDepthPass } from "./water-depth";
 import {
   WATER_OPTICS,
   WaterOptics,
@@ -275,6 +306,7 @@ export * from "./block-animations";
 export * from "./branch";
 export * from "./chunk";
 export * from "./chunk-materials";
+export * from "./chunk-stand-in";
 export * from "./chunk-normals";
 export * from "./chunk-region-arenas";
 export * from "./chunk-renderer";
@@ -288,6 +320,7 @@ export * from "./entity-light";
 export * from "./far-terrain";
 export * from "./far-terrain-tiles";
 export * from "./entity-shadow-uniforms";
+export * from "./vertex-layout";
 export * from "./items";
 export * from "./light-cones";
 export * from "./lighting";
@@ -303,9 +336,8 @@ export * from "./section-visibility";
 export * from "./see-through-texels";
 export * from "./shader-clock";
 export * from "./shaders";
-export * from "./shadow-sampling";
 export * from "./sky";
-export * from "./sky-fog";
+export * from "./shading";
 export * from "./surface-weather";
 export * from "./texture-census";
 export * from "./textures";
@@ -320,6 +352,7 @@ export * from "./world-clock";
 export * from "./world-options";
 
 const warnedUnknownBlockIds = new Set<number>();
+const scratchSize = new Vector2();
 const warnedUnloadedUpdateChunks = new Set<string>();
 
 /** Overdue chunk requests one report names before summing up the rest. */
@@ -339,6 +372,29 @@ const ARENA_BUCKETS: readonly string[] = [
   SHARED_CUTOUT_PLANT_MATERIAL_KEY,
   SHARED_TUFTS_MATERIAL_KEY,
 ];
+
+/**
+ * The arena buckets drawn from the GPU (`gpu-terrain-bucket.ts`): the ones
+ * that write depth without blending, so a section's draw order is free.
+ */
+const GPU_TERRAIN_BUCKETS: ReadonlySet<string> = new Set([
+  SHARED_OPAQUE_MATERIAL_KEY,
+  SHARED_CUTOUT_CUBE_MATERIAL_KEY,
+  SHARED_CUTOUT_PLANT_MATERIAL_KEY,
+  SHARED_TUFTS_MATERIAL_KEY,
+]);
+
+/**
+ * Vertices a GPU terrain bucket starts with: about what a large world holds at a
+ * render radius of 8 chunks, with room for remeshes (a bucket grows past it, at
+ * the cost of one full upload). A block's own bucket starts small.
+ */
+const GPU_TERRAIN_CAPACITY: Readonly<Record<string, number>> = {
+  [SHARED_OPAQUE_MATERIAL_KEY]: 5 * 1024 * 1024,
+  [SHARED_CUTOUT_CUBE_MATERIAL_KEY]: 6 * 1024 * 1024,
+  [SHARED_TUFTS_MATERIAL_KEY]: 2 * 1024 * 1024,
+  [SHARED_CUTOUT_PLANT_MATERIAL_KEY]: 512 * 1024,
+};
 
 /** Region arenas' regions, pages and sections, in all and per bucket. */
 export type RegionArenaStats = {
@@ -664,7 +720,13 @@ export class World<T = any> extends Scene implements NetIntercept {
    * and none do when {@link WorldClientOptions.regionArenas} disables
    * batching.
    */
-  private readonly arenaSets = new Map<string, ChunkRegionArenas>();
+  /** Every GPU bucket's cull, one dispatch a view (`GpuTerrainCulls`). */
+  private readonly gpuTerrainCulls = new GpuTerrainCulls();
+
+  private readonly arenaSets = new Map<
+    string,
+    ChunkRegionArenas | GpuTerrainArenas
+  >();
 
   /** Whether tufts draw at all ({@link setTuftsShown}). */
   private tuftsShown = true;
@@ -690,10 +752,20 @@ export class World<T = any> extends Scene implements NetIntercept {
     return stats;
   }
 
+  /**
+   * Triangles of terrain the GPU-driven buckets draw for `camera`, counted
+   * on the CPU. The renderer's own tallies (`info.render.triangles`) miss
+   * them: those draws are indirect, their counts made on the GPU. A stats
+   * call: it tests every section's bounds, so keep it off the frame loop.
+   */
+  countGpuTerrainTriangles(camera: Camera): number {
+    return this.gpuTerrainCulls.countDrawnTriangles(camera);
+  }
+
   /** The materials the region arenas draw with, one per batched bucket. */
-  get regionArenaMaterials(): CustomChunkShaderMaterial[] {
+  get regionArenaMaterials(): ChunkMaterial[] {
     if (!this.options.regionArenas) return [];
-    const materials: CustomChunkShaderMaterial[] = [];
+    const materials: ChunkMaterial[] = [];
     for (const bucket of ARENA_BUCKETS) {
       const material = this.chunkRenderer.materials.get(bucket);
       if (material) materials.push(material);
@@ -814,6 +886,26 @@ export class World<T = any> extends Scene implements NetIntercept {
    */
   public lightCones = new LightCones();
 
+  private shadingInputsCache: ChunkShadingInputs | null = null;
+  private static nextShadingId = 1;
+
+  /**
+   * What every chunk material of this world reads alike: its uniforms, the
+   * sun's cascades, the cones, the clustered lights and the sway table, as
+   * TSL nodes. Made once, after the renderers they come from.
+   */
+  get shadingInputs(): ChunkShadingInputs {
+    this.shadingInputsCache ??= {
+      id: World.nextShadingId++,
+      chunk: this.chunkRenderer.uniforms,
+      lighting: this.chunkRenderer.shaderLightingUniforms,
+      cones: this.lightCones.uniforms,
+      local: this.localLights.shadingInputs,
+      swayTable: this.swayProfileTable,
+    };
+    return this.shadingInputsCache;
+  }
+
   /**
    * Every drawn mesh in the world whose material neither takes the light
    * cones nor is exempt from them: what a flashlight would leave dark.
@@ -904,50 +996,25 @@ export class World<T = any> extends Scene implements NetIntercept {
     return this.aabbOverrideOwners.get(ChunkUtils.getVoxelName(voxel));
   };
 
-  private syncSceneColorTexture(texture: Texture) {
-    this.chunkRenderer.materials.forEach((material) => {
-      const sceneColorUniform = material.uniforms.uSceneColor;
-      if (sceneColorUniform) {
-        sceneColorUniform.value = texture;
-      }
-    });
-
-    this.chunkPipeline.forEachLoaded((chunk) => {
-      chunk.group.traverse((object) => {
-        if (!(object instanceof Mesh)) {
-          return;
-        }
-
-        const material = object.material;
-        if (
-          material instanceof ShaderMaterial &&
-          material.uniforms.uSceneColor
-        ) {
-          material.uniforms.uSceneColor.value = texture;
-        }
-      });
-    });
-  }
-
   /**
    * The frame's depth for the water's depth haze and the tank windows
    * (`SceneDepthCopy`). Call with the scene's target bound, before the water
    * draws.
    */
-  private captureSceneDepth(
-    renderer: WebGLRenderer,
-    target: WebGLRenderTarget | null,
-  ) {
+  private captureSceneDepth(renderer: Renderer, target: RenderTarget | null) {
     this.sceneDepthCopy.capture(renderer, target);
   }
 
-  private captureWaterRefraction(renderer: WebGLRenderer) {
-    this.captureSceneDepth(
-      renderer,
-      renderer.getRenderTarget() as WebGLRenderTarget | null,
-    );
+  /**
+   * The frame drawn so far, for the water to refract (and, from below, its
+   * Snell window): copied mid-pass the first time a fluid draws in a frame.
+   * Skipped with refraction off, and past the pixel budget, where the
+   * mid-pass copy's store and reload alone break the frame.
+   */
+  private captureWaterRefraction(renderer: Renderer) {
+    const target = renderer.getRenderTarget();
+    this.captureSceneDepth(renderer, target);
     const {
-      cameraSubmersion,
       sceneColor,
       sceneTextureSize,
       waterRefractionReady,
@@ -955,77 +1022,37 @@ export class World<T = any> extends Scene implements NetIntercept {
     } = this.chunkRenderer.uniforms;
 
     // Zero strength is a real kill switch: mark the capture stale so the
-    // shader's refraction branch turns off, and skip the mid-frame
-    // framebuffer copy (a full-pass stall on tile-based GPUs) entirely.
+    // shader's refraction branch turns off, and skip the copy entirely.
     if (waterRefractionStrength.value <= 0) {
       waterRefractionReady.value = 0;
       return;
     }
-    if (sceneColor.value !== this.refractionCapture) {
-      sceneColor.value = this.refractionCapture;
-      this.syncSceneColorTexture(this.refractionCapture);
-    }
+    sceneColor.value = this.refractionCapture;
 
-    // Submerged, only the underside reads the capture (the scene above,
-    // bent by the ripples: the continuous ceiling or the Snell window); with
-    // it off or on the legacy look the copy is skipped. Thresholds mirror
-    // the shader's gates.
-    const undersideStyle =
-      this.chunkRenderer.shaderLightingUniforms.surfaceUndersideScale.value;
-    const isUndersideWindowReading =
-      (undersideStyle > 0.5 && undersideStyle < 1.5) || undersideStyle > 2.5;
-    if (cameraSubmersion.value >= 0.5 && !isUndersideWindowReading) {
-      return;
-    }
+    const size = target
+      ? scratchSize.set(target.width, target.height)
+      : renderer.getDrawingBufferSize(scratchSize);
+    const width = Math.max(1, Math.floor(size.x));
+    const height = Math.max(1, Math.floor(size.y));
+    sceneTextureSize.value.set(width, height);
 
-    const renderTarget = renderer.getRenderTarget();
-    const isSRGBSource =
-      renderTarget !== null &&
-      renderTarget.texture.colorSpace === SRGBColorSpace;
-
-    let width: number;
-    let height: number;
-    if (renderTarget !== null) {
-      width = Math.max(1, Math.floor(renderTarget.width));
-      height = Math.max(1, Math.floor(renderTarget.height));
-      sceneTextureSize.value.set(width, height);
-    } else {
-      const size = renderer.getDrawingBufferSize(sceneTextureSize.value);
-      width = Math.max(1, Math.floor(size.x));
-      height = Math.max(1, Math.floor(size.y));
-    }
-
-    // Past this many pixels the mid-pass copy's store + reload alone breaks
-    // the frame budget (measured: fine at 7.5M, 33ms frames at 14.7M), so
-    // high-density screens trade the subtle displacement for a stable 60fps.
     if (width * height > WATER_OPTICS.refractionMaxDrawingBufferPixels) {
       waterRefractionReady.value = 0;
       return;
     }
 
     const capture = this.refractionCapture;
-    const isCaptureSRGB = capture.colorSpace === SRGBColorSpace;
-
-    if (
-      capture.image.width !== width ||
-      capture.image.height !== height ||
-      isCaptureSRGB !== isSRGBSource
-    ) {
+    if (capture.image.width !== width || capture.image.height !== height) {
       capture.dispose();
-      const recreated = makeSceneColorTexture(width, height, isSRGBSource);
-      this.refractionCapture = recreated;
-      sceneColor.value = recreated;
-      sceneTextureSize.value.set(width, height);
+      this.refractionCapture = makeSceneColorTexture(width, height);
+      sceneColor.value = this.refractionCapture;
       waterRefractionReady.value = 0;
       this.waterRefractionFrame = -1;
-      this.syncSceneColorTexture(recreated);
       return;
     }
 
-    const frame = renderer.info.render.frame;
-    if (this.waterRefractionFrame === frame) {
-      return;
-    }
+    const frame = renderer.info.frame;
+    if (this.waterRefractionFrame === frame) return;
 
     renderer.copyFramebufferToTexture(capture);
     waterRefractionReady.value = 1;
@@ -1035,7 +1062,7 @@ export class World<T = any> extends Scene implements NetIntercept {
   private configureTransparentChunkMesh(
     mesh: Mesh,
     voxel: number,
-    material: CustomChunkShaderMaterial,
+    material: ChunkMaterial,
   ) {
     const block = this.getBlockByIdSafe(voxel);
     const isFluid = block?.isFluid ?? false;
@@ -1076,11 +1103,16 @@ export class World<T = any> extends Scene implements NetIntercept {
         }
 
         if (lifted) {
-          this.waterDepth.prepareDraw(renderer, camera, mesh, lifted);
+          this.waterDepth.prepareDraw(
+            callbackRenderer(renderer),
+            camera,
+            mesh,
+            lifted,
+          );
         }
 
         if (isFluid) {
-          this.captureWaterRefraction(renderer);
+          this.captureWaterRefraction(callbackRenderer(renderer));
         }
       };
     }
@@ -1097,7 +1129,7 @@ export class World<T = any> extends Scene implements NetIntercept {
    */
   private configureOrderIndependentMesh(
     mesh: Mesh,
-    material: CustomChunkShaderMaterial,
+    material: ChunkMaterial,
     isFluid: boolean,
   ) {
     mesh.renderOrder = transparentChunkRenderOrder(
@@ -1108,7 +1140,7 @@ export class World<T = any> extends Scene implements NetIntercept {
       if (!mesh.userData.isVoxelBox) this.waterDepth.addWater(mesh);
       mesh.onBeforeRender = (renderer) => {
         if (!this.orderIndependent?.isOpen) {
-          this.captureWaterRefraction(renderer);
+          this.captureWaterRefraction(callbackRenderer(renderer));
         }
       };
     } else {
@@ -1138,8 +1170,11 @@ export class World<T = any> extends Scene implements NetIntercept {
     let plan = texelPlanOf(base, classes, canCutSolidTexels(base));
     // A region arena cannot give the second draw a split needs (its
     // sections stop joining it, see batchedArenaBuckets); those already in
-    // it draw every texel with their material until they remesh.
-    if (plan === "split" && (mesh as BatchedMesh).isBatchedMesh) plan = "as-is";
+    // it draw every texel with their material until they remesh. A GPU
+    // bucket can: its layer draws the bucket's own packed list.
+    if (plan === "split" && (mesh as BatchedMesh).isBatchedMesh) {
+      plan = "as-is";
+    }
     if (plan === mesh.userData.texelPlan) return;
     const layer = split.apply(mesh, base, plan);
     const reveal = (mesh.userData.chunkReveal as { reveal: number } | undefined)
@@ -1160,7 +1195,7 @@ export class World<T = any> extends Scene implements NetIntercept {
       hole: Math.max(material.alphaTest, 1 / 255),
       solid: this.seeThroughTexels?.cuts.solid ?? 1,
     };
-    const map = (material as CustomChunkShaderMaterial).map ?? null;
+    const map = (material as ChunkMaterial).map ?? null;
     const atlas = this.chunkRenderer.materials.get(SHARED_OPAQUE_MATERIAL_KEY)
       ?.map as AtlasTexture | undefined;
     if (!bucket || !atlas || map !== atlas) {
@@ -1208,27 +1243,43 @@ export class World<T = any> extends Scene implements NetIntercept {
    * frame (see `WaterDepthPass.compileFor`). Call it in the load, once the
    * chunk materials are made.
    */
-  compileWaterDepthPrograms(renderer: WebGLRenderer, camera: Camera) {
-    const fluids: ShaderMaterial[] = [];
+  /**
+   * Builds the local-light shadow frame's own pipelines (the atlas cell
+   * clear) during a load warmup, so the first torch to cast a shadow builds
+   * nothing in its frame.
+   */
+  compileLocalShadowPrograms(renderer: Renderer) {
+    return this.localLights.compileShadowPrograms(renderer);
+  }
+
+  compileWaterDepthPrograms(renderer: Renderer, camera: Camera) {
+    const fluids: ChunkMaterial[] = [];
     for (const material of this.chunkRenderer.materials.values()) {
       if (material.userData.isFluid === true) fluids.push(material);
     }
-    this.waterDepth.compileFor(renderer, camera, fluids);
+    return this.waterDepth.compileFor(renderer, camera, fluids);
   }
 
   /**
-   * Call once a frame with the camera the scene is about to render with,
-   * before that render. Drawing order-independently, it draws the depth of
-   * the water in view (the surface the blended layers are split at, see
-   * `OrderIndependentSeparator`), arms the accumulation for that camera,
-   * and re-plans the see-through meshes when a block texture was written
-   * since (a texture can gain or lose its translucent texels). Sorted, it
-   * draws the depth of the water near the panes in view (`WaterDepthPass`);
-   * a frame without it draws every pane before the water.
+   * Draws this world from `camera` into `target` (null: the canvas), once a
+   * frame. Drawing order-independently, it first draws the depth of the
+   * water in view (the surface the blended layers are split at, see
+   * `OrderIndependentSeparator`), re-plans the see-through meshes when a
+   * block texture was written since (a texture can gain or lose its
+   * translucent texels), then draws the scene in the accumulation's passes
+   * (`OrderIndependentTransparency.render`); `target` must then hold a
+   * float depth texture. Sorted, it draws the depth of the water near the
+   * panes in view (`WaterDepthPass`) and then the scene.
    */
-  prepareTransparency(renderer: WebGLRenderer, camera: Camera) {
+  renderFrame(
+    renderer: Renderer,
+    camera: Camera,
+    target: RenderTarget | null,
+  ) {
     if (!this.orderIndependent) {
       this.waterDepth.render(renderer, camera);
+      renderer.setRenderTarget(target);
+      renderer.render(this, camera);
       return;
     }
     if (this.seeThroughPlanGeneration !== this.blockTextureGeneration) {
@@ -1236,7 +1287,7 @@ export class World<T = any> extends Scene implements NetIntercept {
       for (const mesh of this.seeThroughMeshes) this.planSeeThroughTexels(mesh);
     }
     // The bands only exist in a sort that asks this world for them; a host
-    // sort without it would leave the cutouts inside the accumulation.
+    // sort without it would leave the cutouts among the blended layers.
     if (this.orderIndependentSort?.camera !== camera) {
       this.orderIndependentSort = {
         camera,
@@ -1245,7 +1296,35 @@ export class World<T = any> extends Scene implements NetIntercept {
     }
     renderer.setTransparentSort(this.orderIndependentSort.sort);
     this.waterDepth.render(renderer, camera, "all");
-    this.orderIndependent.arm(renderer, camera);
+    if (!target) {
+      renderer.setRenderTarget(null);
+      renderer.render(this, camera);
+      return;
+    }
+    this.orderIndependent.render(renderer, this, camera, target);
+  }
+
+  /**
+   * The passes this world's frame draws in for a scene drawn into `target`
+   * (`renderFrame`): the scene pass, the blended accumulation (null when
+   * the world draws its layers sorted) and a shadow cascade, each as the
+   * target bound and the outputs laid over it (a cascade also with the
+   * camera and scenes it draws in). A pipeline is built for the pass it
+   * draws in, so a warmup compiles each material for each of these.
+   */
+  compilePasses(target: RenderTarget | null) {
+    const oit = this.orderIndependent;
+    return {
+      main: { target, mrt: null },
+      blended: oit && target ? oit.accumulationPass(target) : null,
+      shadow: {
+        target: this.csmRenderer?.casterTarget ?? null,
+        mrt: null,
+        view: this.csmRenderer?.casterView ?? null,
+      },
+      isBlended: (material: Material) =>
+        !!oit && material.transparent && !material.depthWrite && oit.adopt(material),
+    };
   }
 
   /**
@@ -1287,7 +1366,7 @@ export class World<T = any> extends Scene implements NetIntercept {
    * directly, so nothing is copied. It reads the target while the blended
    * layers draw into the accumulation, never while it is bound.
    */
-  private pointWaterRefractionAt(target: WebGLRenderTarget) {
+  private pointWaterRefractionAt(target: RenderTarget) {
     const {
       sceneColor,
       sceneTextureSize,
@@ -1298,10 +1377,7 @@ export class World<T = any> extends Scene implements NetIntercept {
       waterRefractionReady.value = 0;
       return;
     }
-    if (sceneColor.value !== target.texture) {
-      sceneColor.value = target.texture;
-      this.syncSceneColorTexture(target.texture);
-    }
+    sceneColor.value = target.texture;
     sceneTextureSize.value.set(target.width, target.height);
     waterRefractionReady.value = 1;
   }
@@ -1420,7 +1496,7 @@ export class World<T = any> extends Scene implements NetIntercept {
    * Every per-voxel isolated-face material and what it wears, behind
    * {@link textureCensus} and {@link fillUnpaintedSurfaces}.
    */
-  private isolatedFaces = new IsolatedFaceLedger<CustomChunkShaderMaterial>();
+  private isolatedFaces = new IsolatedFaceLedger<ChunkMaterial>();
   /** Own-texture face defaults painted by a fallback fill, not their art. */
   private fallbackOwnFaceKeys = new Set<string>();
 
@@ -1528,18 +1604,20 @@ export class World<T = any> extends Scene implements NetIntercept {
 
   /**
    * Blocks whose materials were rewritten through
-   * {@link customizeMaterialShaders}. A customized block cannot share a
-   * bucket material — its shader is its own — so the bucket resolution in
+   * {@link customizeMaterial}. A customized block cannot share a bucket
+   * material (its shading is its own), so the bucket resolution in
    * {@link makeChunkMaterialKey} sends it back to its per-id material.
    */
   private customMaterialBlockIds = new Set<number>();
 
   /**
-   * Flat vec4-pair table behind the shared cutout buckets' sway shader; see
-   * {@link createSwayTableShader}. Slot 0 stays zeroed as the "no sway"
-   * profile.
+   * The vec4-pair table the shared cutout buckets sway by (params: speed,
+   * amplitude, scale, yScale; flags: rooted, cross shading), indexed by
+   * each vertex's sway profile (its quantized position's fourth lane,
+   * vertex-layout.ts). Slot 0 stays zeroed as the "no
+   * sway" profile.
    */
-  readonly swayProfileTable: Uniform;
+  readonly swayProfileTable: ArrayUniform<Vector4, "vec4">;
 
   private swayProfileCount = 1;
   private swayProfileIndexBySignature = new Map<string, number>();
@@ -1632,8 +1710,12 @@ export class World<T = any> extends Scene implements NetIntercept {
     const maxMeshWorkers = Math.min(navigator.hardwareConcurrency ?? 4, 4);
     const { maxQueuedWorkerJobs } = this.options;
 
-    this.swayProfileTable = new Uniform(
-      new Float32Array(this.options.swayProfileCapacity * 8),
+    this.swayProfileTable = arrayUniform(
+      Array.from(
+        { length: this.options.swayProfileCapacity * 2 },
+        () => new Vector4(),
+      ),
+      "vec4",
     );
 
     this.oldBlocks = new BoundedLruMap(this.options.maxVoxelHistoryVoxels);
@@ -1681,9 +1763,9 @@ export class World<T = any> extends Scene implements NetIntercept {
     const drawingBuffer = new Vector2();
     this.onBeforeRender = (renderer) => {
       this.animatedAtlasTextures.forEach((texture) =>
-        texture.flushAnimationPatches(renderer),
+        texture.flushAnimationPatches(callbackRenderer(renderer)),
       );
-      renderer.getDrawingBufferSize(drawingBuffer);
+      callbackRenderer(renderer).getDrawingBufferSize(drawingBuffer);
       this.localLights.setRenderPixels(drawingBuffer.x * drawingBuffer.y);
     };
 
@@ -2294,10 +2376,10 @@ export class World<T = any> extends Scene implements NetIntercept {
     // caller moves or turns it.
     const texelFrame = new VoxelBoxTexelFrame(box.origin, group);
     const forks = new Map<
-      CustomChunkShaderMaterial,
-      CustomChunkShaderMaterial
+      ChunkMaterial,
+      ChunkMaterial
     >();
-    const ownMaterial = (material: CustomChunkShaderMaterial) => {
+    const ownMaterial = (material: ChunkMaterial) => {
       let fork = forks.get(material);
       if (!fork) {
         fork = forkVoxelBoxMaterial(material, texelFrame);
@@ -2331,7 +2413,7 @@ export class World<T = any> extends Scene implements NetIntercept {
       ];
       const buckets = new Map<
         string,
-        { material: CustomChunkShaderMaterial; pieces: Piece[] }
+        { material: ChunkMaterial; pieces: Piece[] }
       >();
       for (const geo of geometries) {
         const at = geo.at && geo.at.length ? geo.at : undefined;
@@ -2506,7 +2588,7 @@ export class World<T = any> extends Scene implements NetIntercept {
     group: Group;
     pieces: (BufferGeometry | null)[];
     key: string;
-    material: CustomChunkShaderMaterial;
+    material: ChunkMaterial;
     voxels: Set<number>;
     offset: Coords3;
     geometriesToDispose: BufferGeometry[];
@@ -2562,7 +2644,7 @@ export class World<T = any> extends Scene implements NetIntercept {
     const geometry = new BufferGeometry();
     geometry.setAttribute(
       "position",
-      new BufferAttribute(canonical.positions, 3),
+      this.chunkPositionAttribute(canonical.positions, canonical.voxel),
     );
     geometry.setAttribute(
       "uv",
@@ -2591,21 +2673,19 @@ export class World<T = any> extends Scene implements NetIntercept {
     );
     geometry.setIndex(new BufferAttribute(canonical.indices, 1));
     if (canonical.normals && canonical.normals.length > 0) {
+      // Byte normals four-wide, as a chunk's (vertex-layout).
       geometry.setAttribute(
         "normal",
-        new BufferAttribute(canonical.normals, 3, isQuantized),
+        isQuantized
+          ? new BufferAttribute(
+              padByteVectors(canonical.normals as Int8Array),
+              BYTE_VECTOR_STRIDE,
+              true,
+            )
+          : new BufferAttribute(canonical.normals, 3),
       );
     } else {
-      computeFlatNormals(geometry);
-    }
-    if (
-      !this.customMaterialBlockIds.has(canonical.voxel) &&
-      sharedCutoutMaterialKeyFor(this.getBlockById(canonical.voxel))
-    ) {
-      const profiles = new Uint8Array(canonical.positions.length / 3).fill(
-        this.swayProfileIndexByVoxel.get(canonical.voxel) ?? 0,
-      );
-      geometry.setAttribute("swayProfile", new BufferAttribute(profiles, 1));
+      computeFlatNormals(geometry, canonical.positions);
     }
     return geometry;
   }
@@ -2917,9 +2997,10 @@ export class World<T = any> extends Scene implements NetIntercept {
     const mat = this.getBlockFaceMaterial(block.id, face.name, voxel);
     let isolatedMat = mat;
     if (!isolatedMat) {
-      isolatedMat = makeChunkShaderMaterial(this);
+      isolatedMat = makeChunkMaterial(this);
       if (!isMainThreadSortedBlock(block)) {
-        applyQuantizedPositionDefine(isolatedMat, this.chunkPositionUnits);
+        isolatedMat.positionUnits = this.chunkPositionUnits;
+        isolatedMat.userData.isQuantized = true;
       }
     }
 
@@ -3268,8 +3349,6 @@ export class World<T = any> extends Scene implements NetIntercept {
 
           mat.map.dispose();
           mat.map = atlas;
-          mat.uniforms.map = { value: atlas };
-          mat.needsUpdate = true;
         } else {
           throw new Error(
             `Cannot animate face "${face.name}" on block "${block.name}" because it does not have a texture.`,
@@ -5137,7 +5216,7 @@ export class World<T = any> extends Scene implements NetIntercept {
         positions: number[];
         uvs: number[];
         indices: number[];
-        material: MeshStandardMaterial | MeshBasicMaterial;
+        material: MeshStandardNodeMaterial | MeshBasicNodeMaterial;
         faces: Block["faces"];
       }
     >();
@@ -5163,8 +5242,8 @@ export class World<T = any> extends Scene implements NetIntercept {
 
         const mat =
           material === "basic"
-            ? new MeshBasicMaterial(matOptions)
-            : new MeshStandardMaterial(matOptions);
+            ? new MeshBasicNodeMaterial(matOptions)
+            : new MeshStandardNodeMaterial(matOptions);
 
         // An own-texture face may animate lazily off its face material's
         // draws; a display copy of the block on screen counts as one.
@@ -5226,7 +5305,7 @@ export class World<T = any> extends Scene implements NetIntercept {
         );
         geometry.setAttribute("uv", new Float32BufferAttribute(uvs, 2));
         geometry.setIndex(indices);
-        computeFlatNormals(geometry);
+        computeFlatNormals(geometry, positions);
         geometry.computeBoundingSphere();
         singlePassWhenOneFacing(
           material,
@@ -5271,7 +5350,7 @@ export class World<T = any> extends Scene implements NetIntercept {
       hole: Math.max(material.alphaTest, 1 / 255),
       solid: split.cuts.solid,
     };
-    const map = (material as MeshBasicMaterial).map;
+    const map = (material as MeshBasicNodeMaterial).map;
     const atlas = this.chunkRenderer.materials.get(SHARED_OPAQUE_MATERIAL_KEY)
       ?.map as AtlasTexture | undefined;
     const classes: TexelClasses = { solid: false, translucent: false };
@@ -5297,10 +5376,9 @@ export class World<T = any> extends Scene implements NetIntercept {
   /**
    * Register a sway profile for a cutout block instead of compiling it a
    * bespoke material: the block stays in its shared cutout bucket and its
-   * quads carry the profile's index into the table
-   * {@link createSwayTableShader} reads. Parameter defaults mirror
-   * {@link createSwayShader}; `isCrossShaded` selects the flattened
-   * cross-quad shading the dedicated cross materials used to bake in.
+   * quads carry the profile's index into {@link swayProfileTable}.
+   * Parameter defaults mirror `customShaders.sway`; `isCrossShaded` selects
+   * the flattened cross-quad shading (fixed sun incidence, no face shade).
    */
   setBlockSway = (
     idOrName: number | string,
@@ -5343,46 +5421,29 @@ export class World<T = any> extends Scene implements NetIntercept {
         );
       }
       index = this.swayProfileCount++;
-      const table = this.swayProfileTable.value as Float32Array;
-      table.set(
-        [
-          speed,
-          amplitude,
-          scale,
-          yScale,
-          rooted ? 1 : 0,
-          isCrossShaded ? 1 : 0,
-          0,
-          0,
-        ],
-        index * 8,
-      );
+      const table = this.swayProfileTable.value;
+      table[index * 2].set(speed, amplitude, scale, yScale);
+      table[index * 2 + 1].set(rooted ? 1 : 0, isCrossShaded ? 1 : 0, 0, 0);
       this.swayProfileIndexBySignature.set(signature, index);
     }
 
     this.swayProfileIndexByVoxel.set(block.id, index);
   };
 
-  customizeMaterialShaders = (
+  /**
+   * Give a block (or one of its faces) a shading of its own: a fixed sway
+   * baked into its program (`customShaders.sway`), a different kind (a
+   * fluid drawn as a see-through surface), or hooks that remap its texture
+   * or replace its lit colour (`ChunkShadingHooks`). The block leaves any
+   * shared bucket for its own material; meshes keep that material and pick
+   * the new program up on their next draw.
+   */
+  customizeMaterial = (
     idOrName: number | string,
     faceName: string | null = null,
-    data: {
-      vertexShader: string;
-      fragmentShader: string;
-      uniforms?: { [key: string]: Uniform };
-    } = {
-      vertexShader: SHADER_LIGHTING_CHUNK_SHADERS.vertex,
-      fragmentShader: SHADER_LIGHTING_CHUNK_SHADERS.fragment,
-      uniforms: {},
-    },
+    customization: Partial<ChunkMaterialOptions> = {},
   ) => {
-    this.checkIsRegistryLoaded("customize material shaders");
-
-    const {
-      vertexShader = SHADER_LIGHTING_CHUNK_SHADERS.vertex,
-      fragmentShader = SHADER_LIGHTING_CHUNK_SHADERS.fragment,
-      uniforms = {},
-    } = data;
+    this.checkIsRegistryLoaded("customize material");
 
     // Opting out has to precede the material lookup: the bucket resolution
     // reads this set, and a block-level customization on a shared-bucket
@@ -5408,7 +5469,7 @@ export class World<T = any> extends Scene implements NetIntercept {
     if (sharedFaceError) throw sharedFaceError;
 
     // Shared solid shapes retain a per-id alias until a caller customizes
-    // one. Detach at that boundary so a bespoke shader cannot mutate the
+    // one. Detach at that boundary so a bespoke shading cannot change the
     // atlas material used by every ordinary terrain section.
     if (
       faceName === null &&
@@ -5418,13 +5479,7 @@ export class World<T = any> extends Scene implements NetIntercept {
       this.chunkRenderer.materials.set(`${this.getBlockOf(idOrName).id}`, mat);
     }
 
-    mat.vertexShader = vertexShader;
-    mat.fragmentShader = fragmentShader;
-    mat.uniforms = {
-      ...mat.uniforms,
-      ...uniforms,
-    };
-    mat.needsUpdate = true;
+    mat.setVariant(customization);
     this.replanSeeThroughTexels(mat);
 
     return mat;
@@ -5557,9 +5612,8 @@ export class World<T = any> extends Scene implements NetIntercept {
   private requantizePreloadedMaterials(positionUnits: number) {
     if (positionUnits === this.chunkPositionUnits) return;
     for (const material of this.chunkRenderer.materials.values()) {
-      if (material.defines?.POSITION_UNITS_PER_BLOCK === undefined) continue;
-      applyQuantizedPositionDefine(material, this.chunkPositionUnits);
-      material.needsUpdate = true;
+      if (material.userData.isQuantized !== true) continue;
+      material.positionUnits = this.chunkPositionUnits;
     }
   }
 
@@ -6397,24 +6451,6 @@ export class World<T = any> extends Scene implements NetIntercept {
   }
 
   /**
-   * GPU context restored: every chunk atlas already mirrors its animated
-   * patches onto its own backing canvas as they draw (`AtlasTexture.
-   * commitAnimationPatch`), so re-uploading it is just `needsUpdate = true`
-   * on the texture three.js already holds — nothing to rebuild from
-   * scratch. Local lights pack their own GPU-resident grids and shadow
-   * atlas outside three's texture pipeline, so they get their own hook.
-   * Wire this to the canvas's `webglcontextrestored` event (after calling
-   * `preventDefault()` in a `webglcontextlost` listener — without it the
-   * browser never attempts to restore the context at all).
-   */
-  onContextRestored(): void {
-    this.forEachUniqueAtlasMap((map) => {
-      map.needsUpdate = true;
-    });
-    this.localLights.onContextRestored();
-  }
-
-  /**
    * Flips how every chunk atlas samples at glancing angles, live: no world
    * rebuild, no chunk remesh, just the texture's filter/mip state (see
    * `AtlasTexture.applyFiltering`, `WorldOptions.blockTextureFiltering`).
@@ -6981,6 +7017,23 @@ export class World<T = any> extends Scene implements NetIntercept {
    * drawn, or (with `null`) drop it. It lights and hazes from the same
    * uniforms as the meshed deck and grows from the same seed.
    */
+  /**
+   * The world's atmosphere as every fogged surface reads it: the chunk
+   * uniforms' sky fog, glow and camera water, with the beam's share.
+   */
+  public get atmosphere(): SkyFogInputs {
+    return this.skyFogInputsOf(this.chunkRenderer.uniforms);
+  }
+
+  private skyFogInputsOf(
+    chunk: ChunkUniforms,
+  ): ChunkUniforms & SkyFogInputs {
+    return {
+      ...chunk,
+      directSunlight: this.chunkRenderer.shaderLightingUniforms.directSunlight,
+    };
+  }
+
   public setVolumetricClouds(options: Partial<VolumetricCloudsOptions> | null) {
     if (!options) {
       if (this.volumetricClouds) {
@@ -6999,7 +7052,7 @@ export class World<T = any> extends Scene implements NetIntercept {
 
     this.volumetricClouds = new VolumetricClouds(
       { ...options, seed },
-      this.clouds.material.uniforms,
+      this.clouds.shared,
     );
     this.volumetricClouds.setHidden(this.cloudsHiddenUnderwater);
     this.add(this.volumetricClouds);
@@ -7043,7 +7096,7 @@ export class World<T = any> extends Scene implements NetIntercept {
     // assigned from the sunlight directly: assigning drives lightness to a flat
     // 1.0 at midday, which forces every cloud to pure white whatever colour it
     // was given and saturates its shading away.
-    const cloudColor = this.clouds.material.uniforms.uCloudColor.value;
+    const cloudColor = this.clouds.uniforms.cloudColor.value;
     const cloudBase = this.clouds.baseColorHSL;
     cloudColor.setHSL(
       cloudBase.h,
@@ -7262,7 +7315,21 @@ export class World<T = any> extends Scene implements NetIntercept {
 
       this.chunkRenderer.shaderLightingUniforms.shadowStrength.value =
         shadowStrength;
+      this.chunkRenderer.shaderLightingUniforms.shadowDepthPerBlock.value =
+        shadowDepthPerBlock(
+          csmUniforms.uShadowMatrices[0],
+          this.chunkRenderer.shaderLightingUniforms.sunDirection.value,
+          this.csmRenderer.cascadeCoordinateSystem === WebGLCoordinateSystem
+            ? 0.5
+            : 1,
+        );
     }
+
+    // Every in-world entity material reads the one shared copy.
+    updateEntityShadowUniforms(
+      sharedEntityShadowUniforms,
+      this.chunkRenderer.shaderLightingUniforms,
+    );
   }
 
   /**
@@ -7494,7 +7561,7 @@ export class World<T = any> extends Scene implements NetIntercept {
   }
 
   renderShadowMaps(
-    renderer: WebGLRenderer,
+    renderer: Renderer,
     entities?: Object3D[],
     instancePools?: Group[],
   ) {
@@ -7522,10 +7589,6 @@ export class World<T = any> extends Scene implements NetIntercept {
     // for both depth consumers at once, so a torch's atlas and the sun's
     // cascades can never disagree about them.
     this.csmRenderer.hideNonCasters(this);
-    // Torch faces borrow their casters exactly when the cascades do, so one
-    // A/B switch covers every depth pass.
-    this.localLights.shadows.isBorrowingCasters =
-      this.csmRenderer.singleCasterPass;
     try {
       this.csmRenderer.render(
         renderer,
@@ -7570,6 +7633,12 @@ export class World<T = any> extends Scene implements NetIntercept {
         shadowMatrix2,
       );
     }
+    // The entities' copy too, or bodies flash across the cascade band.
+    const lighting = this.chunkRenderer.shaderLightingUniforms;
+    const entity = sharedEntityShadowUniforms;
+    entity.uShadowMatrix0.value.copy(lighting.shadowMatrix0.value);
+    entity.uShadowMatrix1.value.copy(lighting.shadowMatrix1.value);
+    entity.uShadowMatrix2.value.copy(lighting.shadowMatrix2.value);
   }
 
   /** Scratch for {@link foldPoolCasterBounds}; grown once per pool index. */
@@ -7650,7 +7719,10 @@ export class World<T = any> extends Scene implements NetIntercept {
   ): BufferGeometry {
     const isQuantized = geo.positions instanceof Uint16Array;
     const geometry = new BufferGeometry();
-    geometry.setAttribute("position", new BufferAttribute(geo.positions, 3));
+    geometry.setAttribute(
+      "position",
+      this.chunkPositionAttribute(geo.positions, geo.voxel),
+    );
     geometry.setAttribute("uv", new BufferAttribute(geo.uvs, 2, isQuantized));
     geometry.setAttribute("light", new BufferAttribute(geo.lights, 1));
     // Server meshes arrive without the twist (it never crosses the wire);
@@ -7678,29 +7750,47 @@ export class World<T = any> extends Scene implements NetIntercept {
     }
     geometry.setIndex(new BufferAttribute(geo.indices, 1));
     if (geo.normals && geo.normals.length > 0) {
+      // Byte normals four-wide, so no upload has to pad them (vertex-layout).
       geometry.setAttribute(
         "normal",
-        new BufferAttribute(geo.normals, 3, isQuantized),
+        isQuantized
+          ? new BufferAttribute(
+              padByteVectors(geo.normals as Int8Array),
+              BYTE_VECTOR_STRIDE,
+              true,
+            )
+          : new BufferAttribute(geo.normals, 3),
       );
     } else {
-      computeFlatNormals(geometry);
-    }
-
-    // Shared-cutout geometry carries its sway profile per vertex so one
-    // material serves every species. Applied to all of a qualifying block's
-    // geometries — independent-face buckets included — so any bucket the
-    // block's geometry lands in has a uniform attribute set for merging.
-    if (
-      !this.customMaterialBlockIds.has(geo.voxel) &&
-      sharedCutoutMaterialKeyFor(this.getBlockById(geo.voxel))
-    ) {
-      const profiles = new Uint8Array(geo.positions.length / 3).fill(
-        this.swayProfileIndexByVoxel.get(geo.voxel) ?? 0,
-      );
-      geometry.setAttribute("swayProfile", new BufferAttribute(profiles, 1));
+      computeFlatNormals(geometry, geo.positions);
     }
 
     return geometry;
+  }
+
+  /**
+   * A chunk geometry's position attribute: quantized positions four-wide,
+   * the fourth lane the vertex's sway profile (vertex-layout.ts), float
+   * positions as they are. Shared-cutout geometry carries its sway profile
+   * per vertex so one material serves every species; every geometry of a
+   * qualifying block carries it, so any bucket it lands in merges.
+   */
+  private chunkPositionAttribute(
+    positions: Float32Array | Uint16Array,
+    voxel: number,
+  ): BufferAttribute {
+    if (!(positions instanceof Uint16Array)) {
+      return new BufferAttribute(positions, 3);
+    }
+    const profile =
+      !this.customMaterialBlockIds.has(voxel) &&
+      sharedCutoutMaterialKeyFor(this.getBlockById(voxel))
+        ? (this.swayProfileIndexByVoxel.get(voxel) ?? 0)
+        : 0;
+    return new BufferAttribute(
+      packQuantizedPositions(positions, profile),
+      POSITION_STRIDE,
+    );
   }
 
   private placeChunkMesh(mesh: Mesh, cx: number, cz: number, level: number) {
@@ -7790,7 +7880,12 @@ export class World<T = any> extends Scene implements NetIntercept {
         if (list) list.push(geo);
         else arenaGeometries.set(bucket, [geo]);
       }
-      for (const bucket of ARENA_BUCKETS) {
+      // The shared buckets, the blocks' own buckets this section lands in,
+      // and any it held before (cleared when it no longer has their faces).
+      const buckets = new Set<string>(ARENA_BUCKETS);
+      for (const bucket of arenaGeometries.keys()) buckets.add(bucket);
+      for (const bucket of this.arenaSets.keys()) buckets.add(bucket);
+      for (const bucket of buckets) {
         this.applyArenaSectionGeometry(
           bucket,
           chunk,
@@ -7814,7 +7909,7 @@ export class World<T = any> extends Scene implements NetIntercept {
         string,
         {
           geo: MeshProtocol["geometries"][number];
-          material: CustomChunkShaderMaterial;
+          material: ChunkMaterial;
           voxel: number;
         }[]
       >();
@@ -8055,8 +8150,72 @@ export class World<T = any> extends Scene implements NetIntercept {
       geo.faceName,
       geo.at && geo.at.length ? geo.at : undefined,
     );
-    return batched.includes(bucket) ? bucket : null;
+    if (batched.includes(bucket)) return bucket;
+    if (!this.isBlockGpuBucket(bucket, geo.voxel)) return null;
+    // Water against a window keeps its own mesh: the exit pass finds the
+    // panes' sections by it.
+    if (this.fluidBuckets.has(bucket) && lightsHoldPaneFaces(geo.lights)) {
+      return null;
+    }
+    return bucket;
   }
+
+  private readonly blockGpuBuckets = new Map<
+    string,
+    { generation: number; isBatched: boolean }
+  >();
+
+  /**
+   * Whether a see-through block's own bucket draws from the GPU
+   * (`gpu-terrain-bucket.ts`): a block-wide material (not a face's or a
+   * voxel's), not a fluid unless the blended layers accumulate, and split
+   * into a depth draw and a blended one only when they do. One draw a pass
+   * (two for a split) for every section of the block, however sparse.
+   */
+  private isBlockGpuBucket(bucket: string, voxel: number) {
+    const cached = this.blockGpuBuckets.get(bucket);
+    if (cached?.generation === this.blockTextureGeneration) {
+      return cached.isBatched;
+    }
+    let isBatched = false;
+    const block = this.getBlockByIdSafe(voxel);
+    const base = this.chunkRenderer.materials.get(bucket);
+    if (
+      block &&
+      base &&
+      base.transparent &&
+      // A fluid's bucket needs the blended layers' accumulation (it draws
+      // there, refracting the scene the accumulation hands it).
+      (!block.isFluid || this.orderIndependent !== null) &&
+      bucket === makeChunkMaterialKey(this, voxel)
+    ) {
+      // A split (solid texels with depth, translucent ones blended) draws
+      // its second layer from the bucket's own list while the blended
+      // layers accumulate; sorted transparency has no split to give it.
+      const classes = this.seeThroughTexelClassesOf(bucket, base);
+      isBatched =
+        this.orderIndependent !== null ||
+        texelPlanOf(base, classes, canCutSolidTexels(base)) !== "split";
+    }
+    if (isBatched && block?.isPlant) this.plantBuckets.add(bucket);
+    if (isBatched && block?.isFluid) this.fluidBuckets.add(bucket);
+    this.blockGpuBuckets.set(bucket, {
+      generation: this.blockTextureGeneration,
+      isBatched,
+    });
+    return isBatched;
+  }
+
+  /** The GPU buckets of fluids (`registerArenaRegionMesh` gives them the water's passes). */
+  private readonly fluidBuckets = new Set<string>();
+
+  /**
+   * The buckets whose sections are plants: hidden past the plant detail
+   * distance like the shared plant bucket's.
+   */
+  private readonly plantBuckets = new Set<string>([
+    SHARED_CUTOUT_PLANT_MATERIAL_KEY,
+  ]);
 
   private batchedBuckets: {
     generation: number;
@@ -8068,6 +8227,9 @@ export class World<T = any> extends Scene implements NetIntercept {
    * whose textures split into a depth draw and a blended draw (translucent
    * texels beside solid ones). A batch gives one draw from its buffers, so
    * such a bucket's sections stay meshes until its textures change back.
+   * A block's own see-through bucket (sea grass, lichen) is not batched:
+   * measured in a large world, its sections are so sparse that a page per
+   * region drew nearly as often as the section meshes it replaced.
    */
   private batchedArenaBuckets(): readonly string[] {
     if (!this.seeThroughTexels) return ARENA_BUCKETS;
@@ -8250,10 +8412,9 @@ export class World<T = any> extends Scene implements NetIntercept {
     };
     mesh.userData.chunkReveal = next;
 
-    const revealUniformOf = (material: Material) =>
-      (material as ShaderMaterial).uniforms?.uChunkReveal as
-        | { value: number }
-        | undefined;
+    // A depth or override material has no reveal; leave it be.
+    const revealOf = (material: Material) =>
+      isChunkMaterial(material) ? material : null;
 
     mesh.onBeforeRender = function (
       renderer,
@@ -8272,11 +8433,8 @@ export class World<T = any> extends Scene implements NetIntercept {
         material,
         group,
       );
-      // A depth or override material has no reveal uniform; leave it be.
-      const uniform = revealUniformOf(material);
-      if (!uniform) return;
-      uniform.value = next.reveal;
-      (material as ShaderMaterial).uniformsNeedUpdate = true;
+      const chunk = revealOf(material);
+      if (chunk) chunk.chunkReveal = next.reveal;
     };
     mesh.onAfterRender = function (
       renderer,
@@ -8286,11 +8444,8 @@ export class World<T = any> extends Scene implements NetIntercept {
       material,
       group,
     ) {
-      const uniform = revealUniformOf(material);
-      if (uniform && uniform.value !== 1) {
-        uniform.value = 1;
-        (material as ShaderMaterial).uniformsNeedUpdate = true;
-      }
+      const chunk = revealOf(material);
+      if (chunk) chunk.chunkReveal = 1;
       next.onAfterRender.call(
         this,
         renderer,
@@ -8312,6 +8467,12 @@ export class World<T = any> extends Scene implements NetIntercept {
       throw new Error(
         "Region arenas requested while WorldClientOptions.regionArenas is null.",
       );
+    }
+
+    if (GPU_TERRAIN_BUCKETS.has(bucket) || !ARENA_BUCKETS.includes(bucket)) {
+      const arenas = this.makeGpuTerrain(bucket);
+      this.arenaSets.set(bucket, arenas);
+      return arenas;
     }
 
     const { subChunks } = this.options;
@@ -8341,18 +8502,88 @@ export class World<T = any> extends Scene implements NetIntercept {
    * order, and its texel plan when blended layers accumulate), and a
    * bucket that casts no shadow kept out of the shadow passes.
    */
+  /**
+   * A bucket drawn from the GPU (`gpu-terrain-bucket.ts`): its sections in
+   * one buffer, culled and packed per pass by a compute pass, one indirect
+   * draw. Its material is a fork of the bucket's (its own graph) that takes
+   * the base's values before each pass, as the arena pages sharing the base
+   * would.
+   */
+  private makeGpuTerrain(bucket: string) {
+    const base = this.chunkRenderer.materials.get(bucket);
+    if (!base) {
+      throw new Error("GPU terrain bucket created before chunk materials loaded.");
+    }
+    const material = base.fork();
+    material.drawsGpuSections = true;
+    let seenVersion = base.version;
+    let seenMap = base.map;
+    const { subChunks } = this.options;
+    // Room for every section of a render radius well past the game's.
+    const radius = 24;
+    const gpu: GpuTerrainArenas = new GpuTerrainArenas(
+      new GpuTerrainBucket(material, {
+        vertexCapacity: GPU_TERRAIN_CAPACITY[bucket] ?? 1 << 17,
+        sectionCapacity: (2 * radius + 1) ** 2 * subChunks,
+        positionUnits: this.chunkPositionUnits,
+        culls: this.gpuTerrainCulls,
+        beforeDraw: () => {
+          if (base.version === seenVersion && base.map === seenMap) return;
+          seenVersion = base.version;
+          seenMap = base.map;
+          material.copy(base);
+          material.drawsGpuSections = true;
+          material.needsUpdate = true;
+          // A split's forks copied the old material: make them anew.
+          const mesh = gpu.bucket.mesh;
+          if (this.seeThroughBases.get(mesh) === material) {
+            this.seeThroughTexels?.forget(material);
+            delete mesh.userData.texelPlan;
+            this.planSeeThroughTexels(mesh);
+          }
+        },
+      }),
+      (mesh, isAdded) => this.registerArenaRegionMesh(bucket, mesh, isAdded),
+      this,
+    );
+    return gpu;
+  }
+
   private registerArenaRegionMesh(
     bucket: string,
-    mesh: BatchedMesh,
+    mesh: Mesh,
     isAdded: boolean,
   ) {
     if (!isAdded) {
       this.csmRenderer?.removeSkipShadowObject(mesh);
       this.seeThroughMeshes.delete(mesh);
+      this.waterDepth.removeGpuWater(mesh);
       return;
     }
-    const material = mesh.material as CustomChunkShaderMaterial;
+    const material = mesh.material as ChunkMaterial;
     mesh.userData.materialBucket = bucket;
+    const gpu = mesh.userData.gpuTerrain as GpuTerrainBucket | undefined;
+    if (gpu && this.fluidBuckets.has(bucket) && this.orderIndependent) {
+      // A fluid drawn from the GPU: blended with the water's render order,
+      // its depth drawn by the water-depth pass through a stand-in that
+      // culls for itself, and the frame copied for refraction when it
+      // draws outside the accumulation (which hands it the scene itself).
+      mesh.renderOrder = transparentChunkRenderOrder(true, material.depthWrite);
+      this.waterDepth.addGpuWater(mesh, (renderer, camera) =>
+        gpu.cullFor(renderer, camera),
+      );
+      const cull = mesh.onBeforeRender;
+      mesh.onBeforeRender = (...args) => {
+        cull.apply(mesh, args);
+        if (!this.orderIndependent?.isOpen) {
+          this.captureWaterRefraction(callbackRenderer(args[0]));
+        }
+      };
+      if (material.userData.skipShadow === true) {
+        this.csmRenderer?.addSkipShadowObject(mesh);
+      }
+      return;
+    }
     if (!material.transparent) {
       this.csmRenderer?.addSkipShadowObject(mesh);
       return;
@@ -8393,13 +8624,8 @@ export class World<T = any> extends Scene implements NetIntercept {
         // The volumetric deck draws after the composite, so it must not
         // paint over a pane or portal in front of it: what of it lies
         // behind the blended layers draws here, under them.
-        beforeComposite: (renderer, scene, camera, layers) =>
-          this.volumetricClouds?.drawBehindBlended(
-            renderer,
-            scene,
-            camera,
-            layers,
-          ),
+        beforeComposite: (renderer, camera, layers) =>
+          this.volumetricClouds?.drawBehindBlended(renderer, camera, layers),
         // Water refracts what lies beyond it: glass, particles and farther
         // water behind its nearest face join the scene it reads before it
         // draws.
@@ -8411,8 +8637,8 @@ export class World<T = any> extends Scene implements NetIntercept {
       this.seeThroughTexels = new SeeThroughTexelSplit(
         { hole: SEE_THROUGH_ALPHA_TEST, solid: options.solidTexelAlpha },
         (material) => {
-          const fork = (material as ShaderMaterial).isShaderMaterial
-            ? forkChunkMaterial(material as CustomChunkShaderMaterial)
+          const fork = isChunkMaterial(material)
+            ? forkChunkMaterial(material)
             : material.clone();
           forwardDraws(fork, material);
           return fork;
@@ -8477,8 +8703,12 @@ export class World<T = any> extends Scene implements NetIntercept {
       return !!block && block.isOpaque;
     };
     // Static caster collection for local shadow world cells: the chunk
-    // groups whose columns intersect the light's range sphere. Rendering a
-    // face from just these skips a whole-scene traversal per face.
+    // groups whose columns intersect the light's range sphere, and the
+    // region arena pages over them, where the terrain, stone and leaves of
+    // those chunks live (the groups hold only what no arena batches; a torch
+    // collected the groups alone, and none of its shadows had a wall or a
+    // tree in them). Rendering a face from just these skips a whole-scene
+    // traversal per face.
     this.localLights.shadows.getStaticCasterRoots = (x, _y, z, radius, out) => {
       const { chunkSize } = this.options;
       const minCx = Math.floor((x - radius) / chunkSize);
@@ -8492,6 +8722,9 @@ export class World<T = any> extends Scene implements NetIntercept {
             out.push(chunk.group);
           }
         }
+      }
+      for (const arenas of this.arenaSets.values()) {
+        arenas.collectPagesIn(minCx, maxCx, minCz, maxCz, out);
       }
     };
 
@@ -8522,10 +8755,20 @@ export class World<T = any> extends Scene implements NetIntercept {
       this.localLights.options.csmFarCascadeUnits,
     );
 
-    const chunkUniforms = {
-      ...this.chunkRenderer.uniforms,
-      ...this.options.chunkUniformsOverwrite,
-    };
+    const chunkUniforms = this.chunkRenderer.uniforms;
+    for (const [key, value] of Object.entries(this.options.chunkUniformValues)) {
+      const uniform = (chunkUniforms as Record<string, { value: unknown }>)[key];
+      if (uniform && typeof uniform.value === "number" && value !== undefined) {
+        uniform.value = value;
+      }
+    }
+
+    // Every node material in the world that does not fog itself takes the
+    // chunks' fog after its own shading (three applies a scene's fog node
+    // to each material with `fog` on).
+    (this as unknown as { fogNode: unknown }).fogNode = worldFogNode(
+      this.skyFogInputsOf(chunkUniforms),
+    );
 
     // One set of glow uniforms for the dome and every fogged surface.
     this.sky = new Sky(skyOptions, {
@@ -8539,87 +8782,26 @@ export class World<T = any> extends Scene implements NetIntercept {
     });
     this.clouds = new Clouds({
       ...cloudsOptions,
-      uFogColor: cloudsOptions.uFogColor ?? chunkUniforms.fogColor,
-      uFogHeightOrigin:
-        cloudsOptions.uFogHeightOrigin ?? chunkUniforms.fogHeightOrigin,
-      uFogHeightDensity:
-        cloudsOptions.uFogHeightDensity ?? chunkUniforms.fogHeightDensity,
-      uSkyFogTopColor:
-        cloudsOptions.uSkyFogTopColor ?? chunkUniforms.skyFogTopColor,
-      uSkyFogMiddleColor:
-        cloudsOptions.uSkyFogMiddleColor ?? chunkUniforms.skyFogMiddleColor,
-      uSkyFogBottomColor:
-        cloudsOptions.uSkyFogBottomColor ?? chunkUniforms.skyFogBottomColor,
-      uSkyFogOffset: cloudsOptions.uSkyFogOffset ?? chunkUniforms.skyFogOffset,
-      uSkyFogVoidOffset:
-        cloudsOptions.uSkyFogVoidOffset ?? chunkUniforms.skyFogVoidOffset,
-      uSkyFogExponent:
-        cloudsOptions.uSkyFogExponent ?? chunkUniforms.skyFogExponent,
-      uSkyFogExponent2:
-        cloudsOptions.uSkyFogExponent2 ?? chunkUniforms.skyFogExponent2,
-      uSkyFogDimension:
-        cloudsOptions.uSkyFogDimension ?? chunkUniforms.skyFogDimension,
-      uSkyFogStrength:
-        cloudsOptions.uSkyFogStrength ?? chunkUniforms.skyFogStrength,
-      uCloudEndFadeNear:
-        cloudsOptions.uCloudEndFadeNear ?? chunkUniforms.fogNear,
-      uCloudEndFadeFar: cloudsOptions.uCloudEndFadeFar ?? chunkUniforms.fogFar,
-      uSunDirection:
-        cloudsOptions.uSunDirection ??
+      atmosphere: cloudsOptions.atmosphere ?? this.skyFogInputsOf(chunkUniforms),
+      sunDirection:
+        cloudsOptions.sunDirection ??
         this.chunkRenderer.shaderLightingUniforms.sunDirection,
-      uSunColor:
-        cloudsOptions.uSunColor ??
+      sunColor:
+        cloudsOptions.sunColor ??
         this.chunkRenderer.shaderLightingUniforms.sunColor,
-      uSunlightIntensity:
-        cloudsOptions.uSunlightIntensity ?? chunkUniforms.sunlightIntensity,
-      uDirectSunlight:
-        cloudsOptions.uDirectSunlight ??
-        this.chunkRenderer.shaderLightingUniforms.directSunlight,
-      uCameraSubmersion:
-        cloudsOptions.uCameraSubmersion ?? chunkUniforms.cameraSubmersion,
-      uCameraWaterPlaneY:
-        cloudsOptions.uCameraWaterPlaneY ?? chunkUniforms.cameraWaterPlaneY,
-      uUnderwaterAmbient:
-        cloudsOptions.uUnderwaterAmbient ?? chunkUniforms.underwaterAmbient,
-      skyGlow: cloudsOptions.skyGlow ?? this.sky.glow,
+      sunlightIntensity:
+        cloudsOptions.sunlightIntensity ?? chunkUniforms.sunlightIntensity,
+      endFadeNear: cloudsOptions.endFadeNear ?? chunkUniforms.fogNear,
+      endFadeFar: cloudsOptions.endFadeFar ?? chunkUniforms.fogFar,
     });
     this.add(this.sky, this.clouds);
     if (this.options.volumetricCloudsOptions) {
       this.setVolumetricClouds(this.options.volumetricCloudsOptions);
     }
-    if (this.orderIndependent) {
-      const { open, split, close } = this.orderIndependent;
-      this.add(open, split, close);
-    }
-
     const lighting = this.chunkRenderer.shaderLightingUniforms;
     this.farTerrain = new FarTerrain(
       {
-        fogColor: chunkUniforms.fogColor,
-        fogNear: chunkUniforms.fogNear,
-        fogFar: chunkUniforms.fogFar,
-        fogHeightOrigin: chunkUniforms.fogHeightOrigin,
-        fogHeightDensity: chunkUniforms.fogHeightDensity,
-        fogVerticalBlend: chunkUniforms.fogVerticalBlend,
-        skyFogTopColor: chunkUniforms.skyFogTopColor,
-        skyFogMiddleColor: chunkUniforms.skyFogMiddleColor,
-        skyFogBottomColor: chunkUniforms.skyFogBottomColor,
-        skyFogOffset: chunkUniforms.skyFogOffset,
-        skyFogVoidOffset: chunkUniforms.skyFogVoidOffset,
-        skyFogExponent: chunkUniforms.skyFogExponent,
-        skyFogExponent2: chunkUniforms.skyFogExponent2,
-        skyFogDimension: chunkUniforms.skyFogDimension,
-        skyFogStrength: chunkUniforms.skyFogStrength,
-        sunlightIntensity: chunkUniforms.sunlightIntensity,
-        directSunlight: lighting.directSunlight,
-        skyGlow: this.sky.glow,
-        minLightLevel: chunkUniforms.minLightLevel,
-        baseAmbient: chunkUniforms.baseAmbient,
-        faceShades: chunkUniforms.faceShades,
-        cameraSubmersion: chunkUniforms.cameraSubmersion,
-        cameraWaterPlaneY: chunkUniforms.cameraWaterPlaneY,
-        underwaterAmbient: chunkUniforms.underwaterAmbient,
-        underwaterViewScale: chunkUniforms.underwaterViewScale,
+        ...this.skyFogInputsOf(chunkUniforms),
         sunDirection: lighting.sunDirection,
         sunColor: lighting.sunColor,
         ambientColor: lighting.ambientColor,
@@ -8627,15 +8809,6 @@ export class World<T = any> extends Scene implements NetIntercept {
         skyMiddleColor: lighting.skyMiddleColor,
         waterFresnelStrength: lighting.waterFresnelStrength,
         waterTint: lighting.waterTint,
-        farCoverMask: chunkUniforms.farCoverMask,
-        farCover: chunkUniforms.farCover,
-        farSeam: chunkUniforms.farSeam,
-        surfaceWeather: chunkUniforms.surfaceWeather,
-        surfaceWeatherMap: chunkUniforms.surfaceWeatherMap,
-        surfaceWeatherWindow: chunkUniforms.surfaceWeatherWindow,
-        surfaceWeatherLine: chunkUniforms.surfaceWeatherLine,
-        surfaceCoatColor: chunkUniforms.surfaceCoatColor,
-        surfaceWind: chunkUniforms.surfaceWind,
       },
       {
         distance: this.options.farTerrainDistance,
@@ -10020,7 +10193,11 @@ export class World<T = any> extends Scene implements NetIntercept {
     chunk.plantsShown = wanted;
 
     const [cx, cz] = chunk.coords;
-    const plants = this.arenaSets.get(SHARED_CUTOUT_PLANT_MATERIAL_KEY);
+    const plants: (ChunkRegionArenas | GpuTerrainArenas)[] = [];
+    for (const bucket of this.plantBuckets) {
+      const arenas = this.arenaSets.get(bucket);
+      if (arenas) plants.push(arenas);
+    }
     for (const [level, meshes] of chunk.meshes) {
       const isLevelVisible =
         chunk.sectionVisibleMask === null ||
@@ -10028,7 +10205,9 @@ export class World<T = any> extends Scene implements NetIntercept {
       for (const mesh of meshes) {
         if (mesh.userData?.isPlant) mesh.visible = wanted && isLevelVisible;
       }
-      plants?.setSectionVisible(cx, cz, level, wanted && isLevelVisible);
+      for (const arenas of plants) {
+        arenas.setSectionVisible(cx, cz, level, wanted && isLevelVisible);
+      }
     }
   }
 
@@ -10085,8 +10264,7 @@ export class World<T = any> extends Scene implements NetIntercept {
     const isLevelVisible = mask === null || ((mask >> level) & 1) === 1;
     return (
       isLevelVisible &&
-      (bucket !== SHARED_CUTOUT_PLANT_MATERIAL_KEY ||
-        chunk.plantsShown !== false) &&
+      (!this.plantBuckets.has(bucket) || chunk.plantsShown !== false) &&
       (bucket !== SHARED_TUFTS_MATERIAL_KEY || chunk.tuftsShown !== false)
     );
   }

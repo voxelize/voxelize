@@ -14,7 +14,7 @@ import {
   FarTerrain,
   readFarFaceLook,
 } from "@voxelize/core";
-import type { Vector3 } from "three";
+import type { Vector3 } from "three/webgpu";
 
 import type { ChunkLayer } from "./chunk-layer";
 import { decodeBundle, decodeFarTile, type FarTileFile } from "./formats";
@@ -114,30 +114,8 @@ export class FarLayer {
     };
     this.terrain = new FarTerrain(
       {
-        fogColor: u.fogColor,
-        fogNear: u.fogNear,
-        fogFar: u.fogFar,
-        fogHeightOrigin: u.fogHeightOrigin,
-        fogHeightDensity: u.fogHeightDensity,
-        fogVerticalBlend: u.fogVerticalBlend,
-        skyFogTopColor: u.skyFogTopColor,
-        skyFogMiddleColor: u.skyFogMiddleColor,
-        skyFogBottomColor: u.skyFogBottomColor,
-        skyFogOffset: u.skyFogOffset,
-        skyFogVoidOffset: u.skyFogVoidOffset,
-        skyFogExponent: u.skyFogExponent,
-        skyFogExponent2: u.skyFogExponent2,
-        skyFogDimension: u.skyFogDimension,
-        skyFogStrength: u.skyFogStrength,
-        sunlightIntensity: u.sunlightIntensity,
+        ...u,
         directSunlight: l.directSunlight,
-        minLightLevel: u.minLightLevel,
-        baseAmbient: u.baseAmbient,
-        faceShades: u.faceShades,
-        cameraSubmersion: u.cameraSubmersion,
-        cameraWaterPlaneY: u.cameraWaterPlaneY,
-        underwaterAmbient: u.underwaterAmbient,
-        underwaterViewScale: u.underwaterViewScale,
         sunDirection: l.sunDirection,
         sunColor: l.sunColor,
         ambientColor: l.ambientColor,
@@ -145,9 +123,6 @@ export class FarLayer {
         skyMiddleColor: l.skyMiddleColor,
         waterFresnelStrength: l.waterFresnelStrength,
         waterTint: l.waterTint,
-        farCoverMask: u.farCoverMask,
-        farCover: u.farCover,
-        farSeam: u.farSeam,
       },
       {
         distance: 0,

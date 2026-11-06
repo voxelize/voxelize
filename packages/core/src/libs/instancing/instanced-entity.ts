@@ -1,4 +1,4 @@
-import * as THREE from "three";
+import * as THREE from "three/webgpu";
 
 import { Entity } from "../../core/entities";
 import type { World } from "../../core/world";

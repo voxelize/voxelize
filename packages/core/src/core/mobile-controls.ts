@@ -1,4 +1,4 @@
-import { Euler, PerspectiveCamera, Quaternion } from "three";
+import { Euler, PerspectiveCamera, Quaternion } from "three/webgpu";
 
 import { RigidControls, RigidControlsOptions } from "./controls";
 import { World } from "./world";

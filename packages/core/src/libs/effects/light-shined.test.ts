@@ -3,15 +3,17 @@ import {
   Color,
   type Material,
   Mesh,
-  MeshBasicMaterial,
+  MeshBasicNodeMaterial,
   Object3D,
   Scene,
   Vector3,
-} from "three";
+} from "three/webgpu";
 import { describe, expect, it } from "vitest";
 
 import type { World } from "../../core";
 import { isLightConesCovered, LightCones } from "../../core/world/light-cones";
+import { entityLightOriginalOf } from "../../core/world/shading/entity-light";
+import { ownUniform } from "../../core/world/shading/uniforms";
 
 import { LightShined } from "./light-shined";
 
@@ -80,7 +82,7 @@ const makeWorld = (
 /** The multiplier a mesh under the effect ends up with after one update. */
 const litColorOf = (shined: LightShined) => {
   const parent = new Object3D();
-  const mesh = new Mesh(new BoxGeometry(), new MeshBasicMaterial());
+  const mesh = new Mesh(new BoxGeometry(), new MeshBasicNodeMaterial());
   parent.add(mesh);
   shined.add(mesh);
   shined.update();
@@ -88,6 +90,14 @@ const litColorOf = (shined: LightShined) => {
   expect(uniforms).toHaveLength(1);
   return uniforms[0].value;
 };
+
+/** Whether the effect composed its voxel light into `material`. */
+const isLit = (material: Material) =>
+  entityLightOriginalOf(material as MeshBasicNodeMaterial) !== null;
+
+/** A colour node a material is built with, to tell its own nodes apart. */
+const ownColorNode = () =>
+  ownUniform(new Color(0.3, 0.6, 0.9)) as unknown as MeshBasicNodeMaterial["colorNode"];
 
 const makeShinedObject = (shined: LightShined) => {
   const parent = new Object3D();
@@ -201,15 +211,15 @@ describe("LightShined change detection", () => {
     expect(lightUniformsOf(character)).toHaveLength(0);
 
     const hat = new Object3D();
-    const brim = new Mesh(new BoxGeometry(), new MeshBasicMaterial());
+    const brim = new Mesh(new BoxGeometry(), new MeshBasicNodeMaterial());
     hat.add(brim);
     character.add(hat);
-    expect(brim.material.userData.lightEffectSetup).toBe(true);
+    expect(isLit(brim.material)).toBe(true);
     expect(lightUniformsOf(character)).toHaveLength(1);
     expect(character.userData.justChanged).toBe(true);
 
     // A grandchild added under the late child is covered too.
-    const feather = new Mesh(new BoxGeometry(), new MeshBasicMaterial());
+    const feather = new Mesh(new BoxGeometry(), new MeshBasicNodeMaterial());
     hat.add(feather);
     expect(lightUniformsOf(character)).toHaveLength(2);
   });
@@ -218,7 +228,7 @@ describe("LightShined change detection", () => {
     const { world } = makeWorld();
     const shined = new LightShined(world);
     const parent = new Object3D();
-    const material = new MeshBasicMaterial();
+    const material = new MeshBasicNodeMaterial();
     const mesh = new Mesh(new BoxGeometry(), material);
     const children = mesh.children;
     parent.add(mesh);
@@ -237,23 +247,12 @@ describe("LightShined change detection", () => {
     parent.add(character);
     shined.add(character);
     character.remove(cape);
-    cape.add(new Mesh(new BoxGeometry(), new MeshBasicMaterial()));
+    cape.add(new Mesh(new BoxGeometry(), new MeshBasicNodeMaterial()));
     expect(lightUniformsOf(character)).toHaveLength(0);
 
     shined.remove(character);
-    character.add(new Mesh(new BoxGeometry(), new MeshBasicMaterial()));
+    character.add(new Mesh(new BoxGeometry(), new MeshBasicNodeMaterial()));
     expect(lightUniformsOf(character)).toHaveLength(0);
-  });
-
-  it("keeps the old Proxy path available for A/B measurement", () => {
-    const { world } = makeWorld();
-    const shined = new LightShined(world, { useProxyChangeDetection: true });
-    const parent = new Object3D();
-    const character = new Object3D();
-    parent.add(character);
-    shined.add(character);
-    character.add(new Mesh(new BoxGeometry(), new MeshBasicMaterial()));
-    expect(lightUniformsOf(character)).toHaveLength(1);
   });
 });
 
@@ -262,7 +261,7 @@ describe("LightShined shared materials", () => {
     (obj.userData.lightUniforms ?? []) as { value: Color }[];
 
   /** Two display copies of one cached block mesh: meshes sharing a material. */
-  const twoRootsSharing = (material: MeshBasicMaterial) => {
+  const twoRootsSharing = (material: MeshBasicNodeMaterial) => {
     const scene = new Scene();
     const first = new Object3D();
     const second = new Object3D();
@@ -277,7 +276,7 @@ describe("LightShined shared materials", () => {
   it("gives a second root sharing a material its own light", () => {
     const { world } = makeWorld();
     const shined = new LightShined(world);
-    const material = new MeshBasicMaterial();
+    const material = new MeshBasicNodeMaterial();
     const { first, second, firstMesh, secondMesh } = twoRootsSharing(material);
     shined.add(first);
     shined.add(second);
@@ -287,16 +286,14 @@ describe("LightShined shared materials", () => {
     expect(uniformsOf(first)).toHaveLength(1);
     expect(uniformsOf(second)).toHaveLength(1);
     expect(uniformsOf(second)[0]).not.toBe(uniformsOf(first)[0]);
-    expect(
-      (secondMesh.material as MeshBasicMaterial).userData.lightEffectSetup,
-    ).toBe(true);
+    expect(isLit(secondMesh.material as MeshBasicNodeMaterial)).toBe(true);
   });
 
   it("keeps lighting the second root after the first is removed", () => {
     const light = { red: 0, green: 0, blue: 0, sunlight: 15 };
     const { world } = makeWorld({ light });
     const shined = new LightShined(world, { sampleIntervalFrames: 1 });
-    const { first, second } = twoRootsSharing(new MeshBasicMaterial());
+    const { first, second } = twoRootsSharing(new MeshBasicNodeMaterial());
     shined.add(first);
     shined.add(second);
     shined.update();
@@ -311,38 +308,35 @@ describe("LightShined shared materials", () => {
     expect(uniformsOf(second)[0].value.r).toBeLessThan(frozen.r);
   });
 
-  it("starts the copy from the material's own compile hook", () => {
+  it("starts the copy from the material's own nodes", () => {
     const { world } = makeWorld();
     const shined = new LightShined(world);
-    const material = new MeshBasicMaterial();
-    const calls: string[] = [];
-    material.onBeforeCompile = () => {
-      calls.push("own");
-    };
+    const material = new MeshBasicNodeMaterial();
+    const own = ownColorNode();
+    material.colorNode = own;
     const { first, second, secondMesh } = twoRootsSharing(material);
     shined.add(first);
     shined.add(second);
 
-    const shader = {
-      uniforms: {},
-      vertexShader: "void main() {}",
-      fragmentShader: "void main() {\n#include <color_fragment>\n}",
-    };
-    const copy = secondMesh.material as MeshBasicMaterial;
-    copy.onBeforeCompile(shader as never, {} as never);
-    expect(calls).toEqual(["own"]);
-    expect(shader.fragmentShader).toContain(
-      "diffuseColor.rgb *= lightConeLit(lightEffect)",
-    );
-    expect((shader.uniforms as Record<string, unknown>).lightEffect).toBe(
-      uniformsOf(second)[0],
-    );
+    const copy = secondMesh.material as MeshBasicNodeMaterial;
+    expect(copy).not.toBe(material);
+    // Composed over the material's own colour, not over the light the
+    // first root composed into it.
+    expect(entityLightOriginalOf(copy)?.colorNode).toBe(own);
+    expect(entityLightOriginalOf(material)?.colorNode).toBe(own);
+    expect(copy.colorNode).not.toBe(own);
+    // Same own colour, same cones: one composed graph for both, each
+    // reading its own light colour per draw.
+    expect(copy.colorNode).toBe(material.colorNode);
+    expect(copy.outputNode).toBe(material.outputNode);
+    expect(copy.userData.entityLight).toBeDefined();
+    expect(copy.userData.entityLight).not.toBe(material.userData.entityLight);
   });
 
   it("makes one copy per root however many of its meshes share the material", () => {
     const { world } = makeWorld();
     const shined = new LightShined(world);
-    const material = new MeshBasicMaterial();
+    const material = new MeshBasicNodeMaterial();
     const { first, second, secondMesh } = twoRootsSharing(material);
     const secondTwin = new Mesh(new BoxGeometry(), material);
     second.add(secondTwin);
@@ -363,7 +357,7 @@ describe("LightShined shared materials", () => {
         materialOwners: WeakMap<Material, { root: Object3D | null }>;
       }
     ).materialOwners;
-    const material = new MeshBasicMaterial();
+    const material = new MeshBasicNodeMaterial();
     const { first, second, secondMesh } = twoRootsSharing(material);
     shined.add(first);
     const firstUniform = uniformsOf(first)[0];
@@ -393,11 +387,11 @@ describe("LightShined shared materials", () => {
   it("disposes a root's copy on remove and reuses it if the root returns", () => {
     const { world } = makeWorld();
     const shined = new LightShined(world);
-    const material = new MeshBasicMaterial();
+    const material = new MeshBasicNodeMaterial();
     const { first, second, secondMesh } = twoRootsSharing(material);
     shined.add(first);
     shined.add(second);
-    const copy = secondMesh.material as MeshBasicMaterial;
+    const copy = secondMesh.material as MeshBasicNodeMaterial;
     let disposed = 0;
     copy.addEventListener("dispose", () => {
       disposed += 1;
@@ -415,7 +409,7 @@ describe("LightShined shared materials", () => {
   it("keeps sharing inside the owning root's own subtree", () => {
     const { world } = makeWorld();
     const shined = new LightShined(world);
-    const material = new MeshBasicMaterial();
+    const material = new MeshBasicNodeMaterial();
     const scene = new Scene();
     const outer = new Object3D();
     const inner = new Object3D();
@@ -481,51 +475,32 @@ describe("LightShined and the light cones", () => {
     // came from here, the beam only from the chunk and instanced shaders.
     const { world } = makeWorld();
     const shined = new LightShined(world);
-    const material = new MeshBasicMaterial();
+    const material = new MeshBasicNodeMaterial();
     const root = new Object3D();
     root.add(new Mesh(new BoxGeometry(), material));
     shined.add(root);
 
-    const shader = {
-      uniforms: {} as Record<string, unknown>,
-      vertexShader:
-        "#include <common>\nvoid main() {\n#include <project_vertex>\n}",
-      fragmentShader:
-        "#include <common>\nvoid main() {\n#include <color_fragment>\n}",
-    };
-    material.onBeforeCompile(shader as never, {} as never);
     expect(isLightConesCovered(material)).toBe(true);
-    expect(shader.uniforms.uConeCount).toBe(world.lightCones.uniforms.coneCount);
-    expect(shader.vertexShader).toContain("vLightConeWorld =");
-    expect(shader.fragmentShader).toContain("lightConeLit(lightEffect)");
-    expect(shader.fragmentShader).toContain("lightConeScatter(");
+    expect(isLit(material)).toBe(true);
+    // The cones lit through the colour, their glow over the output.
+    expect(material.colorNode).not.toBeNull();
+    expect(material.outputNode).not.toBeNull();
   });
 });
 
 describe("LightShined across worlds", () => {
-  const compile = (material: Material) => {
-    const shader = {
-      uniforms: {} as Record<string, unknown>,
-      vertexShader: "void main() {}",
-      fragmentShader: "void main() {\n#include <color_fragment>\n}",
-    };
-    material.onBeforeCompile(shader as never, {} as never);
-    return shader;
-  };
-
   it("lights art shared page-wide again in the next world, from its own hook", () => {
     // Item art outlives a world switched away from in place: the next
     // world's effect lights it with its own uniform, wrapping the art's own
     // hook once, not the dead effect's wrapper.
-    const material = new MeshBasicMaterial();
-    const calls: string[] = [];
-    material.onBeforeCompile = () => {
-      calls.push("own");
-    };
+    const material = new MeshBasicNodeMaterial();
+    const own = ownColorNode();
+    material.colorNode = own;
     const first = new LightShined(makeWorld().world);
     const firstRoot = new Object3D();
     firstRoot.add(new Mesh(new BoxGeometry(), material));
     first.add(firstRoot);
+    const firstLit = material.colorNode;
     first.dispose();
 
     const second = new LightShined(makeWorld().world);
@@ -533,36 +508,44 @@ describe("LightShined across worlds", () => {
     secondRoot.add(new Mesh(new BoxGeometry(), material));
     second.add(secondRoot);
 
-    const shader = compile(material);
-    expect(calls).toEqual(["own"]);
-    expect(shader.uniforms.lightEffect).toBe(
-      (secondRoot.userData.lightUniforms as { value: Color }[])[0],
-    );
-    expect(shader.fragmentShader.match(/uniform vec3 lightEffect/g)).toHaveLength(
-      1,
-    );
+    expect(secondRoot.userData.lightUniforms).toHaveLength(1);
+    expect(entityLightOriginalOf(material)?.colorNode).toBe(own);
+    expect(material.colorNode).not.toBe(firstLit);
   });
 
   it("still skips a material another system lights itself", () => {
-    const material = new MeshBasicMaterial();
+    // The first-person arm lights its held items' copies itself.
+    const material = new MeshBasicNodeMaterial();
+    material.userData.heldObjectLighting = true;
+    const shined = new LightShined(makeWorld().world);
+    const root = new Object3D();
+    root.add(new Mesh(new BoxGeometry(), material));
+    shined.add(root);
+    expect(root.userData.lightUniforms).toBeUndefined();
+    expect(isLit(material)).toBe(false);
+  });
+
+  it("skips a material that builds in its own voxel light", () => {
+    const material = new MeshBasicNodeMaterial();
     material.userData.lightEffectSetup = true;
     const shined = new LightShined(makeWorld().world);
     const root = new Object3D();
     root.add(new Mesh(new BoxGeometry(), material));
     shined.add(root);
     expect(root.userData.lightUniforms).toBeUndefined();
+    expect(isLit(material)).toBe(false);
   });
 
   it("lets go of every shined object on dispose", () => {
     const shined = new LightShined(makeWorld().world);
     const root = new Object3D();
-    const mesh = new Mesh(new BoxGeometry(), new MeshBasicMaterial());
+    const mesh = new Mesh(new BoxGeometry(), new MeshBasicNodeMaterial());
     root.add(mesh);
     shined.add(root);
     shined.dispose();
     // No longer hooked: a child added later is not set up.
-    const late = new Mesh(new BoxGeometry(), new MeshBasicMaterial());
+    const late = new Mesh(new BoxGeometry(), new MeshBasicNodeMaterial());
     root.add(late);
-    expect(late.material.userData.lightEffectSetup).toBeUndefined();
+    expect(isLit(late.material)).toBe(false);
   });
 });

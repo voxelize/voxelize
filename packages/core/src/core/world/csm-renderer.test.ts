@@ -5,16 +5,15 @@ import {
   Material,
   Matrix4,
   Mesh,
-  MeshBasicMaterial,
-  MeshDepthMaterial,
+  MeshBasicNodeMaterial,
+  NodeMaterial,
   Object3D,
   PerspectiveCamera,
+  RenderTarget,
   Scene,
-  ShaderMaterial,
   Vector3,
-  WebGLRenderer,
-  WebGLRenderTarget,
-} from "three";
+  WebGPURenderer,
+} from "three/webgpu";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { CSMRenderer } from "./csm-renderer";
@@ -26,7 +25,7 @@ import {
 
 const SUN = new Vector3(-0.4, -1, 0.3).normalize();
 
-type DrawCounter = { count: number; renderer: WebGLRenderer };
+type DrawCounter = { count: number; renderer: WebGPURenderer };
 
 const makeRenderer = (): DrawCounter => {
   const counter = { count: 0 };
@@ -41,7 +40,7 @@ const makeRenderer = (): DrawCounter => {
     get count() {
       return counter.count;
     },
-    renderer: stub as Partial<WebGLRenderer> as WebGLRenderer,
+    renderer: stub as Partial<WebGPURenderer> as WebGPURenderer,
   } as DrawCounter & { readonly count: number };
 };
 
@@ -302,16 +301,16 @@ describe("CSMRenderer light tracking", () => {
 });
 
 type DrawnMesh = { object: Object3D; material: Material };
-type RenderCall = { target: WebGLRenderTarget | null; drawn: DrawnMesh[] };
+type RenderCall = { target: RenderTarget | null; drawn: DrawnMesh[] };
 
 // A renderer stub that resolves each render call the way three does: walk
 // the visible graph from the rendered root and, for a Scene root, replace
 // every overridable material with the scene's override material.
 const makeRecordingRenderer = () => {
-  let target: WebGLRenderTarget | null = null;
+  let target: RenderTarget | null = null;
   const calls: RenderCall[] = [];
   const stub = {
-    setRenderTarget: (next: WebGLRenderTarget | null) => {
+    setRenderTarget: (next: RenderTarget | null) => {
       target = next;
     },
     clear: () => undefined,
@@ -336,25 +335,25 @@ const makeRecordingRenderer = () => {
     },
   };
   return {
-    renderer: stub as Partial<WebGLRenderer> as WebGLRenderer,
+    renderer: stub as Partial<WebGPURenderer> as WebGPURenderer,
     calls,
   };
 };
 
 const makeCasterScene = () => {
   const scene = new Scene();
-  const terrain = new Mesh(new BoxGeometry(), new MeshBasicMaterial());
+  const terrain = new Mesh(new BoxGeometry(), new MeshBasicNodeMaterial());
   scene.add(terrain);
 
   const entities = new Group();
   scene.add(entities);
   const nearEntity = new Group();
   nearEntity.position.set(2, 40, 1);
-  const nearBody = new Mesh(new BoxGeometry(), new MeshBasicMaterial());
+  const nearBody = new Mesh(new BoxGeometry(), new MeshBasicNodeMaterial());
   nearEntity.add(nearBody);
   const farEntity = new Group();
   farEntity.position.set(45, 40, 0);
-  const farBody = new Mesh(new BoxGeometry(), new MeshBasicMaterial());
+  const farBody = new Mesh(new BoxGeometry(), new MeshBasicNodeMaterial());
   farEntity.add(farBody);
   entities.add(nearEntity, farEntity);
 
@@ -364,18 +363,18 @@ const makeCasterScene = () => {
   poolRoot.add(pool);
   const creatures = new InstancedMesh(
     new BoxGeometry(),
-    new MeshBasicMaterial(),
+    new MeshBasicNodeMaterial(),
     4,
   );
   creatures.count = 1;
   creatures.setMatrixAt(0, new Matrix4().makeTranslation(3, 40, -2));
-  const skinnedDepth = new ShaderMaterial();
+  const skinnedDepth = new NodeMaterial();
   creatures.customDepthMaterial = skinnedDepth;
   pool.add(creatures);
 
   const rain = new Mesh(
     new BoxGeometry(),
-    new MeshBasicMaterial({ transparent: true, depthWrite: false }),
+    new MeshBasicNodeMaterial({ transparent: true, depthWrite: false }),
   );
   scene.add(rain);
 
@@ -406,7 +405,7 @@ const cascadeCalls = (csm: CSMRenderer, calls: RenderCall[], cascade: number) =>
 const renderShadowFrame = (
   csm: CSMRenderer,
   fixture: ReturnType<typeof makeCasterScene>,
-  renderer: WebGLRenderer,
+  renderer: WebGPURenderer,
 ) => {
   const position = new Vector3(0, 40, 0);
   const camera = makeCamera(position, new Vector3(10, 40, 0));
@@ -473,7 +472,7 @@ describe("CSMRenderer dynamic casters", () => {
       expect(drawsOf(calls, fixture.terrain)).toHaveLength(1);
       const near = drawsOf(calls, fixture.nearBody);
       expect(near).toHaveLength(1);
-      expect(near[0].material).toBeInstanceOf(MeshDepthMaterial);
+      expect(near[0].material).toBe(csm.casterDepthMaterial);
       const creatures = drawsOf(calls, fixture.creatures);
       expect(creatures).toHaveLength(1);
       expect(creatures[0].material).toBe(fixture.skinnedDepth);
@@ -486,7 +485,7 @@ describe("CSMRenderer dynamic casters", () => {
 
     expect(moves).toBe(0);
     expect(fixture.nearEntity.parent).toBe(fixture.entities);
-    expect(fixture.creatures.material).toBeInstanceOf(MeshBasicMaterial);
+    expect(fixture.creatures.material).toBeInstanceOf(MeshBasicNodeMaterial);
     expect(fixture.skinnedDepth.allowOverride).toBe(true);
     expect(fixture.poolRoot.visible).toBe(true);
     expect(fixture.pool.visible).toBe(true);
@@ -519,39 +518,16 @@ describe("CSMRenderer dynamic casters", () => {
     }
     expect(drawsOf(recording.calls, fixture.creatures)).toHaveLength(0);
   });
-
-  it("keeps the old double draw behind the A/B switch", () => {
-    const csm = new CSMRenderer({ entityShadowFrameInterval: 1 });
-    csm.setSingleCasterPass(false);
-    csm.setNonCasterExclusion(false);
-    const fixture = makeCasterScene();
-    csm.addShadowExclusion(fixture.poolRoot);
-    const recording = makeRecordingRenderer();
-
-    renderShadowFrame(csm, fixture, recording.renderer);
-
-    const calls = cascadeCalls(csm, recording.calls, 0);
-    expect(drawsOf(calls, fixture.nearBody)).toHaveLength(2);
-    const creatureMaterials = drawsOf(calls, fixture.creatures).map(
-      (d) => d.material,
-    );
-    expect(creatureMaterials).toHaveLength(2);
-    expect(creatureMaterials[0]).toBeInstanceOf(MeshDepthMaterial);
-    expect(creatureMaterials[1]).toBe(fixture.skinnedDepth);
-    expect(drawsOf(calls, fixture.rain)).toHaveLength(1);
-    expect(fixture.nearEntity.parent).toBe(fixture.entities);
-  });
 });
 
 describe("CSMRenderer never-casters", () => {
-  it("hides a never-caster from every depth pass, even with the exclusion switch off", () => {
-    for (const isExcluding of [true, false]) {
+  it("hides a never-caster from every depth pass", () => {
+    {
       const csm = new CSMRenderer({ entityShadowFrameInterval: 1 });
-      csm.setNonCasterExclusion(isExcluding);
       const scene = new Scene();
-      const ground = new Mesh(new BoxGeometry(), new MeshBasicMaterial());
+      const ground = new Mesh(new BoxGeometry(), new MeshBasicNodeMaterial());
       const farLayer = new Group();
-      const farTile = new Mesh(new BoxGeometry(), new MeshBasicMaterial());
+      const farTile = new Mesh(new BoxGeometry(), new MeshBasicNodeMaterial());
       farLayer.add(farTile);
       scene.add(ground, farLayer);
       csm.addNeverCaster(farLayer);
@@ -563,7 +539,7 @@ describe("CSMRenderer never-casters", () => {
         render: () => {
           seen.push(farLayer.visible);
         },
-      } as Partial<WebGLRenderer> as WebGLRenderer;
+      } as Partial<WebGPURenderer> as WebGPURenderer;
       const position = new Vector3(0, 40, 0);
       const camera = makeCamera(position, new Vector3(10, 40, 0));
       csm.update(camera, SUN, position);
@@ -584,11 +560,11 @@ describe("CSMRenderer never-casters", () => {
   it("keeps never-casters out of a pass the host never bracketed", () => {
     const csm = new CSMRenderer({ entityShadowFrameInterval: 1 });
     const scene = new Scene();
-    const ground = new Mesh(new BoxGeometry(), new MeshBasicMaterial());
+    const ground = new Mesh(new BoxGeometry(), new MeshBasicNodeMaterial());
     const farLayer = new Group();
-    farLayer.add(new Mesh(new BoxGeometry(), new MeshBasicMaterial()));
+    farLayer.add(new Mesh(new BoxGeometry(), new MeshBasicNodeMaterial()));
     const deck = new Group();
-    deck.add(new Mesh(new BoxGeometry(), new MeshBasicMaterial()));
+    deck.add(new Mesh(new BoxGeometry(), new MeshBasicNodeMaterial()));
     markNeverCaster(deck);
     scene.add(ground, farLayer, deck);
     csm.addNeverCaster(farLayer);
@@ -604,7 +580,7 @@ describe("CSMRenderer never-casters", () => {
           ground: ground.visible,
         });
       },
-    } as Partial<WebGLRenderer> as WebGLRenderer;
+    } as Partial<WebGPURenderer> as WebGPURenderer;
     const position = new Vector3(0, 40, 0);
     const camera = makeCamera(position, new Vector3(10, 40, 0));
     csm.update(camera, SUN, position);
@@ -620,17 +596,17 @@ describe("isNonCasterEffect", () => {
   it("flags transparent, depth-less effects only", () => {
     const effect = new Mesh(
       new BoxGeometry(),
-      new MeshBasicMaterial({ transparent: true, depthWrite: false }),
+      new MeshBasicNodeMaterial({ transparent: true, depthWrite: false }),
     );
-    const solid = new Mesh(new BoxGeometry(), new MeshBasicMaterial());
+    const solid = new Mesh(new BoxGeometry(), new MeshBasicNodeMaterial());
     const optedIn = new Mesh(
       new BoxGeometry(),
-      new MeshBasicMaterial({ transparent: true, depthWrite: false }),
+      new MeshBasicNodeMaterial({ transparent: true, depthWrite: false }),
     );
     (optedIn.material as Material).userData.castsShadow = true;
     const mixed = new Mesh(new BoxGeometry(), [
-      new MeshBasicMaterial({ transparent: true, depthWrite: false }),
-      new MeshBasicMaterial(),
+      new MeshBasicNodeMaterial({ transparent: true, depthWrite: false }),
+      new MeshBasicNodeMaterial(),
     ]);
 
     expect(isNonCasterEffect(effect)).toBe(true);
@@ -647,15 +623,15 @@ describe("BorrowedCasterScene", () => {
     const parent = new Group();
     parent.position.set(10, 0, 0);
     world.add(parent);
-    const body = new Mesh(new BoxGeometry(), new MeshBasicMaterial());
+    const body = new Mesh(new BoxGeometry(), new MeshBasicNodeMaterial());
     parent.add(body);
-    const posed = new Mesh(new BoxGeometry(), new ShaderMaterial());
+    const posed = new Mesh(new BoxGeometry(), new NodeMaterial());
     posed.material.allowOverride = false;
     world.add(posed);
 
     const { renderer, calls } = makeRecordingRenderer();
     const batch = new BorrowedCasterScene();
-    const override = new MeshDepthMaterial();
+    const override = new NodeMaterial();
     const listened: string[] = [];
     parent.addEventListener("childremoved", () => listened.push("removed"));
     batch.render(renderer, new PerspectiveCamera(), [body, posed], override);
@@ -669,6 +645,24 @@ describe("BorrowedCasterScene", () => {
     expect(listened).toEqual([]);
     expect(batch.scene.children).toEqual([]);
     expect(batch.scene.overrideMaterial).toBeNull();
+  });
+
+  // three's pmndrs-era renderer ran with autoClear off for good; ours keeps
+  // three's default (on), and a render that clears would leave a near
+  // cascade holding the borrowed casters alone, without the static world
+  // the scene pass drew before them.
+  it("draws into the target as it is, never clearing it", () => {
+    const seen: boolean[] = [];
+    const renderer = {
+      autoClear: true,
+      render() {
+        seen.push(this.autoClear);
+      },
+    } as unknown as WebGPURenderer;
+    const caster = new Mesh(new BoxGeometry(), new MeshBasicNodeMaterial());
+    new BorrowedCasterScene().render(renderer, new PerspectiveCamera(), [caster], null);
+    expect(seen).toEqual([false]);
+    expect(renderer.autoClear).toBe(true);
   });
 
   it("refreshes world matrices from the real parent only when asked", () => {

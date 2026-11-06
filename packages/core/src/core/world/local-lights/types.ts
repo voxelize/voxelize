@@ -108,15 +108,6 @@ export interface LocalLightsOptions {
   maxSectionScansPerFrame: number;
   /** Multiplier a light's score gets while selected, against churn. */
   selectionHysteresis: number;
-  /**
-   * Temporal stability of the clustered layer (default on): cells keep the
-   * lights that matter most to them rather than the ones nearest the
-   * camera, every change of a cell's lights fades over `slotFadeMs`, the
-   * window rim fades continuously, and invalidated shadow faces keep
-   * sampling their last map until the re-render lands. Off is the legacy
-   * frame, kept only for A/B captures.
-   */
-  temporalStability: boolean;
   /** How long a light takes to fade into or out of a cell, in ms. */
   slotFadeMs: number;
   /** How long a light's shadow takes to fade in or out, in ms. */
@@ -189,7 +180,6 @@ export const defaultLocalLightsOptions: LocalLightsOptions = {
   gridDims: [24, 12, 24],
   maxSectionScansPerFrame: 16,
   selectionHysteresis: 1.2,
-  temporalStability: true,
   slotFadeMs: 320,
   shadowFadeMs: 320,
   fadingRowReserve: 32,

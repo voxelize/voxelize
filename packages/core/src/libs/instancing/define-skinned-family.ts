@@ -1,4 +1,4 @@
-import * as THREE from "three";
+import * as THREE from "three/webgpu";
 
 import type { Entities } from "../../core/entities";
 import { StrideGait, strideGaitParamsForScale } from "../motion/stride-gait";

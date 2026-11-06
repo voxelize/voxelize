@@ -1,4 +1,4 @@
-import { Color } from "three";
+import { Color } from "three/webgpu";
 import { describe, expect, it } from "vitest";
 
 import {

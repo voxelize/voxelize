@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { afterEach, beforeEach, describe, it, vi } from "vitest";
 
-import { Vector3 } from "three";
+import { Vector3 } from "three/webgpu";
 
 import {
   capCadenceHz,

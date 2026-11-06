@@ -519,6 +519,12 @@ export class Agent {
           ? ["--no-sandbox", "--disable-setuid-sandbox"]
           : []),
         "--disable-dev-shm-usage",
+        // The game draws with WebGPU; WebGL 2 is the renderer's fallback
+        // where no adapter comes up (a GPU-less cloud VM).
+        "--enable-unsafe-webgpu",
+        ...(process.platform === "linux"
+          ? ["--enable-features=Vulkan", "--use-angle=vulkan"]
+          : []),
         "--enable-webgl",
         "--ignore-gpu-blocklist",
         // ERROR and FATAL only. Chromium's INFO level mirrors every console

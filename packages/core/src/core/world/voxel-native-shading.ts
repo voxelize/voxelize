@@ -1,3 +1,7 @@
+import { clamp, floor, max, min } from "three/tsl";
+
+import type { FloatNode, Vec2Node, Vec3Node } from "./shading/types";
+
 /**
  * Shader helpers that keep procedural effects on the same grain as the
  * blocks around them: patterns that step in whole texels instead of sliding,
@@ -7,49 +11,47 @@
  * block; built on raw `sin` and `smoothstep` it reads as a render from a
  * different engine.
  *
- * GLSL, with a TypeScript mirror of each function for CPU-side effects (a
- * particle's stepped growth, a mesh's stepped scale) and for tests. The two
- * must agree: the tests pin the mirror, and the mirror pins the maths.
+ * TSL nodes (`*Node`), with a TypeScript twin of each for CPU-side effects
+ * (a particle's stepped growth, a mesh's stepped scale) and for tests. The
+ * two must agree: the tests pin the twin, and the twin pins the maths.
  */
-
-/** The include name {@link installVoxelNativeShaderChunk} registers. */
-export const VOXEL_NATIVE_CHUNK_NAME = "voxel_native";
 
 /**
- * - `snapToTexel(p, texelsPerUnit)`: the centre of the texel `p` falls in, on
- *   a grid of `texelsPerUnit` texels per world unit (16 is the block grain).
- *   Overloaded for float, vec2 and vec3.
- * - `band(x, steps)`: `x` clamped to 0..1 and quantised to `steps` flat
- *   levels, 0 and 1 included (`steps` 2 is a hard threshold at one half).
- * - `stepTime(t, framesPerSecond)`: a clock that holds each frame, for
- *   flip-book animation instead of continuous motion.
+ * The centre of the texel `p` falls in, on a grid of `texelsPerUnit` texels
+ * per world unit (16 is the block grain). Any float vector.
  */
-export const VOXEL_NATIVE_GLSL = /* glsl */ `
-float snapToTexel(float p, float texelsPerUnit) {
-  return (floor(p * texelsPerUnit) + 0.5) / texelsPerUnit;
+export function snapToTexelNode<T extends FloatNode | Vec2Node | Vec3Node>(
+  p: T,
+  texelsPerUnit: FloatNode | number,
+): T {
+  const v = p as unknown as Vec3Node;
+  return floor(v.mul(texelsPerUnit)).add(0.5).div(texelsPerUnit) as unknown as T;
 }
-vec2 snapToTexel(vec2 p, float texelsPerUnit) {
-  return (floor(p * texelsPerUnit) + 0.5) / texelsPerUnit;
-}
-vec3 snapToTexel(vec3 p, float texelsPerUnit) {
-  return (floor(p * texelsPerUnit) + 0.5) / texelsPerUnit;
-}
-float band(float x, float steps) {
-  float levels = max(steps, 1.0);
-  float level = min(floor(clamp(x, 0.0, 1.0) * levels), levels - 1.0);
-  return level / max(levels - 1.0, 1.0);
-}
-float stepTime(float t, float framesPerSecond) {
-  return floor(t * framesPerSecond) / framesPerSecond;
-}
-`;
 
-/** {@link VOXEL_NATIVE_GLSL}'s `snapToTexel`, for one axis. */
+/**
+ * `x` clamped to 0..1 and quantised to `steps` flat levels, 0 and 1
+ * included (`steps` 2 is a hard threshold at one half).
+ */
+export function bandNode(x: FloatNode, steps: FloatNode | number): FloatNode {
+  const levels = max(steps, 1);
+  const level = min(floor(clamp(x, 0, 1).mul(levels)), levels.sub(1));
+  return level.div(max(levels.sub(1), 1));
+}
+
+/** A clock that holds each frame, for flip-book animation. */
+export function stepTimeNode(
+  t: FloatNode,
+  framesPerSecond: FloatNode | number,
+): FloatNode {
+  return floor(t.mul(framesPerSecond)).div(framesPerSecond);
+}
+
+/** {@link snapToTexelNode}, for one axis. */
 export function snapToTexel(p: number, texelsPerUnit: number): number {
   return (Math.floor(p * texelsPerUnit) + 0.5) / texelsPerUnit;
 }
 
-/** {@link VOXEL_NATIVE_GLSL}'s `band`. */
+/** {@link bandNode}'s twin. */
 export function band(x: number, steps: number): number {
   const levels = Math.max(steps, 1);
   const clamped = Math.min(Math.max(x, 0), 1);
@@ -57,7 +59,7 @@ export function band(x: number, steps: number): number {
   return level / Math.max(levels - 1, 1);
 }
 
-/** {@link VOXEL_NATIVE_GLSL}'s `stepTime`. */
+/** {@link stepTimeNode}'s twin. */
 export function stepTime(t: number, framesPerSecond: number): number {
   return Math.floor(t * framesPerSecond) / framesPerSecond;
 }
@@ -72,15 +74,4 @@ export function snapLengthToTexels(
   texelsPerUnit: number,
 ): number {
   return Math.max(1, Math.round(length * texelsPerUnit)) / texelsPerUnit;
-}
-
-/** The slice of three's `ShaderChunk` table the installer writes to. */
-type ShaderChunkTable = Record<string, string>;
-
-/**
- * Registers {@link VOXEL_NATIVE_GLSL} as `#include <voxel_native>` in the
- * given chunk table (three's `ShaderChunk`). Idempotent.
- */
-export function installVoxelNativeShaderChunk(chunks: ShaderChunkTable) {
-  chunks[VOXEL_NATIVE_CHUNK_NAME] = VOXEL_NATIVE_GLSL;
 }

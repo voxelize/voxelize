@@ -4,7 +4,7 @@ import {
   EntityProtocol,
   MessageProtocol,
 } from "@voxelize/protocol";
-import { Group, Vector3 } from "three";
+import { type Camera, Frustum, Group, Matrix4, Sphere, Vector3 } from "three/webgpu";
 
 import { EntityLivenessTracker } from "./entity-liveness";
 import { NetIntercept } from "./network";
@@ -113,6 +113,30 @@ export class Entity<T = any> extends Group {
     this.entId = id;
   }
 
+  /**
+   * The scene walk's matrix update, skipped while nothing under the entity
+   * draws: an instanced creature draws from its pool, and its group holds
+   * only a hidden nametag. Hundreds of them were half the walk's objects,
+   * rebuilt every frame for nothing. A child shown again is placed on the
+   * next walk; `getWorldPosition` and `updateWorldMatrix` compute as ever.
+   */
+  override updateMatrixWorld(force?: boolean): void {
+    if (!this.hasDrawnChild()) {
+      // A parent that moved would have forced this; catch up when shown.
+      if (force) this.matrixWorldNeedsUpdate = true;
+      return;
+    }
+    super.updateMatrixWorld(force);
+  }
+
+  private hasDrawnChild(): boolean {
+    const children = this.children;
+    for (let i = 0; i < children.length; i++) {
+      if (children[i].visible) return true;
+    }
+    return false;
+  }
+
   onCreate: (data: T) => void;
 
   onUpdate: (data: T) => void;
@@ -134,7 +158,29 @@ export class Entity<T = any> extends Group {
   setHidden?: (hidden: boolean) => void;
 
   snapToTarget?: () => void;
+
+  /**
+   * This entity's own {@link EntitiesOptions.offscreenUpdateInterval}
+   * (1: every frame, wherever it is). Unset, it takes the option.
+   */
+  offscreenUpdateInterval?: number;
+
+  /**
+   * Blocks around `position` that bound what the entity draws, for the
+   * off-screen test. Unset, {@link OFFSCREEN_DEFAULT_RADIUS}.
+   */
+  offscreenRadius?: number;
 }
+
+/** {@link Entity.offscreenRadius} when an entity names none. */
+export const OFFSCREEN_DEFAULT_RADIUS = 2;
+/**
+ * Blocks past an entity's radius that still count as on screen: its
+ * shadow, a limb swung out, and the frames before the view turns to it.
+ */
+const OFFSCREEN_MARGIN = 4;
+/** Within this many blocks of the camera an entity updates every frame. */
+const OFFSCREEN_NEAR_DISTANCE = 16;
 
 export type EntitiesOptions = {
   /**
@@ -158,12 +204,24 @@ export type EntitiesOptions = {
    * every creature that ever streamed past the player.
    */
   releasedTickRetentionSeconds: number;
+
+  /**
+   * Frames between updates of an entity outside the camera's view and
+   * farther than a few blocks from it, staggered across entities (1: every
+   * entity every frame). An entity whose motion and pose follow the clock
+   * (damping and springs by elapsed time, poses from the shader clock)
+   * only coarsens what nobody sees. A herd posed every frame behind the
+   * player was most of a crowded frame. Needs the camera passed to
+   * {@link Entities.update}.
+   */
+  offscreenUpdateInterval: number;
 };
 
 const defaultOptions: EntitiesOptions = {
   stalenessTimeoutSeconds: 10,
   streamSilenceGraceSeconds: 3,
   releasedTickRetentionSeconds: 30,
+  offscreenUpdateInterval: 1,
 };
 
 /**
@@ -514,7 +572,42 @@ export class Entities extends Group implements NetIntercept {
    */
   getEntityById = (id: string) => this.map.get(id);
 
-  update = (cameraPos?: Vector3, renderDistance?: number) => {
+  /** Scratch for the off-screen test, and each entity's stagger. */
+  private readonly view = {
+    frustum: new Frustum(),
+    matrix: new Matrix4(),
+    sphere: new Sphere(),
+    frame: 0,
+    phases: new WeakMap<Entity, number>(),
+    nextPhase: 0,
+  };
+
+  /**
+   * Whether `entity` sits out this frame: off screen, away from the camera,
+   * and not on its turn of {@link EntitiesOptions.offscreenUpdateInterval}.
+   */
+  private skipsOffscreen(entity: Entity, cameraPos: Vector3): boolean {
+    const interval =
+      entity.offscreenUpdateInterval ?? this.options.offscreenUpdateInterval;
+    if (interval <= 1) return false;
+    const view = this.view;
+    let phase = view.phases.get(entity);
+    if (phase === undefined) {
+      phase = view.nextPhase++;
+      view.phases.set(entity, phase);
+    }
+    if ((view.frame + phase) % interval === 0) return false;
+    const near = OFFSCREEN_NEAR_DISTANCE;
+    if (entity.position.distanceToSquared(cameraPos) < near * near) {
+      return false;
+    }
+    view.sphere.center.copy(entity.position);
+    view.sphere.radius =
+      (entity.offscreenRadius ?? OFFSCREEN_DEFAULT_RADIUS) + OFFSCREEN_MARGIN;
+    return !view.frustum.intersectsSphere(view.sphere);
+  }
+
+  update = (cameraPos?: Vector3, renderDistance?: number, camera?: Camera) => {
     const nowSeconds = performance.now() / 1000;
     for (const id of this.liveness.collectStale(nowSeconds)) {
       const object = this.map.get(id);
@@ -528,6 +621,21 @@ export class Entities extends Group implements NetIntercept {
 
     const renderDistSq =
       cameraPos && renderDistance ? renderDistance * renderDistance : 0;
+
+    const view = this.view;
+    view.frame += 1;
+    const isViewKnown = camera !== undefined && cameraPos !== undefined;
+    if (isViewKnown) {
+      view.matrix.multiplyMatrices(
+        camera.projectionMatrix,
+        camera.matrixWorldInverse,
+      );
+      view.frustum.setFromProjectionMatrix(
+        view.matrix,
+        camera.coordinateSystem,
+        camera.reversedDepth,
+      );
+    }
 
     this.map.forEach((entity) => {
       if (renderDistSq > 0 && cameraPos && entity.setHidden) {
@@ -553,6 +661,7 @@ export class Entities extends Group implements NetIntercept {
         return;
       }
 
+      if (isViewKnown && this.skipsOffscreen(entity, cameraPos)) return;
       entity.update?.();
     });
   };

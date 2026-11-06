@@ -1,4 +1,4 @@
-import { NearestFilter, NearestMipmapNearestFilter } from "three";
+import { NearestFilter, NearestMipmapNearestFilter } from "three/webgpu";
 import { describe, expect, it } from "vitest";
 
 import { resolveAtlasFiltering } from "./textures";

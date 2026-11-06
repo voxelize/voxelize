@@ -1,4 +1,4 @@
-import type { Material } from "three";
+import type { Material } from "three/webgpu";
 
 /**
  * Makes every draw of `display` also count as a draw of `source`: the

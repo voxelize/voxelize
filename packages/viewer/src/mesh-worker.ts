@@ -10,6 +10,7 @@
  */
 import { biomeTintAttribute } from "../../core/src/core/world/biome-tint";
 import { computeNormalsFromBuffers } from "../../core/src/core/world/chunk-normals";
+import { padByteVectors } from "../../core/src/core/world/vertex-layout";
 import { computeQuadLightTwist } from "../../core/src/core/world/quad-light";
 import {
   quantizeNormals,
@@ -153,7 +154,8 @@ function merge(
     uvs: isQuantized ? quantizeUvs(uvs) : uvs,
     lights,
     indices,
-    normals: isQuantized ? quantizeNormals(normals) : normals,
+    // Byte normals four-wide, as the engine's chunk geometry (vertex-layout).
+    normals: isQuantized ? padByteVectors(quantizeNormals(normals)) : normals,
     lightTwist,
     biomeTint,
     minY,

@@ -3,24 +3,22 @@ import {
   Color,
   Matrix4,
   Mesh,
-  MeshBasicMaterial,
+  MeshBasicNodeMaterial,
   Object3D,
   Quaternion,
-  ShaderLib,
-  UniformsUtils,
   Vector3,
   Vector4,
-} from "three";
+} from "three/webgpu";
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 
 import type { World } from "../core";
 import {
-  createEntityShadowUniforms,
-  ENTITY_SHADOW_FRAGMENT_PARS,
-  ENTITY_SHADOW_VERTEX_MAIN,
-  ShaderLightingUniforms,
+  createEntityShadowBody,
+  type EntityShadowBody,
 } from "../core/world/entity-shadow-uniforms";
-import { LightCones } from "../core/world/light-cones";
+import { isLightConesCovered, LightCones } from "../core/world/light-cones";
+import { applyEntityLight } from "../core/world/shading/entity-light";
+import { ownUniform } from "../core/world/shading/uniforms";
 
 import { Arm } from "./arm";
 import { CanvasBox } from "./canvas-box";
@@ -36,40 +34,9 @@ afterAll(() => {
   vi.unstubAllGlobals();
 });
 
-/** The shader three would compile for `material`, after its hook. */
-function compiled(material: MeshBasicMaterial) {
-  const shader = {
-    uniforms: UniformsUtils.clone(ShaderLib.basic.uniforms),
-    vertexShader: ShaderLib.basic.vertexShader,
-    fragmentShader: ShaderLib.basic.fragmentShader,
-  };
-  material.onBeforeCompile(
-    shader as Parameters<MeshBasicMaterial["onBeforeCompile"]>[0],
-    undefined as unknown as Parameters<MeshBasicMaterial["onBeforeCompile"]>[1],
-  );
-  return shader;
-}
-
-/** Just the slice of the world's lighting the arm copies. */
-function lighting(): ShaderLightingUniforms {
-  const u = createEntityShadowUniforms();
-  return {
-    shadowMap0: u.uShadowMap0,
-    shadowMap1: u.uShadowMap1,
-    shadowMap2: u.uShadowMap2,
-    shadowMatrix0: u.uShadowMatrix0,
-    shadowMatrix1: u.uShadowMatrix1,
-    shadowMatrix2: u.uShadowMatrix2,
-    cascadeSplit0: u.uCascadeSplit0,
-    cascadeSplit1: u.uCascadeSplit1,
-    cascadeSplit2: u.uCascadeSplit2,
-    shadowBias: u.uShadowBias,
-    shadowStrength: u.uShadowStrength,
-    sunlightIntensity: u.uSunlightIntensity,
-    sunDirection: u.uSunDirection,
-    sunColor: u.uSunColor,
-  } as unknown as ShaderLightingUniforms;
-}
+/** Whether `material` is the arm's set-up copy: the held shadow composed. */
+const isHeldSetUp = (material: MeshBasicNodeMaterial) =>
+  material.userData.heldObjectLighting === true && material.outputNode !== null;
 
 /** Just enough world for the light effect to sample a plain sunlit spot. */
 function stubWorld(): World {
@@ -101,14 +68,19 @@ function stubWorld(): World {
   } as unknown as World;
 }
 
-const armUniforms = (arm: Arm) => {
+/** The body the arm's own box is shaded as, checked on its materials too. */
+const armBody = (arm: Arm): EntityShadowBody => {
   let box: CanvasBox | null = null;
   arm.traverse((child) => {
     if (child instanceof CanvasBox) box = child;
   });
-  const uniforms = (box as CanvasBox | null)?.shadowUniforms;
-  if (!uniforms) throw new Error("no shadowed arm box");
-  return uniforms;
+  const found = box as CanvasBox | null;
+  const body = found?.shadowBody;
+  if (!found || !body) throw new Error("no shadowed arm box");
+  for (const material of found.boxLayers[0].materials.values()) {
+    expect(material.userData.shadowBody).toBe(body);
+  }
+  return body;
 };
 
 describe("first-person arm shadows", () => {
@@ -120,20 +92,21 @@ describe("first-person arm shadows", () => {
     const eye = new Vector3(10, 70.6, -4);
     const look = new Quaternion().setFromAxisAngle(new Vector3(0, 1, 0), 1.1);
     const viewToWorld = new Matrix4().compose(eye, look, new Vector3(1, 1, 1));
-    arm.updateShadowUniforms(lighting(), viewToWorld);
+    arm.updateShadowBody(viewToWorld);
 
-    const uniforms = armUniforms(arm);
-    expect(uniforms.uShadowSelfBounds.value).toBe(body);
-    expect(uniforms.uShadowIgnoresSelf.value).toBe(1);
-    expect(uniforms.uMinOccluderDepth.value).toBe(0);
-    expect(uniforms.uWorldOffset.value.length()).toBe(0);
+    const shadow = armBody(arm);
+    expect(shadow).toBe(arm.shadowBody);
+    expect(shadow.selfBounds).toBe(body);
+    expect(shadow.ignoresSelf).toBe(1);
+    expect(shadow.minOccluderDepth).toBe(0);
+    expect(shadow.worldOffset.length()).toBe(0);
 
     // A point drawn two blocks down and forward lands one block from the
     // eye, turned with the look, inside the body it belongs to.
     const drawn = new Vector3(0.8, -2, -1.6);
     const placed = drawn
       .clone()
-      .applyMatrix4(uniforms.uShadowWorldMatrix.value);
+      .applyMatrix4(shadow.worldMatrix);
     const expected = drawn
       .clone()
       .multiplyScalar(0.5)
@@ -147,12 +120,12 @@ describe("first-person arm shadows", () => {
 
   it("keeps the old unrotated offset for a caller that passes a vector", () => {
     const arm = new Arm({ receiveShadows: true, minOccluderDepth: 0.04 });
-    arm.updateShadowUniforms(lighting(), new Vector3(1, 2, 3));
-    const uniforms = armUniforms(arm);
-    expect(uniforms.uShadowIgnoresSelf.value).toBe(0);
-    expect(uniforms.uShadowWorldMatrix.value.equals(new Matrix4())).toBe(true);
-    expect(uniforms.uWorldOffset.value.toArray()).toEqual([1, 2, 3]);
-    expect(uniforms.uMinOccluderDepth.value).toBe(0.04);
+    arm.updateShadowBody(new Vector3(1, 2, 3));
+    const shadow = armBody(arm);
+    expect(shadow.ignoresSelf).toBe(0);
+    expect(shadow.worldMatrix.equals(new Matrix4())).toBe(true);
+    expect(shadow.worldOffset.toArray()).toEqual([1, 2, 3]);
+    expect(shadow.minOccluderDepth).toBe(0.04);
   });
 
   it("shades a held block like the arm, once, and through the shared lookup", () => {
@@ -160,32 +133,37 @@ describe("first-person arm shadows", () => {
       receiveShadows: true,
       receiveHeldObjectShadows: true,
     });
-    const block = new Mesh(new BoxGeometry(), new MeshBasicMaterial());
+    const block = new Mesh(new BoxGeometry(), new MeshBasicNodeMaterial());
     arm.setArmObject(block, false);
-    const material = block.material as MeshBasicMaterial;
+    const material = block.material as MeshBasicNodeMaterial;
 
-    const { vertexShader, fragmentShader, uniforms } = compiled(material);
-    expect(vertexShader).toContain(ENTITY_SHADOW_VERTEX_MAIN);
-    expect(vertexShader).toContain(
-      "mat3(uShadowWorldMatrix) * mat3(modelMatrix) * normal",
-    );
-    expect(fragmentShader).toMatch(
-      /getEntityShadowAt\(\s*normalize\(vHeldShadowNormal\),\s*vHeldShadowPosition\s*\)/,
-    );
-    expect(fragmentShader).not.toContain("getEntityShadow(vec3(");
+    expect(isHeldSetUp(material)).toBe(true);
+    const composed = material.outputNode;
 
-    // Placed, the held object reads the same exclusion as the arm.
+    // Placed, the held object reads the same body, exclusion and all, as
+    // the arm.
+    expect(material.userData.shadowBody).toBe(arm.shadowBody);
     const body = new Vector4(0, 0, 0, 1.5);
     arm.setShadowSelfBounds(body);
-    arm.updateShadowUniforms(lighting(), new Matrix4());
-    expect(uniforms.uShadowSelfBounds.value).toBe(body);
-    expect(uniforms.uShadowIgnoresSelf.value).toBe(1);
+    arm.updateShadowBody(new Matrix4());
+    const shadow = material.userData.shadowBody as EntityShadowBody;
+    expect(shadow.selfBounds).toBe(body);
+    expect(shadow.ignoresSelf).toBe(1);
 
-    // Equipped again, the material keeps the one program it was given.
-    const hook = material.onBeforeCompile;
+    // Another held block, of its own material, is shaded as the same body.
+    const otherBlock = new Mesh(
+      new BoxGeometry(),
+      new MeshBasicNodeMaterial({ color: 0x336699 }),
+    );
+    arm.setArmObject(otherBlock, false);
+    const otherMaterial = otherBlock.material as MeshBasicNodeMaterial;
+    expect(otherMaterial).not.toBe(material);
+    expect(otherMaterial.userData.shadowBody).toBe(arm.shadowBody);
+
+    // Equipped again, the material keeps the one graph it was given.
     arm.setArmObject(block, false);
     expect(block.material).toBe(material);
-    expect(material.onBeforeCompile).toBe(hook);
+    expect(material.outputNode).toBe(composed);
   });
 
   it("never sets up a material it is handed, so every other copy keeps it", () => {
@@ -197,7 +175,7 @@ describe("first-person arm shadows", () => {
     // first person, all with the one material.
     const cached = new Mesh(
       new BoxGeometry(),
-      new MeshBasicMaterial({ vertexColors: true }),
+      new MeshBasicNodeMaterial({ vertexColors: true }),
     );
     const shared = cached.material;
     const elsewhere = cached.clone();
@@ -206,13 +184,11 @@ describe("first-person arm shadows", () => {
 
     expect(elsewhere.material).toBe(shared);
     expect(shared.userData.heldObjectLighting).toBeUndefined();
-    expect(
-      Object.prototype.hasOwnProperty.call(shared, "onBeforeCompile"),
-    ).toBe(false);
-    const own = held.material as MeshBasicMaterial;
+    expect(shared.outputNode).toBeNull();
+    const own = held.material as MeshBasicNodeMaterial;
     expect(own).not.toBe(shared);
     expect(own.vertexColors).toBe(true);
-    expect(compiled(own).fragmentShader).toContain("getEntityShadowAt(");
+    expect(isHeldSetUp(own)).toBe(true);
 
     // Every later clone from the cache shares the arm's one copy.
     const again = cached.clone();
@@ -234,22 +210,27 @@ describe("first-person arm shadows", () => {
       receiveShadows: true,
       receiveHeldObjectShadows: true,
     });
-    // What a light effect leaves: its flag and its wrapper. A clone of it
-    // carries the flag without the wrapper.
-    const wrapped = new MeshBasicMaterial();
-    wrapped.userData.lightEffectSetup = true;
-    wrapped.onBeforeCompile = (shader) => {
-      shader.fragmentShader = `uniform vec3 lightEffect;\n${shader.fragmentShader}`;
-    };
-    const flaggedClone = wrapped.clone();
-    flaggedClone.userData.heldObjectLighting = true;
+    // What a light effect leaves: the voxel light composed over the
+    // material's own nodes. And a material that carries only a stale
+    // held-lighting flag, without the graph that went with it.
+    const wrapped = new MeshBasicNodeMaterial();
+    applyEntityLight(
+      wrapped,
+      { value: new Color(1, 1, 1) },
+      new LightCones().uniforms,
+    );
+    expect(wrapped.colorNode).not.toBeNull();
+    const flagged = new MeshBasicNodeMaterial();
+    flagged.userData.heldObjectLighting = true;
 
-    for (const source of [wrapped, flaggedClone]) {
+    for (const source of [wrapped, flagged]) {
       const held = new Mesh(new BoxGeometry(), source);
       arm.setArmObject(held, false);
-      const { fragmentShader } = compiled(held.material as MeshBasicMaterial);
-      expect(fragmentShader).toContain("getEntityShadowAt(");
-      expect(fragmentShader).not.toContain("lightEffect");
+      const own = held.material as MeshBasicNodeMaterial;
+      expect(own).not.toBe(source);
+      expect(isHeldSetUp(own)).toBe(true);
+      // The copy starts from the material's own colour, not the effect's.
+      expect(own.colorNode).toBeNull();
     }
   });
 
@@ -258,22 +239,19 @@ describe("first-person arm shadows", () => {
       receiveShadows: true,
       receiveHeldObjectShadows: true,
     });
-    const tinted = new MeshBasicMaterial();
-    tinted.onBeforeCompile = (shader) => {
-      shader.fragmentShader = `// built-tint\n${shader.fragmentShader}`;
-    };
+    const tinted = new MeshBasicNodeMaterial();
+    const tint = ownUniform(new Color(0.2, 0.6, 1));
+    tinted.colorNode = tint as unknown as MeshBasicNodeMaterial["colorNode"];
     const held = new Mesh(new BoxGeometry(), tinted);
     arm.setArmObject(held, false);
-    const own = held.material as MeshBasicMaterial;
-    const { fragmentShader } = compiled(own);
-    expect(fragmentShader).toContain("// built-tint");
-    expect(fragmentShader).toContain("getEntityShadowAt(");
+    const own = held.material as MeshBasicNodeMaterial;
+    expect(own.colorNode).toBe(tinted.colorNode);
+    expect(isHeldSetUp(own)).toBe(true);
 
-    const plain = new Mesh(new BoxGeometry(), new MeshBasicMaterial());
+    const plain = new Mesh(new BoxGeometry(), new MeshBasicNodeMaterial());
     arm.setArmObject(plain, false);
-    expect(own.customProgramCacheKey()).not.toBe(
-      (plain.material as MeshBasicMaterial).customProgramCacheKey(),
-    );
+    expect(plain.material).not.toBe(own);
+    expect((plain.material as MeshBasicNodeMaterial).colorNode).toBeNull();
   });
 
   it("shades an item whose cached material a lit world copy shares", () => {
@@ -286,7 +264,7 @@ describe("first-person arm shadows", () => {
     shined.add(arm);
 
     // A peer holds the item first, so the light effect owns its material.
-    const cached = new Mesh(new BoxGeometry(), new MeshBasicMaterial());
+    const cached = new Mesh(new BoxGeometry(), new MeshBasicNodeMaterial());
     const shared = cached.material;
     const peerHand = new Object3D();
     new Object3D().add(peerHand);
@@ -298,13 +276,16 @@ describe("first-person arm shadows", () => {
     arm.setArmObject(held, false);
     shined.update();
 
-    const firstPerson = compiled(held.material as MeshBasicMaterial);
-    expect(firstPerson.fragmentShader).toContain("getEntityShadowAt(");
+    const firstPerson = held.material as MeshBasicNodeMaterial;
+    expect(firstPerson).not.toBe(shared);
+    expect(isHeldSetUp(firstPerson)).toBe(true);
+    // The world's light effect leaves the arm's copy alone.
+    expect(firstPerson.colorNode).toBeNull();
     const peerMesh = peerHand.children[0] as Mesh;
     expect(peerMesh.material).toBe(shared);
-    const thirdPerson = compiled(shared);
-    expect(thirdPerson.fragmentShader).toContain("lightEffect");
-    expect(thirdPerson.fragmentShader).not.toContain("getEntityShadowAt(");
+    expect(isLightConesCovered(shared)).toBe(true);
+    expect(shared.colorNode).not.toBeNull();
+    expect(shared.userData.heldObjectLighting).toBeUndefined();
 
     const again = cached.clone();
     arm.setArmObject(again, false);
@@ -314,18 +295,11 @@ describe("first-person arm shadows", () => {
 });
 
 describe("entity shadow self exclusion", () => {
-  it("lets nothing inside the bounds shade a viewmodel, on any face", () => {
-    expect(ENTITY_SHADOW_FRAGMENT_PARS).toContain(
-      "uniform float uShadowIgnoresSelf;",
-    );
-    expect(ENTITY_SHADOW_FRAGMENT_PARS).toMatch(
-      /uShadowIgnoresSelf > 0\.5\s*\?\s*\(selfDepth < 1e8 \? selfDepth : 0\.0\)\s*:\s*min\(slopeBias, selfDepth\)/,
-    );
-    expect(ENTITY_SHADOW_VERTEX_MAIN).toContain(
-      "(uShadowWorldMatrix * vec4(worldPosition.xyz, 1.0)).xyz + uWorldOffset",
-    );
-    const fresh = createEntityShadowUniforms();
-    expect(fresh.uShadowIgnoresSelf.value).toBe(0);
-    expect(fresh.uShadowWorldMatrix.value.equals(new Matrix4())).toBe(true);
+  it("is off, and unplaced, on a fresh body", () => {
+    const fresh = createEntityShadowBody();
+    expect(fresh.ignoresSelf).toBe(0);
+    expect(fresh.minOccluderDepth).toBe(0);
+    expect(fresh.worldMatrix.equals(new Matrix4())).toBe(true);
+    expect(fresh.worldOffset.length()).toBe(0);
   });
 });

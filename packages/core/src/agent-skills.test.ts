@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { existsSync, readdirSync, readFileSync } from "node:fs";
 import path from "node:path";
 
-import * as THREE from "three";
+import * as THREE from "three/webgpu";
 import { describe, it } from "vitest";
 
 import * as VOXELIZE from "./index";

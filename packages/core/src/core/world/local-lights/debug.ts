@@ -1,11 +1,10 @@
 import {
   Color,
-  DynamicDrawUsage,
   InstancedMesh,
   Matrix4,
-  MeshBasicMaterial,
+  MeshBasicNodeMaterial,
   SphereGeometry,
-} from "three";
+} from "three/webgpu";
 
 import { LightClusterGrid, MAX_CLUSTERED_LIGHTS } from "./clustering";
 import { LIGHT_FLAG_STATIC, LightSourceRegistry } from "./registry";
@@ -25,13 +24,13 @@ export class LocalLightsDebugOverlay {
   private readonly grid: LightClusterGrid;
   private readonly matrix = new Matrix4();
   private readonly geometry: SphereGeometry;
-  private readonly material: MeshBasicMaterial;
+  private readonly material: MeshBasicNodeMaterial;
 
   constructor(registry: LightSourceRegistry, grid: LightClusterGrid) {
     this.registry = registry;
     this.grid = grid;
     this.geometry = new SphereGeometry(1, 12, 8);
-    this.material = new MeshBasicMaterial({
+    this.material = new MeshBasicNodeMaterial({
       wireframe: true,
       transparent: true,
       opacity: 0.35,
@@ -43,7 +42,6 @@ export class LocalLightsDebugOverlay {
       this.material,
       MAX_CLUSTERED_LIGHTS,
     );
-    this.object.instanceMatrix.setUsage(DynamicDrawUsage);
     this.object.frustumCulled = false;
     this.object.count = 0;
   }

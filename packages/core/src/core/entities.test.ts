@@ -1,4 +1,5 @@
 import { EntityMotionProtocol, MessageProtocol } from "@voxelize/protocol";
+import { Group, PerspectiveCamera, Vector3 } from "three/webgpu";
 import { describe, expect, it, vi } from "vitest";
 
 import { Entities, Entity, ON_REQUEST_METADATA_METHOD } from "./entities";
@@ -690,6 +691,68 @@ describe("Entities server-frozen entities", () => {
     entities.update();
     expect(probe.frames).toBe(1);
     expect(probe.frozenFrames).toBe(2);
+  });
+});
+
+describe("Entities off-screen updates", () => {
+  class FrameProbe extends Entity<ProbeData> {
+    public frames = 0;
+    onCreate = () => {};
+    onUpdate = () => {};
+    onDelete = () => {};
+    update = () => {
+      this.frames += 1;
+    };
+  }
+
+  const place = (entities: Entities, id: string, z: number) => {
+    entities.onMessage(entityMessage("CREATE", id, { position: [0, 0, z] }));
+    const probe = entities.getEntityById(id) as unknown as FrameProbe;
+    probe.position.set(0, 0, z);
+    return probe;
+  };
+
+  it("updates what the camera sees or stands near every frame, the rest in turn", () => {
+    const entities = new Entities({ offscreenUpdateInterval: 4 });
+    entities.setClass("probe", FrameProbe);
+    // Looking down -z from the origin.
+    const camera = new PerspectiveCamera(70, 1, 0.1, 500);
+    camera.updateMatrixWorld();
+    const ahead = place(entities, "ahead", -40);
+    const behind = place(entities, "behind", 40);
+    const near = place(entities, "near", 6);
+    const pinned = place(entities, "pinned", 60);
+    pinned.offscreenUpdateInterval = 1;
+
+    const cameraPos = new Vector3();
+    for (let i = 0; i < 12; i++) entities.update(cameraPos, 1000, camera);
+
+    expect(ahead.frames).toBe(12);
+    expect(near.frames).toBe(12);
+    expect(pinned.frames).toBe(12);
+    expect(behind.frames).toBe(3);
+    // Without the camera nothing is skipped.
+    entities.update(cameraPos, 1000);
+    expect(behind.frames).toBe(4);
+  });
+});
+
+describe("Entity scene walk", () => {
+  it("places an entity only while something under it draws", () => {
+    const entity = new Entity("a");
+    const tag = new Group();
+    tag.visible = false;
+    entity.add(tag);
+    entity.position.set(3, 4, 5);
+    entity.updateMatrixWorld();
+    expect(entity.matrixWorld.elements[12]).toBe(0);
+    // Asked for directly, it is where it stands.
+    expect(entity.getWorldPosition(new Vector3()).toArray()).toEqual([3, 4, 5]);
+    entity.position.set(6, 7, 8);
+    tag.visible = true;
+    entity.updateMatrixWorld();
+    expect(entity.matrixWorld.elements[12]).toBe(6);
+    expect(tag.matrixWorld.elements[13]).toBe(7);
   });
 });
 

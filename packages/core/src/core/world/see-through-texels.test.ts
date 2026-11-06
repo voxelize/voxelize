@@ -3,15 +3,13 @@ import {
   DataTexture,
   type Material,
   Mesh,
-  MeshBasicMaterial,
+  MeshBasicNodeMaterial,
   RGBAFormat,
-  ShaderLib,
-  ShaderMaterial,
   UnsignedByteType,
-  type WebGLProgramParametersWithUniforms,
-  type WebGLRenderer,
-} from "three";
+} from "three/webgpu";
 import { describe, expect, it } from "vitest";
+
+import { ChunkMaterial, type ChunkShadingInputs } from "./shading/chunk-material";
 
 import {
   canCutSolidTexels,
@@ -85,25 +83,19 @@ describe("texelPlanOf", () => {
   });
 });
 
-const chunkLike = () =>
-  new ShaderMaterial({
-    vertexShader: ShaderLib.basic.vertexShader,
-    fragmentShader: ShaderLib.basic.fragmentShader,
-    uniforms: { alphaTest: { value: 0.1 }, shared: { value: 1 } },
-    transparent: true,
-    depthWrite: false,
-    alphaTest: 0.1,
-  });
+// Shading inputs are only read when a program builds.
+const shading = { id: 1 } as unknown as ChunkShadingInputs;
 
-const forkKeepingUniforms = (material: Material) => {
-  const fork = material.clone();
-  if ((material as ShaderMaterial).isShaderMaterial) {
-    (fork as ShaderMaterial).uniforms = {
-      ...(material as ShaderMaterial).uniforms,
-    };
-  }
-  return fork;
+const chunkLike = () => {
+  const material = new ChunkMaterial(shading, { kind: "seeThrough" });
+  material.transparent = true;
+  material.depthWrite = false;
+  material.alphaTest = 0.1;
+  return material;
 };
+
+const forkKeepingUniforms = (material: Material) =>
+  material instanceof ChunkMaterial ? material.fork() : material.clone();
 
 describe("SeeThroughTexelSplit", () => {
   it("forks a solid draw with depth and a translucent one without", () => {
@@ -114,25 +106,19 @@ describe("SeeThroughTexelSplit", () => {
 
     expect(solid.depthWrite).toBe(true);
     expect(solid.alphaTest).toBe(0.99);
-    const solidUniforms = (solid as ShaderMaterial).uniforms;
-    expect(solidUniforms.alphaTest.value).toBe(0.99);
-    expect(base.uniforms.alphaTest.value).toBe(0.1);
-    expect(solidUniforms.shared).toBe(base.uniforms.shared);
+    expect(base.alphaTest).toBe(0.1);
+    // The forks read the base's world inputs: the same live uniforms.
+    expect((solid as ChunkMaterial).shading).toBe(base.shading);
+    expect((solid as ChunkMaterial).cutsSolidTexels).toBe(false);
 
     expect(translucent.depthWrite).toBe(false);
-    expect(translucent.customProgramCacheKey()).toContain(
-      "|translucent-texels",
-    );
-    const shader = {
-      fragmentShader: base.fragmentShader,
-      vertexShader: base.vertexShader,
-      uniforms: {},
-    } as unknown as WebGLProgramParametersWithUniforms;
-    translucent.onBeforeCompile(shader, {} as WebGLRenderer);
-    expect(shader.fragmentShader).toMatch(
-      /#include <alphatest_fragment>\nif \(diffuseColor\.a >= uSolidTexelCut\) discard;/,
-    );
-    expect(shader.uniforms.uSolidTexelCut.value).toBe(0.99);
+    const cut = translucent as ChunkMaterial;
+    expect(cut.cutsSolidTexels).toBe(true);
+    expect(cut.solidTexelCut).toBe(0.99);
+    expect(base.cutsSolidTexels).toBe(false);
+    // The cut is its own program.
+    expect(cut.customProgramCacheKey()).toContain(":cut");
+    expect(base.customProgramCacheKey()).not.toContain(":cut");
   });
 
   it("draws each plan from the mesh's own buffers", () => {
@@ -162,10 +148,30 @@ describe("SeeThroughTexelSplit", () => {
     expect(mesh.material).toBe(base);
     expect(mesh.userData.texelPlan).toBe("as-is");
 
-    const cutout = new MeshBasicMaterial({ transparent: true });
+    const cutout = new MeshBasicNodeMaterial({ transparent: true });
     const copy = new Mesh(new BoxGeometry(), cutout);
     split.apply(copy, cutout, "translucent");
     expect((copy.material as Material).depthWrite).toBe(false);
+  });
+
+  it("draws a GPU bucket's split from the bucket's own culled geometry", () => {
+    const split = new SeeThroughTexelSplit(CUTS, forkKeepingUniforms);
+    const base = chunkLike();
+    const mesh = new Mesh(new BoxGeometry(), base);
+    const culls: unknown[] = [];
+    const bucket = { mesh, cullFor: (_r: unknown, camera: unknown) => culls.push(camera) };
+    mesh.userData.gpuTerrain = bucket;
+
+    const layer = split.apply(mesh, base, "split")!;
+    expect(layer.geometry).toBe(mesh.geometry);
+    expect(layer.userData.gpuTerrain).toBe(bucket);
+    // Before its draw it culls for the pass and follows a grown geometry.
+    const grown = new BoxGeometry();
+    mesh.geometry = grown;
+    const camera = {};
+    layer.onBeforeRender({} as never, {} as never, camera as never, layer.geometry, layer.material as Material, null as never);
+    expect(culls).toEqual([camera]);
+    expect(layer.geometry).toBe(grown);
   });
 
   it("forgets a material's forks once its shader changed", () => {
@@ -176,13 +182,8 @@ describe("SeeThroughTexelSplit", () => {
     expect(split.forksOf(base).solid).not.toBe(before.solid);
   });
 
-  it("only cuts a shader that has three's alpha test", () => {
+  it("only cuts a chunk material, which carries the cut", () => {
     expect(canCutSolidTexels(chunkLike())).toBe(true);
-    expect(canCutSolidTexels(new MeshBasicMaterial())).toBe(true);
-    expect(
-      canCutSolidTexels(
-        new ShaderMaterial({ fragmentShader: "void main() {}" }),
-      ),
-    ).toBe(false);
+    expect(canCutSolidTexels(new MeshBasicNodeMaterial())).toBe(false);
   });
 });

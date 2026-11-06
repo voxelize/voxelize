@@ -1,9 +1,15 @@
 import type { GeometryProtocol } from "@voxelize/protocol";
-import { BufferAttribute, BufferGeometry } from "three";
-import { mergeGeometries } from "three/examples/jsm/utils/BufferGeometryUtils.js";
+import { BufferAttribute, BufferGeometry } from "three/webgpu";
+import { mergeGeometries } from "three/addons/utils/BufferGeometryUtils.js";
 import { describe, expect, it } from "vitest";
 
 import { biomeTintAttribute } from "./biome-tint";
+import {
+  BYTE_VECTOR_STRIDE,
+  POSITION_STRIDE,
+  packQuantizedPositions,
+  padByteVectors,
+} from "./vertex-layout";
 import {
   mergeSectionGeometries,
   ownMergeStorage,
@@ -56,9 +62,15 @@ const part = (voxel: number, quads: number, seed: number): GeometryProtocol => {
 };
 
 /** One part as the world builds it alone (`makeChunkBufferGeometry`). */
-const single = (geo: GeometryProtocol, sway: number | null) => {
+const single = (geo: GeometryProtocol, sway: number) => {
   const geometry = new BufferGeometry();
-  geometry.setAttribute("position", new BufferAttribute(geo.positions, 3));
+  geometry.setAttribute(
+    "position",
+    new BufferAttribute(
+      packQuantizedPositions(geo.positions, sway),
+      POSITION_STRIDE,
+    ),
+  );
   geometry.setAttribute("uv", new BufferAttribute(geo.uvs, 2, true));
   geometry.setAttribute("light", new BufferAttribute(geo.lights, 1));
   geometry.setAttribute(
@@ -72,17 +84,12 @@ const single = (geo: GeometryProtocol, sway: number | null) => {
   geometry.setIndex(new BufferAttribute(geo.indices, 1));
   geometry.setAttribute(
     "normal",
-    new BufferAttribute(must(geo.normals, "normals"), 3, true),
+    new BufferAttribute(
+      padByteVectors(must(geo.normals, "normals") as Int8Array),
+      BYTE_VECTOR_STRIDE,
+      true,
+    ),
   );
-  if (sway !== null) {
-    geometry.setAttribute(
-      "swayProfile",
-      new BufferAttribute(
-        new Uint8Array(geo.positions.length / 3).fill(sway),
-        1,
-      ),
-    );
-  }
   return geometry;
 };
 
@@ -130,7 +137,7 @@ describe("mergeSectionGeometries", () => {
     }
   });
 
-  it("leaves out the tint without corners and the sway without profiles", () => {
+  it("leaves out the tint without corners, and zeroes the sway without profiles", () => {
     const merged = must(
       mergeSectionGeometries(
         parts,
@@ -139,7 +146,9 @@ describe("mergeSectionGeometries", () => {
       ),
     );
     expect(merged.getAttribute("biomeTint")).toBeUndefined();
-    expect(merged.getAttribute("swayProfile")).toBeUndefined();
+    const position = merged.getAttribute("position");
+    expect(position.itemSize).toBe(POSITION_STRIDE);
+    for (let v = 0; v < position.count; v++) expect(position.getW(v)).toBe(0);
   });
 
   it("reuses scratch arrays and writes each merge whole", () => {
@@ -158,6 +167,20 @@ describe("mergeSectionGeometries", () => {
     expect(
       arrays(must(mergeSectionGeometries(parts, extras, scratch.take))),
     ).toEqual(bigArrays);
+  });
+
+  it("keeps one scratch array per kind, so alternating kinds cannot grow it", () => {
+    const scratch = new ScratchMergeStorage();
+    let floats: Float32Array | null = null;
+    let shorts: Uint16Array | null = null;
+    for (let i = 0; i < 200; i++) {
+      floats = scratch.take("position", Float32Array, 1024) as Float32Array;
+      shorts = scratch.take("position", Uint16Array, 1024) as Uint16Array;
+    }
+    // Each the size it was asked for: before, every switch grew the next
+    // one half again (1.5^400 of the first).
+    expect(floats!.buffer.byteLength).toBe(1024 * 4);
+    expect(shorts!.buffer.byteLength).toBe(1024 * 2);
   });
 
   it("refuses parts whose arrays disagree in type", () => {

@@ -11,8 +11,8 @@
  * the source knows about its column. It lives in the URL (`pin=x,y,z`),
  * so a link to the viewer carries it. The × on its card takes it down.
  */
-import type { Camera, PerspectiveCamera, Scene } from "three";
-import { Vector3 } from "three";
+import type { Camera, PerspectiveCamera, Scene } from "three/webgpu";
+import { Vector3 } from "three/webgpu";
 
 import { builtinIcon } from "./pin-art";
 import { PIN_HEIGHT, PinModel, type PinLighting } from "./pin-model";

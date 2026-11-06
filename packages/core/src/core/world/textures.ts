@@ -7,8 +7,13 @@ import {
   SRGBColorSpace,
   Texture,
   Vector3,
-  WebGLRenderer,
-} from "three";
+  type Renderer,
+} from "three/webgpu";
+
+import {
+  regenerateMipmaps,
+  writeTextureImage,
+} from "../../utils/gpu-texture-writes";
 
 import { ThreeUtils } from "../../utils";
 
@@ -613,8 +618,8 @@ export class AtlasTexture extends CanvasTexture {
       x,
       y,
       size,
-      // texSubImage2D destinations are addressed from the texture's bottom
-      // row; the atlas uploads with flipY, so the canvas-space rect flips.
+      // The atlas uploads flipped (flipY), so texel row 0 is the canvas's
+      // bottom row and the canvas-space rect flips.
       dstPosition: new Vector3(x, canvasHeight - y - size, 0),
     };
   }
@@ -667,60 +672,38 @@ export class AtlasTexture extends CanvasTexture {
     this.pendingAnimationPatches.set(animation, patch);
   }
 
-  flushAnimationPatches(renderer: WebGLRenderer) {
+  flushAnimationPatches(renderer: Renderer) {
     // Called by the world right before rendering: queued animation frames
     // upload as sub-rectangle patches of the GPU texture. No-op when no
     // animation ticked since the last flush.
     if (this.pendingAnimationPatches.size === 0) return;
 
-    const textureProperties = renderer.properties.get(this) as {
-      __webglTexture?: WebGLTexture;
-    };
-    if (!textureProperties.__webglTexture) {
-      // Not GPU-resident yet: the atlas canvas already mirrors every patch,
-      // so a full upload on the next bind covers them.
-      this.pendingAnimationPatches.clear();
-      this.needsUpdate = true;
-      return;
-    }
-
-    // Raw texSubImage2D instead of renderer.copyTextureToTexture: the three
-    // helper brackets every copy with five synchronous gl.getParameter
-    // round-trips to the GPU process (to save/restore unpack state), which
-    // stall the main thread for longer than the upload itself. Unpack state
-    // is instead set to the defaults three's own uploads assume.
-    const gl = renderer.getContext();
-    renderer.state.bindTexture(gl.TEXTURE_2D, textureProperties.__webglTexture);
-    gl.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL, this.flipY);
-    gl.pixelStorei(gl.UNPACK_PREMULTIPLY_ALPHA_WEBGL, this.premultiplyAlpha);
-    gl.pixelStorei(gl.UNPACK_ALIGNMENT, this.unpackAlignment);
-    gl.pixelStorei(gl.UNPACK_COLORSPACE_CONVERSION_WEBGL, gl.NONE);
-
-    this.pendingAnimationPatches.forEach((patch) => {
-      gl.texSubImage2D(
-        gl.TEXTURE_2D,
-        0,
+    for (const patch of this.pendingAnimationPatches.values()) {
+      const isWritten = writeTextureImage(
+        renderer,
+        this,
+        patch.scratch,
         patch.dstPosition.x,
         patch.dstPosition.y,
-        gl.RGBA,
-        gl.UNSIGNED_BYTE,
-        patch.scratch,
+        patch.size,
+        patch.size,
       );
-    });
+      if (!isWritten) {
+        // Not GPU-resident yet (or the WebGL 2 fallback): the atlas canvas
+        // already mirrors every patch, so a full upload covers them.
+        this.pendingAnimationPatches.clear();
+        this.needsUpdate = true;
+        return;
+      }
+    }
     this.pendingAnimationPatches.clear();
 
-    // texSubImage2D only ever touches mip level 0. With mips on
-    // (`mip-aniso`), every level above it would otherwise keep whatever
-    // frame was baked in at the last full upload forever — a flowing lava
-    // or water tile the moment it is more than a few blocks off would show
-    // a stuck frame while everything up close animated normally. The whole
-    // point of the sub-rect patch is to skip a full re-upload, so this
-    // regenerates the chain only when one is actually in use.
-    if (this.generateMipmaps) {
-      gl.generateMipmap(gl.TEXTURE_2D);
-    }
-
-    renderer.state.unbindTexture();
+    // A patch only touches mip level 0. With mips on (`mip-aniso`), every
+    // level above it would otherwise keep whatever frame was baked in at
+    // the last full upload forever: a flowing lava or water tile more than
+    // a few blocks off would show a stuck frame while everything up close
+    // animated. The chain is rebuilt only when one is in use.
+    if (this.generateMipmaps) regenerateMipmaps(renderer, this);
   }
 
   private makeCanvasPowerOfTwo(canvas?: HTMLCanvasElement | undefined) {

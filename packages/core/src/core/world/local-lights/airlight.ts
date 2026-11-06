@@ -1,4 +1,7 @@
-import { Vector4 } from "three";
+import { Vector4 } from "three/webgpu";
+
+import { arrayUniform } from "../shading/chunk-uniforms";
+import { worldUniform } from "../shading/uniforms";
 
 import type { LightClusterGrid } from "./clustering";
 import type { LightSourceRegistry } from "./registry";
@@ -23,12 +26,6 @@ export type LocalLightAirlightOptions = {
   coreRatio: number;
   /** Soft ceiling on the linear light the air adds to a pixel. */
   maxAdded: number;
-  /**
-   * Flat brightness bands the air glow is cut into, each constant over a
-   * 1/16-block texel of the surface behind it (voxel-native: crisp steps,
-   * no soft gradient). 0 draws the smooth legacy haze, sky included.
-   */
-  bands: number;
   /** Share of the air glow kept under open sky at night. */
   openSkyShare: number;
   /** Fade in and out of the set, in ms (the grid's slot fade). */
@@ -75,7 +72,6 @@ export const defaultAirlightOptions: LocalLightAirlightOptions = {
   strength: 0,
   coreRatio: 0.35,
   maxAdded: 0.09,
-  bands: 0,
   // Under open sky a lamp lights the ground, not a sheet of sky.
   openSkyShare: 0,
   fadeMs: 320,
@@ -138,30 +134,33 @@ export class LocalLightAirlight {
 
   /** Shared by every material that reads the set; updated in place. */
   readonly uniforms = {
-    count: { value: 0 },
-    /** xyz, range */
-    positions: {
-      value: Array.from({ length: AIRLIGHT_SLOTS }, () => new Vector4()),
-    },
-    /** rgb x intensity x fade, w = scattering core radius */
-    colors: {
-      value: Array.from({ length: AIRLIGHT_SLOTS }, () => new Vector4()),
-    },
+    count: worldUniform(0),
+    /**
+     * Per member, two `vec4`: position and range `(xyz, range)`, then
+     * `(rgb x intensity x fade, scattering core radius)`.
+     */
+    members: arrayUniform(
+      Array.from({ length: AIRLIGHT_SLOTS * 2 }, () => new Vector4()),
+      "vec4",
+    ),
     /**
      * Per member, the air glow's share: line of sight from the camera x
-     * the daylight/open-sky/submersion dimmer. Room fill ignores it — a
-     * surface's bounce light does not depend on where the camera stands.
+     * the daylight/open-sky/submersion dimmer, in x (yzw unused). Room fill
+     * ignores it: a surface's bounce light does not depend on where the
+     * camera stands.
      */
-    seen: { value: new Array<number>(AIRLIGHT_SLOTS).fill(0) },
+    seen: arrayUniform(
+      Array.from({ length: AIRLIGHT_SLOTS }, () => new Vector4()),
+      "vec4",
+    ),
     /** 1 when any member glows in the air (the effect's early out). */
-    airActive: { value: 0 },
-    strength: { value: 0 },
-    maxAdded: { value: 0 },
-    bands: { value: 0 },
-    fillStrength: { value: 0 },
-    fillRangeScale: { value: 0 },
-    fillCoreScale: { value: 0 },
-    fillFloodMask: { value: 0 },
+    airActive: worldUniform(0),
+    strength: worldUniform(0),
+    maxAdded: worldUniform(0),
+    fillStrength: worldUniform(0),
+    fillRangeScale: worldUniform(0),
+    fillCoreScale: worldUniform(0),
+    fillFloodMask: worldUniform(0),
   };
 
   /** Off for A/B captures; the set empties through its fades. */
@@ -194,7 +193,6 @@ export class LocalLightAirlight {
     const u = this.uniforms;
     u.strength.value = this.options.strength;
     u.maxAdded.value = this.options.maxAdded;
-    u.bands.value = this.options.bands;
     u.fillStrength.value = this.options.fillStrength;
     u.fillRangeScale.value = this.options.fillRangeScale;
     u.fillCoreScale.value = this.options.fillCoreScale;
@@ -387,17 +385,17 @@ export class LocalLightAirlight {
       if (eased <= 0) continue;
       const v = this.seenWeights[k];
       const seen = v * v * (3 - 2 * v) * this.dimmer;
-      u.seen.value[written] = seen;
+      u.seen.value[written].x = seen;
       if (seen > 0) airActive = 1;
       const energy = intensities[i] * shares[i] * eased;
       const range = ranges[i];
-      u.positions.value[written].set(
+      u.members.value[written * 2].set(
         positions[i * 3],
         positions[i * 3 + 1],
         positions[i * 3 + 2],
         range,
       );
-      u.colors.value[written].set(
+      u.members.value[written * 2 + 1].set(
         colors[i * 3] * energy,
         colors[i * 3 + 1] * energy,
         colors[i * 3 + 2] * energy,
@@ -409,16 +407,3 @@ export class LocalLightAirlight {
     u.airActive.value = u.strength.value > 0 ? airActive : 0;
   }
 }
-
-/** GLSL declarations of the set, shared by its consumers. */
-export const AIRLIGHT_UNIFORMS_GLSL = `
-#define AIRLIGHT_SLOTS ${AIRLIGHT_SLOTS}
-uniform int uAirCount;
-uniform vec4 uAirPos[AIRLIGHT_SLOTS];
-uniform vec4 uAirColor[AIRLIGHT_SLOTS];
-`;
-
-/** The air effect's extra per-member input (room fill does not read it). */
-export const AIRLIGHT_SEEN_GLSL = `
-uniform float uAirSeen[AIRLIGHT_SLOTS];
-`;
