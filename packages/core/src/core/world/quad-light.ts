@@ -121,18 +121,3 @@ export function computeQuadLightTwist(
 
   return twist;
 }
-
-/**
- * Vertex-stage GLSL: decodes the `lightTwist` attribute into the two
- * varyings the fragment stage multiplies. `vLightTwist` is in the same
- * 0..1 units as `vLight`.
- */
-export const QUAD_LIGHT_VERTEX_GLSL = `
-float quadLightHead = step(${QUAD_LIGHT_CORNER_FLAG.toFixed(1)}, lightTwist.x);
-float quadLightTail = step(${QUAD_LIGHT_CORNER_FLAG.toFixed(1)}, lightTwist.y);
-vec4 quadLightTwist = lightTwist
-  - vec4(quadLightHead, quadLightTail, 0.0, 0.0) * ${QUAD_LIGHT_CORNER_FLAG.toFixed(1)}
-  - ${QUAD_LIGHT_TWIST_BIAS.toFixed(1)};
-vLightTwist = quadLightTwist * (quadLightHead / 15.0);
-vQuadLightTail = quadLightTail;
-`;

@@ -40,7 +40,7 @@ function animate() {
     rigidControls.update();
   }
 
-  renderer.render(world, camera);
+  world.renderFrame(renderer, camera, null);
 }
 ```
 
@@ -62,7 +62,7 @@ inputs.bind("f", rigidControls.toggleFly);
 
 ```javascript title="main.js"
 import * as VOXELIZE from "@voxelize/core";
-import * as THREE from "three";
+import * as THREE from "three/webgpu";
 
 const canvas = document.getElementById("canvas");
 
@@ -77,7 +77,7 @@ const camera = new THREE.PerspectiveCamera(
   3000
 );
 
-const renderer = new THREE.WebGLRenderer({
+const renderer = new THREE.WebGPURenderer({
   antialias: true,
   powerPreference: "high-performance",
   canvas,
@@ -85,6 +85,8 @@ const renderer = new THREE.WebGLRenderer({
 renderer.setSize(window.innerWidth, window.innerHeight);
 renderer.setPixelRatio(window.devicePixelRatio || 1);
 renderer.outputColorSpace = THREE.SRGBColorSpace;
+// Nothing draws until the GPU device is up.
+await renderer.init();
 
 window.addEventListener("resize", () => {
   camera.aspect = window.innerWidth / window.innerHeight;
@@ -123,7 +125,7 @@ function animate() {
     rigidControls.update();
   }
 
-  renderer.render(world, camera);
+  world.renderFrame(renderer, camera, null);
 }
 
 async function start() {

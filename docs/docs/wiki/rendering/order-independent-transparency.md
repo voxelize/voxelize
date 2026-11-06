@@ -10,11 +10,11 @@ Without it, a world sorts: objects by distance, glass faces by their centres, ef
 
 ## Client Setup
 
-Turn it on, and render the world into a target with a depth texture:
+Turn it on, and let the world draw its own frame into the composer's scene target, which carries a depth texture:
 
 ```ts title="Client Setup"
 import * as VOXELIZE from "@voxelize/core";
-import { EffectComposer, RenderPass } from "postprocessing";
+import { EffectComposer, ScenePass } from "@voxelize/postprocessing";
 
 const world = new VOXELIZE.World({
   orderIndependentTransparency:
@@ -22,14 +22,16 @@ const world = new VOXELIZE.World({
 });
 
 const composer = new EffectComposer(renderer);
-composer.addPass(new RenderPass(world, camera));
-composer.createDepthTexture();
+composer.addPass(
+  new ScenePass((renderer, target) => world.renderFrame(renderer, camera, target)),
+);
 ```
 
-Call `prepareTransparency` once a frame, before the scene renders with that camera. It installs the world's sort, draws the depth of the water in view and arms the accumulation:
+`renderFrame` installs the world's sort, draws the depth of the water near the panes in view, draws the scene, then accumulates its blended layers against the scene's own depth and composites them. Render the shadow maps first, then the composer, once a frame:
 
 ```ts title="Frame Loop"
-world.prepareTransparency(renderer, camera);
+world.updateShaderLighting(camera, controls.object.position);
+world.renderShadowMaps(renderer, shadowCasters);
 composer.render();
 ```
 
@@ -42,7 +44,7 @@ Each blended material is wrapped with an encoder the first time the world sees i
 ```ts title="Shader Warmup"
 const forks = world.adoptOrderIndependentMaterials(materialsToWarm);
 for (const fork of forks) warmScene.add(new THREE.Mesh(warmGeometry, fork));
-renderer.compile(warmScene, camera);
+await renderer.compileAsync(warmScene, camera);
 ```
 
 ## What Takes Part
@@ -51,7 +53,7 @@ renderer.compile(warmScene, camera);
 | ------------------------------------------------------------- | ----------------------------------- |
 | Transparent, no depth write, normal or premultiplied blending | accumulated                         |
 | Writes depth (cutouts, solid texels)                          | before the accumulation, with depth |
-| Additive, multiply, raw or GLSL3 shaders                      | after the composite                 |
+| Additive or multiply blending, or a whole `fragmentNode`      | after the composite                 |
 | `userData[VOXELIZE.ORDER_INDEPENDENT_KEY] = false`            | after the composite                 |
 
 See-through blocks are split by what their textures hold: texels at or above `solidTexelAlpha` draw solid and write depth, so the lead lines of stained glass stay crisp; texels between the alpha test and that blend.

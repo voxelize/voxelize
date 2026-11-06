@@ -63,7 +63,7 @@ start();
 ```javascript title="main.js"
 function animate() {
   requestAnimationFrame(animate);
-  renderer.render(world, camera);
+  world.renderFrame(renderer, camera, null);
 }
 
 async function start() {
@@ -77,11 +77,13 @@ async function start() {
 start();
 ```
 
+`world.renderFrame` draws what the world needs before the scene (the depth of the water behind any glass in view) and then the scene, into `null` (the canvas) or a render target.
+
 ## Full Code So Far
 
 ```javascript title="main.js"
 import * as VOXELIZE from "@voxelize/core";
-import * as THREE from "three";
+import * as THREE from "three/webgpu";
 
 const canvas = document.getElementById("canvas");
 
@@ -96,7 +98,7 @@ const camera = new THREE.PerspectiveCamera(
   3000
 );
 
-const renderer = new THREE.WebGLRenderer({
+const renderer = new THREE.WebGPURenderer({
   antialias: true,
   powerPreference: "high-performance",
   canvas,
@@ -104,6 +106,8 @@ const renderer = new THREE.WebGLRenderer({
 renderer.setSize(window.innerWidth, window.innerHeight);
 renderer.setPixelRatio(window.devicePixelRatio || 1);
 renderer.outputColorSpace = THREE.SRGBColorSpace;
+// Nothing draws until the GPU device is up.
+await renderer.init();
 
 window.addEventListener("resize", () => {
   camera.aspect = window.innerWidth / window.innerHeight;
@@ -116,7 +120,7 @@ network.register(world);
 
 function animate() {
   requestAnimationFrame(animate);
-  renderer.render(world, camera);
+  world.renderFrame(renderer, camera, null);
 }
 
 async function start() {

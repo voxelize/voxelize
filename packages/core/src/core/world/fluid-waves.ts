@@ -60,7 +60,7 @@ const NS_Z = 1 / 7;
 
 const corner = [0, 0, 0, 0];
 
-/** One simplex corner's falloff-weighted gradient dot, as the GLSL does it. */
+/** One simplex corner's falloff-weighted gradient dot, as `simplexNoise3Node` (shading/noise.ts) does it. */
 function cornerContribution(
   hash: number,
   dx: number,

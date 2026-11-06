@@ -176,14 +176,14 @@ let redstone = Block::new("Redstone Wire")
 
 ### Custom Shaders
 
+A block's chunk shading is a TSL node graph; `customizeMaterial` gives a block (or one face) a variant of it: a fixed sway, a different kind, or `hooks` that remap its texture or replace its lit colour. Fluids draw with the water surface by their kind, with nothing to customize.
+
 ```ts title="Custom Block Shader"
-world.customizeMaterialShaders(
+world.customizeMaterial(
   "Grass",
   null,
   VOXELIZE.customShaders.sway({ rooted: true })
 );
-
-world.customizeMaterialShaders("Water", VOXELIZE.customShaders.water(), null);
 ```
 
 ### Dynamic Textures
@@ -198,7 +198,8 @@ function updateTexture() {
   ctx.fillStyle = `hsl(${(Date.now() / 10) % 360}, 100%, 50%)`;
   ctx.fillRect(0, 0, 16, 16);
 
-  world.applyBlockTextureByIdAt(blockId, "all", canvas, voxelPosition);
+  // One isolated face of the block at that voxel.
+  world.applyBlockTextureAt(blockId, "front", new THREE.CanvasTexture(canvas), voxelPosition);
 }
 ```
 

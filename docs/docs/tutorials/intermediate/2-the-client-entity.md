@@ -12,7 +12,7 @@ Every client entity extends `VOXELIZE.Entity<T>`, where `T` is the type of data 
 
 ```ts title="Basic Entity Structure"
 import * as VOXELIZE from "@voxelize/core";
-import * as THREE from "three";
+import * as THREE from "three/webgpu";
 
 type MyEntityData = {
   position: VOXELIZE.Coords3;
@@ -26,7 +26,7 @@ class MyEntity extends VOXELIZE.Entity<MyEntityData> {
     this.add(
       new THREE.Mesh(
         new THREE.BoxGeometry(1, 1, 1),
-        new THREE.MeshStandardMaterial({ color: 0xff0000 })
+        new THREE.MeshStandardNodeMaterial({ color: 0xff0000 })
       )
     );
   }
@@ -165,7 +165,7 @@ For entities with custom 3D models:
 
 ```ts title="Model-Based Entity"
 import * as VOXELIZE from "@voxelize/core";
-import * as THREE from "three";
+import * as THREE from "three/webgpu";
 import { GLTFLoader } from "three/examples/jsm/loaders/GLTFLoader.js";
 
 type ModelData = {
@@ -231,7 +231,7 @@ class DebugBot extends VOXELIZE.Entity<BotData> {
       (p) => new THREE.Vector3(p[0] + 0.5, p[1] + 0.5, p[2] + 0.5)
     );
     const geometry = new THREE.BufferGeometry().setFromPoints(points);
-    const material = new THREE.LineBasicMaterial({ color: 0x00ff00 });
+    const material = new THREE.LineBasicNodeMaterial({ color: 0x00ff00 });
     this.pathLine = new THREE.Line(geometry, material);
     this.add(this.pathLine);
   }

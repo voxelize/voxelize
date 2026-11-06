@@ -23,42 +23,64 @@ const SECTIONS = [
   ["source", "Where it lives"],
 ] as const;
 
-const ENCODER = `#define main orderIndependentShade
-// ...the material's own fragment shader, untouched...
-#undef main
-layout(location = 1) out highp vec4 pc_fragOitWeight;
-void main() {
-  if (uOitActive > 0.5 && uOitPhase > 0.5) {
+const ENCODER = `// Laid over every draw of an accumulation pass (renderer.setMRT): the
+// material's own colour, three's \`output\`, becomes the weighted sums.
+const distance = positionView.z.negate();
+const weightOf = Fn(() =>
+  clamp(output.a, 0, 1).mul(
+    clamp(
+      u.weight.x.div(
+        distance.div(u.weight.y).add(pow(distance.div(u.weight.z), 6)).add(1),
+      ),
+      u.weightRange.x,
+      u.weightRange.y,
+    ),
+  ),
+);
+const color = Fn(() => {
+  If(u.phase.greaterThan(OIT_PHASE_ALL + 0.5), () => {
     // drop the side of the water this pass does not draw, before any shading
-  }
-  orderIndependentShade();
-  pc_fragOitWeight = vec4(0.0);
-  if (uOitActive < 0.5) return;          // any other render: ordinary colour
-  float oitAlpha = clamp(gl_FragColor.a, 0.0, 1.0);
-  if (oitAlpha <= 0.0) discard;
-  float oitWeight = oitAlpha * depthWeight(oitDistanceAt(gl_FragCoord.z));
-  gl_FragColor = vec4(gl_FragColor.rgb * oitAlpha * oitWeight, oitAlpha);
-  pc_fragOitWeight = vec4(oitAlpha * oitWeight, 0.0, 0.0, 0.0);
-}`;
+    const separator = u.separatorDepth.sample(screenUV).level(float(0)).r;
+    const isBehind = distance.greaterThan(
+      perspectiveDepthToViewZ(separator, cameraNear, cameraFar).add(u.separatorBias),
+    );
+    Discard(isBehind.xor(u.phase.lessThan(OIT_PHASE_BEHIND + 0.5)));
+  });
+  const alpha = clamp(output.a, 0, 1);
+  Discard(alpha.lessThanEqual(0));
+  return vec4(output.rgb.mul(alpha).mul(weightOf()), alpha); // straight alpha
+})();
+const weight = Fn(() => {
+  const w = clamp(output.a, 0, 1).mul(weightOf());
+  return vec4(w, w.mul(distance), 0, 0); // Σ α·w, and Σ α·w·d
+})();
+const encoder = mrt({ output: color, weight });
+encoder.setBlendMode("output", sums); // rgb ONE + ONE, alpha ONE + ONE_MINUS_SRC_ALPHA
+encoder.setBlendMode("weight", added); // ONE + ONE`;
 
-const COMPOSITE = `vec4 accumulation = texelFetch(tAccumulation, pixel, 0);
-float coverage = 1.0 - accumulation.a;        // 1 − Π(1 − α)
-if (coverage <= 0.0) discard;
-float weight = texelFetch(tWeight, pixel, 0).r; // Σ α·w
-gl_FragColor = vec4(accumulation.rgb / max(weight, 1e-5) * coverage, coverage);
+const COMPOSITE = `compositeMaterial.fragmentNode = Fn(() => {
+  const pixel = ivec2(screenCoordinate.xy);
+  const sums = accumulation.load(pixel);
+  const coverage = clamp(sums.a, 0, 1); // 1 − Π(1 − α)
+  Discard(coverage.lessThanEqual(0));
+  const total = weight.load(pixel).r; // Σ α·w
+  return vec4(sums.rgb.div(max(total, 1e-5)).mul(coverage), coverage);
+})();
 // blended ONE, ONE_MINUS_SRC_ALPHA over the scene`;
 
 const SETUP = `import * as VOXELIZE from "@voxelize/core";
-import { EffectComposer, RenderPass } from "postprocessing";
+import { EffectComposer, ScenePass } from "@voxelize/postprocessing";
 
 const world = new VOXELIZE.World({
   orderIndependentTransparency: VOXELIZE.defaultOrderIndependentTransparencyOptions,
 });
 
 const composer = new EffectComposer(renderer);
-composer.addPass(new RenderPass(world, camera));
-// The blended layers accumulate against the scene's own depth.
-composer.createDepthTexture();`;
+// The world draws its own frame into the composer's scene target, whose
+// depth texture the blended layers accumulate against.
+composer.addPass(
+  new ScenePass((renderer, target) => world.renderFrame(renderer, camera, target)),
+);`;
 
 const FRAME = `const animate = () => {
   requestAnimationFrame(animate);
@@ -68,25 +90,24 @@ const FRAME = `const animate = () => {
   );
   world.updateShaderLighting(camera, controls.object.position);
   world.renderShadowMaps(renderer, collectShadowCasters());
-  // Before the scene renders with this camera: installs the banded sort,
-  // draws the water's depth, arms the accumulation.
-  if (world.isInitialized) world.prepareTransparency(renderer, camera);
+  // renderFrame (in the scene pass) installs the banded sort, draws the
+  // water's depth, the scene, and its blended layers order-independent.
   composer.render();
 };`;
 
-const WARMUP = `// Before a warmup compiles anything: wrap what can accumulate, and draw the
+const WARMUP = `// Before a warmup compiles anything: adopt what can accumulate, and draw the
 // texel forks of see-through chunk materials, which no scene holds yet.
 const forks = world.adoptOrderIndependentMaterials(materialsToWarm);
 for (const fork of forks) warmScene.add(new THREE.Mesh(warmGeometry, fork));
-renderer.compile(warmScene, camera);`;
+await renderer.compileAsync(warmScene, camera);`;
 
 const OPTIONS = `type OrderIndependentTransparencyOptions = {
   /** At or above this texel alpha, a see-through block's texel is solid. */
   solidTexelAlpha: number; // 0.99
-  /** w(d) = clamp(scale / (ε + (d / nearDistance)³ + (d / farDistance)⁶), min, max) */
+  /** w(d) = clamp(scale / (1 + d / nearDistance + (d / farDistance)⁶), min, max) */
   weights: {
     scale: number; //        10
-    nearDistance: number; // 10 blocks
+    nearDistance: number; // 4 blocks
     farDistance: number; //  200 blocks
     min: number; //          0.01
     max: number; //          1000, keeps half-float sums in range
@@ -97,8 +118,7 @@ const STATS = `world.orderIndependent?.stats;
 // {
 //   opened: 1159,        renders that accumulated
 //   skipped: {},         renders that could not, by reason
-//   adopted: 716,        materials wrapped with the encoder
-//   lateAdopted: [],     wrapped after compiling: each compiled twice
+//   adopted: 716,        materials whose draws accumulate
 //   drawnAfter: [],      blended materials that cannot accumulate
 // }
 
@@ -227,15 +247,17 @@ export default function OrderIndependentTransparencyPage() {
             </li>
           </ul>
           <p>
-            WebGL2 has one blend state for every attachment of a target, so both
-            sums share it. RGB adds (<code>ONE, ONE</code>); alpha multiplies (
-            <code>ZERO, ONE_MINUS_SRC_ALPHA</code>). The first attachment keeps{" "}
-            <code>Σ C·α·w</code> in its colour and <code>Π(1 − α)</code> in its
-            alpha; the second keeps <code>Σ α·w</code> in its red, writing alpha
-            0 so the product leaves it alone. The composite:
+            three's render-target outputs take a blend mode each. The colour
+            attachment adds its RGB (<code>ONE, ONE</code>) and composes its
+            alpha as coverage (<code>ONE, ONE_MINUS_SRC_ALPHA</code>), so it
+            keeps <code>Σ C·α·w</code> in its colour and{" "}
+            <code>1 − Π(1 − α)</code> in its alpha; the weight attachment adds
+            both (<code>ONE, ONE</code>): <code>Σ α·w</code> in its red, and{" "}
+            <code>Σ α·w·d</code> in its green, so a pass after the band can tell
+            where the layers it composited stand. The composite:
           </p>
           <CodeBlock
-            language="glsl"
+            language="ts"
             title="order-independent-transparency.ts · the composite"
           >
             {COMPOSITE}
@@ -269,7 +291,7 @@ export default function OrderIndependentTransparencyPage() {
           </p>
           <WaterSplitFigure />
           <p>
-            Before the frame, <code>prepareTransparency</code> draws the depth
+            Before the scene, <code>renderFrame</code> draws the depth
             of every water face in view into a texture, with the water's own
             vertex shader so the waves match, and both sides of each face. The
             first pass keeps the fragments behind that depth; the split
@@ -318,17 +340,18 @@ export default function OrderIndependentTransparencyPage() {
 
         <Section id="materials" title="Every material takes part">
           <p>
-            A game's materials need no changes. The first time the world's sort
-            meets a transparent material that writes no depth, it wraps the
-            material's fragment stage with the encoder. The preprocessor renames
-            the material's <code>main</code>, so a hook that later finds{" "}
-            <code>void main() {"{"}</code> still edits the material's own body,
-            and the program key gains a mark so the wrapped program is never
-            shared with an unwrapped one.
+            A game's materials need no changes, and nothing edits them. The
+            first time the world's sort meets a transparent material that writes
+            no depth, it classifies it (<code>adopt</code>); during an
+            accumulation pass the renderer lays the encoder over every draw
+            through <code>renderer.setMRT</code>, so the material's own colour,
+            three's <code>output</code> node, is read and turned into the sums.
+            A material with a whole <code>fragmentNode</code> takes no
+            render-target outputs, so it draws after the composite.
           </p>
           <CodeBlock
-            language="glsl"
-            title="orderIndependentFragment · the wrapper"
+            language="ts"
+            title="createEncoder · the outputs over every draw"
           >
             {ENCODER}
           </CodeBlock>
@@ -357,8 +380,8 @@ export default function OrderIndependentTransparencyPage() {
               </tr>
               <tr>
                 <td>
-                  Multiply, subtractive, other custom blends; raw or GLSL3
-                  shaders
+                  Multiply, subtractive, other custom blends; a whole{" "}
+                  <code>fragmentNode</code>
                 </td>
                 <td>
                   After the composite, listed in <code>stats.drawnAfter</code>
@@ -379,27 +402,26 @@ export default function OrderIndependentTransparencyPage() {
             </tbody>
           </table>
           <p className="mt-4">
-            Outside the accumulation a wrapped material draws its ordinary
+            Outside the accumulation an adopted material draws its ordinary
             colour with its own blend state, so one shared with an inventory
-            scene, a portrait or a shadow pass is untouched. Wrapping a material
-            changes its program, so it has to happen before the material first
-            compiles: a warmup adopts everything it is about to compile, and
-            anything first seen later is adopted before its first draw. A
-            material wrapped after it compiled is counted and named, because it
-            compiled twice.
+            scene, a portrait or a shadow pass is untouched. Its draws in an
+            accumulation pass are pipelines of their own (the outputs and their
+            blend modes are part of a pipeline), so a warmup compiles the
+            blended materials for that pass (<code>world.compilePasses</code>
+            names it) before their first frame.
           </p>
         </Section>
 
         <Section id="usage" title="Using it">
           <p>
-            Turn it on, and render the world into a target with a depth texture:
+            Turn it on, and let the world draw its own frame into a target with a
+            depth texture:
           </p>
           <CodeBlock language="ts" title="Client Setup">
             {SETUP}
           </CodeBlock>
           <p>
-            Call the prepare step once a frame, before the scene renders with
-            that camera:
+            Render the shadow maps, then the composer, once a frame:
           </p>
           <CodeBlock language="ts" title="Frame Loop">
             {FRAME}
@@ -527,7 +549,7 @@ export default function OrderIndependentTransparencyPage() {
                   <code>core/world/index.ts</code>
                 </td>
                 <td>
-                  <code>prepareTransparency</code>,{" "}
+                  <code>renderFrame</code>,{" "}
                   <code>adoptOrderIndependentMaterials</code>, the chunk and
                   display-copy wiring
                 </td>

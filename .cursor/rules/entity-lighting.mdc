@@ -17,8 +17,8 @@ every lit thing that is not chunk geometry samples the voxel light field at its 
 
 a light that only some paths know about lights the ground and leaves the creature on it dark (a flashlight beam once did exactly that to every mob with its own material). the analytic local lights (held torches, flares) ride the CPU entity light above; the light cones (flashlights, headlights) are per pixel and need the shader:
 
-- `LightShined`'s hook already injects them, so a mesh it lights is covered by construction.
-- a material that lights itself (`lightEffectSetup`, its own `uVoxelLight` or instance light, a custom `ShaderMaterial`) calls `injectLightCones(shader, sharedLightConeBindings())` from its `onBeforeCompile`, shades with `lightConeLit(light)`, and calls `markLightConesCovered(material)`. a raw `ShaderMaterial` binds `lightCones.uniformBindings` and calls `lightConeSurface` itself.
+- `LightShined` composes `applyEntityLight` (`shading/entity-light.ts`) over a mesh's colour and output nodes, so a mesh it lights is covered by construction.
+- a node material that lights itself (`lightEffectSetup`, its own voxel or instance light, an instanced pool's material) shades through `lightConeShading(cones)` (`shading/light-cones.ts`): `entityLit(light, position)` or `surface(position, normal)` for what the beams light, `applyScatter(color, position)` for the glow a beam scatters toward the eye, and calls `markLightConesCovered(material)`. Every material is a TSL node material; there is no GLSL to inject into.
 - what should not catch a beam (sky, clouds, full-screen passes, overlays, CPU-lit FX) says so: `exemptFromLightCones(materialOrObject, reason)`.
 - `world.auditLightCones()` lists every drawn mesh that is neither; it must come back empty; a consumer runs it in world as its gate.
 - a new kind of dynamic light joins the same paths: the CPU entity light (`composeEntityLight`) and the shared injector, never one material at a time.

@@ -90,7 +90,7 @@ world.set_method_handle("spawn-bot", |world, _client_id, payload| {
 
 ```ts title="Client Entity Class"
 import * as VOXELIZE from "@voxelize/core";
-import * as THREE from "three";
+import * as THREE from "three/webgpu";
 
 type BotData = {
   position: VOXELIZE.Coords3;
@@ -170,7 +170,7 @@ function animate() {
 
 ```ts title="main.ts"
 import * as VOXELIZE from "@voxelize/core";
-import * as THREE from "three";
+import * as THREE from "three/webgpu";
 
 type BotData = {
   position: VOXELIZE.Coords3;

@@ -23,7 +23,7 @@ Use `applyBlockTexture` for blocks where every instance looks identical:
 
 ```ts title="Basic Usage"
 import * as VOXELIZE from "@voxelize/core";
-import { Color } from "three";
+import { Color } from "three/webgpu";
 
 // Single face
 await world.applyBlockTexture("Grass Block", "py", "/textures/grass_top.png");
@@ -103,7 +103,7 @@ Signs store custom text as block entity metadata. When a sign is placed or updat
 
 ```ts title="Sign Entity Handler"
 import * as VOXELIZE from "@voxelize/core";
-import * as THREE from "three";
+import * as THREE from "three/webgpu";
 
 type SignData = { type: "sign"; text: string; color?: string };
 
@@ -214,7 +214,7 @@ await world.applyBlockFrames(
 ### Color Animation
 
 ```ts title="Beacon Pulse"
-import { Color } from "three";
+import { Color } from "three/webgpu";
 
 await world.applyBlockFrames(
   "Beacon",
@@ -233,7 +233,7 @@ await world.applyBlockFrames(
 Create textures programmatically:
 
 ```ts title="Dynamic Canvas"
-import { CanvasTexture, NearestFilter, SRGBColorSpace } from "three";
+import { CanvasTexture, NearestFilter, SRGBColorSpace } from "three/webgpu";
 
 const canvas = document.createElement("canvas");
 canvas.width = 64;
@@ -287,7 +287,7 @@ const material = world.getBlockFaceMaterial("Water", "py");
 For blocks configured as `is_see_through` on the server, Voxelize auto-sets `transparent = true` and `side = DoubleSide`. Override if needed:
 
 ```ts title="Transparent Material"
-import * as THREE from "three";
+import * as THREE from "three/webgpu";
 
 const material = world.getBlockFaceMaterial("Water", "py");
 material.transparent = true;
@@ -308,7 +308,7 @@ material.side = THREE.DoubleSide;
 ```ts title="Swaying Vegetation"
 import * as VOXELIZE from "@voxelize/core";
 
-world.customizeMaterialShaders("Tall Grass", null, {
+world.customizeMaterial("Tall Grass", null, {
   ...VOXELIZE.customShaders.sway({ rooted: true }),
 });
 ```

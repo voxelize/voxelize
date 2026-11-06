@@ -26,7 +26,7 @@ function animate() {
     perspectives.update();
   }
 
-  renderer.render(world, camera);
+  world.renderFrame(renderer, camera, null);
 }
 ```
 
@@ -54,14 +54,15 @@ Now when you switch perspectives, you'll see your character:
 ## Add Shadows and Lighting
 
 ```javascript title="main.js"
-const shadows = new VOXELIZE.Shadows(world);
 const lightShined = new VOXELIZE.LightShined(world);
+// What casts in the world's shadow maps besides the terrain.
+const shadowCasters = [];
 
 function createCharacter() {
   const character = new VOXELIZE.Character();
   world.add(character);
   lightShined.add(character);
-  shadows.add(character);
+  shadowCasters.push(character);
   return character;
 }
 
@@ -78,18 +79,21 @@ function animate() {
     voxelInteract.update();
     perspectives.update();
     lightShined.update();
-    shadows.update();
+    // The sun and moon, then the shadow maps: the sun's cascades and the
+    // torches' shadows, with the characters casting in them.
+    world.updateShaderLighting(camera, rigidControls.object.position);
+    world.renderShadowMaps(renderer, shadowCasters);
   }
 
-  renderer.render(world, camera);
+  world.renderFrame(renderer, camera, null);
 }
 ```
 
-- `Shadows` - Adds a dark circle below objects that sticks to the ground
+- `renderShadowMaps` - Draws the world's shadow maps (the sun's cascades, the torches' shadows) with the objects you pass casting
 - `LightShined` - Updates object brightness based on surrounding voxel lighting
 
 ![](../assets/night-time-shadow-light-shined.png)
 
-The character dims at night and has a shadow below.
+The character dims at night and casts a shadow.
 
-Without `LightShined`, everything would stay bright (Voxelize uses `MeshBasicMaterial` which ignores lighting by default).
+Without `LightShined`, everything would stay bright (Voxelize's entity materials are unlit node materials, `MeshBasicNodeMaterial`).

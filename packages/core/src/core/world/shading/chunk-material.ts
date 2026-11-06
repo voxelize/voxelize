@@ -154,8 +154,8 @@ export type ChunkPrepareHookContext = {
 };
 
 /**
- * Game-side customization of a block's chunk shading, the TSL successor of
- * splicing GLSL at anchors. `key` names the customization for program
+ * Game-side customization of a block's chunk shading: TSL nodes the chunk
+ * graph calls at its stages. `key` names the customization for program
  * caching: two materials with the same key and kind share one program.
  */
 export type ChunkShadingHooks = {

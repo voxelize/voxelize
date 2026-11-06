@@ -232,7 +232,7 @@ function applyShadowCameraBasis(
  * CPU mirror of the shader's face selection and UV/depth reconstruction,
  * kept next to the camera builders so a unit test can assert that a world
  * point projected through the *camera* lands on the same face UV and linear
- * depth this function (and therefore the GLSL) computes.
+ * depth this function (and therefore the shader, shading/local-lights.ts) computes.
  *
  * Returns `null` when the point projects outside the face's guarded frustum.
  */

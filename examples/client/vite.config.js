@@ -1,6 +1,5 @@
 import path from "path";
 
-import glsl from "vite-plugin-glsl";
 import { replaceCodePlugin } from "vite-plugin-replace";
 
 /** @type {import('vite').UserConfig} */
@@ -9,7 +8,6 @@ export default {
     force: true,
   },
   plugins: [
-    glsl(),
     replaceCodePlugin({
       replacements: [
         {

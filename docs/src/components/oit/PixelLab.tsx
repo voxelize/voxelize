@@ -379,7 +379,7 @@ export default function PixelLab() {
       <h4 className="mt-6 mb-1 text-sm font-semibold">The depth weight</h4>
       <p className="text-sm opacity-80 mt-0">
         <code>
-          w(d) = clamp(scale / (ε + (d / near)³ + (d / far)⁶), min, max)
+          w(d) = clamp(scale / (1 + d / near + (d / far)⁶), min, max)
         </code>
         . Between them the nearer layer takes more of the colour: twice as far
         weighs an eighth.

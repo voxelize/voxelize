@@ -61,11 +61,14 @@ function animate() {
     voxelInteract.update();
     perspectives.update();
     lightShined.update();
-    shadows.update();
+    // The sun and moon, then the shadow maps: the sun's cascades and the
+    // torches' shadows, with the characters casting in them.
+    world.updateShaderLighting(camera, rigidControls.object.position);
+    world.renderShadowMaps(renderer, shadowCasters);
     peers.update();
   }
 
-  renderer.render(world, camera);
+  world.renderFrame(renderer, camera, null);
 }
 ```
 
@@ -79,7 +82,7 @@ The complete tutorial code with multiplayer:
 
 ```javascript title="main.js"
 import * as VOXELIZE from "@voxelize/core";
-import * as THREE from "three";
+import * as THREE from "three/webgpu";
 
 const canvas = document.getElementById("canvas");
 
@@ -94,7 +97,7 @@ const camera = new THREE.PerspectiveCamera(
   3000
 );
 
-const renderer = new THREE.WebGLRenderer({
+const renderer = new THREE.WebGPURenderer({
   antialias: true,
   powerPreference: "high-performance",
   canvas,
@@ -102,6 +105,8 @@ const renderer = new THREE.WebGLRenderer({
 renderer.setSize(window.innerWidth, window.innerHeight);
 renderer.setPixelRatio(window.devicePixelRatio || 1);
 renderer.outputColorSpace = THREE.SRGBColorSpace;
+// Nothing draws until the GPU device is up.
+await renderer.init();
 
 window.addEventListener("resize", () => {
   camera.aspect = window.innerWidth / window.innerHeight;
@@ -137,14 +142,15 @@ world.add(voxelInteract);
 const perspectives = new VOXELIZE.Perspective(rigidControls, world);
 perspectives.connect(inputs);
 
-const shadows = new VOXELIZE.Shadows(world);
 const lightShined = new VOXELIZE.LightShined(world);
+// What casts in the world's shadow maps besides the terrain.
+const shadowCasters = [];
 
 function createCharacter() {
   const character = new VOXELIZE.Character();
   world.add(character);
   lightShined.add(character);
-  shadows.add(character);
+  shadowCasters.push(character);
   return character;
 }
 
@@ -195,11 +201,14 @@ function animate() {
     voxelInteract.update();
     perspectives.update();
     lightShined.update();
-    shadows.update();
+    // The sun and moon, then the shadow maps: the sun's cascades and the
+    // torches' shadows, with the characters casting in them.
+    world.updateShaderLighting(camera, rigidControls.object.position);
+    world.renderShadowMaps(renderer, shadowCasters);
     peers.update();
   }
 
-  renderer.render(world, camera);
+  world.renderFrame(renderer, camera, null);
 }
 
 async function start() {

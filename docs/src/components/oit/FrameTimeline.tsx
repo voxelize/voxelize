@@ -29,9 +29,13 @@ const BUFFERS: { id: BufferId; name: string; detail: string }[] = [
   {
     id: "accum",
     name: "Accumulation",
-    detail: "RGBA16F · rgb Σ C·α·w · alpha Π(1 − α)",
+    detail: "RGBA16F · rgb Σ C·α·w · alpha 1 − Π(1 − α)",
   },
-  { id: "weight", name: "Weight", detail: "R16F · Σ α·w" },
+  {
+    id: "weight",
+    name: "Weight",
+    detail: "RGBA16F · red Σ α·w · green Σ α·w·d",
+  },
   {
     id: "water",
     name: "Water depth",
@@ -41,8 +45,8 @@ const BUFFERS: { id: BufferId; name: string; detail: string }[] = [
 
 const STEPS: Step[] = [
   {
-    label: "Before the frame",
-    order: "prepareTransparency",
+    label: "Before the scene",
+    order: "renderFrame",
     kind: "pass",
     writes: ["water"],
     reads: [],
@@ -50,12 +54,13 @@ const STEPS: Step[] = [
     blend: "none (depth only)",
     text: (
       <>
-        <code>world.prepareTransparency(renderer, camera)</code> installs the
-        world's banded sort, draws the depth of every water face in view into a
-        texture of its own, with the water's own vertex shader so the waves
-        match, and arms the accumulation for this camera. Both sides of each
-        face: the surface's top is the nearest water from above, its underside
-        from below.
+        <code>world.renderFrame(renderer, camera, target)</code> installs the
+        world's banded sort and draws the depth of every water face in view
+        into a texture of its own, with the water's own vertex shader so the
+        waves match. Both sides of each face: the surface's top is the nearest
+        water from above, its underside from below. Then it draws the scene,
+        with a render-object function that keeps every blended draw, and every
+        draw of the band after it, instead of drawing it.
       </>
     ),
   },
@@ -102,7 +107,7 @@ const STEPS: Step[] = [
   },
   {
     label: "Open",
-    order: "−0.5",
+    order: "after the scene",
     kind: "marker",
     writes: ["accum", "weight"],
     reads: [],
@@ -110,11 +115,12 @@ const STEPS: Step[] = [
     blend: "—",
     text: (
       <>
-        A marker mesh that draws nothing. Its <code>onBeforeRender</code> hands
-        the scene colour texture to the water (it refracts the target directly,
-        no copy), binds the accumulation target (two attachments, the scene's
-        depth texture as its depth), clears them to (0, 0, 0, 1) and 0, and from
-        here on forces one blend state on every adopted material.
+        The scene is drawn and its blended draws are kept. The pass hands the
+        scene colour texture to the water (it refracts the target directly, no
+        copy), binds the accumulation target (two attachments, the scene's depth
+        texture as its depth), clears both to 0, and lays the encoder over every
+        draw that follows with <code>renderer.setMRT</code>: each material's own
+        colour comes out as the weighted sums, a blend mode per attachment.
       </>
     ),
   },
@@ -125,11 +131,11 @@ const STEPS: Step[] = [
     writes: ["accum", "weight"],
     reads: ["depth", "water"],
     depth: "test",
-    blend: "rgb ONE + ONE · alpha ZERO + ONE_MINUS_SRC_ALPHA",
+    blend: "colour ONE + ONE, alpha ONE + ONE_MINUS_SRC_ALPHA · weight ONE + ONE",
     text: (
       <>
-        Glass, smoke, bubbles, sprites, every blended material, in whatever
-        order the list has. The first thing each fragment does is compare itself
+        Glass, smoke, bubbles, sprites, every blended material, replayed from
+        the kept draws in whatever order they were kept. The first thing each fragment does is compare itself
         with the water depth: in front of the nearest water face, it is dropped
         (it draws in the next pass). The water follows the same rule: its
         nearest face lies at that depth and waits for the next pass, while water
@@ -150,9 +156,8 @@ const STEPS: Step[] = [
       <>
         Composites what lies behind the water into the scene, hands the scene
         colour to the water again (now with the glass, bubbles and smoke behind
-        it in it), clears the accumulation and draws the blended band once more,
-        straight from three's list, with the steps three's own draw takes. With
-        no water in view there is no split: the band draws once.
+        it in it), clears the accumulation and replays the kept band once more.
+        With no water in view there is no split: the band draws once.
       </>
     ),
   },
@@ -163,7 +168,7 @@ const STEPS: Step[] = [
     writes: ["accum", "weight"],
     reads: ["depth", "water", "scene"],
     depth: "test",
-    blend: "rgb ONE + ONE · alpha ZERO + ONE_MINUS_SRC_ALPHA",
+    blend: "colour ONE + ONE, alpha ONE + ONE_MINUS_SRC_ALPHA · weight ONE + ONE",
     text: (
       <>
         The water and everything in front of it. The water reads the scene
@@ -183,9 +188,9 @@ const STEPS: Step[] = [
     blend: "ONE + ONE_MINUS_SRC_ALPHA",
     text: (
       <>
-        Binds the scene target again and draws one full-screen triangle:{" "}
-        <code>rgb = Σ C·α·w ÷ Σ α·w × (1 − Π)</code>, alpha <code>1 − Π</code>,
-        over the scene.
+        Binds the scene target again and draws one full-screen quad:{" "}
+        <code>rgb = Σ C·α·w ÷ Σ α·w × coverage</code>, alpha{" "}
+        <code>coverage = 1 − Π(1 − α)</code>, over the scene.
       </>
     ),
   },
@@ -200,8 +205,9 @@ const STEPS: Step[] = [
     text: (
       <>
         What cannot accumulate: additive light (it needs no order anyway),
-        multiply, custom blends the accumulation cannot express. It draws over
-        the composite.
+        multiply, custom blends the accumulation cannot express, a material
+        with a whole <code>fragmentNode</code> (render-target outputs cannot
+        reach it). Its kept draws replay over the composite.
       </>
     ),
   },

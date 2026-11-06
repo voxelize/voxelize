@@ -1,4 +1,4 @@
-import { ShaderMaterial } from "three/webgpu";
+import { NodeMaterial } from "three/webgpu";
 import { describe, expect, it } from "vitest";
 
 import { FarBatch } from "./far-terrain-batch";
@@ -29,7 +29,7 @@ const drawRange = (batch: FarBatch, geometryId: number, page = 0) =>
 
 describe("FarBatch", () => {
   it("reuses a dropped tile's slot for the next tile it holds", () => {
-    const batch = new FarBatch(new ShaderMaterial(), 1 << 16);
+    const batch = new FarBatch(new NodeMaterial(), 1 << 16);
     const a = batch.add(quads(100), 0, 0, 64, "a");
     expect(a.capacity).toBe(1024);
     batch.remove(a);
@@ -42,7 +42,7 @@ describe("FarBatch", () => {
   });
 
   it("draws a tile's own vertices, not its slot's padding", () => {
-    const batch = new FarBatch(new ShaderMaterial(), 1 << 16);
+    const batch = new FarBatch(new NodeMaterial(), 1 << 16);
     const slot = batch.add(quads(100), 0, 0, 64, "a");
     expect(drawRange(batch, slot.geometryId)?.count).toBe(600);
     batch.remove(slot);
@@ -52,7 +52,7 @@ describe("FarBatch", () => {
   });
 
   it("reuses a larger free slot only within the slack", () => {
-    const batch = new FarBatch(new ShaderMaterial(), 1 << 16);
+    const batch = new FarBatch(new NodeMaterial(), 1 << 16);
     const large = batch.add(quads(1300), 0, 0, 64, "large");
     expect(large.capacity).toBe(8192);
     batch.remove(large);
@@ -65,7 +65,7 @@ describe("FarBatch", () => {
   });
 
   it("opens a new page when the last one is full", () => {
-    const batch = new FarBatch(new ShaderMaterial(), 8192);
+    const batch = new FarBatch(new NodeMaterial(), 8192);
     const slots = [0, 1, 2, 3].map((i) =>
       batch.add(quads(600), i * 64, 0, 64, `t${i}`),
     );
@@ -82,7 +82,7 @@ describe("FarBatch", () => {
   });
 
   it("grows a page's instance table when it fills", () => {
-    const batch = new FarBatch(new ShaderMaterial(), 1 << 20);
+    const batch = new FarBatch(new NodeMaterial(), 1 << 20);
     const slots = Array.from({ length: 70 }, (_, i) =>
       batch.add(quads(10), i * 64, 0, 64, `t${i}`),
     );
@@ -92,7 +92,7 @@ describe("FarBatch", () => {
   });
 
   it("shows a slot only while its opacity is above zero", () => {
-    const batch = new FarBatch(new ShaderMaterial(), 1 << 16);
+    const batch = new FarBatch(new NodeMaterial(), 1 << 16);
     const slot = batch.add(quads(10), 0, 0, 64, "a");
     expect(slot.visible).toBe(false);
     expect(slot.page.getVisibleAt(slot.instanceId)).toBe(false);

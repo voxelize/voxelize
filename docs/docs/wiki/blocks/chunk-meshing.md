@@ -25,7 +25,7 @@ All visual properties are controlled through chunk uniforms. You can set them at
 
 ```ts title="Chunk Uniform Configuration"
 import * as VOXELIZE from "@voxelize/core";
-import { Vector4, Color } from "three";
+import { Vector4, Color } from "three/webgpu";
 
 const world = new VOXELIZE.World({
   chunkUniformsOverwrite: {
@@ -93,7 +93,7 @@ This example creates a dark, dramatic dungeon aesthetic:
 
 ```ts title="Dungeon Style Configuration"
 import * as VOXELIZE from "@voxelize/core";
-import { Vector4, Color } from "three";
+import { Vector4, Color } from "three/webgpu";
 
 const world = new VOXELIZE.World({
   minLightLevel: 0.02,

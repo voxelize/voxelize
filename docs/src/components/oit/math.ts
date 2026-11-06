@@ -1,6 +1,6 @@
 /**
  * The arithmetic of the engine's pass, for the figures: the depth weight and
- * the accumulation mirror `orderIndependentFragment` and the composite in
+ * the accumulation mirror the encoder (`createEncoder`) and the composite in
  * `packages/core/src/core/world/order-independent-transparency.ts`.
  */
 
@@ -16,7 +16,7 @@ export type Weights = {
 
 export const DEFAULT_WEIGHTS: Weights = {
   scale: 10,
-  nearDistance: 10,
+  nearDistance: 4,
   farDistance: 200,
   min: 0.01,
   max: 1000,
@@ -38,8 +38,8 @@ const clamp = (value: number, min: number, max: number) =>
 export function depthWeight(distance: number, weights = DEFAULT_WEIGHTS) {
   return clamp(
     weights.scale /
-      (1e-5 +
-        (distance / weights.nearDistance) ** 3 +
+      (1 +
+        distance / weights.nearDistance +
         (distance / weights.farDistance) ** 6),
     weights.min,
     weights.max,

@@ -30,7 +30,7 @@ function animate() {
     debug.update();
   }
 
-  renderer.render(world, camera);
+  world.renderFrame(renderer, camera, null);
 }
 ```
 

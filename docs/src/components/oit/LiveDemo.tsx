@@ -1,7 +1,36 @@
 import { useEffect, useRef, useState } from "react";
 
-import * as THREE from "three";
-import { OrbitControls } from "three/examples/jsm/controls/OrbitControls.js";
+import { OrbitControls } from "three/addons/controls/OrbitControls.js";
+import {
+  cameraFar,
+  cameraNear,
+  clamp,
+  cos,
+  Discard,
+  float,
+  Fn,
+  If,
+  ivec2,
+  length,
+  max,
+  mix,
+  mrt,
+  output,
+  positionView,
+  positionWorld,
+  pow,
+  screenCoordinate,
+  screenUV,
+  sin,
+  smoothstep,
+  texture,
+  uniform,
+  uv,
+  vec2,
+  vec3,
+  vec4,
+} from "three/tsl";
+import * as THREE from "three/webgpu";
 
 import { DEFAULT_WEIGHTS } from "./math";
 import { Choice } from "./ui";
@@ -12,8 +41,9 @@ import { Choice } from "./ui";
  * sorted pipeline does. "Order-independent" is the engine's pass in
  * miniature: depth writers and solid texels, the depth of the water, the
  * blended layers behind it accumulated and composited, then the water and
- * everything in front of it accumulated and composited. The GLSL below is
- * the same arithmetic as the engine's encoder and composite.
+ * everything in front of it accumulated and composited. The encoder and the
+ * composite below are the engine's (order-independent-transparency.ts), in
+ * TSL on three's WebGPU renderer.
  */
 
 type Mode = "sorted" | "oit";
@@ -25,149 +55,19 @@ const LAYER_BLENDED = 2;
 const LAYER_TRANSLUCENT_TEXELS = 3;
 const LAYER_SORTED_GLASS = 4;
 
-const OIT_GLSL = /* glsl */ `
-uniform float uMode;
-uniform float uPhase;
-uniform sampler2D uWaterDepth;
-uniform vec2 uViewport;
-uniform vec2 uClip;
-uniform vec4 uWeight;
-uniform vec2 uWeightRange;
-layout(location = 1) out highp vec4 pc_fragOitWeight;
+type FloatNode = THREE.Node<"float">;
+type Vec4Node = THREE.Node<"vec4">;
 
-float oitDistanceAt(float depth) {
-  return uClip.x * uClip.y / (uClip.y - depth * (uClip.y - uClip.x));
-}
-
-bool oitKeep() {
-  if (uMode < 0.5 || uPhase < 0.5) return true;
-  float separator = texture2D(uWaterDepth, gl_FragCoord.xy / uViewport).r;
-  bool isBehind = oitDistanceAt(gl_FragCoord.z) > oitDistanceAt(separator) + 0.02;
-  return isBehind == (uPhase < 1.5);
-}
-
-void oitWrite(vec4 color) {
-  pc_fragOitWeight = vec4(0.0);
-  if (uMode < 0.5) {
-    gl_FragColor = color;
-    return;
-  }
-  float alpha = clamp(color.a, 0.0, 1.0);
-  if (alpha <= 0.0) discard;
-  float distance = oitDistanceAt(gl_FragCoord.z);
-  float weight = alpha * clamp(
-    uWeight.x / (1e-5 + pow(distance / uWeight.y, 3.0) + pow(distance / uWeight.z, 6.0)),
-    uWeightRange.x,
-    uWeightRange.y
-  );
-  gl_FragColor = vec4(color.rgb * alpha * weight, alpha);
-  pc_fragOitWeight = vec4(alpha * weight, 0.0, 0.0, 0.0);
-}
-`;
-
-const VERTEX = /* glsl */ `
-varying vec2 vUv;
-varying vec3 vWorld;
-void main() {
-  vUv = uv;
-  vec4 world = modelMatrix * vec4(position, 1.0);
-  vWorld = world.xyz;
-  gl_Position = projectionMatrix * viewMatrix * world;
-}
-`;
-
-const GLASS_FRAGMENT = /* glsl */ `
-${OIT_GLSL}
-uniform sampler2D uMap;
-uniform float uSkipSolid;
-varying vec2 vUv;
-void main() {
-  if (!oitKeep()) discard;
-  vec4 texel = texture2D(uMap, vUv);
-  if (texel.a < 0.1) discard;
-  if (uSkipSolid > 0.5 && texel.a >= 0.99) discard;
-  oitWrite(texel);
-}
-`;
-
-const WATER_FRAGMENT = /* glsl */ `
-${OIT_GLSL}
-uniform sampler2D uScene;
-uniform float uTime;
-varying vec3 vWorld;
-void main() {
-  if (!oitKeep()) discard;
-  vec2 uv = gl_FragCoord.xy / uViewport;
-  vec2 ripple = vec2(
-    sin(vWorld.x * 2.3 + uTime * 1.1) + sin(vWorld.z * 3.1 - uTime * 0.8),
-    cos(vWorld.z * 2.1 + uTime * 0.9) + cos(vWorld.x * 2.9 + uTime * 0.6)
-  ) * 0.0012;
-  vec3 behind = texture2D(uScene, clamp(uv + ripple, vec2(0.001), vec2(0.999))).rgb;
-  vec3 color = mix(behind * vec3(0.55, 0.8, 0.92), vec3(0.05, 0.22, 0.42), 0.3);
-  oitWrite(vec4(color, 0.9));
-}
-`;
-
-const PUFF_FRAGMENT = /* glsl */ `
-${OIT_GLSL}
-uniform vec3 uColor;
-uniform float uAlpha;
-varying vec2 vUv;
-void main() {
-  if (!oitKeep()) discard;
-  float r = length(vUv - 0.5) * 2.0;
-  float alpha = uAlpha * smoothstep(1.0, 0.15, r);
-  if (alpha < 0.01) discard;
-  oitWrite(vec4(uColor, alpha));
-}
-`;
-
-const FULLSCREEN_VERTEX = /* glsl */ `
-varying vec2 vUv;
-void main() {
-  vUv = position.xy * 0.5 + 0.5;
-  gl_Position = vec4(position.xy, 0.0, 1.0);
-}
-`;
-
-const COMPOSITE_FRAGMENT = /* glsl */ `
-uniform sampler2D tAccumulation;
-uniform sampler2D tWeight;
-void main() {
-  ivec2 pixel = ivec2(gl_FragCoord.xy);
-  vec4 accumulation = texelFetch(tAccumulation, pixel, 0);
-  float coverage = 1.0 - accumulation.a;
-  if (coverage <= 0.0) discard;
-  float weight = texelFetch(tWeight, pixel, 0).r;
-  gl_FragColor = vec4(accumulation.rgb / max(weight, 1e-5) * coverage, coverage);
-}
-`;
-
-const BLIT_FRAGMENT = /* glsl */ `
-uniform sampler2D tScene;
-uniform sampler2D tAccumulation;
-uniform sampler2D tWeight;
-uniform sampler2D tWaterDepth;
-uniform vec2 uClip;
-uniform float uView;
-varying vec2 vUv;
-void main() {
-  if (uView < 0.5) {
-    gl_FragColor = texture2D(tScene, vUv);
-  } else if (uView < 1.5) {
-    vec4 accumulation = texture2D(tAccumulation, vUv);
-    float weight = texture2D(tWeight, vUv).r;
-    gl_FragColor = vec4(weight > 0.0 ? accumulation.rgb / weight : vec3(0.0), 1.0);
-  } else if (uView < 2.5) {
-    gl_FragColor = vec4(vec3(1.0 - texture2D(tAccumulation, vUv).a), 1.0);
-  } else {
-    float depth = texture2D(tWaterDepth, vUv).r;
-    float distance = uClip.x * uClip.y / (uClip.y - depth * (uClip.y - uClip.x));
-    gl_FragColor = vec4(vec3(depth >= 1.0 ? 0.0 : 1.0 - distance / 30.0), 1.0);
-  }
-  #include <colorspace_fragment>
-}
-`;
+/**
+ * Perspective depth (0..1, as stored) back to the distance along the view
+ * axis, for a camera with these clip planes (the engine's
+ * `perspectiveDepthToViewZ`).
+ */
+const depthToDistance = (
+  depth: FloatNode,
+  near: FloatNode = cameraNear,
+  far: FloatNode = cameraFar,
+) => near.mul(far).div(far.sub(depth.mul(far.sub(near))));
 
 function canvasTexture(
   size: number,
@@ -225,6 +125,8 @@ const tiles = (a: number[], b: number[]) =>
 
 type Puff = {
   mesh: THREE.Mesh;
+  /** The puff's opacity, read by its material. */
+  alpha: { value: number };
   age: number;
   life: number;
   spot: THREE.Vector3;
@@ -246,7 +148,7 @@ export default function LiveDemo() {
   useEffect(() => {
     const host = hostRef.current;
     if (!host) return;
-    const renderer = new THREE.WebGLRenderer({ antialias: false });
+    const renderer = new THREE.WebGPURenderer({ antialias: false });
     renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
     renderer.outputColorSpace = THREE.SRGBColorSpace;
     renderer.autoClear = false;
@@ -280,15 +182,11 @@ export default function LiveDemo() {
       scene.add(mesh);
       return mesh;
     };
-    const grass = new THREE.MeshLambertMaterial({
-      map: tiles([96, 156, 70, 255], [86, 142, 62, 255]),
-    });
-    const stone = new THREE.MeshLambertMaterial({
-      map: tiles([150, 146, 138, 255], [134, 130, 122, 255]),
-    });
-    const sand = new THREE.MeshLambertMaterial({
-      map: tiles([212, 190, 140, 255], [196, 174, 126, 255]),
-    });
+    const lambert = (map: THREE.Texture) =>
+      new THREE.MeshLambertNodeMaterial({ map });
+    const grass = lambert(tiles([96, 156, 70, 255], [86, 142, 62, 255]));
+    const stone = lambert(tiles([150, 146, 138, 255], [134, 130, 122, 255]));
+    const sand = lambert(tiles([212, 190, 140, 255], [196, 174, 126, 255]));
     // The ground around the pool, as four strips leaving the pool open.
     for (const [x, z, w, d] of [
       [0, -12.25, 40, 15.5],
@@ -316,44 +214,91 @@ export default function LiveDemo() {
       world(wall, LAYER_WORLD);
     }
 
-    const weightUniforms = {
-      uWeight: {
-        value: new THREE.Vector4(
-          DEFAULT_WEIGHTS.scale,
-          DEFAULT_WEIGHTS.nearDistance,
-          DEFAULT_WEIGHTS.farDistance,
-          0,
+    // The pass's own inputs, read by the encoder laid over every blended
+    // draw while it accumulates.
+    const uPhase = uniform(0);
+    const uWeight = uniform(
+      new THREE.Vector4(
+        DEFAULT_WEIGHTS.scale,
+        DEFAULT_WEIGHTS.nearDistance,
+        DEFAULT_WEIGHTS.farDistance,
+        0,
+      ),
+    );
+    const uWeightRange = uniform(
+      new THREE.Vector2(DEFAULT_WEIGHTS.min, DEFAULT_WEIGHTS.max),
+    );
+    const placeholderDepth = new THREE.DepthTexture(1, 1);
+    const waterDepthNode = texture(placeholderDepth);
+
+    // The engine's encoder: the material's own colour (three's `output`)
+    // becomes the weighted sums, a blend mode per attachment.
+    const distance = positionView.z.negate();
+    const weightOf = Fn(() =>
+      clamp(output.a, 0, 1).mul(
+        clamp(
+          uWeight.x.div(
+            distance
+              .div(uWeight.y)
+              .add(pow(distance.div(uWeight.z), 6))
+              .add(1),
+          ),
+          uWeightRange.x,
+          uWeightRange.y,
         ),
-      },
-      uWeightRange: {
-        value: new THREE.Vector2(DEFAULT_WEIGHTS.min, DEFAULT_WEIGHTS.max),
-      },
-    };
-    const shared = {
-      uMode: { value: 1 },
-      uPhase: { value: 0 },
-      uWaterDepth: { value: null as THREE.Texture | null },
-      uViewport: { value: new THREE.Vector2(1, 1) },
-      uClip: { value: new THREE.Vector2(view.near, view.far) },
-      ...weightUniforms,
-    };
-    const blended: THREE.ShaderMaterial[] = [];
-    const blendedMaterial = (
-      fragmentShader: string,
-      uniforms: Record<string, THREE.IUniform>,
-    ) => {
-      const material = new THREE.ShaderMaterial({
-        vertexShader: VERTEX,
-        fragmentShader,
-        uniforms: { ...shared, ...uniforms },
-        transparent: true,
-        depthWrite: false,
-        side: THREE.DoubleSide,
-        forceSinglePass: true,
+      ),
+    );
+    const encodedColor = Fn(() => {
+      If(uPhase.greaterThan(0.5), () => {
+        // Phase 1 keeps what lies behind the nearest water, phase 2 the rest.
+        const separator = waterDepthNode.sample(screenUV).x;
+        const isBehind = distance.greaterThan(
+          depthToDistance(separator).add(0.02),
+        );
+        Discard(isBehind.xor(uPhase.lessThan(1.5)));
       });
-      blended.push(material);
+      const alpha = clamp(output.a, 0, 1).toVar();
+      Discard(alpha.lessThanEqual(0));
+      return vec4(output.rgb.mul(alpha).mul(weightOf()), alpha);
+    })();
+    const encodedWeight = Fn(() => {
+      const w = clamp(output.a, 0, 1).mul(weightOf());
+      return vec4(w, w.mul(distance), 0, 0);
+    })();
+    const encoder = mrt({ output: encodedColor, weight: encodedWeight });
+    const sums = new THREE.BlendMode(THREE.CustomBlending);
+    sums.blendEquation = THREE.AddEquation;
+    sums.blendSrc = THREE.OneFactor;
+    sums.blendDst = THREE.OneFactor;
+    sums.blendEquationAlpha = THREE.AddEquation;
+    sums.blendSrcAlpha = THREE.OneFactor;
+    sums.blendDstAlpha = THREE.OneMinusSrcAlphaFactor;
+    encoder.setBlendMode("output", sums);
+    const added = new THREE.BlendMode(THREE.CustomBlending);
+    added.blendEquation = THREE.AddEquation;
+    added.blendSrc = THREE.OneFactor;
+    added.blendDst = THREE.OneFactor;
+    added.blendEquationAlpha = THREE.AddEquation;
+    added.blendSrcAlpha = THREE.OneFactor;
+    added.blendDstAlpha = THREE.OneFactor;
+    encoder.setBlendMode("weight", added);
+
+    const blendedMaterial = (color: Vec4Node) => {
+      const material = new THREE.NodeMaterial();
+      material.colorNode = color;
+      material.transparent = true;
+      material.depthWrite = false;
+      material.side = THREE.DoubleSide;
+      material.forceSinglePass = true;
       return material;
     };
+    const glassColor = (map: THREE.Texture, skipSolid: boolean) =>
+      Fn(() => {
+        const texel = texture(map, uv()).toVar();
+        Discard(texel.a.lessThan(0.1));
+        if (skipSolid) Discard(texel.a.greaterThanEqual(0.99));
+        return texel;
+      })() as unknown as Vec4Node;
 
     const glassMap = stainedGlass();
     const rubyMap = rubyGlass();
@@ -366,7 +311,7 @@ export default function LiveDemo() {
     ) => {
       const solid = new THREE.Mesh(
         geometry,
-        new THREE.MeshBasicMaterial({
+        new THREE.MeshBasicNodeMaterial({
           map,
           alphaTest: 0.99,
           side: THREE.DoubleSide,
@@ -376,19 +321,13 @@ export default function LiveDemo() {
       world(solid, LAYER_SOLID_TEXELS);
       const translucent = new THREE.Mesh(
         geometry,
-        blendedMaterial(GLASS_FRAGMENT, {
-          uMap: { value: map },
-          uSkipSolid: { value: 1 },
-        }),
+        blendedMaterial(glassColor(map, true)),
       );
       translucent.position.copy(at);
       world(translucent, LAYER_TRANSLUCENT_TEXELS);
       const whole = new THREE.Mesh(
         geometry,
-        blendedMaterial(GLASS_FRAGMENT, {
-          uMap: { value: map },
-          uSkipSolid: { value: 0 },
-        }),
+        blendedMaterial(glassColor(map, false)),
       );
       whole.position.copy(at);
       world(whole, LAYER_SORTED_GLASS);
@@ -399,31 +338,47 @@ export default function LiveDemo() {
       ...addGlass(column, rubyMap, new THREE.Vector3(2.7, 0, -1.7)),
     ];
 
+    // Sorted, the water refracts a copy of the frame drawn before it; order
+    // independent, it reads the scene target itself.
     const capture = new THREE.FramebufferTexture(1, 1);
     capture.colorSpace = THREE.SRGBColorSpace;
-    const waterMaterial = blendedMaterial(WATER_FRAGMENT, {
-      uScene: { value: capture },
-      uTime: { value: 0 },
-    });
+    const sceneColorNode = texture(capture);
+    const uTime = uniform(0);
+    const waterColor = Fn(() => {
+      const ripple = vec2(
+        sin(positionWorld.x.mul(2.3).add(uTime.mul(1.1))).add(
+          sin(positionWorld.z.mul(3.1).sub(uTime.mul(0.8))),
+        ),
+        cos(positionWorld.z.mul(2.1).add(uTime.mul(0.9))).add(
+          cos(positionWorld.x.mul(2.9).add(uTime.mul(0.6))),
+        ),
+      ).mul(0.0012);
+      const behind = sceneColorNode
+        .sample(clamp(screenUV.add(ripple), vec2(0.001), vec2(0.999)))
+        .rgb;
+      return vec4(
+        mix(behind.mul(vec3(0.55, 0.8, 0.92)), vec3(0.05, 0.22, 0.42), 0.3),
+        0.9,
+      );
+    })();
     const waterGeometry = new THREE.PlaneGeometry(10, 8);
     waterGeometry.rotateX(-Math.PI / 2);
     const water = world(
-      new THREE.Mesh(waterGeometry, waterMaterial),
+      new THREE.Mesh(waterGeometry, blendedMaterial(waterColor)),
       LAYER_BLENDED,
     );
     water.onBeforeRender = (r) => {
-      if (state.current.mode === "sorted") r.copyFramebufferToTexture(capture);
+      if (state.current.mode === "sorted") {
+        (r as unknown as THREE.WebGPURenderer).copyFramebufferToTexture(capture);
+      }
     };
 
     const waterDepthScene = new THREE.Scene();
-    const waterDepthMesh = new THREE.Mesh(
-      waterGeometry,
-      new THREE.MeshBasicMaterial({
-        colorWrite: false,
-        side: THREE.DoubleSide,
-      }),
-    );
-    waterDepthScene.add(waterDepthMesh);
+    const waterDepthMaterial = new THREE.MeshBasicNodeMaterial({
+      side: THREE.DoubleSide,
+    });
+    waterDepthMaterial.colorWrite = false;
+    waterDepthScene.add(new THREE.Mesh(waterGeometry, waterDepthMaterial));
 
     const puffGeometry = new THREE.PlaneGeometry(1, 1);
     const puffs: Puff[] = [];
@@ -436,17 +391,25 @@ export default function LiveDemo() {
       life: number,
     ) => {
       for (let i = 0; i < count; i++) {
+        const uAlpha = uniform(alpha);
+        const puffColor = Fn(() => {
+          const r = length(uv().sub(0.5)).mul(2);
+          const a = uAlpha.mul(smoothstep(1, 0.15, r)).toVar();
+          Discard(a.lessThan(0.01));
+          return vec4(uniform(new THREE.Color(color)), a);
+        })();
         const mesh = world(
-          new THREE.Mesh(
-            puffGeometry,
-            blendedMaterial(PUFF_FRAGMENT, {
-              uColor: { value: new THREE.Color(color) },
-              uAlpha: { value: alpha },
-            }),
-          ),
+          new THREE.Mesh(puffGeometry, blendedMaterial(puffColor)),
           LAYER_BLENDED,
         );
-        puffs.push({ mesh, age: (i / count) * life, life, spot, drift });
+        puffs.push({
+          mesh,
+          alpha: uAlpha,
+          age: (i / count) * life,
+          life,
+          spot,
+          drift,
+        });
       }
     };
     addPuffs(
@@ -472,54 +435,72 @@ export default function LiveDemo() {
       ...puffs.map((p) => p.mesh),
     ];
 
-    const ortho = new THREE.OrthographicCamera(-1, 1, 1, -1, 0, 1);
-    const triangle = new THREE.BufferGeometry();
-    triangle.setAttribute(
-      "position",
-      new THREE.BufferAttribute(
-        new Float32Array([-1, -1, 0, 3, -1, 0, -1, 3, 0]),
-        3,
-      ),
-    );
-    const composite = new THREE.ShaderMaterial({
-      vertexShader: FULLSCREEN_VERTEX,
-      fragmentShader: COMPOSITE_FRAGMENT,
-      uniforms: { tAccumulation: { value: null }, tWeight: { value: null } },
-      transparent: true,
-      depthTest: false,
-      depthWrite: false,
-      blending: THREE.CustomBlending,
-      blendSrc: THREE.OneFactor,
-      blendDst: THREE.OneMinusSrcAlphaFactor,
-      blendSrcAlpha: THREE.ZeroFactor,
-      blendDstAlpha: THREE.OneFactor,
-    });
-    const compositeScene = new THREE.Scene();
-    const compositeMesh = new THREE.Mesh(triangle, composite);
-    compositeMesh.frustumCulled = false;
-    compositeScene.add(compositeMesh);
-    const blit = new THREE.ShaderMaterial({
-      vertexShader: FULLSCREEN_VERTEX,
-      fragmentShader: BLIT_FRAGMENT,
-      uniforms: {
-        tScene: { value: null },
-        tAccumulation: { value: null },
-        tWeight: { value: null },
-        tWaterDepth: { value: null },
-        uClip: shared.uClip,
-        uView: { value: 0 },
-      },
-      depthTest: false,
-      depthWrite: false,
-    });
-    const blitScene = new THREE.Scene();
-    const blitMesh = new THREE.Mesh(triangle, blit);
-    blitMesh.frustumCulled = false;
-    blitScene.add(blitMesh);
+    // The engine's composite, over the scene.
+    const accumulationNode = texture(placeholderDepth);
+    const weightNode = texture(placeholderDepth);
+    const composite = new THREE.NodeMaterial();
+    composite.fragmentNode = Fn(() => {
+      const pixel = ivec2(screenCoordinate.xy);
+      const accumulated = accumulationNode.load(pixel);
+      const coverage = clamp(accumulated.a, 0, 1).toVar();
+      Discard(coverage.lessThanEqual(0));
+      const total = weightNode.load(pixel).x;
+      return vec4(
+        accumulated.rgb.div(max(total, 1e-5)).mul(coverage),
+        coverage,
+      );
+    })();
+    composite.transparent = true;
+    composite.depthTest = false;
+    composite.depthWrite = false;
+    composite.blending = THREE.CustomBlending;
+    composite.blendSrc = THREE.OneFactor;
+    composite.blendDst = THREE.OneMinusSrcAlphaFactor;
+    composite.blendSrcAlpha = THREE.OneFactor;
+    composite.blendDstAlpha = THREE.OneMinusSrcAlphaFactor;
+    const compositeQuad = new THREE.QuadMesh(composite);
 
-    let sceneTarget: THREE.WebGLRenderTarget | null = null;
-    let accumulation: THREE.WebGLRenderTarget | null = null;
-    let waterDepth: THREE.WebGLRenderTarget | null = null;
+    // What the canvas shows: the frame, or one of the pass's inputs. The
+    // quad draws with a camera of its own, so the scene camera's clip planes
+    // come in as a uniform.
+    const uView = uniform(0);
+    const uClip = uniform(new THREE.Vector2(view.near, view.far));
+    const blitSceneNode = texture(capture);
+    const blitAccumulationNode = texture(placeholderDepth);
+    const blitWeightNode = texture(placeholderDepth);
+    const blitWaterNode = texture(placeholderDepth);
+    const blit = new THREE.NodeMaterial();
+    blit.fragmentNode = Fn(() => {
+      const shown = vec4(blitSceneNode.sample(screenUV)).toVar();
+      If(uView.greaterThan(0.5).and(uView.lessThan(1.5)), () => {
+        const sums = blitAccumulationNode.sample(screenUV);
+        const total = blitWeightNode.sample(screenUV).x;
+        shown.assign(
+          vec4(total.greaterThan(0).select(sums.rgb.div(total), vec3(0)), 1),
+        );
+      })
+        .ElseIf(uView.greaterThan(1.5).and(uView.lessThan(2.5)), () => {
+          shown.assign(vec4(vec3(blitAccumulationNode.sample(screenUV).a), 1));
+        })
+        .ElseIf(uView.greaterThan(2.5), () => {
+          const depth = blitWaterNode.sample(screenUV).x;
+          const shade = depth
+            .greaterThanEqual(1)
+            .select(
+              float(0),
+              float(1).sub(depthToDistance(depth, uClip.x, uClip.y).div(30)),
+            );
+          shown.assign(vec4(vec3(shade), 1));
+        });
+      return shown;
+    })();
+    blit.depthTest = false;
+    blit.depthWrite = false;
+    const blitQuad = new THREE.QuadMesh(blit);
+
+    let sceneTarget: THREE.RenderTarget | null = null;
+    let accumulation: THREE.RenderTarget | null = null;
+    let waterDepth: THREE.RenderTarget | null = null;
     const release = () => {
       if (accumulation) {
         accumulation.depthTexture = null;
@@ -536,88 +517,79 @@ export default function LiveDemo() {
       view.updateProjectionMatrix();
       const size = renderer.getDrawingBufferSize(new THREE.Vector2());
       release();
-      sceneTarget = new THREE.WebGLRenderTarget(size.x, size.y, {
+      sceneTarget = new THREE.RenderTarget(size.x, size.y, {
         depthTexture: new THREE.DepthTexture(size.x, size.y),
       });
       sceneTarget.texture.colorSpace = THREE.SRGBColorSpace;
-      accumulation = new THREE.WebGLRenderTarget(size.x, size.y, {
+      // Two attachments sharing the scene's depth: the blended layers are
+      // tested against the terrain and the cutouts without a copy.
+      accumulation = new THREE.RenderTarget(size.x, size.y, {
         count: 2,
         type: THREE.HalfFloatType,
         depthTexture: sceneTarget.depthTexture,
         minFilter: THREE.NearestFilter,
         magFilter: THREE.NearestFilter,
       });
-      accumulation.textures[1].format = THREE.RedFormat;
+      accumulation.textures[0].name = "output";
+      accumulation.textures[1].name = "weight";
       const depth = new THREE.DepthTexture(size.x, size.y, THREE.FloatType);
-      waterDepth = new THREE.WebGLRenderTarget(size.x, size.y, {
+      waterDepth = new THREE.RenderTarget(size.x, size.y, {
         depthTexture: depth,
       });
       capture.image.width = size.x;
       capture.image.height = size.y;
-      capture.dispose();
-      shared.uViewport.value.set(size.x, size.y);
-      shared.uWaterDepth.value = depth;
-      composite.uniforms.tAccumulation.value = accumulation.textures[0];
-      composite.uniforms.tWeight.value = accumulation.textures[1];
-      blit.uniforms.tScene.value = sceneTarget.texture;
-      blit.uniforms.tAccumulation.value = accumulation.textures[0];
-      blit.uniforms.tWeight.value = accumulation.textures[1];
-      blit.uniforms.tWaterDepth.value = depth;
-    };
-    resize();
-    const observer = new ResizeObserver(resize);
-    observer.observe(host);
-
-    let appliedMode: Mode | null = null;
-    let appliedShuffles = -1;
-    const applyMode = (next: Mode) => {
-      shared.uMode.value = next === "oit" ? 1 : 0;
-      for (const material of blended) {
-        if (next === "oit") {
-          material.blending = THREE.CustomBlending;
-          material.blendSrc = THREE.OneFactor;
-          material.blendDst = THREE.OneFactor;
-          material.blendSrcAlpha = THREE.ZeroFactor;
-          material.blendDstAlpha = THREE.OneMinusSrcAlphaFactor;
-        } else {
-          material.blending = THREE.NormalBlending;
-        }
-      }
-      waterMaterial.uniforms.uScene.value = capture;
-      appliedMode = next;
+      capture.needsUpdate = true;
+      waterDepthNode.value = depth;
+      accumulationNode.value = accumulation.textures[0];
+      weightNode.value = accumulation.textures[1];
+      blitSceneNode.value = sceneTarget.texture;
+      blitAccumulationNode.value = accumulation.textures[0];
+      blitWeightNode.value = accumulation.textures[1];
+      blitWaterNode.value = depth;
     };
 
-    const clearAccumulation = () => {
-      renderer.setRenderTarget(accumulation);
-      const gl = renderer.getContext() as WebGL2RenderingContext;
-      renderer.state.buffers.color.setMask(true);
-      gl.clearBufferfv(gl.COLOR, 0, [0, 0, 0, 1]);
-      gl.clearBufferfv(gl.COLOR, 1, [0, 0, 0, 0]);
-    };
     const drawLayers = (...layers: number[]) => {
       view.layers.disableAll();
       for (const layer of layers) view.layers.enable(layer);
       renderer.render(scene, view);
     };
+    // One phase of the blended band into the cleared accumulation, under the
+    // encoder, then composited into the scene.
+    const accumulate = (phase: number) => {
+      if (!sceneTarget || !accumulation) return;
+      uPhase.value = phase;
+      renderer.setRenderTarget(accumulation);
+      renderer.setClearColor(0x000000, 0);
+      renderer.clear(true, false, false);
+      renderer.setMRT(encoder);
+      drawLayers(LAYER_BLENDED, LAYER_TRANSLUCENT_TEXELS);
+      renderer.setMRT(null);
+      uPhase.value = 0;
+      renderer.setRenderTarget(sceneTarget);
+      compositeQuad.render(renderer);
+    };
 
-    const clock = new THREE.Clock();
+    const timer = new THREE.Timer();
     let frame = 0;
     let isVisible = true;
+    let isDisposed = false;
     const visibility = new IntersectionObserver(([entry]) => {
       isVisible = entry.isIntersecting;
     });
     visibility.observe(host);
+    let observer: ResizeObserver | null = null;
+    let appliedShuffles = -1;
 
     const tick = () => {
       frame = requestAnimationFrame(tick);
-      const dt = Math.min(clock.getDelta(), 0.05);
+      timer.update();
+      const dt = Math.min(timer.getDelta(), 0.05);
       if (!isVisible || !sceneTarget || !accumulation || !waterDepth) return;
       const {
         mode: currentMode,
         view: currentView,
         shuffles: currentShuffles,
       } = state.current;
-      if (currentMode !== appliedMode) applyMode(currentMode);
       if (currentShuffles !== appliedShuffles) {
         appliedShuffles = currentShuffles;
         for (const mesh of transparentMeshes) {
@@ -626,7 +598,7 @@ export default function LiveDemo() {
         }
       }
       controls.update();
-      waterMaterial.uniforms.uTime.value += dt;
+      uTime.value += dt;
       for (const puff of puffs) {
         puff.age = (puff.age + dt) % puff.life;
         const t = puff.age / puff.life;
@@ -642,8 +614,7 @@ export default function LiveDemo() {
           );
         puff.mesh.scale.setScalar(0.35 + t * 1.25);
         puff.mesh.quaternion.copy(view.quaternion);
-        const material = puff.mesh.material as THREE.ShaderMaterial;
-        material.uniforms.uAlpha.value =
+        puff.alpha.value =
           (puff.drift.y > 0.6 ? 0.5 : 0.7) * Math.min(1, t * 6) * (1 - t);
       }
 
@@ -651,46 +622,46 @@ export default function LiveDemo() {
       renderer.setClearColor(0x9fc4ea, 1);
       renderer.clear(true, true, false);
       if (currentMode === "sorted") {
-        shared.uPhase.value = 0;
+        sceneColorNode.value = capture;
         drawLayers(LAYER_WORLD, LAYER_BLENDED, LAYER_SORTED_GLASS);
       } else {
         drawLayers(LAYER_WORLD, LAYER_SOLID_TEXELS);
         renderer.setRenderTarget(waterDepth);
         renderer.clear(false, true, false);
         renderer.render(waterDepthScene, view);
-        waterMaterial.uniforms.uScene.value = sceneTarget.texture;
-
-        clearAccumulation();
-        shared.uPhase.value = 1;
-        drawLayers(LAYER_BLENDED, LAYER_TRANSLUCENT_TEXELS);
-        renderer.setRenderTarget(sceneTarget);
-        renderer.render(compositeScene, ortho);
-
-        clearAccumulation();
-        shared.uPhase.value = 2;
-        drawLayers(LAYER_BLENDED, LAYER_TRANSLUCENT_TEXELS);
-        renderer.setRenderTarget(sceneTarget);
-        renderer.render(compositeScene, ortho);
+        // The water refracts the scene target itself: first what lies
+        // behind it composited, then it draws with what stands in front.
+        sceneColorNode.value = sceneTarget.texture;
+        accumulate(1);
+        accumulate(2);
       }
 
-      blit.uniforms.uView.value =
+      uView.value =
         currentMode === "sorted"
           ? 0
           : { final: 0, accumulation: 1, coverage: 2, water: 3 }[currentView];
       renderer.setRenderTarget(null);
       renderer.clear(true, true, false);
-      renderer.render(blitScene, ortho);
+      blitQuad.render(renderer);
     };
-    tick();
+
+    // Nothing draws until the GPU device is up.
+    void renderer.init().then(() => {
+      if (isDisposed) return;
+      resize();
+      observer = new ResizeObserver(resize);
+      observer.observe(host);
+      tick();
+    });
 
     return () => {
+      isDisposed = true;
       cancelAnimationFrame(frame);
-      observer.disconnect();
+      observer?.disconnect();
       visibility.disconnect();
       controls.dispose();
       release();
       renderer.dispose();
-      renderer.forceContextLoss();
       renderer.domElement.remove();
       apiRef.current = null;
     };

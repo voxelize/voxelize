@@ -753,7 +753,7 @@ export const UNDERSIDE_CRITICAL_COS = Math.sqrt(
 
 /**
  * The share of the scene above in the underside's colour at `cosIncidence`
- * (mirrors the Snell-window GLSL): the window's Fresnel transmission over
+ * (mirrors the Snell window in shading/water-surface.ts): the window's Fresnel transmission over
  * the dry world showing through the rest of the surface.
  */
 export function undersideSceneShare(cosIncidence: number): number {

@@ -162,7 +162,7 @@ export function ridgedHeight(
 /**
  * Bakes the height field and its central-difference slopes into RGBA8:
  * red and green carry the x and y slopes, normalized so the steepest facet
- * in the tile lands at ±1 after {@link WATER_NORMAL_DECODE_GLSL}; blue is
+ * in the tile lands at ±1 after the decode in shading/water-surface.ts (`rg * 2 - 1`); blue is
  * the height in 0..1 (crest detection, future parallax); alpha is opaque.
  * The tile's slope integrates to zero over a period, so every mip level
  * averages toward a flat normal — distant water goes calm on its own.
