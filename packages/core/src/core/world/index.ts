@@ -722,6 +722,8 @@ export class World<T = any> extends Scene implements NetIntercept {
    */
   /** Every GPU bucket's cull, one dispatch a view (`GpuTerrainCulls`). */
   private readonly gpuTerrainCulls = new GpuTerrainCulls();
+  /** Set by {@link prepareSharedGpuTerrain}: buckets made after it compile ahead. */
+  private gpuTerrainRenderer: Renderer | null = null;
 
   private readonly arenaSets = new Map<
     string,
@@ -1289,6 +1291,9 @@ export class World<T = any> extends Scene implements NetIntercept {
         compiles.push(arenas.bucket.compileCulls(renderer));
       }
     }
+    // Every bucket made from here on (a block's own, at its first section)
+    // compiles its kernels before it draws.
+    this.gpuTerrainRenderer = renderer;
     return Promise.all(compiles);
   }
 
@@ -8592,6 +8597,9 @@ export class World<T = any> extends Scene implements NetIntercept {
       (mesh, isAdded) => this.registerArenaRegionMesh(bucket, mesh, isAdded),
       this,
     );
+    if (this.gpuTerrainRenderer) {
+      void gpu.bucket.compileBeforeShowing(this.gpuTerrainRenderer);
+    }
     return gpu;
   }
 

@@ -397,10 +397,35 @@ export class GpuTerrainBucket {
   }
 
   dispose() {
+    this.isDisposed = true;
     this.options.culls?.delete(this);
     this.geometry.dispose();
     this.slots.clear();
     this.free.clear();
+  }
+
+  private isDisposed = false;
+
+  /**
+   * Keeps the bucket out of every pass until its cull kernels compile off
+   * the frame, for a bucket made in play (a rare block's, met after the
+   * load warmup): three builds a compute pipeline synchronously on its
+   * first dispatch, so the first frame that drew it built three. Its
+   * sections show a few frames later instead. A failed compile is logged
+   * and the bucket shown anyway, to build on its first dispatch as before.
+   */
+  compileBeforeShowing(renderer: Renderer): Promise<void> {
+    this.mesh.visible = false;
+    const show = () => {
+      if (!this.isDisposed) this.mesh.visible = true;
+    };
+    return this.compileCulls(renderer).then(show, (error: unknown) => {
+      console.error(
+        "GPU terrain: a bucket's cull kernels failed to compile ahead; they build on first use.",
+        error,
+      );
+      show();
+    });
   }
 
   /**

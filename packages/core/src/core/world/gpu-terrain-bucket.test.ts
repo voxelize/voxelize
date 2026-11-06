@@ -210,6 +210,26 @@ describe("GpuTerrainBucket", () => {
         camera.matrixWorldInverse,
       );
 
+    it("stays out of the passes until its kernels compile ahead", async () => {
+      const bucket = make();
+      let finish = () => {};
+      const compiled: unknown[][] = [];
+      const renderer = {
+        compileComputeAsync: (kernels: unknown[]) => {
+          compiled.push(kernels);
+          return new Promise<void>((resolve) => (finish = resolve));
+        },
+        _attributes: { update: () => {} },
+      } as never;
+      const showing = bucket.compileBeforeShowing(renderer);
+      expect(bucket.mesh.visible).toBe(false);
+      // The main view's and the shadow views' cull, decide and pack.
+      expect(compiled[0]).toHaveLength(6);
+      finish();
+      await showing;
+      expect(bucket.mesh.visible).toBe(true);
+    });
+
     it("culls a view once, again when the view or the sections change", () => {
       const bucket = make();
       bucket.setSectionGeometry("a", section(8), 0, 0, 0);
