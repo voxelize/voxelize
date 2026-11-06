@@ -389,6 +389,9 @@ const GPU_TERRAIN_BUCKETS: ReadonlySet<string> = new Set([
  * render radius of 8 chunks, with room for remeshes (a bucket grows past it, at
  * the cost of one full upload). A block's own bucket starts small.
  */
+/** A bucket made in the load for its draw state (`prepareGpuTerrainStates`); it grows with its block. */
+const GPU_TERRAIN_STAND_IN_CAPACITY = 1 << 14;
+
 const GPU_TERRAIN_CAPACITY: Readonly<Record<string, number>> = {
   [SHARED_OPAQUE_MATERIAL_KEY]: 5 * 1024 * 1024,
   [SHARED_CUTOUT_CUBE_MATERIAL_KEY]: 6 * 1024 * 1024,
@@ -1291,10 +1294,68 @@ export class World<T = any> extends Scene implements NetIntercept {
         compiles.push(arenas.bucket.compileCulls(renderer));
       }
     }
+    compiles.push(...this.prepareGpuTerrainStates(renderer));
     // Every bucket made from here on (a block's own, at its first section)
     // compiles its kernels before it draws.
     this.gpuTerrainRenderer = renderer;
     return Promise.all(compiles);
+  }
+
+  /**
+   * Makes, for the load warmup to compile with the scene, one block bucket
+   * of every draw state no bucket draws yet. A see-through block's own
+   * bucket draws a fork of its material, and the first bucket of a state
+   * (its program and render state) built that state's pipelines in the
+   * frame it first drew: a first stained glass or a first glowing plant
+   * met in play. Later buckets of the state reuse them. There are a few
+   * such states among a world's hundreds of blocks; each stand-in is the
+   * real bucket of its block, made small, laid out as the shared opaque
+   * bucket's sections are. Fluids are left out: their sections' float
+   * positions are another layout, and their buckets come with the land.
+   */
+  private prepareGpuTerrainStates(renderer: Renderer): Promise<void>[] {
+    const source = this.arenaSets.get(SHARED_OPAQUE_MATERIAL_KEY);
+    if (!(source instanceof GpuTerrainArenas) || !source.bucket.hasLayout) {
+      return [];
+    }
+    const stateOf = (material: ChunkMaterial, block: Block) =>
+      [
+        material.customProgramCacheKey(),
+        material.transparent,
+        material.side,
+        material.blending,
+        material.depthWrite,
+        material.depthTest,
+        material.alphaTest > 0,
+        block.isPlant,
+      ].join("/");
+    const drawn = new Set<string>();
+    for (const [bucket, arenas] of this.arenaSets) {
+      const material = this.chunkRenderer.materials.get(bucket);
+      const block = this.getBlockByIdSafe(Number(bucket));
+      if (arenas instanceof GpuTerrainArenas && material && block) {
+        drawn.add(stateOf(material, block));
+      }
+    }
+    const compiles: Promise<void>[] = [];
+    for (const [bucket, material] of this.chunkRenderer.materials) {
+      if (this.arenaSets.has(bucket)) continue;
+      const voxel = Number(bucket);
+      const block = Number.isInteger(voxel) ? this.getBlockByIdSafe(voxel) : null;
+      if (!block || block.isFluid || !this.isBlockGpuBucket(bucket, voxel)) continue;
+      const state = stateOf(material, block);
+      if (drawn.has(state)) continue;
+      drawn.add(state);
+      const arenas = this.makeGpuTerrain(
+        bucket,
+        GPU_TERRAIN_STAND_IN_CAPACITY,
+        false,
+      );
+      arenas.bucket.adoptLayout(source.bucket);
+      this.arenaSets.set(bucket, arenas);
+      compiles.push(arenas.bucket.compileCulls(renderer));
+    }
+    return compiles;
   }
 
   /**
@@ -8560,7 +8621,13 @@ export class World<T = any> extends Scene implements NetIntercept {
    * the base's values before each pass, as the arena pages sharing the base
    * would.
    */
-  private makeGpuTerrain(bucket: string) {
+  private makeGpuTerrain(
+    bucket: string,
+    vertexCapacity = GPU_TERRAIN_CAPACITY[bucket] ?? 1 << 17,
+    // A bucket made in play stays hidden until its culls compile; one made
+    // for the load warmup is compiled with the scene, so it shows.
+    compilesAhead = this.gpuTerrainRenderer !== null,
+  ) {
     const base = this.chunkRenderer.materials.get(bucket);
     if (!base) {
       throw new Error("GPU terrain bucket created before chunk materials loaded.");
@@ -8574,7 +8641,7 @@ export class World<T = any> extends Scene implements NetIntercept {
     const radius = 24;
     const gpu: GpuTerrainArenas = new GpuTerrainArenas(
       new GpuTerrainBucket(material, {
-        vertexCapacity: GPU_TERRAIN_CAPACITY[bucket] ?? 1 << 17,
+        vertexCapacity,
         sectionCapacity: (2 * radius + 1) ** 2 * subChunks,
         positionUnits: this.chunkPositionUnits,
         culls: this.gpuTerrainCulls,
@@ -8597,7 +8664,7 @@ export class World<T = any> extends Scene implements NetIntercept {
       (mesh, isAdded) => this.registerArenaRegionMesh(bucket, mesh, isAdded),
       this,
     );
-    if (this.gpuTerrainRenderer) {
+    if (compilesAhead && this.gpuTerrainRenderer) {
       void gpu.bucket.compileBeforeShowing(this.gpuTerrainRenderer);
     }
     return gpu;

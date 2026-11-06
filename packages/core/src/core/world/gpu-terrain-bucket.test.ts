@@ -164,6 +164,63 @@ describe("GpuTerrainBucket", () => {
     }
   });
 
+  it("grows into a size made and compiled ahead, keeping its sections", async () => {
+    const bucket = new GpuTerrainBucket(new MeshBasicNodeMaterial(), {
+      vertexCapacity: 1024,
+      sectionCapacity: 64,
+      positionUnits: UNITS,
+    });
+    const compiled: unknown[][] = [];
+    const renderer = {
+      compileComputeAsync: async (kernels: unknown[]) => {
+        compiled.push(kernels);
+      },
+      _attributes: { update: () => {} },
+    } as never;
+    await bucket.compileCulls(renderer);
+    const state = bucket as unknown as Internals & {
+      views: { main: { kernels: unknown; packed: unknown } };
+      nextGrowth: { views: Map<unknown, { kernels: unknown; packed: unknown }> } | null;
+    };
+    // A 128-vertex section takes a 256-vertex slot. Three quarters full:
+    // the next size is made and its culls compiled.
+    for (let i = 0; i < 3; i++) {
+      bucket.setSectionGeometry(`s${i}`, section(128), i * 16, 0, 0);
+    }
+    expect(state.nextGrowth).not.toBeNull();
+    expect(compiled).toHaveLength(2);
+    const ahead = state.nextGrowth!.views.get(state.views.main)!;
+    // The grow takes it: no cull is built on the frame that dispatches it.
+    bucket.setSectionGeometry("s3", section(128), 48, 0, 0);
+    bucket.setSectionGeometry("s4", section(128), 64, 0, 0);
+    expect(bucket.stats.vertexCapacity).toBe(1536);
+    expect(state.views.main.kernels).toBe(ahead.kernels);
+    expect(state.views.main.packed).toBe(ahead.packed);
+    for (let i = 0; i < 5; i++) {
+      const slot = state.slots.get(`s${i}`)!;
+      expect(state.sourceIndex.array[slot.indexStart]).toBe(slot.vertexStart);
+    }
+  });
+
+  it("lays out a bucket with no sections as another's, for its pipelines", () => {
+    const source = make();
+    source.setSectionGeometry("a", section(8), 0, 0, 0);
+    const empty = make();
+    expect(empty.hasLayout).toBe(false);
+    empty.adoptLayout(source);
+    expect(empty.hasLayout).toBe(true);
+    const from = source.mesh.geometry.attributes;
+    const to = empty.mesh.geometry.attributes;
+    for (const name of Object.keys(from)) {
+      expect(to[name].array.constructor).toBe(from[name].array.constructor);
+      expect(to[name].itemSize).toBe(from[name].itemSize);
+      expect(to[name].normalized).toBe(from[name].normalized);
+    }
+    // Its own first section then fits the layout it already has.
+    empty.setSectionGeometry("b", section(8), 0, 0, 0);
+    expect(empty.mesh.geometry.attributes.light.array[0]).toBe(7);
+  });
+
   it("takes a freed slot's id when the records are full", () => {
     const bucket = new GpuTerrainBucket(new MeshBasicNodeMaterial(), {
       vertexCapacity: 1 << 14,

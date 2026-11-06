@@ -89,6 +89,13 @@ const REUSE_SLACK = 1.3;
 const INDEX_PER_VERTEX = 1.5;
 /** Threads per workgroup of the cull. */
 const WORKGROUP = 64;
+/**
+ * How full a bucket gets before its next size is made and compiled ahead
+ * (see `GpuTerrainBucket.prepareGrowth`).
+ */
+const GROW_AHEAD = 0.75;
+/** Each grow makes the buffers half as large again. */
+const GROWTH = 1.5;
 
 const slotSize = (vertices: number) =>
   Math.ceil((vertices * SLOT_SLACK) / SLOT_STEP) * SLOT_STEP;
@@ -119,6 +126,8 @@ type CullKernel = Omit<ComputeNode, "dispatchSize"> & {
 const flagUniform = () => uniform(0, "uint");
 
 /** One view's cull: its packed list and what the cull keeps for it. */
+type CullKernels = { cull: CullKernel; decide: CullKernel; pack: CullKernel };
+
 type CullView = {
   /** The visible sections' indices, packed; drawn as the index. */
   packed: StorageBufferAttribute;
@@ -133,11 +142,33 @@ type CullView = {
   readonly planes: ReturnType<typeof uniformArray>;
   /** 1: pack whatever the cull finds (the list is another camera's). */
   readonly isRepackForced: ReturnType<typeof flagUniform>;
-  kernels: { cull: CullKernel; decide: CullKernel; pack: CullKernel } | null;
+  kernels: CullKernels | null;
   isPackedIndexed: boolean;
   /** What the packed list was last culled for. */
   readonly culled: { camera: Camera | null; viewProjection: Matrix4; version: number };
 };
+
+/**
+ * Makes `packed` an index buffer before anything binds it as storage, so
+ * it can be both: a buffer a cull meets first is made storage and vertex
+ * only.
+ */
+function markIndexed(renderer: Renderer, packed: StorageBufferAttribute) {
+  (
+    renderer as unknown as {
+      _attributes: { update(a: unknown, type: number): void };
+    }
+  )._attributes.update(packed, INDEX_ATTRIBUTE);
+}
+
+/** Builds `kernels`' compute pipelines without dispatching them. */
+function compileKernels(renderer: Renderer, kernels: CullKernel[]) {
+  return (
+    renderer as unknown as {
+      compileComputeAsync(nodes: unknown[]): Promise<void>;
+    }
+  ).compileComputeAsync(kernels);
+}
 
 const _frustum = new Frustum();
 const _matrix = new Matrix4();
@@ -203,6 +234,18 @@ export class GpuTerrainBucket {
    * hidden or freed, the buffers grown); a reveal moves only the shading.
    */
   private version = 0;
+  /** The renderer the culls dispatch on, once one has (for compiles ahead). */
+  private renderer: Renderer | null = null;
+  /**
+   * The next size's index buffers and each view's cull over them, made and
+   * compiled once the bucket is {@link GROW_AHEAD} full, for the grow that
+   * takes them.
+   */
+  private nextGrowth: {
+    vertexCapacity: number;
+    sourceIndex: StorageBufferAttribute;
+    views: Map<CullView, { packed: StorageBufferAttribute; kernels: CullKernels }>;
+  } | null = null;
 
   constructor(
     material: Material,
@@ -459,6 +502,7 @@ export class GpuTerrainBucket {
     viewProjection: Matrix4,
   ): CullKernel[] | null {
     this.options.beforeDraw?.();
+    this.renderer = renderer;
     if (this.nextId === 0) return null;
     const view = this.viewFor(camera);
     const culled = view.culled;
@@ -504,17 +548,56 @@ export class GpuTerrainBucket {
    * pipeline synchronously on its first dispatch, in a frame.
    */
   compileCulls(renderer: Renderer): Promise<void> {
+    this.renderer = renderer;
     const kernels: CullKernel[] = [];
     for (const view of [this.views.main, (this.views.shadow ??= this.makeView())]) {
       this.makePackedIndexed(renderer, view);
       const { cull, decide, pack } = (view.kernels ??= this.buildCull(view));
       kernels.push(cull, decide, pack);
     }
-    return (
-      renderer as unknown as {
-        compileComputeAsync(nodes: unknown[]): Promise<void>;
-      }
-    ).compileComputeAsync(kernels);
+    return compileKernels(renderer, kernels);
+  }
+
+  /**
+   * Makes the next size's index buffers and each view's cull over them,
+   * and compiles those culls off the frame. A grow rebuilds every view's
+   * cull (its packed list and the indices it reads are new buffers), and
+   * three builds a compute pipeline synchronously on its first dispatch:
+   * a bucket growing in play (an ocean's water as the player travels)
+   * built three in a frame each time. The grow takes these instead.
+   */
+  private prepareGrowth() {
+    const { renderer } = this;
+    if (this.nextGrowth || !renderer) return;
+    if (
+      this.vertexEnd < this.sectionIds.count * GROW_AHEAD &&
+      this.indexEnd < this.sourceIndex.count * GROW_AHEAD
+    ) {
+      return;
+    }
+    const vertexCapacity = Math.ceil(this.sectionIds.count * GROWTH);
+    const indexCapacity = Math.ceil(vertexCapacity * INDEX_PER_VERTEX);
+    const sourceIndex = new StorageBufferAttribute(new Uint32Array(indexCapacity), 1);
+    const views = new Map<
+      CullView,
+      { packed: StorageBufferAttribute; kernels: CullKernels }
+    >();
+    const kernels: CullKernel[] = [];
+    for (const view of [this.views.main, this.views.shadow]) {
+      if (!view) continue;
+      const packed = new StorageBufferAttribute(new Uint32Array(indexCapacity), 1);
+      markIndexed(renderer, packed);
+      const built = this.buildCull(view, sourceIndex, packed);
+      views.set(view, { packed, kernels: built });
+      kernels.push(built.cull, built.decide, built.pack);
+    }
+    this.nextGrowth = { vertexCapacity, sourceIndex, views };
+    compileKernels(renderer, kernels).catch((error: unknown) => {
+      console.error(
+        `[gpu-terrain] ${this.mesh.name}: the next size's culls failed to compile ahead; they build on first use.`,
+        error,
+      );
+    });
   }
 
   /**
@@ -524,11 +607,7 @@ export class GpuTerrainBucket {
    */
   private makePackedIndexed(renderer: Renderer, view: CullView) {
     if (view.isPackedIndexed) return;
-    (
-      renderer as unknown as {
-        _attributes: { update(a: unknown, type: number): void };
-      }
-    )._attributes.update(view.packed, INDEX_ATTRIBUTE);
+    markIndexed(renderer, view.packed);
     view.isPackedIndexed = true;
   }
 
@@ -600,19 +679,19 @@ export class GpuTerrainBucket {
    * packed indices and the whole workgroup copies its indices there.
    * Dispatches in one pass see each other's writes in order.
    */
-  private buildCull(view: CullView) {
+  private buildCull(
+    view: CullView,
+    sourceIndex = this.sourceIndex,
+    packedIndex = view.packed,
+  ) {
     const capacity = this.flags.count;
     const records = storage(this.records, "vec4", capacity * 2).toReadOnly();
     const flags = storage(this.flags, "uvec4", capacity).toReadOnly();
     const visibility = storage(view.visibility, "uint", capacity);
     const changed = storage(view.changed, "uint", 1).toAtomic();
     const packDispatch = storage(view.packDispatch, "uint", 3);
-    const source = storage(
-      this.sourceIndex,
-      "uint",
-      this.sourceIndex.count,
-    ).toReadOnly();
-    const packed = storage(view.packed, "uint", view.packed.count);
+    const source = storage(sourceIndex, "uint", sourceIndex.count).toReadOnly();
+    const packed = storage(packedIndex, "uint", packedIndex.count);
     const length = storage(view.args, "uint", 5).toAtomic();
     const planes = view.planes;
     const count = this.sectionCount;
@@ -706,6 +785,34 @@ export class GpuTerrainBucket {
     return { cull, decide, pack };
   }
 
+  /** Whether the bucket's attributes are laid out (by a section or {@link adoptLayout}). */
+  get hasLayout() {
+    return this.attributes.size > 0;
+  }
+
+  /**
+   * Lays the bucket's attributes out as `source`'s, before any section of
+   * its own: a bucket with no sections then draws with the pipelines its sections
+   * will, so a load warmup can build them (the attributes' formats are a
+   * pipeline's vertex layout). Every section the merge makes shares one
+   * layout for quantized blocks; a fluid's float positions are another.
+   */
+  adoptLayout(source: GpuTerrainBucket) {
+    if (this.hasLayout) return;
+    const capacity = this.sectionIds.count;
+    for (const [name, attribute] of source.attributes) {
+      const ArrayType = (attribute.array as unknown as { constructor: new (n: number) => ArrayLike<number> })
+        .constructor;
+      const own = new BufferAttribute(
+        new ArrayType(capacity * attribute.itemSize) as never,
+        attribute.itemSize,
+        attribute.normalized,
+      );
+      this.attributes.set(name, own);
+      this.geometry.setAttribute(name, own);
+    }
+  }
+
   /** The bucket's own attributes, shaped as the first section's. */
   private ensureAttributes(geometry: BufferGeometry) {
     if (this.attributes.size > 0) return;
@@ -764,6 +871,7 @@ export class GpuTerrainBucket {
     const indexStart = this.indexEnd;
     this.vertexEnd += capacity;
     this.indexEnd += indexRoom;
+    this.prepareGrowth();
     return { id, vertexStart, capacity, indexStart, indexCount: 0 };
   }
 
@@ -781,10 +889,15 @@ export class GpuTerrainBucket {
    * as rare as a world's render radius growing past what it held.
    */
   private grow(vertices: number) {
-    const vertexCapacity = Math.max(
-      vertices,
-      Math.ceil(this.sectionIds.count * 1.5),
-    );
+    // The size made ahead, when it holds what is asked for.
+    const prepared =
+      this.nextGrowth && this.nextGrowth.vertexCapacity >= vertices
+        ? this.nextGrowth
+        : null;
+    this.nextGrowth = null;
+    const vertexCapacity =
+      prepared?.vertexCapacity ??
+      Math.max(vertices, Math.ceil(this.sectionIds.count * GROWTH));
     const indexCapacity = Math.ceil(vertexCapacity * INDEX_PER_VERTEX);
     const resized = <T extends BufferAttribute>(
       attribute: T,
@@ -817,15 +930,31 @@ export class GpuTerrainBucket {
       (array) => new BufferAttribute(array as Uint32Array, 1),
     );
     geometry.setAttribute("sectionId", this.sectionIds);
-    this.sourceIndex = resized(
-      this.sourceIndex,
-      indexCapacity,
-      (array) => new StorageBufferAttribute(array as Uint32Array, 1),
-    );
+    if (prepared) {
+      (prepared.sourceIndex.array as Uint32Array).set(
+        this.sourceIndex.array as Uint32Array,
+      );
+      prepared.sourceIndex.needsUpdate = true;
+      this.sourceIndex = prepared.sourceIndex;
+    } else {
+      this.sourceIndex = resized(
+        this.sourceIndex,
+        indexCapacity,
+        (array) => new StorageBufferAttribute(array as Uint32Array, 1),
+      );
+    }
     // Each view packs into a list as long as the indices, read by a cull
-    // built anew; the packed one is an index again.
+    // over the new buffers: the one compiled ahead, else built anew (and
+    // its packed list made an index again).
     for (const view of [this.views.main, this.views.shadow]) {
       if (!view) continue;
+      const ready = prepared?.views.get(view);
+      if (ready) {
+        view.packed = ready.packed;
+        view.kernels = ready.kernels;
+        view.isPackedIndexed = true;
+        continue;
+      }
       view.packed = new StorageBufferAttribute(new Uint32Array(indexCapacity), 1);
       view.kernels = null;
       view.isPackedIndexed = false;
