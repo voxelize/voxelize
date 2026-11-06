@@ -324,6 +324,27 @@ describe("GpuTerrainBucket", () => {
       expect(bucket.mesh.visible).toBe(true);
     });
 
+    it("also waits for the host's own draws before it shows", async () => {
+      const bucket = make();
+      const renderer = {
+        compileComputeAsync: async () => {},
+        _attributes: { update: () => {} },
+      } as never;
+      let finishDraws = () => {};
+      let drawsAsked = 0;
+      const showing = bucket.compileBeforeShowing(renderer, () => {
+        drawsAsked += 1;
+        return new Promise<void>((resolve) => (finishDraws = resolve));
+      });
+      await Promise.resolve();
+      await Promise.resolve();
+      expect(drawsAsked).toBe(1);
+      expect(bucket.mesh.visible).toBe(false);
+      finishDraws();
+      await showing;
+      expect(bucket.mesh.visible).toBe(true);
+    });
+
     it("culls a view once, again when the view or the sections change", () => {
       const bucket = make();
       bucket.setSectionGeometry("a", section(8), 0, 0, 0);

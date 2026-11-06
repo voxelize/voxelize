@@ -722,6 +722,9 @@ export class World<T = any> extends Scene implements NetIntercept {
    */
   /** Every GPU bucket's cull, one dispatch a view (`GpuTerrainCulls`). */
   private readonly gpuTerrainCulls = new GpuTerrainCulls();
+  /** Set once the host compiles the torch-shadow programs (see
+   *  `compileLocalShadowPrograms`). */
+  private localShadowProgramRenderer: Renderer | null = null;
   /** Set by {@link prepareSharedGpuTerrain}: buckets made after it compile ahead. */
   private gpuTerrainRenderer: Renderer | null = null;
 
@@ -1265,12 +1268,15 @@ export class World<T = any> extends Scene implements NetIntercept {
    * Builds the local-light shadow frame's pipelines during a load warmup:
    * the atlas cell clear, and the depth draws of the world's static casters
    * around `casters.around` and of `casters.entities`, so the first torch to
-   * cast a shadow builds nothing in its frame.
+   * cast a shadow builds nothing in its frame. Once asked, the world also
+   * compiles the torch draw of each GPU terrain bucket made afterwards (a
+   * rare block's, met later) before that bucket shows.
    */
   compileLocalShadowPrograms(
     renderer: Renderer,
     casters: Parameters<LocalLights["compileShadowPrograms"]>[1] = {},
   ) {
+    this.localShadowProgramRenderer = renderer;
     // Every shared GPU terrain bucket draws in a torch's cells wherever the
     // torch is, whether or not its sections near the player have landed.
     const always = [...this.gpuTerrainCulls.members].map((b) => b.mesh);
@@ -7693,8 +7699,17 @@ export class World<T = any> extends Scene implements NetIntercept {
     renderer: Renderer,
     entities?: Object3D[],
     instancePools?: Group[],
+    options: {
+      /**
+       * Draw the cascades even while the sun's shadows are faded or its
+       * light swings fast, both of which skip them in play. For frames drawn
+       * to link programs ahead of play (see `CSMRenderer.forceRender`).
+       */
+      force?: boolean;
+    } = {},
   ) {
     if (!this.csmRenderer) return;
+    if (options.force) this.csmRenderer.forceRender();
 
     // Live world bounds per pool, folded once and shared by both shadow
     // consumers so each can skip pools with no caster anywhere near its
@@ -8684,7 +8699,16 @@ export class World<T = any> extends Scene implements NetIntercept {
       this,
     );
     if (compilesAhead && this.gpuTerrainRenderer) {
-      void gpu.bucket.compileBeforeShowing(this.gpuTerrainRenderer);
+      const shadowRenderer = this.localShadowProgramRenderer;
+      void gpu.bucket.compileBeforeShowing(
+        this.gpuTerrainRenderer,
+        shadowRenderer
+          ? () =>
+              this.localLights.compileShadowPrograms(shadowRenderer, {
+                always: [gpu.bucket.mesh],
+              })
+          : undefined,
+      );
     }
     return gpu;
   }

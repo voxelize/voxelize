@@ -179,6 +179,39 @@ describe("CSMRenderer redraw policy", () => {
   });
 });
 
+describe("CSMRenderer forced renders", () => {
+  it("draws faded shadows only when forced, refitted to the light as it stands", () => {
+    const csm = new CSMRenderer();
+    const scene = new Scene();
+    const counter = makeRenderer();
+    const position = new Vector3(0, 40, 0);
+    const camera = makeCamera(position, new Vector3(10, 40, 0));
+    // A join at dusk: the shadows have faded and the light has moved on
+    // from where the cascades were first fitted.
+    const duskSun = new Vector3(0.6, -0.4, 0.2).normalize();
+    for (let frame = 0; frame < 6; frame++) {
+      csm.update(camera, duskSun, position, 0.05);
+      csm.render(counter.renderer, scene);
+    }
+    expect(counter.count).toBe(0);
+    expect(csm.lightLagRadians).toBeGreaterThan(0.01);
+
+    for (let frame = 0; frame < 6; frame++) {
+      csm.update(camera, duskSun, position, 0.05);
+      csm.forceRender();
+      csm.render(counter.renderer, scene);
+    }
+    expect(counter.count).toBe(3);
+    expect(csm.lightLagRadians).toBe(0);
+
+    // The force lasts one pass: owed draws wait again while faded.
+    csm.markAllCascadesForRender();
+    csm.update(camera, duskSun, position, 0.05);
+    csm.render(counter.renderer, scene);
+    expect(counter.count).toBe(3);
+  });
+});
+
 describe("CSMRenderer light tracking", () => {
   // A twenty-minute day, held high enough that the sun is never clamped:
   // the direction turns at its fastest, about 0.005 rad/s.

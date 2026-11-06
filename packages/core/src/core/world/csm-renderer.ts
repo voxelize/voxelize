@@ -303,6 +303,33 @@ export class CSMRenderer {
     }
   }
 
+  /**
+   * Makes the next shadow pass draw whatever the light is doing. Faded
+   * shadows (the dusk dip, the sun-to-moon handoff) and a fast-swinging light
+   * skip every cascade draw, which is right in play and wrong in a warmup:
+   * frames drawn to link programs ahead of play then link no depth program,
+   * and every one of them builds together when the shadows come back. The
+   * cascades are refitted to the light as it stands, since the accepted
+   * direction stops following it through the skip.
+   */
+  forceRender() {
+    this.isRenderForced = true;
+    if (this.renderLightDirection.distanceTo(this.lightDirection) > 0.01) {
+      this.lastLightDirection.copy(this.lightDirection);
+      this.renderLightDirection.copy(this.lightDirection);
+      this.markAllCascadesForRender();
+    }
+  }
+
+  private isRenderForced = false;
+
+  private get isShadowSkipped() {
+    return (
+      !this.isRenderForced &&
+      this.currentShadowStrength <= this.config.shadowStrengthRenderFloor
+    );
+  }
+
   markAllCascadesForRender() {
     for (let i = 0; i < this.cascadeNeedsRender.length; i++) {
       this.cascadeNeedsRender[i] = true;
@@ -705,8 +732,10 @@ export class CSMRenderer {
     }
 
     // Invisible shadows are not worth a depth pass; marked flags stay put
-    // and drain when the strength comes back.
-    if (this.currentShadowStrength <= this.config.shadowStrengthRenderFloor) {
+    // and drain when the strength comes back (unless `forceRender`).
+    const isSkipped = this.isShadowSkipped;
+    this.isRenderForced = false;
+    if (isSkipped) {
       return;
     }
 
@@ -1008,7 +1037,7 @@ export class CSMRenderer {
   private shouldRenderEntityShadows = false;
 
   markCascadesForEntityRender() {
-    if (this.currentShadowStrength <= this.config.shadowStrengthRenderFloor) {
+    if (this.isShadowSkipped) {
       this.shouldRenderEntityShadows = false;
       return;
     }
