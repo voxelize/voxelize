@@ -36,6 +36,7 @@ export type SkyFogInputs = Pick<
   | "fogHeightOrigin"
   | "fogHeightDensity"
   | "fogVerticalBlend"
+  | "aerialHaze"
   | "skyFogTopColor"
   | "skyFogMiddleColor"
   | "skyFogBottomColor"
@@ -208,7 +209,23 @@ export function skyFog(u: SkyFogInputs) {
       u.fogFar.mul(0.6),
       depth,
     );
-    return max(distFog, heightFog.mul(heightDistScale));
+    const range = max(distFog, heightFog.mul(heightDistScale));
+    // Aerial perspective: the air between the eye and a far ridge scatters
+    // the sky's light into the view, so each ridge sits a step paler and
+    // bluer than the one before it, long before the range fog closes in.
+    // Thickest low, thinning with the height the path runs at (its
+    // midpoint); open air only: under rock the walls are near.
+    const air = u.aerialHaze;
+    const pathHeight = max(
+      mix(cameraPosition.y, worldPosition.y, 0.5).sub(air.y),
+      0,
+    );
+    const density = air.x.mul(exp(pathHeight.div(max(air.z, 1)).negate()));
+    const aerial = exp(depth.mul(density).negate())
+      .oneMinus()
+      .mul(air.w)
+      .mul(u.fogVerticalBlend.oneMinus());
+    return range.oneMinus().mul(aerial.oneMinus()).oneMinus();
   };
 
   /**

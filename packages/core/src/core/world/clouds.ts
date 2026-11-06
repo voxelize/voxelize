@@ -11,6 +11,7 @@ import {
   NodeMaterial,
   Vector2,
   Vector3,
+  Vector4,
 } from "three/webgpu";
 import {
   cameraPosition,
@@ -719,6 +720,7 @@ function clearAtmosphere(): SkyFogInputs {
     fogHeightOrigin: ownUniform(80),
     fogHeightDensity: ownUniform(0.005),
     fogVerticalBlend: ownUniform(0),
+    aerialHaze: ownUniform(new Vector4(0, 64, 140, 0)),
     skyFogTopColor: ownUniform(new Color(0.4, 0.6, 0.9)),
     skyFogMiddleColor: ownUniform(new Color(0.7, 0.8, 0.95)),
     skyFogBottomColor: ownUniform(new Color(0.15, 0.18, 0.25)),

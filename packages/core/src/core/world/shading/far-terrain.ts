@@ -52,6 +52,7 @@ import { WATER_OPTICS } from "../water-optics";
 
 import type { ChunkUniforms, ShaderLightingUniforms } from "./chunk-uniforms";
 import { farSeam } from "./far-seam";
+import { shadeSkyTint } from "./shade-tint";
 import { skyFog, skyGlow, type SkyFogInputs } from "./sky-fog";
 import type { SurfaceWeatherUniforms } from "../surface-weather";
 
@@ -280,7 +281,9 @@ function farCommon(shared: FarTerrainSharedUniforms, u: FarTerrainUniforms) {
       shared.ambientColor.mul(D.groundAmbient),
       shared.ambientColor,
       hemisphere,
-    ).mul(mix(D.shadedAmbient, 1, shadow));
+    )
+      .mul(mix(D.shadedAmbient, 1, shadow))
+      .mul(shadeSkyTint(shared.skyTopColor, shared.sunlightIntensity, shadow, float(1)));
     const bounce = shared.ambientColor
       .mul(D.bounce)
       .mul(shadow.oneMinus())

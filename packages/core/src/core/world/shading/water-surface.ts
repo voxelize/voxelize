@@ -44,6 +44,7 @@ import type { ChunkVaryings } from "./chunk-vertex";
 import { perspectiveDepthToViewZ } from "./conventions";
 import type { LocalLightShading } from "./local-lights";
 import { simplexNoise3Node } from "./noise";
+import { marchWaterReflection } from "./water-reflection";
 import type { SkyFogShading } from "./sky-fog";
 import type { SurfaceWeatherShading } from "./surface-weather";
 import type { FloatNode, Vec3Node, Vec4Node } from "./types";
@@ -340,6 +341,27 @@ export function waterSurface(deps: WaterSurfaceDeps) {
       mix(c.underwaterAmbient, skyAboveOrEnclosed, snellWindow),
       submersion,
     );
+    // What the surface mirrors of the frame drawn before it: the trees
+    // along the bank, the far shore, a mountain. Where the march finds
+    // nothing (sky, or off the frame) the sky reflection stays.
+    const reflection = vec3(skyReflection).toVar("waterReflection");
+    If(
+      topFace
+        .greaterThan(0.5)
+        .and(submersion.lessThan(0.5))
+        .and(reflectDir.y.greaterThan(0))
+        .and(c.sceneDepthReady.greaterThan(0.5))
+        .and(c.waterRefractionReady.greaterThan(0.5)),
+      () => {
+        const mirrored = marchWaterReflection(
+          c,
+          wPos.add(normal.mul(0.05)),
+          reflectDir,
+          distToCamera,
+        );
+        reflection.assign(mix(skyReflection, mirrored.color, mirrored.weight));
+      },
+    );
 
     // Lobes, glint and caustics all mirror the drawn disc and are the
     // sun's beam: a sky that scatters it leaves none to mirror.
@@ -489,8 +511,19 @@ export function waterSurface(deps: WaterSurfaceDeps) {
     // opacity floor; from inside it is the way out and stays clear.
     const wallOpacity = mix(W.submergedWallAlphaScale, 1, submersion.oneMinus());
     const refractionFace = max(topFace, sideFace.mul(wallOpacity));
+    // What the capture is composited through: the surface (onto the bed
+    // below it) and a tank window (onto the run of water behind it). A free
+    // wall standing in air (a cascade, a column falling past a ledge) is the
+    // water's own body: refracting the sky behind it through a block of
+    // water that tints almost nothing drew it as clear glass, and the sides
+    // of every waterfall vanished.
+    const refracts = max(topFace, airSideFace);
     If(refractionFace.greaterThan(0.01), () => {
-      const alphaFloor = mix(W.surfaceAlphaFloor, W.refractedSurfaceAlphaFloor, refractionLive)
+      const alphaFloor = mix(
+        W.surfaceAlphaFloor,
+        W.refractedSurfaceAlphaFloor,
+        refractionLive.mul(refracts),
+      )
         .mul(refractionFace)
         .mul(airSideFace.oneMinus());
       alpha.assign(max(alpha, alphaFloor));
@@ -513,7 +546,7 @@ export function waterSurface(deps: WaterSurfaceDeps) {
     If(
       c.waterRefractionReady
         .greaterThan(0.5)
-        .and(refractionFace.greaterThan(0.01))
+        .and(refracts.greaterThan(0.01))
         .and(submersion.lessThan(0.5)),
       () => {
         // Displacement follows the surface slope, on up-facing water seen
@@ -594,7 +627,7 @@ export function waterSurface(deps: WaterSurfaceDeps) {
       alpha.assign(alpha.oneMinus().mul(deepTransmit).oneMinus());
     });
 
-    color.assign(mix(waterColor, skyReflection, fresnel).add(specular));
+    color.assign(mix(waterColor, reflection, fresnel).add(specular));
     // A rain ring's crest catches the sky it mirrors.
     If(ringCrest.greaterThan(0), () => {
       color.assign(

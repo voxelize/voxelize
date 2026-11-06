@@ -75,6 +75,13 @@ export function createChunkUniforms() {
     fogHeightDensity: worldUniform(0.005),
     /** 0..1 blend from horizontal to true 3D fog distance (caves). */
     fogVerticalBlend: worldUniform(0),
+    /**
+     * Aerial perspective (`skyFog`): x the haze per block of path at the
+     * base height, y that base height, z the height over which the air
+     * thins by e, w the most of the sky it can lay over a surface. Off
+     * (w 0) unless the host turns it on.
+     */
+    aerialHaze: worldUniform(new Vector4(0, 64, 140, 0)),
     windDirection: worldUniform(new Vector2(0.7, 0.7)),
     windOffset: worldUniform(new Vector2(0, 0)),
     windSpeed: worldUniform(1.0),

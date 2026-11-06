@@ -81,6 +81,7 @@ import { farSeam } from "./far-seam";
 import { lightConeShading } from "./light-cones";
 import { type LocalLightInputs, localLightShading } from "./local-lights";
 import { simplexNoise3Node } from "./noise";
+import { shadeSkyTint } from "./shade-tint";
 import { sunShadow } from "./shadows";
 import { skyFog } from "./sky-fog";
 import { surfaceWeather } from "./surface-weather";
@@ -1112,6 +1113,7 @@ export class ChunkMaterial extends NodeMaterial {
 
     const sunTotal = skyAmbient
       .mul(ambientOcclusion)
+      .mul(shadeSkyTint(l.skyTopColor, c.sunlightIntensity, shadow, sunExposure))
       .mul(tunnelDarkening)
       .mul(downTransmit)
       .add(sunContribution.mul(mix(1, 0.7, isBrightTex)).mul(downTransmit))
