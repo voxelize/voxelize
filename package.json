@@ -15,7 +15,7 @@
     "demo:ts": "cd examples/client && pnpm demo",
     "demo:rs": "cross-env RUST_BACKTRACE=1 cargo watch -w examples/server -w server -x \"run --profile release-dev --example demo\"",
     "test-dev": "vitest",
-    "test": "vitest --run",
+    "test": "vitest --run && node --test scripts/engine-boundary/check.test.mjs",
     "test:rust": "cargo test --test mesher_tests --test lights_tests && cargo test -p voxelize-gen",
     "test:rust:all": "cargo test --workspace --lib --tests",
     "bench": "cargo bench --bench mesher_bench --bench lights_bench",
