@@ -19,8 +19,9 @@ const INSTALLED = Symbol.for("voxelize.automationPointerLock");
 
 type Flagged = { [INSTALLED]?: boolean; __voxelizeRealPointerLock?: boolean };
 
-export function installAutomationPointerLock(doc: Document) {
-  const win = doc.defaultView as (Window & Flagged) | null;
+export function installAutomationPointerLock(doc: Document | undefined) {
+  // An element made outside a document (a test's stand-in canvas) has none.
+  const win = (doc?.defaultView ?? null) as (Window & Flagged) | null;
   if (!win || !win.navigator.webdriver) return;
   if (win.__voxelizeRealPointerLock === true) return;
   if (win[INSTALLED]) return;
