@@ -98,9 +98,9 @@ describe("GpuTerrainBucket", () => {
       1,
     ]);
     expect(record[7]).toBeGreaterThan(0);
-    // Its indices, drawn and live.
+    // Its indices, shown and live (bits 1 | 2), first stamped.
     expect(Array.from(state.flags.array.slice(b.id * 4, b.id * 4 + 4))).toEqual(
-      [b.indexStart, 12, 1, 1],
+      [b.indexStart, 12, 3, 1],
     );
   });
 
@@ -139,7 +139,8 @@ describe("GpuTerrainBucket", () => {
     bucket.setSectionGeometry("a", section(8, 1), 0, 0, 0);
     const a = state.slots.get("a")!;
     expect(state.records.array[a.id * 8 + 3]).toBe(0.25);
-    expect(state.flags.array[a.id * 4 + 2]).toBe(0);
+    // Live, not shown.
+    expect(state.flags.array[a.id * 4 + 2]).toBe(2);
   });
 
   it("gives a cleared slot to the next section of its size, drawn afresh", () => {
@@ -149,13 +150,13 @@ describe("GpuTerrainBucket", () => {
     const a = state.slots.get("a")!;
     bucket.setSectionReveal("a", 0.5);
     bucket.clearSection("a");
-    expect(state.flags.array[a.id * 4 + 3]).toBe(0);
+    expect(state.flags.array[a.id * 4 + 2] & 2).toBe(0);
     bucket.setSectionGeometry("b", section(8), 0, 0, 0);
     const b = state.slots.get("b")!;
     expect(b.id).toBe(a.id);
     expect(b.vertexStart).toBe(a.vertexStart);
     expect(state.records.array[b.id * 8 + 3]).toBe(1);
-    expect(state.flags.array[b.id * 4 + 3]).toBe(1);
+    expect(state.flags.array[b.id * 4 + 2]).toBe(3);
   });
 
   it("grows past its room, keeping every section it held", () => {
@@ -242,6 +243,20 @@ describe("GpuTerrainBucket", () => {
     expect(empty.mesh.geometry.attributes.light.array[0]).toBe(7);
   });
 
+  it("stamps a section each time its indices are written", () => {
+    const bucket = make();
+    const stamp = () => (bucket as unknown as Internals).flags.array[3];
+    bucket.setSectionGeometry("a", section(8), 0, 0, 0);
+    expect(stamp()).toBe(1);
+    // A remesh in place: the views' copies of it are stale.
+    bucket.setSectionGeometry("a", section(8), 0, 0, 0);
+    expect(stamp()).toBe(2);
+    // A reveal or a visibility change moves no indices.
+    bucket.setSectionReveal("a", 0.5);
+    bucket.setSectionVisible("a", false);
+    expect(stamp()).toBe(2);
+  });
+
   it("takes a freed slot's id when the records are full", () => {
     const bucket = new GpuTerrainBucket(new MeshBasicNodeMaterial(), {
       vertexCapacity: 1 << 14,
@@ -278,6 +293,7 @@ describe("GpuTerrainBucket", () => {
       const renderer = {
         compute: (kernels: unknown) =>
           submissions.push(Array.isArray(kernels) ? [...kernels] : [kernels]),
+        compileComputeAsync: async () => {},
         _attributes: { update: () => {} },
       };
       return { renderer: renderer as never, submissions };
@@ -301,8 +317,8 @@ describe("GpuTerrainBucket", () => {
       } as never;
       const showing = bucket.compileBeforeShowing(renderer);
       expect(bucket.mesh.visible).toBe(false);
-      // The main view's and the shadow views' cull, decide and pack.
-      expect(compiled[0]).toHaveLength(6);
+      // The main view's and the shadow views' cull, decide, pack and finish.
+      expect(compiled[0]).toHaveLength(8);
       finish();
       await showing;
       expect(bucket.mesh.visible).toBe(true);
@@ -335,7 +351,7 @@ describe("GpuTerrainBucket", () => {
       expect(bucket.prepareCull(renderer, camera, viewOf(camera))).toBeNull();
     });
 
-    it("leaves the pack to the GPU when only the view moved", () => {
+    it("repacks whole only for another camera's list or new buffers", () => {
       const bucket = make();
       const forced = () =>
         (
@@ -363,10 +379,17 @@ describe("GpuTerrainBucket", () => {
       camera.updateMatrixWorld();
       bucket.prepareCull(renderer, camera, viewOf(camera));
       expect(forced()).toBe(1);
-      // Sections changed under the same view: packed afresh too.
+      // Sections changed under the same view: culled again, and the GPU
+      // patches the list where a copy must change (an append, a hole).
       bucket.setSectionGeometry("b", section(8), 16, 0, 0);
-      camera.position.x = 0.003;
-      camera.updateMatrixWorld();
+      expect(
+        bucket.prepareCull(renderer, camera, viewOf(camera)),
+      ).not.toBeNull();
+      expect(forced()).toBe(0);
+      // New buffers (a grow): the list is repacked whole.
+      for (let i = 0; i < 40; i++) {
+        bucket.setSectionGeometry(`g${i}`, section(256), i * 16, 0, 16);
+      }
       bucket.prepareCull(renderer, camera, viewOf(camera));
       expect(forced()).toBe(1);
     });
@@ -415,13 +438,13 @@ describe("GpuTerrainBucket", () => {
       // b's draw in the same view finds its cull done.
       b.cullFor(renderer, camera);
       expect(submissions.length).toBe(1);
-      // Each bucket's cull, decide and pack.
-      expect(submissions[0].length).toBe(6);
+      // Each bucket's cull, decide, pack and finish.
+      expect(submissions[0].length).toBe(8);
       // Only the bucket that changed is culled again.
       b.setSectionVisible("b", false);
       a.cullFor(renderer, camera);
       expect(submissions.length).toBe(2);
-      expect(submissions[1].length).toBe(3);
+      expect(submissions[1].length).toBe(4);
       b.dispose();
       b.setSectionVisible("b", true);
       a.cullFor(renderer, camera);

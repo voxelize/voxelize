@@ -18,6 +18,14 @@
  * Passes reuse one packed buffer: each cull is submitted before the draw it
  * feeds and after the draw before it.
  *
+ * The pack is incremental for a view that keeps its camera: a section that
+ * turns visible, or is remeshed while visible, is appended to the list; one
+ * that turns hidden or is freed has its copy overwritten with degenerate
+ * triangles (a hole). Only another camera's list, a grow, a list too full
+ * of holes or too long repacks everything. Walking used to repack every
+ * visible index whenever one section streamed in or crossed the frustum:
+ * most of the frame's GPU time while moving.
+ *
  * The vertex stage finds a vertex's section by its `sectionId` attribute and
  * reads the section's origin and reveal from `records`
  * (`GpuTerrainSections`, used by the chunk material).
@@ -38,6 +46,7 @@ import {
   uint,
   uniform,
   uniformArray,
+  uvec4,
   vec3,
   workgroupArray,
   workgroupBarrier,
@@ -96,6 +105,44 @@ const WORKGROUP = 64;
 const GROW_AHEAD = 0.75;
 /** Each grow makes the buffers half as large again. */
 const GROWTH = 1.5;
+/**
+ * A list holding more holes than this share of its length, or longer than
+ * this share of its room, is repacked whole (see `buildCull`).
+ */
+const MAX_HOLE_SHARE = 0.5;
+const MAX_FILL_SHARE = 0.6;
+/**
+ * A view's `slots` entry for a section with no copy in its list. A copy is
+ * held under the list's epoch (from 1), which a whole repack advances: every
+ * copy made before it stops being held at once.
+ */
+const NOT_HELD = 0;
+/** A view's `state` words. */
+const STATE = {
+  /** 0 no pack, 1 incremental, 2 whole. */
+  mode: 0,
+  /** Indices the list holds as holes. */
+  holes: 1,
+  /** An append ran past the room. */
+  overflow: 2,
+  /** The list's epoch (see {@link NOT_HELD}). */
+  epoch: 3,
+  /** Sections the cull listed whose copy must change. */
+  work: 4,
+  /** Sections the cull found shown. */
+  shown: 5,
+} as const;
+const STATE_WORDS = 8;
+/**
+ * A section's `flags`: (index start, index count, bits, stamp). The bits:
+ * shown (the game's visibility: plants past their radius, held chunks) and
+ * live (holds a section). The stamp is bumped whenever its indices are
+ * rewritten: a view's copy made under an older stamp is stale. One word
+ * each, so a cull binds no more storage buffers than every device allows.
+ */
+const SHOWN_BIT = 1;
+const LIVE_BIT = 2;
+const DRAWN_BITS = SHOWN_BIT | LIVE_BIT;
 
 const slotSize = (vertices: number) =>
   Math.ceil((vertices * SLOT_SLACK) / SLOT_STEP) * SLOT_STEP;
@@ -126,21 +173,36 @@ type CullKernel = Omit<ComputeNode, "dispatchSize"> & {
 const flagUniform = () => uniform(0, "uint");
 
 /** One view's cull: its packed list and what the cull keeps for it. */
-type CullKernels = { cull: CullKernel; decide: CullKernel; pack: CullKernel };
+type CullKernels = {
+  cull: CullKernel;
+  decide: CullKernel;
+  pack: CullKernel;
+  finish: CullKernel;
+};
 
 type CullView = {
   /** The visible sections' indices, packed; drawn as the index. */
   packed: StorageBufferAttribute;
   /** The indirect draw: the packed length, one instance. */
   readonly args: IndirectStorageBufferAttribute;
-  /** Each section's visibility in the view the packed list holds. */
+  /** Whether each section shows in the view (the cull's answer). */
   readonly visibility: StorageBufferAttribute;
-  /** Set by the cull when a section's visibility moved (atomic). */
-  readonly changed: StorageBufferAttribute;
-  /** The pack's workgroups: every section slot, or none when nothing moved. */
+  /**
+   * Per section, its copy in the packed list: (start, index count, the
+   * section's stamp when copied, 1 when held).
+   */
+  readonly slots: StorageBufferAttribute;
+  /**
+   * The sections whose copy must change, then (from the section capacity)
+   * the sections shown: both listed by the cull.
+   */
+  readonly lists: StorageBufferAttribute;
+  /** The pack's words ({@link STATE}; atomic). */
+  readonly state: StorageBufferAttribute;
+  /** The pack's workgroups: one a listed section, or none. */
   readonly packDispatch: IndirectStorageBufferAttribute;
   readonly planes: ReturnType<typeof uniformArray>;
-  /** 1: pack whatever the cull finds (the list is another camera's). */
+  /** 1: repack the list whole (another camera's, or new buffers). */
   readonly isRepackForced: ReturnType<typeof flagUniform>;
   kernels: CullKernels | null;
   isPackedIndexed: boolean;
@@ -149,6 +211,7 @@ type CullView = {
     camera: Camera | null;
     viewProjection: Matrix4;
     version: number;
+    layout: number;
   };
 };
 
@@ -217,6 +280,7 @@ export class GpuTerrainBucket {
   private sectionIds: BufferAttribute;
   private sourceIndex: StorageBufferAttribute;
   private records: StorageBufferAttribute;
+  /** Per section: see {@link SHOWN_BIT}. */
   private flags: StorageBufferAttribute;
 
   private readonly slots = new Map<string, Slot>();
@@ -238,6 +302,8 @@ export class GpuTerrainBucket {
    * hidden or freed, the buffers grown); a reveal moves only the shading.
    */
   private version = 0;
+  /** Bumped when the buffers are replaced (a grow): every list repacks. */
+  private layout = 0;
   /** The renderer the culls dispatch on, once one has (for compiles ahead). */
   private renderer: Renderer | null = null;
   /**
@@ -402,11 +468,16 @@ export class GpuTerrainBucket {
     this.records.needsUpdate = true;
 
     const flags = this.flags.array as Uint32Array;
-    flags[slot.id * 4] = slot.indexStart;
-    flags[slot.id * 4 + 1] = index.count;
-    if (flags[slot.id * 4 + 3] === 0) flags[slot.id * 4 + 2] = 1;
-    flags[slot.id * 4 + 3] = 1;
-    this.flags.addUpdateRange(slot.id * 4, 4);
+    const flagAt = slot.id * 4;
+    flags[flagAt] = slot.indexStart;
+    flags[flagAt + 1] = index.count;
+    // A remesh in place keeps the section's visibility; a section new to
+    // its slot is shown.
+    const bits = flags[flagAt + 2];
+    flags[flagAt + 2] =
+      (bits & LIVE_BIT ? bits & SHOWN_BIT : SHOWN_BIT) | LIVE_BIT;
+    flags[flagAt + 3] = (flags[flagAt + 3] + 1) >>> 0;
+    this.flags.addUpdateRange(flagAt, 4);
     this.flags.needsUpdate = true;
     this.version += 1;
   }
@@ -416,9 +487,9 @@ export class GpuTerrainBucket {
     const slot = this.slots.get(key);
     if (!slot) return;
     const flags = this.flags.array as Uint32Array;
-    const value = isVisible ? 1 : 0;
-    if (flags[slot.id * 4 + 2] === value) return;
-    flags[slot.id * 4 + 2] = value;
+    const bits = flags[slot.id * 4 + 2];
+    if (Boolean(bits & SHOWN_BIT) === isVisible) return;
+    flags[slot.id * 4 + 2] = isVisible ? bits | SHOWN_BIT : bits & ~SHOWN_BIT;
     this.flags.addUpdateRange(slot.id * 4 + 2, 1);
     this.flags.needsUpdate = true;
     this.version += 1;
@@ -526,15 +597,16 @@ export class GpuTerrainBucket {
     ) {
       return null;
     }
-    // Another camera's list, or sections changed: pack whatever the cull
-    // finds. The same camera moved a little: pack only if a section's
-    // visibility moved with it (the GPU decides, and dispatches no pack
-    // when none did: the camera drifts every frame, and repacking millions
-    // of unchanged indices each time was the frame at a dense field).
+    // Another camera's list, or new buffers: repack whole. The same camera
+    // with sections changed or the view moved: the GPU patches the list
+    // where a section's copy must change, or does nothing (the camera
+    // drifts every frame; repacking millions of unchanged indices each
+    // time, or for each section streamed in, was the frame while walking).
     view.isRepackForced.value =
-      culled.camera !== camera || culled.version !== this.version ? 1 : 0;
+      culled.camera !== camera || culled.layout !== this.layout ? 1 : 0;
     culled.camera = camera;
     culled.version = this.version;
+    culled.layout = this.layout;
     culled.viewProjection.copy(viewProjection);
     view.kernels ??= this.buildCull(view);
     this.makePackedIndexed(renderer, view);
@@ -550,9 +622,9 @@ export class GpuTerrainBucket {
     }
     this.sectionCount.value = this.nextId;
     // One thread a section slot made so far, none past them.
-    const { cull, decide, pack } = view.kernels;
+    const { cull, decide, pack, finish } = view.kernels;
     cull.dispatchSize = this.nextId;
-    return [cull, decide, pack];
+    return [cull, decide, pack, finish];
   }
 
   /**
@@ -568,8 +640,9 @@ export class GpuTerrainBucket {
       (this.views.shadow ??= this.makeView()),
     ]) {
       this.makePackedIndexed(renderer, view);
-      const { cull, decide, pack } = (view.kernels ??= this.buildCull(view));
-      kernels.push(cull, decide, pack);
+      const { cull, decide, pack, finish } = (view.kernels ??=
+        this.buildCull(view));
+      kernels.push(cull, decide, pack, finish);
     }
     return compileKernels(renderer, kernels);
   }
@@ -611,7 +684,7 @@ export class GpuTerrainBucket {
       markIndexed(renderer, packed);
       const built = this.buildCull(view, sourceIndex, packed);
       views.set(view, { packed, kernels: built });
-      kernels.push(built.cull, built.decide, built.pack);
+      kernels.push(built.cull, built.decide, built.pack, built.finish);
     }
     this.nextGrowth = { vertexCapacity, sourceIndex, views };
     compileKernels(renderer, kernels).catch((error: unknown) => {
@@ -661,7 +734,20 @@ export class GpuTerrainBucket {
         new Uint32Array(this.flags.count),
         1,
       ),
-      changed: new StorageBufferAttribute(new Uint32Array(1), 1),
+      slots: new StorageBufferAttribute(
+        new Uint32Array(this.flags.count * 4),
+        4,
+      ),
+      lists: new StorageBufferAttribute(
+        new Uint32Array(this.flags.count * 2),
+        1,
+      ),
+      state: new StorageBufferAttribute(
+        Uint32Array.from({ length: STATE_WORDS }, (_, i) =>
+          i === STATE.epoch ? 1 : 0,
+        ),
+        1,
+      ),
       packDispatch: new IndirectStorageBufferAttribute(
         new Uint32Array([0, 1, 1]),
         1,
@@ -673,7 +759,12 @@ export class GpuTerrainBucket {
       isRepackForced: flagUniform(),
       kernels: null,
       isPackedIndexed: false,
-      culled: { camera: null, viewProjection: new Matrix4(), version: -1 },
+      culled: {
+        camera: null,
+        viewProjection: new Matrix4(),
+        version: -1,
+        layout: -1,
+      },
     };
   }
 
@@ -693,7 +784,7 @@ export class GpuTerrainBucket {
     let indices = 0;
     for (const slot of this.slots.values()) {
       const at = slot.id * 4;
-      if (flags[at + 2] !== 1 || flags[at + 3] !== 1) continue;
+      if ((flags[at + 2] & DRAWN_BITS) !== DRAWN_BITS) continue;
       const r = slot.id * 8 + 4;
       _sphere.center.set(records[r], records[r + 1], records[r + 2]);
       _sphere.radius = records[r + 3];
@@ -703,14 +794,31 @@ export class GpuTerrainBucket {
   }
 
   /**
-   * The cull, in three dispatches. `cull`: one thread a section tests its
-   * sphere against the view and records whether it shows, flagging any
-   * section whose answer moved. `decide`: one thread sizes the pack, every
-   * section slot when something moved (or a repack is forced) and the
-   * packed length reset, none otherwise. `pack`: one workgroup a section,
-   * dispatched from `decide`'s size: a shown section takes room in the
-   * packed indices and the whole workgroup copies its indices there.
-   * Dispatches in one pass see each other's writes in order.
+   * The cull, in four dispatches; dispatches in one pass see each other's
+   * writes in order.
+   *
+   * `cull`: one thread a section tests its sphere against the view (and
+   * whether it is shown and live), records the answer, lists the section
+   * when it shows, and lists it as work when its copy in the list must
+   * change: it shows without a current copy (none, or one older than its
+   * indices by its stamp), or it holds a copy and no longer shows.
+   *
+   * `decide`: one thread picks the pack. Whole (forced, overflowed, more
+   * holes than {@link MAX_HOLE_SHARE} of the list, or the list past
+   * {@link MAX_FILL_SHARE} of its room with holes to win back): the list is
+   * emptied, its epoch advanced, and the pack runs over the shown sections.
+   * Incremental: the pack runs over the work alone. Else no pack.
+   *
+   * `pack`: one workgroup a listed section. A copy that must go is
+   * overwritten with one index repeated (degenerate triangles, a hole); a
+   * section that shows without a current copy is appended and the
+   * workgroup copies its indices. An append past the room fills what part
+   * of it fits with a hole and flags the overflow; the next cull repacks
+   * whole. Standing still dispatches nothing; walking, only the sections
+   * that changed.
+   *
+   * `finish`: one thread keeps the drawn length within the list and empties
+   * the lists for the next cull.
    */
   private buildCull(
     view: CullView,
@@ -718,17 +826,29 @@ export class GpuTerrainBucket {
     packedIndex = view.packed,
   ) {
     const capacity = this.flags.count;
+    const room = packedIndex.count;
     const records = storage(this.records, "vec4", capacity * 2).toReadOnly();
     const flags = storage(this.flags, "uvec4", capacity).toReadOnly();
     const visibility = storage(view.visibility, "uint", capacity);
-    const changed = storage(view.changed, "uint", 1).toAtomic();
+    const slots = storage(view.slots, "uvec4", capacity);
+    // The work list, then the shown list, in one buffer.
+    const lists = storage(view.lists, "uint", capacity * 2);
+    const work = { element: (i: unknown) => lists.element(i as never) };
+    const shown = {
+      element: (i: unknown) =>
+        lists.element((i as ReturnType<typeof uint>).add(capacity)),
+    };
+    const state = storage(view.state, "uint", STATE_WORDS).toAtomic();
     const packDispatch = storage(view.packDispatch, "uint", 3);
     const source = storage(sourceIndex, "uint", sourceIndex.count).toReadOnly();
-    const packed = storage(packedIndex, "uint", packedIndex.count);
+    const packed = storage(packedIndex, "uint", room);
     const length = storage(view.args, "uint", 5).toAtomic();
     const planes = view.planes;
     const count = this.sectionCount;
     const isForced = view.isRepackForced;
+    const word = (name: keyof typeof STATE) => state.element(STATE[name]);
+    const INCREMENTAL = 1;
+    const WHOLE = 2;
 
     const cull = (
       Fn(() => {
@@ -736,7 +856,7 @@ export class GpuTerrainBucket {
         If(id.lessThan(count), () => {
           const flag = flags.element(id);
           const sphere = records.element(id.mul(2).add(1));
-          const isInside = flag.z.equal(1).and(flag.w.equal(1)).toVar();
+          const isInside = flag.z.equal(DRAWN_BITS).toVar();
           for (let p = 0; p < 6; p++) {
             const plane = planes.element(p) as unknown as Vec4Node;
             If(
@@ -748,71 +868,167 @@ export class GpuTerrainBucket {
               },
             );
           }
-          const shows = select(isInside, uint(1), uint(0));
-          If(shows.notEqual(visibility.element(id)), () => {
-            atomicStore(changed.element(0), uint(1));
+          visibility.element(id).assign(select(isInside, uint(1), uint(0)));
+          If(isInside, () => {
+            shown.element(atomicAdd(word("shown"), uint(1))).assign(id);
           });
-          visibility.element(id).assign(shows);
+          const slot = slots.element(id);
+          const isHeld = slot.w.equal(atomicLoad(word("epoch")));
+          const isCurrent = isHeld.and(slot.z.equal(flag.w));
+          // Shows without a current copy, or holds a copy it must not.
+          const mustAppend = isInside.and(isCurrent.not());
+          const mustHole = isHeld.and(isInside.not());
+          If(mustAppend.or(mustHole), () => {
+            work.element(atomicAdd(word("work"), uint(1))).assign(id);
+          });
         });
       })() as unknown as { computeKernel(workgroup: number[]): CullKernel }
     ).computeKernel([WORKGROUP]);
 
     const decide = (
       Fn(() => {
-        If(
-          atomicLoad(changed.element(0)).equal(1).or(isForced.equal(1)),
-          () => {
-            packDispatch.element(0).assign(count);
-            atomicStore(length.element(0), uint(0));
-          },
-        ).Else(() => {
-          packDispatch.element(0).assign(0);
-        });
-        atomicStore(changed.element(0), uint(0));
+        const listed = atomicLoad(length.element(0));
+        const holes = atomicLoad(word("holes"));
+        const isWhole = isForced
+          .equal(1)
+          .or(atomicLoad(word("overflow")).equal(1))
+          .or(holes.toFloat().greaterThan(listed.toFloat().mul(MAX_HOLE_SHARE)))
+          // Close to the room with holes to win back: compact before an
+          // append could overflow.
+          .or(
+            listed
+              .toFloat()
+              .greaterThan(room * MAX_FILL_SHARE)
+              .and(holes.greaterThan(0)),
+          );
+        If(isWhole, () => {
+          atomicStore(word("mode"), uint(WHOLE));
+          atomicAdd(word("epoch"), uint(1));
+          atomicStore(word("holes"), uint(0));
+          atomicStore(word("overflow"), uint(0));
+          atomicStore(length.element(0), uint(0));
+          packDispatch.element(0).assign(atomicLoad(word("shown")));
+        })
+          .ElseIf(atomicLoad(word("work")).greaterThan(0), () => {
+            atomicStore(word("mode"), uint(INCREMENTAL));
+            packDispatch.element(0).assign(atomicLoad(word("work")));
+          })
+          .Else(() => {
+            atomicStore(word("mode"), uint(0));
+            packDispatch.element(0).assign(0);
+          });
       })() as unknown as { computeKernel(workgroup: number[]): CullKernel }
     ).computeKernel([1]);
     decide.dispatchSize = 1;
 
-    // Lane 0 takes the section's room; the workgroup then copies it.
-    const shared = workgroupArray("uint", 2) as unknown as {
+    // Lane 0 decides for the section; the workgroup then writes. The
+    // shared words: 0 copy (1 yes), 1 copy start, 2 copy length, 3 hole
+    // start, 4 hole length, 5 the index a hole repeats, 6 copy source.
+    const shared = workgroupArray("uint", 7) as unknown as {
       element(index: unknown): ReturnType<typeof uint>;
     };
     const pack = (
       Fn(() => {
-        const id = workgroupId.x;
         const lane = localId.x;
         If(lane.equal(0), () => {
           shared.element(uint(0)).assign(0);
-          If(id.lessThan(count).and(visibility.element(id).equal(1)), () => {
-            shared.element(uint(0)).assign(1);
-            shared
-              .element(uint(1))
-              .assign(atomicAdd(length.element(0), flags.element(id).y));
+          shared.element(uint(4)).assign(0);
+          const mode = atomicLoad(word("mode"));
+          const isWhole = mode.equal(WHOLE);
+          const id = select(
+            isWhole,
+            shown.element(workgroupId.x),
+            work.element(workgroupId.x),
+          ).toVar();
+          const epoch = atomicLoad(word("epoch"));
+          const flag = flags.element(id);
+          const slot = slots.element(id);
+          const stamp = flag.w;
+          const shows = visibility.element(id).equal(1);
+          // After a whole repack's new epoch nothing is held.
+          const isHeld = slot.w.equal(epoch);
+          const isCurrent = isHeld.and(slot.z.equal(stamp));
+          // A copy that must go: hidden, freed, or older than the
+          // section's indices.
+          If(isHeld.and(isCurrent.and(shows).not()), () => {
+            shared.element(uint(3)).assign(slot.x);
+            shared.element(uint(4)).assign(slot.y);
+            shared.element(uint(5)).assign(packed.element(slot.x));
+            atomicAdd(word("holes"), slot.y);
+          });
+          If(shows.and(isCurrent.not()), () => {
+            const start = atomicAdd(length.element(0), flag.y);
+            If(start.add(flag.y).lessThanEqual(room), () => {
+              shared.element(uint(0)).assign(1);
+              shared.element(uint(1)).assign(start);
+              shared.element(uint(2)).assign(flag.y);
+              shared.element(uint(6)).assign(flag.x);
+              slots.element(id).assign(uvec4(start, flag.y, stamp, epoch));
+            }).Else(() => {
+              // Past the room: what fits becomes a hole, and the next
+              // cull repacks whole.
+              atomicStore(word("overflow"), uint(1));
+              If(start.lessThan(room), () => {
+                shared.element(uint(3)).assign(start);
+                shared.element(uint(4)).assign(uint(room).sub(start));
+                shared.element(uint(5)).assign(source.element(flag.x));
+              });
+              slots.element(id).assign(uvec4(0, 0, 0, NOT_HELD));
+            });
+          }).ElseIf(shows.not(), () => {
+            slots.element(id).assign(uvec4(0, 0, 0, NOT_HELD));
           });
         });
         workgroupBarrier();
-        If(shared.element(uint(0)).equal(1), () => {
-          const flag = flags.element(id);
-          const start = shared.element(uint(1));
+        const holeLength = shared.element(uint(4));
+        If(holeLength.greaterThan(0), () => {
+          const holeStart = shared.element(uint(3));
+          const repeated = shared.element(uint(5));
           Loop(
             {
               start: lane,
-              end: flag.y,
+              end: holeLength,
               type: "uint",
               condition: "<",
               update: WORKGROUP,
             },
             ({ i }: { i: ReturnType<typeof uint> }) => {
-              packed
-                .element(start.add(i))
-                .assign(source.element(flag.x.add(i)));
+              packed.element(holeStart.add(i)).assign(repeated);
+            },
+          );
+        });
+        If(shared.element(uint(0)).equal(1), () => {
+          const start = shared.element(uint(1));
+          const from = shared.element(uint(6));
+          Loop(
+            {
+              start: lane,
+              end: shared.element(uint(2)),
+              type: "uint",
+              condition: "<",
+              update: WORKGROUP,
+            },
+            ({ i }: { i: ReturnType<typeof uint> }) => {
+              packed.element(start.add(i)).assign(source.element(from.add(i)));
             },
           );
         });
       })() as unknown as { computeKernel(workgroup: number[]): CullKernel }
     ).computeKernel([WORKGROUP]);
     pack.dispatchSize = view.packDispatch;
-    return { cull, decide, pack };
+
+    const finish = (
+      Fn(() => {
+        If(atomicLoad(length.element(0)).greaterThan(room), () => {
+          atomicStore(length.element(0), uint(room));
+        });
+        atomicStore(word("work"), uint(0));
+        atomicStore(word("shown"), uint(0));
+      })() as unknown as { computeKernel(workgroup: number[]): CullKernel }
+    ).computeKernel([1]);
+    finish.dispatchSize = 1;
+
+    return { cull, decide, pack, finish };
   }
 
   /** Whether the bucket's attributes are laid out (by a section or {@link adoptLayout}). */
@@ -990,6 +1206,7 @@ export class GpuTerrainBucket {
     this.show(this.views.main);
     old.dispose();
     this.version += 1;
+    this.layout += 1;
     console.info(
       `[gpu-terrain] ${this.mesh.name}: grew to ${vertexCapacity} vertices`,
     );
@@ -998,8 +1215,8 @@ export class GpuTerrainBucket {
   /** Hides a slot and keeps its room (and id) for the next section of its size. */
   private release(slot: Slot) {
     const flags = this.flags.array as Uint32Array;
-    flags[slot.id * 4 + 3] = 0;
-    this.flags.addUpdateRange(slot.id * 4 + 3, 1);
+    flags[slot.id * 4 + 2] &= ~LIVE_BIT;
+    this.flags.addUpdateRange(slot.id * 4 + 2, 1);
     this.flags.needsUpdate = true;
     this.version += 1;
     let list = this.free.get(slot.capacity);
