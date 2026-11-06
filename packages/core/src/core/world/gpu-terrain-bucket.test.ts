@@ -28,13 +28,28 @@ const section = (vertices: number, offset = 0) => {
     positions[v * 4 + 2] = offset;
   }
   geometry.setAttribute("position", new BufferAttribute(positions, 4));
-  geometry.setAttribute("uv", new BufferAttribute(new Uint16Array(vertices * 2), 2, true));
-  geometry.setAttribute("light", new BufferAttribute(new Int32Array(vertices).fill(7), 1));
-  geometry.setAttribute("lightTwist", new BufferAttribute(new Uint8Array(vertices * 4), 4));
-  geometry.setAttribute("normal", new BufferAttribute(new Int8Array(vertices * 4), 4, true));
+  geometry.setAttribute(
+    "uv",
+    new BufferAttribute(new Uint16Array(vertices * 2), 2, true),
+  );
+  geometry.setAttribute(
+    "light",
+    new BufferAttribute(new Int32Array(vertices).fill(7), 1),
+  );
+  geometry.setAttribute(
+    "lightTwist",
+    new BufferAttribute(new Uint8Array(vertices * 4), 4),
+  );
+  geometry.setAttribute(
+    "normal",
+    new BufferAttribute(new Int8Array(vertices * 4), 4, true),
+  );
   const indices = new Uint32Array((vertices / 4) * 6);
   for (let q = 0; q < vertices / 4; q++) {
-    indices.set([0, 1, 2, 2, 1, 3].map((i) => i + q * 4), q * 6);
+    indices.set(
+      [0, 1, 2, 2, 1, 3].map((i) => i + q * 4),
+      q * 6,
+    );
   }
   geometry.setIndex(new BufferAttribute(indices, 1));
   return geometry;
@@ -73,7 +88,9 @@ describe("GpuTerrainBucket", () => {
     expect(state.sourceIndex.array[b.indexStart + 5]).toBe(b.vertexStart + 3);
     // Origin as the arenas' section transform, drawn as itself, a sphere
     // around the section.
-    const record = Array.from(state.records.array.slice(b.id * 8, b.id * 8 + 8));
+    const record = Array.from(
+      state.records.array.slice(b.id * 8, b.id * 8 + 8),
+    );
     expect(record.slice(0, 4)).toEqual([
       16 - POSITION_BLOCK_BIAS,
       32 - POSITION_BLOCK_BIAS,
@@ -82,12 +99,9 @@ describe("GpuTerrainBucket", () => {
     ]);
     expect(record[7]).toBeGreaterThan(0);
     // Its indices, drawn and live.
-    expect(Array.from(state.flags.array.slice(b.id * 4, b.id * 4 + 4))).toEqual([
-      b.indexStart,
-      12,
-      1,
-      1,
-    ]);
+    expect(Array.from(state.flags.array.slice(b.id * 4, b.id * 4 + 4))).toEqual(
+      [b.indexStart, 12, 1, 1],
+    );
   });
 
   it("places a float-position section (water) at its corner, unscaled", () => {
@@ -96,13 +110,18 @@ describe("GpuTerrainBucket", () => {
     const water = new BufferGeometry();
     water.setAttribute(
       "position",
-      new BufferAttribute(new Float32Array([0, 0, 0, 16, 1, 16, 16, 1, 0, 0, 1, 16]), 3),
+      new BufferAttribute(
+        new Float32Array([0, 0, 0, 16, 1, 16, 16, 1, 0, 0, 1, 16]),
+        3,
+      ),
     );
     water.setAttribute("light", new BufferAttribute(new Int32Array(4), 1));
     water.setIndex(new BufferAttribute(new Uint32Array([0, 1, 2, 2, 1, 3]), 1));
     bucket.setSectionGeometry("w", water, 32, 64, 96);
     const w = state.slots.get("w")!;
-    const record = Array.from(state.records.array.slice(w.id * 8, w.id * 8 + 8));
+    const record = Array.from(
+      state.records.array.slice(w.id * 8, w.id * 8 + 8),
+    );
     expect(record.slice(0, 3)).toEqual([32, 64, 96]);
     // The sphere in blocks: centred on the section's middle, not shrunk by
     // the quantized units.
@@ -180,7 +199,9 @@ describe("GpuTerrainBucket", () => {
     await bucket.compileCulls(renderer);
     const state = bucket as unknown as Internals & {
       views: { main: { kernels: unknown; packed: unknown } };
-      nextGrowth: { views: Map<unknown, { kernels: unknown; packed: unknown }> } | null;
+      nextGrowth: {
+        views: Map<unknown, { kernels: unknown; packed: unknown }>;
+      } | null;
     };
     // A 128-vertex section takes a 256-vertex slot. Three quarters full:
     // the next size is made and its culls compiled.
@@ -207,7 +228,7 @@ describe("GpuTerrainBucket", () => {
     source.setSectionGeometry("a", section(8), 0, 0, 0);
     const empty = make();
     expect(empty.hasLayout).toBe(false);
-    empty.adoptLayout(source);
+    empty.adoptLayout(source.mesh.geometry);
     expect(empty.hasLayout).toBe(true);
     const from = source.mesh.geometry.attributes;
     const to = empty.mesh.geometry.attributes;
@@ -293,16 +314,22 @@ describe("GpuTerrainBucket", () => {
       const { renderer } = recorder();
       const camera = new PerspectiveCamera();
       camera.updateMatrixWorld();
-      expect(bucket.prepareCull(renderer, camera, viewOf(camera))).not.toBeNull();
+      expect(
+        bucket.prepareCull(renderer, camera, viewOf(camera)),
+      ).not.toBeNull();
       // The same view: the packed list already holds it.
       expect(bucket.prepareCull(renderer, camera, viewOf(camera))).toBeNull();
       // A section hidden: the list changes.
       bucket.setSectionVisible("a", false);
-      expect(bucket.prepareCull(renderer, camera, viewOf(camera))).not.toBeNull();
+      expect(
+        bucket.prepareCull(renderer, camera, viewOf(camera)),
+      ).not.toBeNull();
       // The camera turned.
       camera.rotation.y = 0.5;
       camera.updateMatrixWorld();
-      expect(bucket.prepareCull(renderer, camera, viewOf(camera))).not.toBeNull();
+      expect(
+        bucket.prepareCull(renderer, camera, viewOf(camera)),
+      ).not.toBeNull();
       // A reveal shades, it does not change the list.
       bucket.setSectionReveal("a", 0.5);
       expect(bucket.prepareCull(renderer, camera, viewOf(camera))).toBeNull();
@@ -311,9 +338,11 @@ describe("GpuTerrainBucket", () => {
     it("leaves the pack to the GPU when only the view moved", () => {
       const bucket = make();
       const forced = () =>
-        (bucket as unknown as {
-          views: { main: { isRepackForced: { value: number } } };
-        }).views.main.isRepackForced.value;
+        (
+          bucket as unknown as {
+            views: { main: { isRepackForced: { value: number } } };
+          }
+        ).views.main.isRepackForced.value;
       bucket.setSectionGeometry("a", section(8), 0, 0, 0);
       const { renderer } = recorder();
       const camera = new PerspectiveCamera();
@@ -347,7 +376,9 @@ describe("GpuTerrainBucket", () => {
       bucket.setSectionGeometry("a", section(8), 0, 0, 0);
       const { renderer } = recorder();
       const camera = new PerspectiveCamera();
-      const sun = markShadowView(new OrthographicCamera(-50, 50, 50, -50, 1, 200));
+      const sun = markShadowView(
+        new OrthographicCamera(-50, 50, 50, -50, 1, 200),
+      );
       camera.updateMatrixWorld();
       sun.position.set(0, 100, 0);
       sun.lookAt(0, 0, 0);
@@ -366,7 +397,12 @@ describe("GpuTerrainBucket", () => {
 
     it("culls a world's buckets in one submission a view", () => {
       const culls = new GpuTerrainCulls();
-      const options = { vertexCapacity: 1 << 12, sectionCapacity: 8, positionUnits: UNITS, culls };
+      const options = {
+        vertexCapacity: 1 << 12,
+        sectionCapacity: 8,
+        positionUnits: UNITS,
+        culls,
+      };
       const a = new GpuTerrainBucket(new MeshBasicNodeMaterial(), options);
       const b = new GpuTerrainBucket(new MeshBasicNodeMaterial(), options);
       new GpuTerrainBucket(new MeshBasicNodeMaterial(), options); // empty

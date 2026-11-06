@@ -12,6 +12,7 @@ import {
   UpdateProtocol,
 } from "@voxelize/protocol";
 import { raycast } from "@voxelize/raycast";
+import { mergeGeometries } from "three/addons/utils/BufferGeometryUtils.js";
 import {
   Box3,
   BatchedMesh,
@@ -33,12 +34,10 @@ import {
   MeshStandardNodeMaterial,
   Object3D,
   type PerspectiveCamera,
-  SRGBColorSpace,
   Scene,
   Sphere,
   Texture,
   MathUtils as ThreeMathUtils,
-  Uniform,
   Vector2,
   Vector4,
   WebGLCoordinateSystem,
@@ -46,7 +45,6 @@ import {
   type Renderer,
   type RenderTarget,
 } from "three/webgpu";
-import { mergeGeometries } from "three/addons/utils/BufferGeometryUtils.js";
 
 import {
   TRANSPARENT_SORT,
@@ -99,12 +97,6 @@ function computeFlatNormals(
 
 import { biomeTintAttribute, biomeTintAttributeAt } from "./biome-tint";
 import {
-  BYTE_VECTOR_STRIDE,
-  POSITION_STRIDE,
-  packQuantizedPositions,
-  padByteVectors,
-} from "./vertex-layout";
-import {
   Block,
   BlockDynamicPattern,
   BlockRotation,
@@ -144,40 +136,25 @@ import {
   sharedCutoutMaterialKeyFor,
   sharedFaceCustomizationError,
 } from "./chunk-materials";
-import {
-  type ChunkMaterialOptions,
-  type ChunkShadingInputs,
-  isChunkMaterial,
-} from "./shading/chunk-material";
-import {
-  shadowDepthPerBlock,
-  sharedEntityShadowUniforms,
-  updateEntityShadowUniforms,
-} from "./entity-shadow-uniforms";
-import {
-  type ArrayUniform,
-  arrayUniform,
-  type ChunkUniforms,
-} from "./shading/chunk-uniforms";
-import { type SkyFogInputs, worldFogNode } from "./shading/sky-fog";
 import { computeNormalsFromBuffers } from "./chunk-normals";
 import { ChunkRegionArenas } from "./chunk-region-arenas";
-import {
-  GpuTerrainArenas,
-  GpuTerrainBucket,
-  GpuTerrainCulls,
-} from "./gpu-terrain-bucket";
 import { ChunkRenderer, makeSceneColorTexture } from "./chunk-renderer";
 import {
   ChunkRequestCandidate,
   compareChunkRequestPriority,
 } from "./chunk-requests";
+import { makeChunkStandInGeometry } from "./chunk-stand-in";
 import { Clouds } from "./clouds";
 import { expandCoupledUpdates as expandCoupledBatch } from "./coupled-blocks";
 import { CSMRenderer, ENTITY_SHADOW_DISTANCE } from "./csm-renderer";
 import { worldDefinitionSignature } from "./definition-signature";
 import { displayCopyMaterialOptions } from "./display-copy-material";
 import { computePoolCasterBounds } from "./dynamic-caster-bounds";
+import {
+  shadowDepthPerBlock,
+  sharedEntityShadowUniforms,
+  updateEntityShadowUniforms,
+} from "./entity-shadow-uniforms";
 import { FarTerrain, FAR_TERRAIN_METHOD, readFarFaceLook } from "./far-terrain";
 import {
   FarFaceLook,
@@ -186,6 +163,11 @@ import {
 } from "./far-terrain-tiles";
 import { computeFogRange, type WorldFogRange } from "./fog-range";
 import { forwardDraws } from "./forward-draws";
+import {
+  GpuTerrainArenas,
+  GpuTerrainBucket,
+  GpuTerrainCulls,
+} from "./gpu-terrain-bucket";
 import { HeldServerUpdates } from "./held-server-updates";
 import { ItemDef, ItemRegistry } from "./items";
 import { auditLightCones, LightCones } from "./light-cones";
@@ -237,9 +219,18 @@ import {
   textureTexelClasses,
 } from "./see-through-texels";
 import { ShaderClock, windAt } from "./shader-clock";
+import { WATER_DEPTH_BIAS_BLOCKS } from "./shaders";
 import {
-  WATER_DEPTH_BIAS_BLOCKS,
-} from "./shaders";
+  type ChunkMaterialOptions,
+  type ChunkShadingInputs,
+  isChunkMaterial,
+} from "./shading/chunk-material";
+import {
+  type ArrayUniform,
+  arrayUniform,
+  type ChunkUniforms,
+} from "./shading/chunk-uniforms";
+import { type SkyFogInputs, worldFogNode } from "./shading/sky-fog";
 import { singlePassWhenOneFacing } from "./single-pass-sides";
 import { getSunDiscDirection, getVisibleDiscDirection, Sky } from "./sky";
 import { applySurfaceCoatFace } from "./surface-weather";
@@ -255,6 +246,12 @@ import {
 } from "./texture-census";
 import { AtlasTexture } from "./textures";
 import { UV } from "./uv";
+import {
+  BYTE_VECTOR_STRIDE,
+  POSITION_STRIDE,
+  packQuantizedPositions,
+  padByteVectors,
+} from "./vertex-layout";
 import {
   POSITION_BLOCK_BIAS,
   isMainThreadSortedBlock,
@@ -1309,15 +1306,23 @@ export class World<T = any> extends Scene implements NetIntercept {
    * frame it first drew: a first stained glass or a first glowing plant
    * met in play. Later buckets of the state reuse them. There are a few
    * such states among a world's hundreds of blocks; each stand-in is the
-   * real bucket of its block, made small, laid out as the shared opaque
-   * bucket's sections are. Fluids are left out: their sections' float
-   * positions are another layout, and their buckets come with the land.
+   * real bucket of its block, made small, laid out as its sections will
+   * be: quantized like the shared opaque bucket's, or with the float
+   * positions of the blocks the sorter rewrites (fluids, glass that writes
+   * no depth), as the material says (`userData.isQuantized`).
    */
   private prepareGpuTerrainStates(renderer: Renderer): Promise<void>[] {
-    const source = this.arenaSets.get(SHARED_OPAQUE_MATERIAL_KEY);
-    if (!(source instanceof GpuTerrainArenas) || !source.bucket.hasLayout) {
-      return [];
-    }
+    // Quantized: the shared opaque bucket's own layout once its land has
+    // meshed, else the chunk stand-in's (with the climate tint), which a
+    // load that reaches here before any land meshed still has. Float: the
+    // stand-in's.
+    const shared = this.arenaSets.get(SHARED_OPAQUE_MATERIAL_KEY);
+    const isSharedLaidOut =
+      shared instanceof GpuTerrainArenas && shared.bucket.hasLayout;
+    const quantized = isSharedLaidOut
+      ? shared.bucket.mesh.geometry
+      : makeChunkStandInGeometry({ isQuantized: true });
+    const float = makeChunkStandInGeometry({ isQuantized: false });
     const stateOf = (material: ChunkMaterial, block: Block) =>
       [
         material.customProgramCacheKey(),
@@ -1328,6 +1333,7 @@ export class World<T = any> extends Scene implements NetIntercept {
         material.depthTest,
         material.alphaTest > 0,
         block.isPlant,
+        block.isFluid,
       ].join("/");
     const drawn = new Set<string>();
     for (const [bucket, arenas] of this.arenaSets) {
@@ -1341,8 +1347,10 @@ export class World<T = any> extends Scene implements NetIntercept {
     for (const [bucket, material] of this.chunkRenderer.materials) {
       if (this.arenaSets.has(bucket)) continue;
       const voxel = Number(bucket);
-      const block = Number.isInteger(voxel) ? this.getBlockByIdSafe(voxel) : null;
-      if (!block || block.isFluid || !this.isBlockGpuBucket(bucket, voxel)) continue;
+      const block = Number.isInteger(voxel)
+        ? this.getBlockByIdSafe(voxel)
+        : null;
+      if (!block || !this.isBlockGpuBucket(bucket, voxel)) continue;
       const state = stateOf(material, block);
       if (drawn.has(state)) continue;
       drawn.add(state);
@@ -1351,10 +1359,14 @@ export class World<T = any> extends Scene implements NetIntercept {
         GPU_TERRAIN_STAND_IN_CAPACITY,
         false,
       );
-      arenas.bucket.adoptLayout(source.bucket);
+      arenas.bucket.adoptLayout(
+        material.userData.isQuantized === true ? quantized : float,
+      );
       this.arenaSets.set(bucket, arenas);
       compiles.push(arenas.bucket.compileCulls(renderer));
     }
+    if (!isSharedLaidOut) quantized.dispose();
+    float.dispose();
     return compiles;
   }
 
@@ -1383,11 +1395,7 @@ export class World<T = any> extends Scene implements NetIntercept {
    * float depth texture. Sorted, it draws the depth of the water near the
    * panes in view (`WaterDepthPass`) and then the scene.
    */
-  renderFrame(
-    renderer: Renderer,
-    camera: Camera,
-    target: RenderTarget | null,
-  ) {
+  renderFrame(renderer: Renderer, camera: Camera, target: RenderTarget | null) {
     if (!this.orderIndependent) {
       this.waterDepth.render(renderer, camera);
       renderer.setRenderTarget(target);
@@ -1435,7 +1443,10 @@ export class World<T = any> extends Scene implements NetIntercept {
         view: this.csmRenderer?.casterView ?? null,
       },
       isBlended: (material: Material) =>
-        !!oit && material.transparent && !material.depthWrite && oit.adopt(material),
+        !!oit &&
+        material.transparent &&
+        !material.depthWrite &&
+        oit.adopt(material),
     };
   }
 
@@ -2487,10 +2498,7 @@ export class World<T = any> extends Scene implements NetIntercept {
     // faces read their texels through, so its textures ride it wherever the
     // caller moves or turns it.
     const texelFrame = new VoxelBoxTexelFrame(box.origin, group);
-    const forks = new Map<
-      ChunkMaterial,
-      ChunkMaterial
-    >();
+    const forks = new Map<ChunkMaterial, ChunkMaterial>();
     const ownMaterial = (material: ChunkMaterial) => {
       let fork = forks.get(material);
       if (!fork) {
@@ -7137,9 +7145,7 @@ export class World<T = any> extends Scene implements NetIntercept {
     return this.skyFogInputsOf(this.chunkRenderer.uniforms);
   }
 
-  private skyFogInputsOf(
-    chunk: ChunkUniforms,
-  ): ChunkUniforms & SkyFogInputs {
+  private skyFogInputsOf(chunk: ChunkUniforms): ChunkUniforms & SkyFogInputs {
     return {
       ...chunk,
       directSunlight: this.chunkRenderer.shaderLightingUniforms.directSunlight,
@@ -7897,7 +7903,7 @@ export class World<T = any> extends Scene implements NetIntercept {
     const profile =
       !this.customMaterialBlockIds.has(voxel) &&
       sharedCutoutMaterialKeyFor(this.getBlockById(voxel))
-        ? (this.swayProfileIndexByVoxel.get(voxel) ?? 0)
+        ? this.swayProfileIndexByVoxel.get(voxel) ?? 0
         : 0;
     return new BufferAttribute(
       packQuantizedPositions(positions, profile),
@@ -8630,7 +8636,9 @@ export class World<T = any> extends Scene implements NetIntercept {
   ) {
     const base = this.chunkRenderer.materials.get(bucket);
     if (!base) {
-      throw new Error("GPU terrain bucket created before chunk materials loaded.");
+      throw new Error(
+        "GPU terrain bucket created before chunk materials loaded.",
+      );
     }
     const material = base.fork();
     material.drawsGpuSections = true;
@@ -8877,8 +8885,12 @@ export class World<T = any> extends Scene implements NetIntercept {
     );
 
     const chunkUniforms = this.chunkRenderer.uniforms;
-    for (const [key, value] of Object.entries(this.options.chunkUniformValues)) {
-      const uniform = (chunkUniforms as Record<string, { value: unknown }>)[key];
+    for (const [key, value] of Object.entries(
+      this.options.chunkUniformValues,
+    )) {
+      const uniform = (chunkUniforms as Record<string, { value: unknown }>)[
+        key
+      ];
       if (uniform && typeof uniform.value === "number" && value !== undefined) {
         uniform.value = value;
       }
@@ -8903,7 +8915,8 @@ export class World<T = any> extends Scene implements NetIntercept {
     });
     this.clouds = new Clouds({
       ...cloudsOptions,
-      atmosphere: cloudsOptions.atmosphere ?? this.skyFogInputsOf(chunkUniforms),
+      atmosphere:
+        cloudsOptions.atmosphere ?? this.skyFogInputsOf(chunkUniforms),
       sunDirection:
         cloudsOptions.sunDirection ??
         this.chunkRenderer.shaderLightingUniforms.sunDirection,

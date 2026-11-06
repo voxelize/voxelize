@@ -24,23 +24,6 @@
  */
 
 import {
-  Box3,
-  BufferAttribute,
-  BufferGeometry,
-  type Camera,
-  type ComputeNode,
-  Frustum,
-  IndirectStorageBufferAttribute,
-  Matrix4,
-  Mesh,
-  type Material,
-  type Renderer,
-  Sphere,
-  StorageBufferAttribute,
-  Vector3,
-  Vector4,
-} from "three/webgpu";
-import {
   atomicAdd,
   atomicLoad,
   atomicStore,
@@ -60,10 +43,27 @@ import {
   workgroupBarrier,
   workgroupId,
 } from "three/tsl";
+import {
+  Box3,
+  BufferAttribute,
+  BufferGeometry,
+  type Camera,
+  type ComputeNode,
+  Frustum,
+  IndirectStorageBufferAttribute,
+  Matrix4,
+  Mesh,
+  type Material,
+  type Renderer,
+  Sphere,
+  StorageBufferAttribute,
+  Vector3,
+  Vector4,
+} from "three/webgpu";
 
 import { setSectionBounds } from "./chunk-region-arenas";
-import { isShadowView } from "./shadow-casters";
 import type { Vec4Node } from "./shading/types";
+import { isShadowView } from "./shadow-casters";
 import { POSITION_BLOCK_BIAS } from "./vertex-quantization";
 
 /** three's `AttributeType.INDEX` (not exported). */
@@ -145,7 +145,11 @@ type CullView = {
   kernels: CullKernels | null;
   isPackedIndexed: boolean;
   /** What the packed list was last culled for. */
-  readonly culled: { camera: Camera | null; viewProjection: Matrix4; version: number };
+  readonly culled: {
+    camera: Camera | null;
+    viewProjection: Matrix4;
+    version: number;
+  };
 };
 
 /**
@@ -244,7 +248,10 @@ export class GpuTerrainBucket {
   private nextGrowth: {
     vertexCapacity: number;
     sourceIndex: StorageBufferAttribute;
-    views: Map<CullView, { packed: StorageBufferAttribute; kernels: CullKernels }>;
+    views: Map<
+      CullView,
+      { packed: StorageBufferAttribute; kernels: CullKernels }
+    >;
   } | null = null;
 
   constructor(
@@ -383,10 +390,13 @@ export class GpuTerrainBucket {
     records[at + 3] = reveal;
     setSectionBounds(geometry);
     const box = geometry.boundingBox!;
-    const half = box.max.clone().sub(box.min).multiplyScalar(0.5 / units);
-    records[at + 4] = records[at] + (box.min.x + box.max.x) * 0.5 / units;
-    records[at + 5] = records[at + 1] + (box.min.y + box.max.y) * 0.5 / units;
-    records[at + 6] = records[at + 2] + (box.min.z + box.max.z) * 0.5 / units;
+    const half = box.max
+      .clone()
+      .sub(box.min)
+      .multiplyScalar(0.5 / units);
+    records[at + 4] = records[at] + ((box.min.x + box.max.x) * 0.5) / units;
+    records[at + 5] = records[at + 1] + ((box.min.y + box.max.y) * 0.5) / units;
+    records[at + 6] = records[at + 2] + ((box.min.z + box.max.z) * 0.5) / units;
     records[at + 7] = half.length();
     this.records.addUpdateRange(at, 8);
     this.records.needsUpdate = true;
@@ -482,7 +492,10 @@ export class GpuTerrainBucket {
     if (culls) {
       culls.cullFor(renderer, camera, this);
     } else {
-      _matrix.multiplyMatrices(camera.projectionMatrix, camera.matrixWorldInverse);
+      _matrix.multiplyMatrices(
+        camera.projectionMatrix,
+        camera.matrixWorldInverse,
+      );
       const kernels = this.prepareCull(renderer, camera, _matrix);
       if (kernels) renderer.compute(kernels as unknown as ComputeNode[]);
     }
@@ -550,7 +563,10 @@ export class GpuTerrainBucket {
   compileCulls(renderer: Renderer): Promise<void> {
     this.renderer = renderer;
     const kernels: CullKernel[] = [];
-    for (const view of [this.views.main, (this.views.shadow ??= this.makeView())]) {
+    for (const view of [
+      this.views.main,
+      (this.views.shadow ??= this.makeView()),
+    ]) {
       this.makePackedIndexed(renderer, view);
       const { cull, decide, pack } = (view.kernels ??= this.buildCull(view));
       kernels.push(cull, decide, pack);
@@ -577,7 +593,10 @@ export class GpuTerrainBucket {
     }
     const vertexCapacity = Math.ceil(this.sectionIds.count * GROWTH);
     const indexCapacity = Math.ceil(vertexCapacity * INDEX_PER_VERTEX);
-    const sourceIndex = new StorageBufferAttribute(new Uint32Array(indexCapacity), 1);
+    const sourceIndex = new StorageBufferAttribute(
+      new Uint32Array(indexCapacity),
+      1,
+    );
     const views = new Map<
       CullView,
       { packed: StorageBufferAttribute; kernels: CullKernels }
@@ -585,7 +604,10 @@ export class GpuTerrainBucket {
     const kernels: CullKernel[] = [];
     for (const view of [this.views.main, this.views.shadow]) {
       if (!view) continue;
-      const packed = new StorageBufferAttribute(new Uint32Array(indexCapacity), 1);
+      const packed = new StorageBufferAttribute(
+        new Uint32Array(indexCapacity),
+        1,
+      );
       markIndexed(renderer, packed);
       const built = this.buildCull(view, sourceIndex, packed);
       views.set(view, { packed, kernels: built });
@@ -619,8 +641,10 @@ export class GpuTerrainBucket {
 
   /** The geometry draws `view`'s packed list. */
   private show(view: CullView) {
-    if (this.geometry.index !== view.packed) this.geometry.setIndex(view.packed);
-    if (this.geometry.indirect !== view.args) this.geometry.setIndirect(view.args);
+    if (this.geometry.index !== view.packed)
+      this.geometry.setIndex(view.packed);
+    if (this.geometry.indirect !== view.args)
+      this.geometry.setIndirect(view.args);
   }
 
   /** A view's own buffers, sized for the bucket's indices and sections. */
@@ -628,11 +652,20 @@ export class GpuTerrainBucket {
     const args = new IndirectStorageBufferAttribute(new Uint32Array(5), 1);
     args.array.set([0, 1, 0, 0, 0]);
     return {
-      packed: new StorageBufferAttribute(new Uint32Array(this.sourceIndex.count), 1),
+      packed: new StorageBufferAttribute(
+        new Uint32Array(this.sourceIndex.count),
+        1,
+      ),
       args,
-      visibility: new StorageBufferAttribute(new Uint32Array(this.flags.count), 1),
+      visibility: new StorageBufferAttribute(
+        new Uint32Array(this.flags.count),
+        1,
+      ),
       changed: new StorageBufferAttribute(new Uint32Array(1), 1),
-      packDispatch: new IndirectStorageBufferAttribute(new Uint32Array([0, 1, 1]), 1),
+      packDispatch: new IndirectStorageBufferAttribute(
+        new Uint32Array([0, 1, 1]),
+        1,
+      ),
       planes: uniformArray(
         Array.from({ length: 6 }, () => new Vector4()),
         "vec4",
@@ -750,15 +783,12 @@ export class GpuTerrainBucket {
         const lane = localId.x;
         If(lane.equal(0), () => {
           shared.element(uint(0)).assign(0);
-          If(
-            id.lessThan(count).and(visibility.element(id).equal(1)),
-            () => {
-              shared.element(uint(0)).assign(1);
-              shared
-                .element(uint(1))
-                .assign(atomicAdd(length.element(0), flags.element(id).y));
-            },
-          );
+          If(id.lessThan(count).and(visibility.element(id).equal(1)), () => {
+            shared.element(uint(0)).assign(1);
+            shared
+              .element(uint(1))
+              .assign(atomicAdd(length.element(0), flags.element(id).y));
+          });
         });
         workgroupBarrier();
         If(shared.element(uint(0)).equal(1), () => {
@@ -791,26 +821,15 @@ export class GpuTerrainBucket {
   }
 
   /**
-   * Lays the bucket's attributes out as `source`'s, before any section of
-   * its own: a bucket with no sections then draws with the pipelines its sections
+   * Lays the bucket's attributes out as `geometry`'s (a section, another
+   * bucket's geometry, or a chunk stand-in), before any section of its own:
+   * a bucket with no sections then draws with the pipelines its sections
    * will, so a load warmup can build them (the attributes' formats are a
    * pipeline's vertex layout). Every section the merge makes shares one
    * layout for quantized blocks; a fluid's float positions are another.
    */
-  adoptLayout(source: GpuTerrainBucket) {
-    if (this.hasLayout) return;
-    const capacity = this.sectionIds.count;
-    for (const [name, attribute] of source.attributes) {
-      const ArrayType = (attribute.array as unknown as { constructor: new (n: number) => ArrayLike<number> })
-        .constructor;
-      const own = new BufferAttribute(
-        new ArrayType(capacity * attribute.itemSize) as never,
-        attribute.itemSize,
-        attribute.normalized,
-      );
-      this.attributes.set(name, own);
-      this.geometry.setAttribute(name, own);
-    }
+  adoptLayout(geometry: BufferGeometry) {
+    this.ensureAttributes(geometry);
   }
 
   /** The bucket's own attributes, shaped as the first section's. */
@@ -820,8 +839,11 @@ export class GpuTerrainBucket {
     for (const name of SECTION_ATTRIBUTES) {
       const source = geometry.getAttribute(name) as BufferAttribute | undefined;
       if (!source) continue;
-      const ArrayType = (source.array as unknown as { constructor: new (n: number) => ArrayLike<number> })
-        .constructor;
+      const ArrayType = (
+        source.array as unknown as {
+          constructor: new (n: number) => ArrayLike<number>;
+        }
+      ).constructor;
       const attribute = new BufferAttribute(
         new ArrayType(capacity * source.itemSize) as never,
         source.itemSize,
@@ -955,7 +977,10 @@ export class GpuTerrainBucket {
         view.isPackedIndexed = true;
         continue;
       }
-      view.packed = new StorageBufferAttribute(new Uint32Array(indexCapacity), 1);
+      view.packed = new StorageBufferAttribute(
+        new Uint32Array(indexCapacity),
+        1,
+      );
       view.kernels = null;
       view.isPackedIndexed = false;
     }
@@ -969,7 +994,6 @@ export class GpuTerrainBucket {
       `[gpu-terrain] ${this.mesh.name}: grew to ${vertexCapacity} vertices`,
     );
   }
-
 
   /** Hides a slot and keeps its room (and id) for the next section of its size. */
   private release(slot: Slot) {
@@ -1014,7 +1038,10 @@ export class GpuTerrainCulls {
 
   /** Triangles every bucket draws for `camera` (stats; see the bucket's). */
   countDrawnTriangles(camera: Camera) {
-    _matrix.multiplyMatrices(camera.projectionMatrix, camera.matrixWorldInverse);
+    _matrix.multiplyMatrices(
+      camera.projectionMatrix,
+      camera.matrixWorldInverse,
+    );
     let triangles = 0;
     for (const bucket of this.buckets) {
       triangles += bucket.countDrawnTriangles(camera, _matrix);
@@ -1029,7 +1056,10 @@ export class GpuTerrainCulls {
    * draws, so it never makes a shadow list.
    */
   cullFor(renderer: Renderer, camera: Camera, requester?: GpuTerrainBucket) {
-    _matrix.multiplyMatrices(camera.projectionMatrix, camera.matrixWorldInverse);
+    _matrix.multiplyMatrices(
+      camera.projectionMatrix,
+      camera.matrixWorldInverse,
+    );
     const kernels = this.kernels;
     kernels.length = 0;
     for (const bucket of this.buckets) {
@@ -1037,7 +1067,8 @@ export class GpuTerrainCulls {
       const prepared = bucket.prepareCull(renderer, camera, _matrix);
       if (prepared) kernels.push(...prepared);
     }
-    if (kernels.length > 0) renderer.compute(kernels as unknown as ComputeNode[]);
+    if (kernels.length > 0)
+      renderer.compute(kernels as unknown as ComputeNode[]);
     kernels.length = 0;
   }
 }
