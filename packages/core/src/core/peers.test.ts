@@ -175,3 +175,23 @@ describe("Peers.collectShadowCasters", () => {
     expect(out).toHaveLength(2);
   });
 });
+
+describe("Peers LEAVE", () => {
+  it("hands onPeerLeave the peer it removes, and undefined for one it never created", () => {
+    const { peers, message } = makePeers();
+    message(init("me"));
+    const left: [string, Object3D | undefined][] = [];
+    peers.onPeerLeave = (id, peer) => left.push([id, peer]);
+    message(join("a"));
+    const a = peers.getPeerById("a");
+    message(leave("a"));
+    // A leave whose join this client never handled: nothing to clean up,
+    // but the id still reaches the game (pending join lines are keyed by it).
+    message(leave("ghost"));
+    expect(left).toEqual([
+      ["a", a],
+      ["ghost", undefined],
+    ]);
+    expect(peers.getPeerById("a")).toBeUndefined();
+  });
+});

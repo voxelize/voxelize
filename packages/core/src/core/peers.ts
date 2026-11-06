@@ -171,8 +171,10 @@ export class Peers<
    * from the peers group. Customize this function to add additional behavior.
    *
    * @param id The ID of the peer that left the game.
+   * @param peer Its object, or `undefined` when the leave arrives for a peer
+   * this client never created (it left before its join was handled).
    */
-  onPeerLeave: (id: string, peer: C) => void;
+  onPeerLeave: (id: string, peer: C | undefined) => void;
 
   /**
    * The network intercept implementation for peers.
@@ -233,7 +235,7 @@ export class Peers<
         if (peer && this.options.autoAddToSelf) this.remove(peer);
         this.map.delete(id);
 
-        this.onPeerLeave?.(id, peer as C);
+        this.onPeerLeave?.(id, peer);
         break;
       }
       case "EVENT": {

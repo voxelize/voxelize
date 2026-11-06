@@ -156,7 +156,7 @@ ___
 
 ### onPeerLeave
 
-• **onPeerLeave**: (`id`: `string`, `peer`: `C`) => `void`
+• **onPeerLeave**: (`id`: `string`, `peer`: `C` \| `undefined`) => `void`
 
 A function called when a player leaves the game. Internally, when a player leaves, its object is removed
 from the peers group. Customize this function to add additional behavior.
@@ -170,7 +170,7 @@ from the peers group. Customize this function to add additional behavior.
 | Name | Type | Description |
 | :------ | :------ | :------ |
 | `id` | `string` | The ID of the peer that left the game. |
-| `peer` | `C` | - |
+| `peer` | `C` \| `undefined` | Its object, or `undefined` when the leave arrives for a peer this client never created (it left before its join was handled). |
 
 ##### Returns
 
