@@ -1,12 +1,15 @@
 import {
   BufferGeometry,
+  type Camera,
   type Material,
   Mesh,
+  type Renderer,
   RGBAFormat,
-  type ShaderMaterial,
   type Texture,
   UnsignedByteType,
-} from "three";
+} from "three/webgpu";
+
+import { isChunkMaterial } from "./shading/chunk-material";
 
 /** Which kinds of texel a see-through surface's textures hold. */
 export type TexelClasses = {
@@ -151,42 +154,20 @@ export function texelPlanOf(
   return canCut ? "split" : "as-is";
 }
 
-const ALPHA_TEST_FRAGMENT = "#include <alphatest_fragment>";
-const SOLID_TEXEL_CUT_UNIFORM = "uSolidTexelCut";
-
 /**
- * Whether a material's fragment stage has three's alpha test to cut solid
- * texels after: every built-in material does, a shader material only if its
- * source includes the chunk.
+ * Whether a material can drop its solid texels after its alpha test: the
+ * chunk material carries the cut (`cutsSolidTexels`); any other material
+ * has no place for it.
  */
 export function canCutSolidTexels(material: Material) {
-  const shader = material as ShaderMaterial;
-  if (!shader.isShaderMaterial) return true;
-  return shader.fragmentShader.includes(ALPHA_TEST_FRAGMENT);
+  return isChunkMaterial(material);
 }
 
 /** Drops every texel at or above `solidAlpha` after the alpha test. */
 function cutSolidTexels(material: Material, solidAlpha: number) {
-  const previousCompile = material.onBeforeCompile;
-  const previousKey = material.customProgramCacheKey;
-  const cut = { value: solidAlpha };
-  const compile: Material["onBeforeCompile"] = function (
-    this: Material,
-    shader,
-    renderer,
-  ) {
-    previousCompile.call(this, shader, renderer);
-    shader.uniforms[SOLID_TEXEL_CUT_UNIFORM] = cut;
-    shader.fragmentShader = `uniform float ${SOLID_TEXEL_CUT_UNIFORM};\n${shader.fragmentShader.replace(
-      ALPHA_TEST_FRAGMENT,
-      `${ALPHA_TEST_FRAGMENT}\nif (diffuseColor.a >= ${SOLID_TEXEL_CUT_UNIFORM}) discard;`,
-    )}`;
-  };
-  compile.toString = () => previousCompile.toString();
-  material.onBeforeCompile = compile;
-  material.customProgramCacheKey = function (this: Material) {
-    return `${previousKey.call(this)}|translucent-texels`;
-  };
+  if (!isChunkMaterial(material)) return;
+  material.cutsSolidTexels = true;
+  material.solidTexelCut = solidAlpha;
 }
 
 export type TexelForks = { solid: Material; translucent: Material };
@@ -231,10 +212,6 @@ export class SeeThroughTexelSplit {
     if (forks) return forks;
     const solid = this.fork(material);
     solid.alphaTest = this.cuts.solid;
-    const solidShader = solid as ShaderMaterial;
-    if (solidShader.isShaderMaterial && solidShader.uniforms.alphaTest) {
-      solidShader.uniforms.alphaTest = { value: this.cuts.solid };
-    }
     solid.depthWrite = true;
     solid.forceSinglePass = true;
     const translucent = this.fork(material);
@@ -283,7 +260,15 @@ export class SeeThroughTexelSplit {
   }
 }
 
+/** What a split's layer needs of a GPU-drawn bucket (`gpu-terrain-bucket.ts`). */
+type GpuDrawnBucket = {
+  readonly mesh: Mesh;
+  cullFor(renderer: Renderer, camera: Camera): void;
+};
+
 function makeLayer(mesh: Mesh) {
+  const bucket = mesh.userData.gpuTerrain as GpuDrawnBucket | undefined;
+  if (bucket) return makeGpuLayer(mesh, bucket);
   const source = mesh.geometry;
   const geometry = shareBuffers(source);
   const layer = new Mesh(geometry);
@@ -292,5 +277,25 @@ function makeLayer(mesh: Mesh) {
   layer.userData = { isSeeThroughLayer: true };
   mesh.add(layer);
   source.addEventListener("dispose", () => geometry.dispose());
+  return layer;
+}
+
+/**
+ * The translucent layer of a GPU-drawn bucket: the bucket's own geometry,
+ * whose index is whichever view's packed list its cull points it at. The
+ * layer culls for its pass too (a view already culled costs a lookup) and
+ * follows the geometry when the bucket grows into a new one.
+ */
+function makeGpuLayer(mesh: Mesh, bucket: GpuDrawnBucket) {
+  const layer = new Mesh(bucket.mesh.geometry);
+  layer.renderOrder = mesh.renderOrder;
+  layer.matrixAutoUpdate = false;
+  layer.frustumCulled = false;
+  layer.userData = { isSeeThroughLayer: true, gpuTerrain: bucket };
+  layer.onBeforeRender = (renderer, _scene, camera) => {
+    bucket.cullFor(renderer as unknown as Renderer, camera);
+    layer.geometry = bucket.mesh.geometry;
+  };
+  mesh.add(layer);
   return layer;
 }

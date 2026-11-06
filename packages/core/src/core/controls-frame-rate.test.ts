@@ -1,6 +1,6 @@
 import { AABB } from "@voxelize/aabb";
 import { Engine } from "@voxelize/physics-engine";
-import { PerspectiveCamera } from "three";
+import { PerspectiveCamera } from "three/webgpu";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { RigidControls, RigidControlsOptions } from "./controls";

@@ -1,5 +1,5 @@
 import { Engine } from "@voxelize/physics-engine";
-import { PerspectiveCamera } from "three";
+import { PerspectiveCamera } from "three/webgpu";
 import { describe, expect, it } from "vitest";
 
 import { RigidControls } from "./controls";

@@ -5,11 +5,13 @@ import {
   Scene,
   Vector3,
   Vector4,
-  WebGLRenderer,
-} from "three";
+  WebGLCoordinateSystem,
+  WebGPUCoordinateSystem,
+  type WebGPURenderer,
+} from "three/webgpu";
 import { describe, expect, it } from "vitest";
 
-import { SHADER_LIGHTING_FLUID_CHUNK_SHADERS } from "../shaders";
+import { placeholderTexture } from "../shading/uniforms";
 
 import { LightClusterGrid } from "./clustering";
 import { LightSourceRegistry } from "./registry";
@@ -18,7 +20,6 @@ import {
   BlockProfileTable,
   SectionTracker,
 } from "./scan";
-import { LOCAL_LIGHTS_FUNCTIONS } from "./shader";
 import {
   linearizeShadowDepth,
   orientPointFaceCamera,
@@ -31,6 +32,11 @@ import { LocalShadowScheduler } from "./shadow-scheduler";
 import { LocalLightDescriptor, LocalLightStats } from "./types";
 
 import { LocalLights } from "./index";
+
+/** A face's cell clear draws the clear quad (`ScissoredDepthClear`). */
+const isCellClear = (scene: unknown) =>
+  (scene as { material?: { name?: string } }).material?.name ===
+  "voxelize-scissored-depth-clear";
 
 const makeStats = (): LocalLightStats => ({
   registered: 0,
@@ -80,7 +86,7 @@ const shadowLight = (
 const makeScheduler = (
   registry: LightSourceRegistry,
   maxShadowedLights = 2,
-  options: { temporalStability?: boolean; now?: () => number } = {},
+  options: { now?: () => number } = {},
 ) =>
   new LocalShadowScheduler(registry, {
     maxShadowedLights,
@@ -160,7 +166,12 @@ describe("shadow face camera math", () => {
     return {
       u: (scratch.x / scratch.w) * 0.5 + 0.5,
       v: (scratch.y / scratch.w) * 0.5 + 0.5,
-      depth01: (scratch.z / scratch.w) * 0.5 + 0.5,
+      // Hardware depth as the camera's convention stores it: WebGL maps
+      // clip depth -1..1 to 0..1, WebGPU's clip depth already is it.
+      depth01:
+        camera.coordinateSystem === WebGPUCoordinateSystem
+          ? scratch.z / scratch.w
+          : (scratch.z / scratch.w) * 0.5 + 0.5,
       viewZ,
     };
   };
@@ -219,6 +230,44 @@ describe("shadow face camera math", () => {
       tested++;
     }
     expect(tested).toBeGreaterThan(150);
+  });
+
+  it("stores a depth the shader reads back under WebGPU's clip convention", () => {
+    const light = new Vector3(4.5, 7.2, 3.5);
+    const near = 0.05;
+    const far = 13;
+    camera.coordinateSystem = WebGPUCoordinateSystem;
+    try {
+      for (const distance of [0.3, 1, 2.5, 6, 12]) {
+        // Straight down the -z face's axis (face 5: forward -z).
+        const point = new Vector3(light.x, light.y, light.z - distance);
+        const analytic = projectPointLightFragment(
+          light.x,
+          light.y,
+          light.z,
+          point.x,
+          point.y,
+          point.z,
+          POINT_FACE_GUARD_TAN_HALF,
+        )!;
+        orientPointFaceCamera(camera, {
+          light: [light.x, light.y, light.z],
+          face: analytic.face,
+          tanHalf: POINT_FACE_GUARD_TAN_HALF,
+          near,
+          far,
+        });
+        const viaCamera = projectThroughCamera(point);
+        expect(viaCamera.depth01).toBeGreaterThanOrEqual(0);
+        expect(viaCamera.depth01).toBeLessThanOrEqual(1);
+        expect(linearizeShadowDepth(viaCamera.depth01, near, far)).toBeCloseTo(
+          distance,
+          3,
+        );
+      }
+    } finally {
+      camera.coordinateSystem = WebGLCoordinateSystem;
+    }
   });
 
   it("reconstructs the spot basis exactly like the camera", () => {
@@ -314,7 +363,7 @@ describe("LocalShadowScheduler", () => {
 
   it("evicts only after the challenger sustains its lead (hysteresis)", () => {
     const registry = new LightSourceRegistry(16);
-    const scheduler = makeScheduler(registry, 1, { temporalStability: false });
+    const scheduler = makeScheduler(registry, 1);
     const stats = makeStats();
 
     // Holder: modest light near the camera. Challenger: far brighter.
@@ -332,7 +381,8 @@ describe("LocalShadowScheduler", () => {
         scheduler.recordForIndex(indexOf(registry, holder)),
       ).not.toBeNull();
     }
-    // Fifth frame: swap (the legacy frame hands over at once).
+    // Fifth frame: swap. The holder's faces never rendered, so it has no
+    // shadow to fade out and hands the slot over within the same update.
     scheduler.update(selection, 2, 0, 60, 0, stats);
     expect(scheduler.recordForIndex(indexOf(registry, holder))).toBeNull();
     expect(
@@ -403,36 +453,25 @@ describe("LocalShadowScheduler", () => {
     // lands the old map keeps its shadows. Blanking it lit every shadowed
     // corner until the budgeted FIFO caught up: a flash per nearby remesh.
     const registry = new LightSourceRegistry(16);
-    const stable = makeScheduler(registry, 1);
-    const legacy = makeScheduler(registry, 1, { temporalStability: false });
+    const scheduler = makeScheduler(registry, 1);
     const light = registry.add(shadowLight({ range: 10 }), 0, 60, 0);
-    for (const scheduler of [stable, legacy]) {
-      scheduler.update(
-        selectionOf(registry, [light]),
-        1,
-        0,
-        60,
-        0,
-        makeStats(),
-      );
-      const anyScheduler = scheduler as unknown as {
-        slots: { staticPending: number; staticMask: number }[];
-      };
-      anyScheduler.slots[0].staticPending = 0;
-      anyScheduler.slots[0].staticMask = 0b111111;
-      scheduler.notifyChunkMeshed({
-        minX: 0,
-        minZ: 0,
-        maxX: 16,
-        maxZ: 16,
-        maxHeight: 256,
-      });
-      expect(anyScheduler.slots[0].staticPending).toBe(0b111111);
-    }
-    expect(stable.recordForIndex(indexOf(registry, light))?.staticMask).toBe(
+    scheduler.update(selectionOf(registry, [light]), 1, 0, 60, 0, makeStats());
+    const anyScheduler = scheduler as unknown as {
+      slots: { staticPending: number; staticMask: number }[];
+    };
+    anyScheduler.slots[0].staticPending = 0;
+    anyScheduler.slots[0].staticMask = 0b111111;
+    scheduler.notifyChunkMeshed({
+      minX: 0,
+      minZ: 0,
+      maxX: 16,
+      maxZ: 16,
+      maxHeight: 256,
+    });
+    expect(anyScheduler.slots[0].staticPending).toBe(0b111111);
+    expect(scheduler.recordForIndex(indexOf(registry, light))?.staticMask).toBe(
       0b111111,
     );
-    expect(legacy.recordForIndex(indexOf(registry, light))?.staticMask).toBe(0);
   });
 
   it("invalidates cached maps only for edits inside a light's range", () => {
@@ -784,15 +823,19 @@ describe("moving-light shadow scheduling", () => {
     const renders: { scene: unknown }[] = [];
     let target: unknown = null;
     const renderer = {
+      autoClear: true,
+      getClearDepth: () => 1,
       getRenderTarget: () => target,
       setRenderTarget: (t: unknown) => {
         target = t;
       },
       clear: () => {},
+      compileAsync: () => Promise.resolve(),
       render: (scene: unknown) => {
+        if (isCellClear(scene)) return;
         renders.push({ scene });
       },
-    } as unknown as WebGLRenderer;
+    } as unknown as WebGPURenderer;
     return { renders, renderer };
   };
 
@@ -956,49 +999,6 @@ describe("moving-light shadow scheduling", () => {
   });
 });
 
-describe("fluid local-light fallback (shader source)", () => {
-  it("uses the bounded strongest-light helper for fluid gloss", () => {
-    expect(LOCAL_LIGHTS_FUNCTIONS).toContain(
-      "vec3 localLightSpecular(vec3 llPos, vec3 llNormal, vec3 llViewDir, vec3 llFlood)",
-    );
-    const specularBody = LOCAL_LIGHTS_FUNCTIONS.slice(
-      LOCAL_LIGHTS_FUNCTIONS.indexOf("vec3 localLightSpecular"),
-    );
-    expect(specularBody).toContain("uLocalMaskKnee");
-    expect(specularBody).toContain("llOcclusion");
-    expect(SHADER_LIGHTING_FLUID_CHUNK_SHADERS.fragment).toContain(
-      "localLightSpecular(wPos, waterNormal, viewDir, voxelLight.rgb)",
-    );
-    expect(SHADER_LIGHTING_FLUID_CHUNK_SHADERS.fragment).toContain(
-      "vIsFluid > 0.5",
-    );
-    expect(SHADER_LIGHTING_FLUID_CHUNK_SHADERS.fragment).toContain(
-      "llHighResolution",
-    );
-  });
-
-  it("returns before cluster lookup when the fluid slot limit is zero", () => {
-    const surfaceBody = LOCAL_LIGHTS_FUNCTIONS.slice(
-      LOCAL_LIGHTS_FUNCTIONS.indexOf("vec3 localLightSurface"),
-      LOCAL_LIGHTS_FUNCTIONS.indexOf("vec3 localLightSpecular"),
-    );
-    expect(surfaceBody.indexOf("if (llSlotLimit == 0)")).toBeLessThan(
-      surfaceBody.indexOf("localLightCell(llPos)"),
-    );
-  });
-
-  it("uses analytic surface slopes instead of finite-difference simplex", () => {
-    const fragment = SHADER_LIGHTING_FLUID_CHUNK_SHADERS.fragment;
-    const fluidBody = fragment.slice(
-      fragment.indexOf("if (vIsFluid > 0.5)"),
-      fragment.indexOf("#include <fog_fragment>"),
-    );
-    expect(fluidBody).toContain("vec2 waterSlope");
-    expect(fluidBody).not.toContain("lg1x");
-    expect(fluidBody).not.toContain("md1x");
-  });
-});
-
 describe("world-cell caster exclusion (stamped-silhouette regression)", () => {
   // Mock renderer that snapshots the watched objects' visibility at the
   // moment of every render call — the exact instant a caster would rasterize
@@ -1011,13 +1011,29 @@ describe("world-cell caster exclusion (stamped-silhouette regression)", () => {
       childrenAtRender: Object3D[];
     }[] = [];
     let target: unknown = null;
+    const clears = { whole: 0, cells: 0, rendersWithAutoClear: 0, compiles: 0 };
     const renderer = {
+      autoClear: true,
+      getClearDepth: () => 1,
       getRenderTarget: () => target,
       setRenderTarget: (t: unknown) => {
         target = t;
       },
-      clear: () => {},
+      clear: () => {
+        clears.whole += 1;
+      },
+      compileAsync: () => {
+        clears.compiles += 1;
+        return Promise.resolve();
+      },
       render: (scene: Object3D) => {
+        if (isCellClear(scene)) {
+          clears.cells += 1;
+          return;
+        }
+        if ((renderer as { autoClear: boolean }).autoClear) {
+          clears.rendersWithAutoClear += 1;
+        }
         renders.push({
           scene,
           visibleAtRender: watch.map((object) => object.visible),
@@ -1025,9 +1041,131 @@ describe("world-cell caster exclusion (stamped-silhouette regression)", () => {
           childrenAtRender: [...scene.children],
         });
       },
-    } as unknown as WebGLRenderer;
-    return { renders, renderer };
+    } as unknown as WebGPURenderer;
+    return { renders, renderer, clears };
   };
+
+  // A WebGPU clear is the pass's load op and covers the whole atlas,
+  // whatever the scissor: every face clears its own cell with a quad, and
+  // nothing in the shadow frame may clear on its own. The one whole clear
+  // is the atlas's first, when it caches nothing and the quad's pipeline is
+  // still building (a new depth texture reads 0, shadowing everything).
+  it("clears a new atlas whole once, then each face's own cell only", () => {
+    const registry = new LightSourceRegistry(16);
+    const scheduler = makeScheduler(registry);
+    const stats = makeStats();
+    const lamp = registry.add(shadowLight(), 4, 60, 4);
+    scheduler.update(selectionOf(registry, [lamp]), 1, 0, 60, 0, stats);
+
+    const { renderer, clears } = makeVisibilityRenderer([]);
+    const renderFrame = () => {
+      const ledger = new ShadowFrameLedger();
+      ledger.beginFrame(100);
+      scheduler.render(
+        renderer,
+        new Scene(),
+        ledger,
+        undefined,
+        undefined,
+        [],
+        stats,
+      );
+    };
+    renderFrame();
+    const firstFaces = stats.shadowFacesRendered;
+    expect(firstFaces).toBeGreaterThan(0);
+    expect(clears.cells).toBe(firstFaces);
+    expect(clears.whole).toBe(1);
+    expect(clears.compiles).toBe(1);
+
+    scheduler.invalidateAll("blockEdit");
+    scheduler.update(selectionOf(registry, [lamp]), 2, 0, 60, 0, stats);
+    renderFrame();
+    expect(stats.shadowFacesRendered).toBeGreaterThan(0);
+    expect(clears.cells).toBe(firstFaces + stats.shadowFacesRendered);
+    expect(clears.whole).toBe(1);
+    expect(clears.compiles).toBe(1);
+    expect(clears.rendersWithAutoClear).toBe(0);
+    expect(renderer.autoClear).toBe(true);
+  });
+
+  it("builds the cell clear ahead in the atlas's formats, and only once", async () => {
+    const registry = new LightSourceRegistry(16);
+    const scheduler = makeScheduler(registry);
+    const stats = makeStats();
+    const { renderer, clears } = makeVisibilityRenderer([]);
+    const bound: unknown[] = [];
+    const compile = (
+      renderer as unknown as { compileAsync: () => Promise<void> }
+    ).compileAsync;
+    (
+      renderer as unknown as { compileAsync: () => Promise<void> }
+    ).compileAsync = () => {
+      bound.push(renderer.getRenderTarget());
+      return compile();
+    };
+
+    await scheduler.compilePrograms(renderer);
+    expect(clears.compiles).toBe(1);
+    const twin = bound[0] as { width: number; depthTexture: { type: number } };
+    expect(twin.width).toBe(1);
+    expect(twin.depthTexture.type).toBe(
+      scheduler.atlas.ensureAllocated().depthTexture!.type,
+    );
+    // The bound target is put back.
+    expect(renderer.getRenderTarget()).toBeNull();
+
+    const lamp = registry.add(shadowLight(), 4, 60, 4);
+    scheduler.update(selectionOf(registry, [lamp]), 1, 0, 60, 0, stats);
+    const ledger = new ShadowFrameLedger();
+    ledger.beginFrame(100);
+    scheduler.render(
+      renderer,
+      new Scene(),
+      ledger,
+      undefined,
+      undefined,
+      [],
+      stats,
+    );
+    expect(stats.shadowFacesRendered).toBeGreaterThan(0);
+    expect(clears.compiles).toBe(1);
+  });
+
+  it("draws the static roots near a light in place, never reparenting them", () => {
+    const registry = new LightSourceRegistry(16);
+    const scheduler = makeScheduler(registry);
+    const stats = makeStats();
+    const lamp = registry.add(shadowLight(), 4, 60, 4);
+    scheduler.update(selectionOf(registry, [lamp]), 1, 0, 60, 0, stats);
+
+    // A chunk's group and a region arena page: both children of the world.
+    const world = new Group();
+    const chunkGroup = new Group();
+    const arenaPage = new Group();
+    world.add(chunkGroup, arenaPage);
+    const asked: number[][] = [];
+    scheduler.getStaticCasterRoots = (x, y, z, radius, out) => {
+      asked.push([x, y, z, radius]);
+      out.push(chunkGroup, arenaPage);
+    };
+
+    const { renderer, renders } = makeVisibilityRenderer([chunkGroup, arenaPage]);
+    const ledger = new ShadowFrameLedger();
+    ledger.beginFrame(100);
+    scheduler.render(renderer, new Scene(), ledger, undefined, undefined, [], stats);
+
+    expect(asked.length).toBeGreaterThan(0);
+    const worldDraws = renders.filter((r) => r.childrenAtRender.includes(arenaPage));
+    expect(worldDraws.length).toBeGreaterThan(0);
+    for (const draw of worldDraws) {
+      expect(draw.childrenAtRender).toEqual([chunkGroup, arenaPage]);
+      expect(draw.parentsAtRender).toEqual([world, world]);
+    }
+    expect(chunkGroup.parent).toBe(world);
+    expect(arenaPage.parent).toBe(world);
+    expect(world.children).toEqual([chunkGroup, arenaPage]);
+  });
 
   it("hides scene-child casters and pools during every world-cell render, and restores them", () => {
     const registry = new LightSourceRegistry(16);
@@ -1073,35 +1211,6 @@ describe("world-cell caster exclusion (stamped-silhouette regression)", () => {
     expect(pool.visible).toBe(true);
     expect(caster.parent).toBe(scene);
     expect(scene.children).toEqual([caster, pool]);
-  });
-
-  it("keeps the old reparenting overlay behind the A/B switch", () => {
-    const registry = new LightSourceRegistry(16);
-    const scheduler = makeScheduler(registry);
-    scheduler.isBorrowingCasters = false;
-    const stats = makeStats();
-    const lamp = registry.add(shadowLight(), 4, 60, 4);
-    scheduler.update(selectionOf(registry, [lamp]), 1, 0, 60, 0, stats);
-
-    const scene = new Scene();
-    const caster = new Object3D();
-    caster.position.set(8, 60, 4);
-    scene.add(caster);
-    const pool = new Group();
-    scene.add(pool);
-
-    const { renders, renderer } = makeVisibilityRenderer([caster, pool]);
-    const ledger = new ShadowFrameLedger();
-    ledger.beginFrame(100);
-    scheduler.render(renderer, scene, ledger, [caster], [pool], [], stats);
-
-    const overlayPasses = renders.filter(
-      (r) => r.scene !== scene && r.scene !== pool,
-    );
-    expect(overlayPasses.length).toBe(1);
-    expect(overlayPasses[0].parentsAtRender[0]).not.toBe(scene);
-    expect(renders.filter((r) => r.scene === pool).length).toBe(1);
-    expect(caster.parent).toBe(scene);
   });
 
   it("also excludes casters from a moving light's world refreshes", () => {
@@ -1364,7 +1473,7 @@ describe("world-cell caster exclusion (stamped-silhouette regression)", () => {
     // its depth texture the way renderShadows does each frame.
     const target = lights.shadows.atlas.ensureAllocated();
     expect(target.depthTexture).toBeTruthy();
-    const binding = lights.uniformBindings.uLocalShadowAtlas;
+    const binding = lights.shadingInputs.shadow.atlas;
     binding.value = lights.shadows.atlas.depthTexture;
     const bound = binding.value;
     expect(bound).toBeTruthy();
@@ -1376,10 +1485,11 @@ describe("world-cell caster exclusion (stamped-silhouette regression)", () => {
     lights.setQualityTier(lights.getQualityTier());
     expect(binding.value).toBe(bound);
 
-    // A real atlas change disposes the target; null now agrees with the
-    // invalidated masks until the next shadow render rebinds.
+    // A real atlas change disposes the target; the depth placeholder (a
+    // depth slot keeps its binding type) agrees with the invalidated masks
+    // until the next shadow render rebinds.
     lights.setQualityTier("ultra");
-    expect(binding.value).toBeNull();
+    expect(binding.value).toBe(placeholderTexture("depth"));
     lights.dispose();
   });
 
@@ -1421,31 +1531,6 @@ describe("world-cell caster exclusion (stamped-silhouette regression)", () => {
 });
 
 describe("holder occlusion composition (top-down leak regression)", () => {
-  it("composes the flood mask with the atlas sample instead of replacing it", () => {
-    // A shadow holder's face with no cached map — mount-skipped by
-    // allowedMask or still queued in the FIFO — samples as fully visible.
-    // If the ladder REPLACES the flood mask with that sample, a
-    // ceiling-mounted lamp pours full unoccluded light through the roof
-    // above it: the giant colored top-down patches. Composing keeps the
-    // mask as the conservative floor and lets the maps refine it.
-    // The response a slot lights with already carries the mask
-    // (localLightResponse); the slot loop multiplies the atlas onto it.
-    expect(LOCAL_LIGHTS_FUNCTIONS).toMatch(/llLit \*= localLightShadow\(/);
-    expect(LOCAL_LIGHTS_FUNCTIONS).not.toMatch(
-      /(llOcclusion|llLit) = localLightShadow\(/,
-    );
-    expect(LOCAL_LIGHTS_FUNCTIONS).toMatch(
-      /return llT1\.rgb \* \([^)]*llOcclusion/,
-    );
-    // The masked bit must gate holders too (set for static shadow
-    // requesters), or the composition has no mask to stand on.
-    const ladder = LOCAL_LIGHTS_FUNCTIONS.slice(
-      LOCAL_LIGHTS_FUNCTIONS.indexOf("Occlusion ladder"),
-      LOCAL_LIGHTS_FUNCTIONS.indexOf("llSubmersion"),
-    );
-    expect(ladder).toContain("(llFlags & 1) != 0 ? llMask : 1.0");
-  });
-
   it("keeps the CPU entity mirror on the same conservative mask for holders", () => {
     const registry = new LightSourceRegistry(8);
     const grid = new LightClusterGrid(registry, {

@@ -6,8 +6,15 @@ import {
   Texture,
   Vector3,
   Vector4,
-  WebGLRenderer,
-} from "three";
+  Renderer,
+} from "three/webgpu";
+
+import type { LocalLightInputs } from "../shading/local-lights";
+import {
+  placeholderTexture,
+  textureSlot,
+  worldUniform,
+} from "../shading/uniforms";
 
 import { LocalLightAirlight } from "./airlight";
 import { LightClusterGrid } from "./clustering";
@@ -54,9 +61,6 @@ export {
   blockLightFloodRemainder,
   EMISSIVE_LEVELS,
   LAMBERT_WRAP,
-  LOCAL_LIGHTS_DEBUG_FUNCTIONS,
-  LOCAL_LIGHTS_FUNCTIONS,
-  LOCAL_LIGHTS_UNIFORM_DECLARATIONS,
 } from "./shader";
 export { ShadowFrameLedger } from "./shadow-ledger";
 export { LocalShadowScheduler } from "./shadow-scheduler";
@@ -160,9 +164,9 @@ export class LocalLights {
   };
 
   private readonly shadowUniforms = {
-    atlas: { value: null as Texture | null },
-    params: { value: new Vector4() },
-    params2: { value: new Vector4() },
+    atlas: textureSlot("depth"),
+    params: worldUniform(new Vector4()),
+    params2: worldUniform(new Vector4()),
   };
   private shadowLedgerUnitsPerFrame: number;
 
@@ -235,35 +239,12 @@ export class LocalLights {
    * The shared uniform objects every chunk material binds. One set for the
    * whole world; updates are zero-copy.
    */
-  get uniformBindings() {
-    const u = this.grid.uniforms;
+  /** What the chunk shading reads (shading/local-lights.ts). */
+  get shadingInputs(): LocalLightInputs {
     return {
-      uLightGrid: u.lightGrid,
-      uLightData: u.lightData,
-      uLightOverflow: u.lightOverflow,
-      uLightGridOrigin: u.gridOrigin,
-      uLightGridDims: u.gridDims,
-      uLightGridCellSize: u.gridCellSize,
-      uLightGridStorageOffset: u.gridStorageOffset,
-      uLightGridCenter: u.gridCenter,
-      uLightGridHalf: u.gridHalf,
-      uLocalLightStable: u.stable,
-      uClusteredLightCount: u.clusteredCount,
-      uLocalMaskKnee: u.maskKnee,
-      uLocalSpecularStrength: u.specularStrength,
-      uLocalOwnership: u.ownership,
-      uLocalLightDebugMode: u.debugMode,
-      uEmissiveLevels: u.emissiveLevels,
-      uLocalShadowAtlas: this.shadowUniforms.atlas,
-      uLocalShadowParams: this.shadowUniforms.params,
-      uLocalShadowParams2: this.shadowUniforms.params2,
-      uAirCount: this.airlight.uniforms.count,
-      uAirPos: this.airlight.uniforms.positions,
-      uAirColor: this.airlight.uniforms.colors,
-      uRoomFillStrength: this.airlight.uniforms.fillStrength,
-      uRoomFillRangeScale: this.airlight.uniforms.fillRangeScale,
-      uRoomFillCoreScale: this.airlight.uniforms.fillCoreScale,
-      uRoomFillFloodMask: this.airlight.uniforms.fillFloodMask,
+      grid: this.grid.uniforms,
+      shadow: this.shadowUniforms,
+      air: this.airlight.uniforms,
     };
   }
 
@@ -285,8 +266,7 @@ export class LocalLights {
 
   /**
    * Re-resolve every block profile and rescan the loaded world through the
-   * bounded queue — for scan-time switches (`BLOCK_LIGHT_TUNING`'s
-   * `analyticHue`, `proxyEnergy`) flipped at runtime.
+   * bounded queue, for a change to how profiles resolve.
    */
   rebuildProfiles(): void {
     this.invalidateProfiles();
@@ -405,9 +385,10 @@ export class LocalLights {
     // idempotent) and the live depth texture must stay bound, or a frame
     // rendered before the next renderShadows samples a null atlas against
     // masks that still claim shadow data. On a real cap change the resize
-    // disposed the target, so this reads back null and the invalidated
-    // masks agree.
-    this.shadowUniforms.atlas.value = this.shadows.atlas.depthTexture;
+    // disposed the target, so this reads back the placeholder and the
+    // invalidated masks agree.
+    this.shadowUniforms.atlas.value =
+      this.shadows.atlas.depthTexture ?? placeholderTexture("depth");
   }
 
   getQualityTier(): LightQualityTier {
@@ -421,20 +402,6 @@ export class LocalLights {
    */
   setRenderPixels(pixels: number): void {
     this.grid.setRenderPixels(pixels);
-  }
-
-  /**
-   * On by default. Off renders the legacy frame — camera-ranked cells,
-   * popping selection, stepped window rim, shadows that blank on every
-   * nearby remesh — and exists only for A/B captures and measurements.
-   */
-  setTemporalStability(isStable: boolean): void {
-    this.grid.setTemporalStability(isStable);
-    this.shadows.setTemporalStability(isStable);
-  }
-
-  get isTemporallyStable(): boolean {
-    return this.grid.isTemporallyStable;
   }
 
   /**
@@ -617,7 +584,7 @@ export class LocalLights {
    * static FIFO. A frame with zero shadow slots returns immediately.
    */
   renderShadows(
-    renderer: WebGLRenderer,
+    renderer: Renderer,
     scene: Scene,
     entities?: Object3D[],
     instancePools?: Group[],
@@ -634,7 +601,8 @@ export class LocalLights {
       this.stats,
       poolBounds,
     );
-    this.shadowUniforms.atlas.value = this.shadows.atlas.depthTexture;
+    this.shadowUniforms.atlas.value =
+      this.shadows.atlas.depthTexture ?? placeholderTexture("depth");
     const ledger = this.shadowLedger.frameStats;
     this.stats.ledgerUnitsCsm = ledger.csmNearUnits + ledger.csmFarUnits;
     this.stats.ledgerUnitsLocal =
@@ -667,13 +635,11 @@ export class LocalLights {
   }
 
   /**
-   * GPU context restored: CPU-side light state is authoritative, so all GPU
-   * textures simply re-upload. Wire this to the canvas's
-   * `webglcontextrestored` event.
+   * Builds the shadow frame's own pipelines ahead of the first shadowed
+   * light (`LocalShadowScheduler.compilePrograms`), for a load warmup.
    */
-  onContextRestored(): void {
-    this.grid.markTexturesDirty();
-    this.shadows.onContextRestored();
+  compileShadowPrograms(renderer: Renderer): Promise<void> {
+    return this.shadows.compilePrograms(renderer);
   }
 
   /** Start a fresh peak-cost measurement window (benchmark harnesses). */

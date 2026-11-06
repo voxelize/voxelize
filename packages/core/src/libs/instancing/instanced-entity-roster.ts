@@ -1,27 +1,24 @@
-import * as THREE from "three";
+import * as THREE from "three/webgpu";
 
-import { ShaderLightingUniforms } from "../../core/world/chunk-renderer";
-import { updateEntityShadowUniforms } from "../../core/world/entity-shadow-uniforms";
 
 import {
   BudgetedDrain,
   BudgetedWorkOutcome,
   createBudgetedDrain,
 } from "./frame-budget";
-import { sharedEntityShadowUniforms } from "./instanced-skinned-material";
 import { WarmablePool, isWarmablePool } from "./pool-warmup";
 
 /// A pool's per-frame advance. Pools whose own `update` takes other
 /// arguments register with an adapter instead.
 export type RosterUpdate = (
   deltaTime: number,
-  renderer: THREE.WebGLRenderer,
+  renderer: THREE.Renderer,
 ) => void;
 
 export type RosterPool = THREE.Object3D & { dispose(): void };
 
 export type UpdatingRosterPool = RosterPool & {
-  update(deltaTime: number, renderer: THREE.WebGLRenderer): void;
+  update(deltaTime: number, renderer: THREE.Renderer): void;
 };
 
 export interface RosterWarmupOptions {
@@ -88,7 +85,7 @@ export class InstancedEntityRoster extends THREE.Group {
     const advance =
       update !== undefined
         ? update
-        : (deltaTime: number, renderer: THREE.WebGLRenderer) =>
+        : (deltaTime: number, renderer: THREE.Renderer) =>
             (pool as unknown as UpdatingRosterPool).update(deltaTime, renderer);
     this.entries.push({ pool, update: advance });
     this.warmablePools = null;
@@ -167,22 +164,13 @@ export class InstancedEntityRoster extends THREE.Group {
     };
   }
 
-  update(deltaTime: number, renderer: THREE.WebGLRenderer): void {
+  update(deltaTime: number, renderer: THREE.Renderer): void {
     for (const entry of this.entries) {
       entry.update?.(deltaTime, renderer);
     }
     this.hideEmptyInstanceMeshes();
   }
 
-  /**
-   * Copies the frame's lighting (sun, shadow maps, cascades) into the one
-   * shadow block every pooled material shares. Call once a frame, after
-   * `world.updateShaderLighting`, or instanced entities neither receive
-   * shadows nor follow the sun.
-   */
-  updateShadowUniforms(lightingUniforms: ShaderLightingUniforms): void {
-    updateEntityShadowUniforms(sharedEntityShadowUniforms, lightingUniforms);
-  }
 
   /**
    * Every pool that is a group, for the shadow passes. Derived from the

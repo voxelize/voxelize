@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 
-import * as THREE from "three";
+import * as THREE from "three/webgpu";
 import { afterEach, beforeEach, describe, it } from "vitest";
 
 import { InstancedEntityRoster } from "./instanced-entity-roster";
@@ -20,7 +20,7 @@ class FakePool extends THREE.Group {
     super();
     this.mesh = new THREE.InstancedMesh(
       new THREE.BufferGeometry(),
-      new THREE.MeshBasicMaterial(),
+      new THREE.MeshBasicNodeMaterial(),
       4,
     );
     this.mesh.count = 0;
@@ -51,14 +51,14 @@ class FakePool extends THREE.Group {
 
 class RendererOnlyPool extends THREE.Group {
   readonly renderers: unknown[] = [];
-  update(renderer: THREE.WebGLRenderer): void {
+  update(renderer: THREE.Renderer): void {
     this.renderers.push(renderer);
   }
   dispose(): void {}
 }
 
 const frames: FrameRequestCallback[] = [];
-const renderer = {} as THREE.WebGLRenderer;
+const renderer = {} as THREE.Renderer;
 
 beforeEach(() => {
   frames.length = 0;

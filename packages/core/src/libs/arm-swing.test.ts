@@ -1,4 +1,4 @@
-import { Group, PerspectiveCamera, Quaternion, Vector3 } from "three";
+import { Group, PerspectiveCamera, Quaternion, Vector3 } from "three/webgpu";
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 
 import { Arm, ArmIdleSway, ArmObjectOptions } from "./arm";

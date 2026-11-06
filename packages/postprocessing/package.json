@@ -1,0 +1,33 @@
+{
+  "name": "@voxelize/postprocessing",
+  "version": "0.1.0",
+  "license": "MIT",
+  "description": "Screen-space effects for three.js WebGPURenderer, in TSL: a composer of passes, merged effect passes, mipmap-blur bloom, FXAA, vignette, grading",
+  "files": [
+    "dist"
+  ],
+  "main": "./dist/index.js",
+  "module": "./dist/index.mjs",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    "require": "./dist/index.js",
+    "import": "./dist/index.mjs",
+    "types": "./dist/index.d.ts"
+  },
+  "scripts": {
+    "watch": "cross-env NODE_ENV=development pnpm build --watch",
+    "build": "tsup src/index.ts --format cjs,esm --dts-resolve --external three",
+    "prepublishOnly": "pnpm run build"
+  },
+  "author": "Ian Huang <ian1314159@gmail.com>",
+  "devDependencies": {
+    "@types/three": "^0.187.0",
+    "cross-env": "^7.0.3",
+    "three": "^0.187.0",
+    "tsup": "^5.12.9",
+    "typescript": "^5.4.5"
+  },
+  "peerDependencies": {
+    "three": ">=0.187.0"
+  }
+}

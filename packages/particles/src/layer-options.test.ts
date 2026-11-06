@@ -1,4 +1,4 @@
-import type { Object3D } from "three";
+import type { Object3D } from "three/webgpu";
 import { describe, expect, it } from "vitest";
 
 import { PARTICLE_BLOOM_EXEMPT_LAYER, TRANSPARENT_MEDIUM_KEY } from "./layer";
@@ -131,18 +131,6 @@ describe("single-pass quads", () => {
     const cube = meshes.find((mesh) => !isQuad(mesh));
     expect(quad && materialOf(quad).forceSinglePass).toBe(true);
     expect(cube && materialOf(cube).forceSinglePass).toBe(false);
-  });
-
-  it("keep three's two-pass draw when asked (the A/B path)", () => {
-    const { world } = stubWorld();
-    const system = new ParticleSystem(world, {
-      maxFlashLights: 0,
-      isQuadSinglePass: false,
-    });
-    system.prewarm({ ...CUBE, shape: "quad" });
-    for (const mesh of layerMeshes(system)) {
-      expect(materialOf(mesh).forceSinglePass).toBe(false);
-    }
   });
 });
 

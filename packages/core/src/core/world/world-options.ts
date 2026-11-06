@@ -409,9 +409,11 @@ export type WorldClientOptions = {
   farTerrainSeamBand: number;
 
   /**
-   * The uniforms to overwrite the default chunk material uniforms. Defaults to `{}`.
+   * Starting values for the chunk shading's numeric uniforms (their nodes
+   * are shared by every material, so they are set, never replaced).
+   * Defaults to `{}`.
    */
-  chunkUniformsOverwrite: Partial<ChunkRenderer["uniforms"]>;
+  chunkUniformValues: Partial<Record<keyof ChunkRenderer["uniforms"], number>>;
 
   /**
    * The threshold to force the server's time to the client's time. Defaults to `0.1`.
@@ -511,10 +513,9 @@ export type WorldClientOptions = {
    * {@link OrderIndependentTransparencyOptions}): water, glass, the
    * translucent texels of any see-through block, and every transparent
    * material in the world's scene, accumulated in any order and composited
-   * once. Requires the host to render the world into a render target with
-   * a depth texture, and to call `World.prepareTransparency` before each
-   * frame; a render that cannot accumulate says why and draws its layers in
-   * list order. `null` (the default) keeps the sorted pipeline: per-face
+   * once. Requires the host to draw the world with `World.renderFrame` into
+   * a render target with a float depth texture; a frame that cannot
+   * accumulate says why and draws its layers in list order. `null` (the default) keeps the sorted pipeline: per-face
    * sorting, medium bands and the per-pixel water side of glass.
    */
   orderIndependentTransparency: OrderIndependentTransparencyOptions | null;
@@ -603,7 +604,7 @@ export const defaultWorldClientOptions: WorldClientOptions = {
   farTerrainFogFarRatio: 1,
   farTerrainEdgeBand: 0.1,
   farTerrainSeamBand: 0,
-  chunkUniformsOverwrite: {},
+  chunkUniformValues: {},
   sunlightStartTimeFrac: 0.25,
   sunlightEndTimeFrac: 0.7,
   sunlightChangeSpan: 0.15,

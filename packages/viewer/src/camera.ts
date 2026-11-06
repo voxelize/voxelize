@@ -13,7 +13,7 @@
  * the view away (data that arrived late). All easing is critically damped
  * and solved per elapsed second, so it is the same at any frame rate.
  */
-import { OrthographicCamera, PerspectiveCamera, Vector3 } from "three";
+import { OrthographicCamera, PerspectiveCamera, Vector3 } from "three/webgpu";
 
 import {
   Flight,

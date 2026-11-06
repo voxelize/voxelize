@@ -1,4 +1,4 @@
-import { Color, IUniform, MathUtils } from "three";
+import { Color, MathUtils } from "three/webgpu";
 
 /**
  * Per-channel coefficients for Beer-Lambert water extinction, expressed per
@@ -689,76 +689,6 @@ export const FLOW_CREST_PHASE_PER_HEIGHT =
 export const FLUID_SPILL_CORNER_MIN_HEIGHT =
   (WATER_OPTICS.fluidSurfaceHeight + 1) / 2;
 
-/**
- * Samples every {@link WATER_OPTICS.surfaceNormalLayers} entry of the slope
- * map at `waterRippleXZ` (declared by the caller: the fragment's `wPos.xz`,
- * or its 1/16-block texel centre) for `waterSeconds`, accumulating the
- * decoded, bump-weighted slopes into `waterSlopeSum` (declared by the
- * caller). Each layer's texel stays in scope as `waterTexel<i>` so the
- * height channel can be read for crest highlights without a second lookup;
- * the first layer's height also gates the last layer's bump into patches
- * ({@link WATER_OPTICS.ripplePatchFloor}). The red and green channels
- * decode `rg * 2 - 1` to -1..1, the tile's steepest facet at ±1 (see
- * `water-normal-texture.ts`).
- */
-/**
- * A tileable caustic web (after Dave Hoskins' water caustic): bright where
- * an iterated warp's focus lines meet, repeating every three blocks. Shared
- * by the seabed caustics, the surface underside and the client's light
- * shafts, so all three show one pattern on one clock. Returns 0..1.
- */
-export const WATER_CAUSTIC_WEB_GLSL = `
-float waterCausticWeb(vec2 cwPos, float cwSeconds) {
-  vec2 cwP = mod(cwPos * (6.28318 / 3.0), 6.28318) - 250.0;
-  vec2 cwI = cwP;
-  float cwSum = 1.0;
-  for (int cwN = 0; cwN < 4; cwN++) {
-    float cwT = cwSeconds * 0.45 * (1.0 - 3.5 / float(cwN + 1));
-    cwI = cwP + vec2(
-      cos(cwT - cwI.x) + sin(cwT + cwI.y),
-      sin(cwT - cwI.y) + cos(cwT + cwI.x)
-    );
-    cwSum += 1.0 / length(vec2(
-      cwP.x / (sin(cwI.x + cwT) / 0.005),
-      cwP.y / (cos(cwI.y + cwT) / 0.005)
-    ));
-  }
-  cwSum = 1.17 - pow(cwSum / 4.0, 1.4);
-  return clamp(pow(abs(cwSum), 8.0), 0.0, 1.0);
-}
-`;
-
-export const WATER_SURFACE_NORMAL_LAYERS_GLSL = WATER_OPTICS.surfaceNormalLayers
-  .map((layer, index, layers) => {
-    const cos = Math.cos(layer.rotation).toFixed(6);
-    const sin = Math.sin(layer.rotation).toFixed(6);
-    const negSin = (-Math.sin(layer.rotation)).toFixed(6);
-    const [driftX, driftZ] = layer.drift;
-    // Tile size and stretch fold into one per-axis scale on the rotated
-    // position: the axis with the larger factor repeats sooner, so the
-    // ridges come out long along the other one.
-    const scaleX = (layer.stretch[0] / layer.tileBlocks).toFixed(6);
-    const scaleY = (layer.stretch[1] / layer.tileBlocks).toFixed(6);
-    const isSwell = index === 0;
-    const isFinest = index === layers.length - 1;
-    const patchGate = isFinest && !isSwell ? " * ripplePatch" : "";
-    const patchDefinition = isSwell
-      ? `
-  float ripplePatch = mix(
-    ${WATER_OPTICS.ripplePatchFloor.toFixed(4)},
-    1.0,
-    waterTexel0.b
-  );`
-      : "";
-    return `
-  vec2 waterUv${index} = mat2(${cos}, ${sin}, ${negSin}, ${cos})
-    * (waterRippleXZ + vec2(${driftX.toFixed(4)}, ${driftZ.toFixed(4)}) * waterSeconds)
-    * vec2(${scaleX}, ${scaleY});
-  vec4 waterTexel${index} = texture2D(uWaterNormalMap, waterUv${index});${patchDefinition}
-  waterSlopeSum += (waterTexel${index}.rg * 2.0 - 1.0)
-    * ${layer.bump.toFixed(4)}${patchGate};`;
-  })
-  .join("");
 
 export const WATER_SURFACE_SCATTER_COLOR = new Color(
   WATER_OPTICS.surfaceScatterColor,
@@ -788,71 +718,8 @@ export const WATER_PANE_EXTINCTION: WaterChannelCoefficients =
     WATER_OPTICS.paneViewExtinctionScale,
   );
 
-function coefficientsToGlslVec3(
-  coefficients: WaterChannelCoefficients,
-): string {
-  return `vec3(${coefficients.red.toFixed(5)}, ${coefficients.green.toFixed(
-    5,
-  )}, ${coefficients.blue.toFixed(5)})`;
-}
 
-function colorToGlslVec3(color: Color): string {
-  return `vec3(${color.r.toFixed(5)}, ${color.g.toFixed(5)}, ${color.b.toFixed(
-    5,
-  )})`;
-}
 
-export const WATER_DOWNWELLING_EXTINCTION_GLSL = coefficientsToGlslVec3(
-  WATER_OPTICS.downwellingExtinction,
-);
-
-export const WATER_VIEW_EXTINCTION_GLSL = coefficientsToGlslVec3(
-  WATER_VIEW_EXTINCTION,
-);
-
-export const WATER_PANE_EXTINCTION_GLSL = coefficientsToGlslVec3(
-  WATER_PANE_EXTINCTION,
-);
-
-export const WATER_SURFACE_SCATTER_GLSL = colorToGlslVec3(
-  WATER_SURFACE_SCATTER_COLOR,
-);
-
-export const UNDERWATER_FOG_UNIFORM_DECLARATIONS = `
-uniform float uCameraSubmersion;
-uniform float uCameraWaterPlaneY;
-uniform vec3 uUnderwaterAmbient;
-uniform float uUnderwaterViewScale;
-`;
-
-/**
- * Per-channel exponential (Beer-Lambert) fog along the camera's underwater
- * view path. Expects `vWorldPosition`, `cameraPosition`, and `gl_FragColor`
- * in scope. The path is clamped at the waterline plane so geometry above the
- * surface only receives fog for the submerged segment of the ray.
- */
-/** Emission loses light along the ray but does not add ambient water light. */
-export const createUnderwaterFogFragment = (isEmission = false) => `
-if (uCameraSubmersion > 0.001) {
-  vec3 uwRay = vWorldPosition.xyz - cameraPosition;
-  float uwDist = max(length(uwRay), 1e-4);
-  float uwPath = uwDist;
-  if (uwRay.y > 1e-4) {
-    float uwToPlane = (uCameraWaterPlaneY - cameraPosition.y) * uwDist / uwRay.y;
-    uwPath = min(uwPath, max(uwToPlane, 0.0));
-  }
-  // A material that never set the A/B scale reads 0: the baked extinction.
-  float uwScale = uUnderwaterViewScale > 0.0 ? uUnderwaterViewScale : 1.0;
-  vec3 uwTransmit = exp(-${WATER_VIEW_EXTINCTION_GLSL} * uwPath * uwScale);
-  // In-scatter from the surface side: brighter looking up, darker down.
-  vec3 uwInScatter = uUnderwaterAmbient
-    * (1.0 + ${WATER_OPTICS.underwaterInScatterTilt.toFixed(4)} * uwRay.y / uwDist);
-  vec3 uwColor = gl_FragColor.rgb * uwTransmit${isEmission ? "" : " + uwInScatter * (1.0 - uwTransmit)"};
-  gl_FragColor.rgb = mix(gl_FragColor.rgb, uwColor, uCameraSubmersion);
-}
-`;
-
-export const UNDERWATER_FOG_FRAGMENT = createUnderwaterFogFragment();
 
 /**
  * The underwater in-scatter's brightness, against the scatter colour, for
@@ -900,42 +767,6 @@ export function undersideSceneShare(cosIncidence: number): number {
     );
   const window = undersideTransmission(cosI);
   return window + (1 - window) * leak;
-}
-
-export interface UnderwaterFogUniforms {
-  uCameraSubmersion: IUniform<number>;
-  uCameraWaterPlaneY: IUniform<number>;
-  uUnderwaterAmbient: IUniform<Color>;
-  /** A/B scale on the view extinction; 0 or absent means the baked one. */
-  uUnderwaterViewScale?: IUniform<number>;
-}
-
-export interface UnderwaterFogSource {
-  submersion: number;
-  waterPlaneY: number;
-  ambientColor: Color;
-  viewExtinctionScale?: number;
-}
-
-export function createUnderwaterFogUniforms(): UnderwaterFogUniforms {
-  return {
-    uCameraSubmersion: { value: 0 },
-    uCameraWaterPlaneY: { value: 0 },
-    uUnderwaterAmbient: { value: new Color(0, 0, 0) },
-    uUnderwaterViewScale: { value: 1 },
-  };
-}
-
-export function updateUnderwaterFogUniforms(
-  target: UnderwaterFogUniforms,
-  source: UnderwaterFogSource,
-): void {
-  target.uCameraSubmersion.value = source.submersion;
-  target.uCameraWaterPlaneY.value = source.waterPlaneY;
-  target.uUnderwaterAmbient.value.copy(source.ambientColor);
-  if (target.uUnderwaterViewScale) {
-    target.uUnderwaterViewScale.value = source.viewExtinctionScale ?? 1;
-  }
 }
 
 export function getDownwellingTransmittance(depth: number, out: Color): Color {

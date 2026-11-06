@@ -1,14 +1,58 @@
 import {
   Color,
   type ColorRepresentation,
-  Uniform,
+  type Node,
   Vector2,
   Vector4,
-} from "three";
+} from "three/webgpu";
+import {
+  abs,
+  clamp,
+  cos,
+  dFdx,
+  dFdy,
+  dot,
+  float,
+  floor,
+  Fn,
+  fract,
+  If,
+  int,
+  ivec2,
+  ivec3,
+  length,
+  max,
+  min,
+  mix,
+  normalize,
+  select,
+  sin,
+  smoothstep,
+  sqrt,
+  step,
+  uint,
+  uvec3,
+  vec2,
+  vec3,
+  vec4,
+} from "three/tsl";
 
 import { SHADER_CLOCK_WRAP_SECONDS } from "./shader-clock";
-import { SHADER_LIGHTING_SEE_THROUGH_CHUNK_SHADERS } from "./shaders";
-import { VOXEL_NATIVE_GLSL } from "./voxel-native-shading";
+import type {
+  ChunkLitHookContext,
+  ChunkPrepareHookContext,
+  ChunkShadingHooks,
+} from "./shading/chunk-material";
+import type {
+  FloatNode,
+  IntNode,
+  UVec3Node,
+  Vec2Node,
+  Vec3Node,
+  Vec4Node,
+} from "./shading/types";
+import { ownUniform, uniformArray } from "./shading/uniforms";
+import { snapToTexelNode } from "./voxel-native-shading";
 
 /**
  * A surface for a hot, viscous fluid: a dark cooled crust broken into plates
@@ -42,8 +86,9 @@ import { VOXEL_NATIVE_GLSL } from "./voxel-native-shading";
  *   faint dome relief from the sun's heading.
  *
  * Every value is a uniform, so a game can tune the look live on the returned
- * uniforms without a recompile. The result plugs into
- * `World.customizeMaterialShaders` for the fluid block.
+ * uniforms without a recompile. The hooks plug into `World.customizeMaterial`
+ * for the fluid block, with kind `seeThrough`: the crust replaces the water's
+ * surface optics, not the solid shading.
  */
 export type CrustedFluidShaderOptions = {
   /**
@@ -109,23 +154,6 @@ export type CrustedFluidShaderOptions = {
   wave?: { amplitude: number; speed: number };
 };
 
-export type CrustedFluidShader = {
-  vertexShader: string;
-  fragmentShader: string;
-  uniforms: {
-    uCrustPalette: Uniform<Color[]>;
-    uCrustFlow: Uniform<Vector4>;
-    uCrustShape: Uniform<Vector4>;
-    uCrustFarAnisotropy: Uniform<number>;
-    uCrustBands: Uniform<Vector4>;
-    uCrustLife: Uniform<Vector4>;
-    uCrustZone: Uniform<Vector4>;
-    uCrustLight: Uniform<Vector4>;
-    uCrustFaceShades: Uniform<Vector4>;
-    uCrustWave: Uniform<Vector2>;
-  };
-};
-
 export const CRUSTED_FLUID_DEFAULTS: Required<CrustedFluidShaderOptions> = {
   palette: ["#1a0e0c", "#3a1c14", "#8a1e08", "#e0520c", "#ff8a1e", "#ffc24a"],
   texelsPerBlock: 16,
@@ -151,204 +179,157 @@ export const CRUSTED_FLUID_DEFAULTS: Required<CrustedFluidShaderOptions> = {
   wave: { amplitude: 0.35, speed: 0.4 },
 };
 
-const VERTEX_UNIFORM_ANCHOR = "uniform float uTime;";
-const VERTEX_WAVE_TIME_ANCHOR = "float waveTime = uTime * 0.0006;";
-const VERTEX_WAVE_HEIGHT_ANCHOR =
-  "transformed.y += (wave1 + wave2 + wave3) * POSITION_UNITS_PER_BLOCK;";
-const FRAGMENT_MAIN_ANCHOR = "void main() {";
-const FRAGMENT_LIGHT_ANCHOR = "outgoingLight.rgb *= totalLight;";
+/** A crusted fluid's chunk shading and the uniforms that tune it live. */
+export type CrustedFluidSurface = {
+  /** For `World.customizeMaterial(block, null, { kind: "seeThrough", hooks })`. */
+  hooks: ChunkShadingHooks;
+  uniforms: ReturnType<typeof crustUniforms>;
+};
 
-const CRUSTED_FLUID_FUNCTIONS = /* glsl */ `
-uniform vec3 uCrustPalette[6];
-uniform vec4 uCrustFlow;
-uniform vec4 uCrustShape;
-uniform float uCrustFarAnisotropy;
-uniform vec4 uCrustBands;
-uniform vec4 uCrustLife;
-uniform vec4 uCrustZone;
-uniform vec4 uCrustLight;
-uniform vec4 uCrustFaceShades;
-
-${VOXEL_NATIVE_GLSL}
-
-// Integer hash (pcg3d): exact at any coordinate, unlike a sin() hash. The
-// bias keeps world coordinates positive before the unsigned cast.
-uvec3 crustHash3(ivec3 p) {
-  uvec3 v = uvec3(p + ivec3(16777216));
-  v = v * 1664525u + 1013904223u;
-  v.x += v.y * v.z; v.y += v.z * v.x; v.z += v.x * v.y;
-  v ^= v >> 16u;
-  v.x += v.y * v.z; v.y += v.z * v.x; v.z += v.x * v.y;
-  return v;
+function crustUniforms(o: Required<CrustedFluidShaderOptions>) {
+  return {
+    /** Six colours, coldest to hottest. */
+    palette: uniformArray(
+      o.palette.map((c) => new Color(c)),
+      "color",
+    ),
+    /** Surface flow, fall flow (blocks/s), cycle seconds, fall stretch. */
+    flow: ownUniform(
+      new Vector4(
+        o.surfaceFlowSpeed,
+        o.fallFlowSpeed,
+        o.cycleSeconds,
+        o.fallStretch,
+      ),
+    ),
+    /** Texels per block, plate texels, seam width, far-fade footprint. */
+    shape: ownUniform(
+      new Vector4(
+        o.texelsPerBlock,
+        o.plateTexels,
+        o.seamWidth,
+        o.farFadeTexelFootprint,
+      ),
+    ),
+    farAnisotropy: ownUniform(Math.max(o.farFadeAnisotropy, 1)),
+    bands: ownUniform(new Vector4(...o.bands)),
+    /** Form time, grain, relief, fall crust. */
+    life: ownUniform(new Vector4(o.formTime, o.grain, o.relief, o.fallCrust)),
+    /** Heat-field scale, base, amplitude, speed. */
+    zone: ownUniform(
+      new Vector4(o.zone.scale, o.zone.base, o.zone.amplitude, o.zone.speed),
+    ),
+    /** Crust self light, crust scene light, glow strength, mean glow. */
+    light: ownUniform(
+      new Vector4(
+        o.crustSelfLight,
+        o.crustSceneLight,
+        o.glowStrength,
+        o.meanGlow,
+      ),
+    ),
+    /** Face shade of the +-X walls, +-Z walls, underside, top. */
+    faceShades: ownUniform(
+      new Vector4(
+        o.faceShades.sideX,
+        o.faceShades.sideZ,
+        o.faceShades.bottom,
+        o.faceShades.top,
+      ),
+    ),
+    /** Scale on the swell's amplitude and speed. */
+    wave: ownUniform(new Vector2(o.wave.amplitude, o.wave.speed)),
+  };
 }
 
-vec3 crustUnit3(ivec3 p) {
-  return vec3(crustHash3(p) >> 8u) * (1.0 / 16777216.0);
-}
+/**
+ * Integer hash (pcg3d): exact at any coordinate, unlike a sin() hash. The
+ * bias keeps world coordinates positive before the unsigned cast.
+ */
+const crustHash3 = /*@__PURE__*/ Fn(([p]: [IntNode]) => {
+  const start = uvec3((p as unknown as Vec3Node).add(ivec3(16777216)) as never)
+    .mul(uint(1664525))
+    .add(uint(1013904223)) as unknown as UVec3Node;
+  const x = start.x.toVar();
+  const y = start.y.toVar();
+  const z = start.z.toVar();
+  const mixRound = () => {
+    x.addAssign(y.mul(z));
+    y.addAssign(z.mul(x));
+    z.addAssign(x.mul(y));
+  };
+  mixRound();
+  x.assign(x.bitXor(x.shiftRight(uint(16))));
+  y.assign(y.bitXor(y.shiftRight(uint(16))));
+  z.assign(z.bitXor(z.shiftRight(uint(16))));
+  mixRound();
+  return uvec3(x, y, z);
+}).setLayout({
+  name: "crustHash3",
+  type: "uvec3",
+  inputs: [{ name: "p", type: "ivec3" }],
+});
 
-// Plates of one generation around q (plate units): x = distance to the
-// plate border (F2 - F1), y = the plate's own draw, zw = the offset from
-// the plate's point to q.
-vec4 crustPlates(vec2 q, int seed) {
-  ivec2 base = ivec2(floor(q));
-  vec2 f = q - vec2(base);
-  float d1 = 8.0;
-  float d2 = 8.0;
-  vec3 nearest = vec3(0.0);
-  vec2 nearestOffset = vec2(0.0);
-  for (int j = -1; j <= 1; j++) {
-    for (int i = -1; i <= 1; i++) {
-      vec3 r = crustUnit3(ivec3(base + ivec2(i, j), seed));
-      vec2 toPoint = vec2(float(i), float(j)) + r.xy - f;
-      float d = dot(toPoint, toPoint);
-      if (d < d1) {
-        d2 = d1;
-        d1 = d;
-        nearest = r;
-        nearestOffset = toPoint;
-      } else if (d < d2) {
-        d2 = d;
+/** Three uniform draws in 0..1 for an integer cell. */
+const crustUnit3 = (p: Vec3Node): Vec3Node =>
+  vec3(
+    (
+      crustHash3(p as never) as unknown as {
+        shiftRight(bits: Node): UVec3Node;
       }
+    ).shiftRight(uvec3(8, 8, 8) as unknown as Node),
+  ).mul(1 / 16777216);
+
+/**
+ * Plates of one generation around q (plate units): x = distance to the
+ * plate border (F2 - F1), y = the plate's own draw, zw = the offset from
+ * the plate's point to q.
+ */
+const crustPlates = /*@__PURE__*/ Fn(([q, seed]: [Vec2Node, IntNode]) => {
+  const base = ivec2(floor(q));
+  const f = q.sub(vec2(base));
+  const d1 = float(8).toVar();
+  const d2 = float(8).toVar();
+  const nearest = vec3(0).toVar();
+  const nearestOffset = vec2(0).toVar();
+  for (let j = -1; j <= 1; j++) {
+    for (let i = -1; i <= 1; i++) {
+      const r = crustUnit3(ivec3(base.add(ivec2(i, j)), seed) as never);
+      const toPoint = vec2(i, j).add(r.xy).sub(f);
+      const d = dot(toPoint, toPoint);
+      If(d.lessThan(d1), () => {
+        d2.assign(d1);
+        d1.assign(d);
+        nearest.assign(r);
+        nearestOffset.assign(toPoint);
+      }).ElseIf(d.lessThan(d2), () => {
+        d2.assign(d);
+      });
     }
   }
-  return vec4(sqrt(d2) - sqrt(d1), nearest.z, -nearestOffset);
-}
-`;
+  return vec4(sqrt(d2).sub(sqrt(d1)), nearest.z, nearestOffset.negate());
+}).setLayout({
+  name: "crustPlates",
+  type: "vec4",
+  inputs: [
+    { name: "q", type: "vec2" },
+    { name: "seed", type: "int" },
+  ],
+});
 
-const CRUSTED_FLUID_SURFACE = /* glsl */ `
-{
-  vec3 crustAbsNormal = abs(vWorldNormal);
-  bool crustIsWall = crustAbsNormal.y < 0.5;
-  bool crustIsTop = vWorldNormal.y >= 0.5;
-  float crustTexels = uCrustShape.x;
-  // Face-plane coordinates in blocks; on a wall, y runs up it.
-  vec2 crustUv = crustIsWall
-    ? vec2(crustAbsNormal.x > crustAbsNormal.z ? vWorldPosition.z : vWorldPosition.x, vWorldPosition.y)
-    : vWorldPosition.xz;
-  vec2 crustTexel = floor(crustUv * crustTexels);
-  // Texels a screen pixel spans along the most and the least squeezed
-  // directions (the singular values of the screen-to-texel map). A grazing
-  // view squeezes one far faster than the other; it may run up to the
-  // anisotropy allowance ahead before it settles the pattern.
-  vec2 crustDx = dFdx(crustUv * crustTexels);
-  vec2 crustDy = dFdy(crustUv * crustTexels);
-  float crustSpanSum = dot(crustDx, crustDx) + dot(crustDy, crustDy);
-  float crustSpanDiff = length(vec2(
-    dot(crustDx, crustDx) - dot(crustDy, crustDy),
-    2.0 * dot(crustDx, crustDy)
-  ));
-  float crustSpanMajor = sqrt(0.5 * (crustSpanSum + crustSpanDiff));
-  float crustSpanMinor = sqrt(max(0.5 * (crustSpanSum - crustSpanDiff), 0.0));
-  float crustFar = smoothstep(
-    uCrustShape.w,
-    uCrustShape.w * 4.0,
-    max(crustSpanMinor, crustSpanMajor / uCrustFarAnisotropy)
-  );
+/** What the crust's fragment preparation takes before any branch. */
+type CrustPrepared = { uv: Vec2Node; far: FloatNode };
 
-  float crustSeconds = uTime * 0.001;
-  float crustCycle = crustSeconds / uCrustFlow.z;
-  float crustPhaseA = fract(crustCycle);
-  float crustPhaseB = fract(crustCycle + 0.5);
-  int crustSeedA = int(floor(crustCycle)) * 2;
-  int crustSeedB = int(floor(crustCycle + 0.5)) * 2 + 1;
-  float crustWeightA = 1.0 - abs(2.0 * crustPhaseA - 1.0);
-  float crustWeightB = 1.0 - crustWeightA;
+let nextCrustSurface = 0;
 
-  // Blocks per second across the face: the surface flow on a top, straight
-  // down a wall, nothing underneath. A still pool drifts on a heading drawn
-  // per generation, fading out where the sheet runs.
-  float crustRun = min(length(vFluidFlow), 1.0);
-  vec2 crustFlow = crustIsWall
-    ? vec2(0.0, -uCrustFlow.y)
-    : (crustIsTop ? vFluidFlow * uCrustFlow.x : vec2(0.0));
-  float crustPoolDrift = crustIsTop ? (1.0 - crustRun) * uCrustFlow.x : 0.0;
-  float crustHeadingA = crustUnit3(ivec3(0, 0, crustSeedA)).x * 6.28318530718;
-  float crustHeadingB = crustUnit3(ivec3(0, 0, crustSeedB)).x * 6.28318530718;
-  vec2 crustDriftA = crustFlow + crustPoolDrift * vec2(cos(crustHeadingA), sin(crustHeadingA));
-  vec2 crustDriftB = crustFlow + crustPoolDrift * vec2(cos(crustHeadingB), sin(crustHeadingB));
-  // Whole texels, so the pattern steps on the block's own grid.
-  vec2 crustTexelA = crustTexel - floor(crustDriftA * crustPhaseA * uCrustFlow.z * crustTexels);
-  vec2 crustTexelB = crustTexel - floor(crustDriftB * crustPhaseB * uCrustFlow.z * crustTexels);
-  vec2 crustPlateScale = vec2(1.0, crustIsWall ? 1.0 / uCrustFlow.w : 1.0) / uCrustShape.y;
-  // Per-texel draws riding with each generation: xy nudge the texel before
-  // the plate lookup, so plate borders come out ragged by a texel instead of
-  // as smooth polygons; z is grain.
-  vec3 crustNoiseA = crustUnit3(ivec3(ivec2(crustTexelA), crustSeedA + 7919));
-  vec3 crustNoiseB = crustUnit3(ivec3(ivec2(crustTexelB), crustSeedB + 7919));
-  vec4 crustA = crustPlates((crustTexelA + 0.5 + (crustNoiseA.xy - 0.5) * 0.8) * crustPlateScale, crustSeedA);
-  vec4 crustB = crustPlates((crustTexelB + 0.5 + (crustNoiseB.xy - 0.5) * 0.8) * crustPlateScale, crustSeedB);
-
-  // Slow heat field: where it is high, generations hold their crust longer.
-  vec2 crustZonePos = snapToTexel(crustUv, crustTexels) * uCrustZone.x;
-  float crustZoneTime = crustSeconds * uCrustZone.w;
-  float crustZone = sin(crustZonePos.x + crustZonePos.y * 0.7 + crustZoneTime)
-    * sin(crustZonePos.y * 1.3 - crustZonePos.x * 0.4 - crustZoneTime * 0.8);
-  float crustHold = (uCrustZone.y + uCrustZone.z * crustZone) * (crustIsWall ? uCrustLife.w : 1.0);
-  // The generation whose plate is further into its life shows.
-  float crustLifeA = min(crustWeightA * crustHold, 1.0) - crustA.y;
-  float crustLifeB = min(crustWeightB * crustHold, 1.0) - crustB.y;
-  bool crustShowA = crustLifeA >= crustLifeB;
-  vec4 crustPlate = crustShowA ? crustA : crustB;
-  float crustAge = clamp(max(crustLifeA, crustLifeB) / uCrustLife.x, 0.0, 1.0);
-
-  float crustGrain = (crustShowA ? crustNoiseA.z : crustNoiseB.z) - 0.5;
-  // Each plate draws its own border width, so cracks vary along their run.
-  float crustSeamWidth = uCrustShape.z * (0.6 + 0.8 * fract(crustPlate.y * 13.7))
-    * (1.0 + 2.5 * (1.0 - crustAge));
-  float crustSeam = 1.0 - clamp(crustPlate.x / crustSeamWidth, 0.0, 1.0);
-  float crustEdge = 1.0 - clamp(crustPlate.x / 0.5, 0.0, 1.0);
-  float crustBody = (1.0 - crustAge) * (0.45 + 0.55 * crustEdge);
-  float crustHeat = max(crustSeam, crustBody) + crustGrain * uCrustLife.y;
-
-  // Dome relief: the half of a plate facing the sun (straight up on a wall)
-  // takes the lit crust colour.
-  vec2 crustLightDir = crustIsWall ? vec2(0.0, 1.0) : normalize(uSunDirection.xz + vec2(1e-4));
-  float crustLitSide = step(0.0, dot(crustPlate.zw, crustLightDir) + crustGrain * 0.3);
-  vec3 crustScene = uCrustLight.x + uCrustLight.y * sunTotal;
-  vec3 crustTone = mix(
-    mix(uCrustPalette[1], uCrustPalette[0], uCrustLife.z),
-    uCrustPalette[1],
-    crustLitSide
-  );
-  vec3 crustColor = crustTone * crustScene;
-  if (crustHeat >= uCrustBands.x) {
-    int crustBand = crustHeat >= uCrustBands.w ? 5
-      : crustHeat >= uCrustBands.z ? 4
-      : crustHeat >= uCrustBands.y ? 3 : 2;
-    crustColor = uCrustPalette[crustBand] * uCrustLight.z;
-  }
-  vec3 crustMean = mix(
-    uCrustPalette[1] * crustScene,
-    uCrustPalette[3] * uCrustLight.z,
-    uCrustLight.w
-  );
-  crustColor = mix(crustColor, crustMean, crustFar);
-
-  vec3 crustFaceWeights = crustAbsNormal / max(crustAbsNormal.x + crustAbsNormal.y + crustAbsNormal.z, 1e-4);
-  float crustFaceShade = crustFaceWeights.x * uCrustFaceShades.x
-    + crustFaceWeights.z * uCrustFaceShades.y
-    + crustFaceWeights.y * (vWorldNormal.y > 0.0 ? uCrustFaceShades.w : uCrustFaceShades.z);
-  outgoingLight.rgb = crustColor * crustFaceShade;
-}
-`;
-
-function replaceOnce(source: string, anchor: string, replacement: string) {
-  const at = source.indexOf(anchor);
-  if (at < 0 || source.indexOf(anchor, at + anchor.length) >= 0) {
-    throw new Error(
-      `Crusted fluid shader needs exactly one "${anchor}" in its base shader`,
-    );
-  }
-  return source.slice(0, at) + replacement + source.slice(at + anchor.length);
-}
-
-export function createCrustedFluidShader(
+/**
+ * The crusted fluid surface: its lighting hook (the crust replaces the lit
+ * colour), its derivative preparation and its wave scale, over uniforms a
+ * game can tune live.
+ */
+export function createCrustedFluidSurface(
   options: CrustedFluidShaderOptions = {},
-  base: {
-    vertex: string;
-    fragment: string;
-  } = SHADER_LIGHTING_SEE_THROUGH_CHUNK_SHADERS,
-): CrustedFluidShader {
+): CrustedFluidSurface {
   const o = { ...CRUSTED_FLUID_DEFAULTS, ...options };
   if (o.palette.length !== 6) {
     throw new Error("Crusted fluid palette needs exactly six colours");
@@ -361,80 +342,175 @@ export function createCrustedFluidShader(
       `Crusted fluid cycleSeconds must divide the shader clock wrap (${SHADER_CLOCK_WRAP_SECONDS}s)`,
     );
   }
+  const u = crustUniforms(o);
+  const palette = (i: number) =>
+    u.palette.element(int(i)) as unknown as Vec3Node;
 
-  let vertexShader = replaceOnce(
-    base.vertex,
-    VERTEX_UNIFORM_ANCHOR,
-    `${VERTEX_UNIFORM_ANCHOR}\nuniform vec2 uCrustWave;`,
-  );
-  vertexShader = replaceOnce(
-    vertexShader,
-    VERTEX_WAVE_TIME_ANCHOR,
-    "float waveTime = uTime * 0.0006 * uCrustWave.y;",
-  );
-  vertexShader = replaceOnce(
-    vertexShader,
-    VERTEX_WAVE_HEIGHT_ANCHOR,
-    "transformed.y += (wave1 + wave2 + wave3) * POSITION_UNITS_PER_BLOCK * uCrustWave.x;",
-  );
+  /** Face-plane coordinates in blocks; on a wall, y runs up it. */
+  const faceUv = (normal: Vec3Node, position: Vec3Node): Vec2Node => {
+    const a = abs(normal);
+    return select(
+      a.y.lessThan(0.5),
+      vec2(select(a.x.greaterThan(a.z), position.z, position.x), position.y),
+      position.xz,
+    );
+  };
 
-  let fragmentShader = replaceOnce(
-    base.fragment,
-    FRAGMENT_MAIN_ANCHOR,
-    `${CRUSTED_FLUID_FUNCTIONS}\n${FRAGMENT_MAIN_ANCHOR}`,
-  );
-  fragmentShader = replaceOnce(
-    fragmentShader,
-    FRAGMENT_LIGHT_ANCHOR,
-    CRUSTED_FLUID_SURFACE,
-  );
+  const prepare = ({ v }: ChunkPrepareHookContext): CrustPrepared => {
+    const uv = faceUv(v.worldNormal, v.worldPosition).toVar("crustUv");
+    const texels = u.shape.x;
+    // Texels a screen pixel spans along the most and the least squeezed
+    // directions (the singular values of the screen-to-texel map). A grazing
+    // view squeezes one far faster than the other; it may run up to the
+    // anisotropy allowance ahead before it settles the pattern.
+    const dx = dFdx(uv.mul(texels));
+    const dy = dFdy(uv.mul(texels));
+    const xx = dot(dx, dx);
+    const yy = dot(dy, dy);
+    const sum = xx.add(yy);
+    const diff = length(vec2(xx.sub(yy), dot(dx, dy).mul(2)));
+    const major = sqrt(sum.add(diff).mul(0.5));
+    const minor = sqrt(max(sum.sub(diff).mul(0.5), 0));
+    const far = smoothstep(
+      u.shape.w,
+      u.shape.w.mul(4),
+      max(minor, major.div(u.farAnisotropy)),
+    ).toVar("crustFar");
+    return { uv, far };
+  };
+
+  const lit = ({ v, sunTotal, uniforms, prepared }: ChunkLitHookContext) => {
+    const { uv, far } = prepared as CrustPrepared;
+    const normal = v.worldNormal;
+    const absNormal = abs(normal);
+    const isWall = absNormal.y.lessThan(0.5);
+    const isTop = normal.y.greaterThanEqual(0.5);
+    const texels = u.shape.x;
+    const texel = floor(uv.mul(texels));
+
+    const seconds = uniforms.chunk.time.mul(0.001);
+    const cycle = seconds.div(u.flow.z);
+    const phaseA = fract(cycle);
+    const phaseB = fract(cycle.add(0.5));
+    const seedA = int(floor(cycle)).mul(2).toVar("crustSeedA");
+    const seedB = int(floor(cycle.add(0.5))).mul(2).add(1).toVar("crustSeedB");
+    const weightA = abs(phaseA.mul(2).sub(1)).oneMinus();
+    const weightB = weightA.oneMinus();
+
+    // Blocks per second across the face: the surface flow on a top, straight
+    // down a wall, nothing underneath. A still pool drifts on a heading drawn
+    // per generation, fading out where the sheet runs.
+    const run = min(length(v.fluidFlow), 1);
+    const flow = select(
+      isWall,
+      vec2(0, u.flow.y.negate()),
+      select(isTop, v.fluidFlow.mul(u.flow.x), vec2(0)),
+    );
+    const poolDrift = select(isTop, run.oneMinus().mul(u.flow.x), float(0));
+    const heading = (seed: IntNode) =>
+      crustUnit3(ivec3(0, 0, seed) as never).x.mul(Math.PI * 2);
+    const headingA = heading(seedA);
+    const headingB = heading(seedB);
+    const driftA = flow.add(vec2(cos(headingA), sin(headingA)).mul(poolDrift));
+    const driftB = flow.add(vec2(cos(headingB), sin(headingB)).mul(poolDrift));
+    // Whole texels, so the pattern steps on the block's own grid.
+    const texelA = texel
+      .sub(floor(driftA.mul(phaseA).mul(u.flow.z).mul(texels)))
+      .toVar("crustTexelA");
+    const texelB = texel
+      .sub(floor(driftB.mul(phaseB).mul(u.flow.z).mul(texels)))
+      .toVar("crustTexelB");
+    const plateScale = vec2(1, select(isWall, float(1).div(u.flow.w), float(1))).div(
+      u.shape.y,
+    );
+    // Per-texel draws riding with each generation: xy nudge the texel before
+    // the plate lookup, so plate borders come out ragged by a texel instead
+    // of as smooth polygons; z is grain.
+    const noiseA = crustUnit3(
+      ivec3(ivec2(texelA), seedA.add(7919)) as never,
+    ).toVar("crustNoiseA");
+    const noiseB = crustUnit3(
+      ivec3(ivec2(texelB), seedB.add(7919)) as never,
+    ).toVar("crustNoiseB");
+    const plateA = crustPlates(
+      texelA.add(0.5).add(noiseA.xy.sub(0.5).mul(0.8)).mul(plateScale),
+      seedA,
+    ) as unknown as Vec4Node;
+    const plateB = crustPlates(
+      texelB.add(0.5).add(noiseB.xy.sub(0.5).mul(0.8)).mul(plateScale),
+      seedB,
+    ) as unknown as Vec4Node;
+
+    // Slow heat field: where it is high, generations hold their crust longer.
+    const zonePos = snapToTexelNode(uv, texels).mul(u.zone.x);
+    const zoneTime = seconds.mul(u.zone.w);
+    const zone = sin(zonePos.x.add(zonePos.y.mul(0.7)).add(zoneTime)).mul(
+      sin(zonePos.y.mul(1.3).sub(zonePos.x.mul(0.4)).sub(zoneTime.mul(0.8))),
+    );
+    const hold = u.zone.y
+      .add(u.zone.z.mul(zone))
+      .mul(select(isWall, u.life.w, float(1)));
+    // The generation whose plate is further into its life shows.
+    const lifeA = min(weightA.mul(hold), 1).sub(plateA.y);
+    const lifeB = min(weightB.mul(hold), 1).sub(plateB.y);
+    const showA = lifeA.greaterThanEqual(lifeB);
+    const plate = select(showA, plateA, plateB).toVar("crustPlate");
+    const age = clamp(max(lifeA, lifeB).div(u.life.x), 0, 1);
+
+    const grain = select(showA, noiseA.z, noiseB.z).sub(0.5);
+    // Each plate draws its own border width, so cracks vary along their run.
+    const seamWidth = u.shape.z
+      .mul(fract(plate.y.mul(13.7)).mul(0.8).add(0.6))
+      .mul(age.oneMinus().mul(2.5).add(1));
+    const seam = clamp(plate.x.div(seamWidth), 0, 1).oneMinus();
+    const edge = clamp(plate.x.div(0.5), 0, 1).oneMinus();
+    const body = age.oneMinus().mul(edge.mul(0.55).add(0.45));
+    const heat = max(seam, body).add(grain.mul(u.life.y));
+
+    // Dome relief: the half of a plate facing the sun (straight up on a
+    // wall) takes the lit crust colour.
+    const lightDir = select(
+      isWall,
+      vec2(0, 1),
+      normalize(uniforms.lighting.sunDirection.xz.add(vec2(1e-4))),
+    );
+    const litSide = step(0, dot(plate.zw, lightDir).add(grain.mul(0.3)));
+    const scene = sunTotal.mul(u.light.y).add(u.light.x);
+    const tone = mix(mix(palette(1), palette(0), u.life.z), palette(1), litSide);
+    const glow = select(
+      heat.greaterThanEqual(u.bands.w),
+      palette(5),
+      select(
+        heat.greaterThanEqual(u.bands.z),
+        palette(4),
+        select(heat.greaterThanEqual(u.bands.y), palette(3), palette(2)),
+      ),
+    ).mul(u.light.z);
+    const near = select(heat.greaterThanEqual(u.bands.x), glow, tone.mul(scene));
+    const mean = mix(palette(1).mul(scene), palette(3).mul(u.light.z), u.light.w);
+    const color = mix(near, mean, far);
+
+    const weights = absNormal.div(
+      max(absNormal.x.add(absNormal.y).add(absNormal.z), 1e-4),
+    );
+    const faceShade = weights.x
+      .mul(u.faceShades.x)
+      .add(weights.z.mul(u.faceShades.y))
+      .add(
+        weights.y.mul(
+          select(normal.y.greaterThan(0), u.faceShades.w, u.faceShades.z),
+        ),
+      );
+    return color.mul(faceShade);
+  };
 
   return {
-    vertexShader,
-    fragmentShader,
-    uniforms: {
-      uCrustPalette: new Uniform(o.palette.map((c) => new Color(c))),
-      uCrustFlow: new Uniform(
-        new Vector4(
-          o.surfaceFlowSpeed,
-          o.fallFlowSpeed,
-          o.cycleSeconds,
-          o.fallStretch,
-        ),
-      ),
-      uCrustShape: new Uniform(
-        new Vector4(
-          o.texelsPerBlock,
-          o.plateTexels,
-          o.seamWidth,
-          o.farFadeTexelFootprint,
-        ),
-      ),
-      uCrustFarAnisotropy: new Uniform(Math.max(o.farFadeAnisotropy, 1)),
-      uCrustBands: new Uniform(new Vector4(...o.bands)),
-      uCrustLife: new Uniform(
-        new Vector4(o.formTime, o.grain, o.relief, o.fallCrust),
-      ),
-      uCrustZone: new Uniform(
-        new Vector4(o.zone.scale, o.zone.base, o.zone.amplitude, o.zone.speed),
-      ),
-      uCrustLight: new Uniform(
-        new Vector4(
-          o.crustSelfLight,
-          o.crustSceneLight,
-          o.glowStrength,
-          o.meanGlow,
-        ),
-      ),
-      uCrustFaceShades: new Uniform(
-        new Vector4(
-          o.faceShades.sideX,
-          o.faceShades.sideZ,
-          o.faceShades.bottom,
-          o.faceShades.top,
-        ),
-      ),
-      uCrustWave: new Uniform(new Vector2(o.wave.amplitude, o.wave.speed)),
+    hooks: {
+      key: `crusted-fluid:${nextCrustSurface++}`,
+      prepare,
+      lit,
+      wave: { amplitude: u.wave.x, speed: u.wave.y },
     },
+    uniforms: u,
   };
 }

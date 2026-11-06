@@ -10,10 +10,9 @@ import {
   Object3D,
   Quaternion,
   Scene,
-  ShaderMaterial,
   Texture,
   Vector3,
-} from "three";
+} from "three/webgpu";
 
 export class ThreeUtils {
   static isTexture(object: any): object is Texture {
@@ -67,8 +66,12 @@ export class ThreeUtils {
   static isCanvasTexture(object: any): object is CanvasTexture {
     return object && object.isCanvasTexture;
   }
-
-  static isShaderMaterial(object: any): object is ShaderMaterial {
-    return object && object.isShaderMaterial;
-  }
 }
+
+/**
+ * The renderer an `onBeforeRender` / `onAfterRender` callback is handed.
+ * three's typings still name it `WebGLRenderer`; every renderer here is a
+ * `WebGPURenderer` (or its WebGL 2 fallback backend), a `Renderer`.
+ */
+export const callbackRenderer = (renderer: unknown) =>
+  renderer as import("three/webgpu").Renderer;

@@ -1,5 +1,5 @@
-import type { Material, Side } from "three";
-import { DoubleSide } from "three";
+import type { Material, Side } from "three/webgpu";
+import { DoubleSide } from "three/webgpu";
 
 const NORMAL_EPSILON = 1e-4;
 

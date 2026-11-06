@@ -1,4 +1,4 @@
-import { DoubleSide, FrontSide, MeshBasicMaterial, Texture } from "three";
+import { DoubleSide, FrontSide, MeshBasicNodeMaterial, Texture } from "three/webgpu";
 import { describe, expect, it } from "vitest";
 
 import {
@@ -9,7 +9,7 @@ import {
 describe("displayCopyMaterialOptions", () => {
   it("discards the empty texels of a see-through copy and still writes depth", () => {
     const map = new Texture();
-    const material = new MeshBasicMaterial(
+    const material = new MeshBasicNodeMaterial(
       displayCopyMaterialOptions({ isSeeThrough: true }, map),
     );
     expect(material.transparent).toBe(true);
@@ -24,7 +24,7 @@ describe("displayCopyMaterialOptions", () => {
   });
 
   it("leaves an opaque copy without an alpha test", () => {
-    const material = new MeshBasicMaterial(
+    const material = new MeshBasicNodeMaterial(
       displayCopyMaterialOptions({ isSeeThrough: false }, null),
     );
     expect(material.transparent).toBe(false);

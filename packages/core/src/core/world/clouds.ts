@@ -8,24 +8,35 @@ import {
   Group,
   Int8BufferAttribute,
   Mesh,
-  ShaderMaterial,
+  NodeMaterial,
+  Vector2,
   Vector3,
-} from "three";
+} from "three/webgpu";
+import {
+  cameraPosition,
+  dot,
+  float,
+  length,
+  max,
+  mix,
+  normalize,
+  normalWorld,
+  positionWorld,
+  select,
+  smoothstep,
+  vec4,
+} from "three/tsl";
 
 import { cull } from "../../libs/cull";
 import { WorkerPool } from "../../libs/worker-pool";
-import CloudsFragmentShader from "../../shaders/clouds/fragment.glsl?raw";
-import CloudsVertexShader from "../../shaders/clouds/vertex.glsl?raw";
 import { Coords2, Coords3 } from "../../types";
 
 import { markNeverCaster } from "./shadow-casters";
-import { bindSkyGlowUniforms, type SkyGlowUniforms } from "./sky";
-import { createSkyFogFragment, SKY_FOG_UNIFORM_DECLARATIONS } from "./sky-fog";
+import { skyFog, type SkyFogInputs } from "./shading/sky-fog";
+import type { VolumetricCloudsSharedInputs } from "./shading/volumetric-clouds";
+import type { FloatNode, Vec3Node } from "./shading/types";
+import { ownUniform } from "./shading/uniforms";
 import CloudWorker from "./workers/clouds-worker.ts?worker&inline";
-
-type ShaderUniform<T> = {
-  value: T;
-};
 
 /**
  * Parameters used to create a new {@link Clouds} instance.
@@ -141,65 +152,26 @@ export type CloudsOptions = {
   falloff: number;
 
   /**
-   * An object that is used as the uniform for the clouds fog near shader.
+   * The world's atmosphere the deck hazes into: its sky fog, the sky's
+   * glow and the camera's water. The deck keeps its own fog range (it sits
+   * far above the ground fog) and fogs by horizontal distance only. Clear
+   * air without one.
    */
-  uFogNear?: ShaderUniform<number>;
+  atmosphere?: SkyFogInputs;
+
+  /** Toward the light the flanks shade by; straight up without one. */
+  sunDirection?: Vec3Node;
+
+  /** The sun's colour and strength, for a volumetric deck's light. */
+  sunColor?: Vec3Node;
+  sunlightIntensity?: FloatNode;
 
   /**
-   * An object that is used as the uniform for the clouds fog far shader.
+   * The range the deck's far edge fades out over, in fog-scaled blocks
+   * (the world's fog range); from the deck's radius without one.
    */
-  uFogFar?: ShaderUniform<number>;
-
-  /**
-   * An object that is used as the uniform for the clouds fog color shader.
-   */
-  uFogColor?: ShaderUniform<Color>;
-
-  uFogHeightOrigin?: ShaderUniform<number>;
-
-  uFogHeightDensity?: ShaderUniform<number>;
-
-  uSkyFogTopColor?: ShaderUniform<Color>;
-
-  uSkyFogMiddleColor?: ShaderUniform<Color>;
-
-  uSkyFogBottomColor?: ShaderUniform<Color>;
-
-  uSkyFogOffset?: ShaderUniform<number>;
-
-  uSkyFogVoidOffset?: ShaderUniform<number>;
-
-  uSkyFogExponent?: ShaderUniform<number>;
-
-  uSkyFogExponent2?: ShaderUniform<number>;
-
-  uSkyFogDimension?: ShaderUniform<number>;
-
-  uSkyFogStrength?: ShaderUniform<number>;
-
-  /** The share of the sun reaching the world as a beam; 1 when absent. */
-  uDirectSunlight?: ShaderUniform<number>;
-
-  uSunDirection?: ShaderUniform<Vector3>;
-
-  uSunColor?: ShaderUniform<Color>;
-
-  uSunlightIntensity?: ShaderUniform<number>;
-
-  /** The sky's own light, so the deck hazes into the glow behind it. */
-  skyGlow?: SkyGlowUniforms;
-
-  uCloudFogDistanceScale?: ShaderUniform<number>;
-
-  uCloudEndFadeNear?: ShaderUniform<number>;
-
-  uCloudEndFadeFar?: ShaderUniform<number>;
-
-  uCameraSubmersion?: ShaderUniform<number>;
-
-  uCameraWaterPlaneY?: ShaderUniform<number>;
-
-  uUnderwaterAmbient?: ShaderUniform<Color>;
+  endFadeNear?: FloatNode;
+  endFadeFar?: FloatNode;
 
   endFadeNearRatio: number;
 
@@ -254,7 +226,16 @@ export class Clouds extends Group {
   /**
    * The shard shader material used to render the clouds.
    */
-  public material: ShaderMaterial;
+  public material: NodeMaterial;
+
+  /** The deck's live look, tunable without a rebuild. */
+  public readonly uniforms: ReturnType<typeof createCloudUniforms>;
+
+  /**
+   * What a volumetric deck shares with this one, so both light and haze
+   * alike: the atmosphere at the deck's fog range, its look and the sun.
+   */
+  public readonly shared: VolumetricCloudsSharedInputs;
 
   /**
    * The authored cloud colour, kept because the day/night cycle overwrites the
@@ -324,35 +305,7 @@ export class Clouds extends Group {
 
     this.options = { ...defaultOptions, ...options };
 
-    const {
-      seed,
-      color,
-      alpha,
-      uFogNear,
-      uFogFar,
-      uFogColor,
-      uFogHeightOrigin,
-      uFogHeightDensity,
-      uSkyFogTopColor,
-      uSkyFogMiddleColor,
-      uSkyFogBottomColor,
-      uSkyFogOffset,
-      uSkyFogVoidOffset,
-      uSkyFogExponent,
-      uSkyFogExponent2,
-      uSkyFogDimension,
-      uSkyFogStrength,
-      uDirectSunlight,
-      uSunDirection,
-      uSunColor,
-      uSunlightIntensity,
-      uCloudFogDistanceScale,
-      uCloudEndFadeNear,
-      uCloudEndFadeFar,
-      uCameraSubmersion,
-      uCameraWaterPlaneY,
-      uUnderwaterAmbient,
-    } = this.options;
+    const { seed, color, alpha } = this.options;
 
     const cloudRadius =
       (this.options.width *
@@ -364,70 +317,34 @@ export class Clouds extends Group {
       this.options.seed = Math.floor(Math.random() * 10230123);
     }
 
-    this.material = new ShaderMaterial({
-      transparent: true,
-      vertexShader: CloudsVertexShader,
-      fragmentShader: CloudsFragmentShader.replace(
-        "#include <sky_fog_pars_fragment>",
-        SKY_FOG_UNIFORM_DECLARATIONS,
-      ).replace(
-        "#include <sky_fog_fragment>",
-        createSkyFogFragment(
-          "sqrt(dot(fogDiff, fogDiff)) / max(uCloudFogDistanceScale, 0.001)",
-        ),
-      ),
-      side: FrontSide,
-      uniforms: {
-        uFogNear: uFogNear || { value: 500 },
-        uFogFar: uFogFar || { value: 1000 },
-        uFogColor: uFogColor || { value: new Color("#B1CCFD") },
-        uFogHeightOrigin: uFogHeightOrigin || { value: 80 },
-        uFogHeightDensity: uFogHeightDensity || { value: 0.005 },
-        uSkyFogTopColor: uSkyFogTopColor || {
-          value: new Color(0.4, 0.6, 0.9),
-        },
-        uSkyFogMiddleColor: uSkyFogMiddleColor || {
-          value: new Color(0.7, 0.8, 0.95),
-        },
-        uSkyFogBottomColor: uSkyFogBottomColor || {
-          value: new Color(0.15, 0.18, 0.25),
-        },
-        uSkyFogOffset: uSkyFogOffset || { value: 0 },
-        uSkyFogVoidOffset: uSkyFogVoidOffset || { value: 1200 },
-        uSkyFogExponent: uSkyFogExponent || { value: 0.6 },
-        uSkyFogExponent2: uSkyFogExponent2 || { value: 1.2 },
-        uSkyFogDimension: uSkyFogDimension || { value: 2000 },
-        uSkyFogStrength: uSkyFogStrength || { value: 1.0 },
-        uDirectSunlight: uDirectSunlight || { value: 1.0 },
-        uChunkReveal: { value: 1 },
-        uSunDirection: uSunDirection || {
-          value: new Vector3(0.5, 1.0, 0.3).normalize(),
-        },
-        uSunColor: uSunColor || { value: new Color(1.0, 0.98, 0.9) },
-        uSunlightIntensity: uSunlightIntensity || { value: 1.0 },
-        ...bindSkyGlowUniforms(this.options.skyGlow),
-        uCloudFogDistanceScale: uCloudFogDistanceScale || { value: 8 },
-        uCloudEndFadeNear: uCloudEndFadeNear || {
-          value: cloudRadius * this.options.endFadeNearRatio,
-        },
-        uCloudEndFadeFar: uCloudEndFadeFar || {
-          value: cloudRadius * this.options.endFadeFarRatio,
-        },
-        uCameraSubmersion: uCameraSubmersion || { value: 0 },
-        uCameraWaterPlaneY: uCameraWaterPlaneY || { value: 0 },
-        uUnderwaterAmbient: uUnderwaterAmbient || {
-          value: new Color(0, 0, 0),
-        },
-        uCloudColor: {
-          value: new Color(color),
-        },
-        uCloudAlpha: {
-          value: alpha,
-        },
-        uCloudSideShade: { value: this.options.sideShade },
-        uCloudBottomShade: { value: this.options.bottomShade },
-        uCloudSunTint: { value: this.options.sunTint },
-      },
+    this.uniforms = createCloudUniforms(color, alpha, this.options);
+    const u = this.uniforms;
+    this.shared = {
+      atmosphere: {
+        ...(this.options.atmosphere ?? clearAtmosphere()),
+        fogNear: u.fogNear,
+        fogFar: u.fogFar,
+        // The deck is open sky: never the cave's true-3D haze.
+        fogVerticalBlend: float(0),
+      } as unknown as SkyFogInputs,
+      cloudColor: u.cloudColor,
+      sideShade: u.sideShade,
+      bottomShade: u.bottomShade,
+      fogDistanceScale: u.fogDistanceScale,
+      sunDirection:
+        this.options.sunDirection ?? ownUniform(new Vector3(0, 1, 0)),
+      sunColor: this.options.sunColor ?? ownUniform(new Color(1, 0.98, 0.9)),
+      sunlightIntensity: this.options.sunlightIntensity ?? ownUniform(1),
+    };
+    this.material = createCloudMaterial(this.uniforms, {
+      atmosphere: this.shared.atmosphere,
+      sunDirection: this.shared.sunDirection,
+      endFadeNear:
+        this.options.endFadeNear ??
+        ownUniform(cloudRadius * this.options.endFadeNearRatio),
+      endFadeFar:
+        this.options.endFadeFar ??
+        ownUniform(cloudRadius * this.options.endFadeFarRatio),
     });
 
     this.material.toneMapped = false;
@@ -771,4 +688,116 @@ export class Clouds extends Group {
 
     return mesh;
   };
+}
+
+/** The deck's live look: colour, opacity, face shades, fog scale. */
+function createCloudUniforms(
+  color: string,
+  alpha: number,
+  options: CloudsOptions,
+) {
+  return {
+    cloudColor: ownUniform(new Color(color)),
+    cloudAlpha: ownUniform(alpha),
+    sideShade: ownUniform(options.sideShade),
+    bottomShade: ownUniform(options.bottomShade),
+    sunTint: ownUniform(options.sunTint),
+    /** The deck's fog distance divided by this: it hazes far later than the ground. */
+    fogDistanceScale: ownUniform(8),
+    /** The deck's own fog range, in scaled blocks. */
+    fogNear: ownUniform(500),
+    fogFar: ownUniform(1000),
+  };
+}
+
+/** Clear air at the default deck's range, for a deck with no world. */
+function clearAtmosphere(): SkyFogInputs {
+  return {
+    fogColor: ownUniform(new Color("#B1CCFD")),
+    fogNear: ownUniform(500),
+    fogFar: ownUniform(1000),
+    fogHeightOrigin: ownUniform(80),
+    fogHeightDensity: ownUniform(0.005),
+    fogVerticalBlend: ownUniform(0),
+    skyFogTopColor: ownUniform(new Color(0.4, 0.6, 0.9)),
+    skyFogMiddleColor: ownUniform(new Color(0.7, 0.8, 0.95)),
+    skyFogBottomColor: ownUniform(new Color(0.15, 0.18, 0.25)),
+    skyFogOffset: ownUniform(0),
+    skyFogVoidOffset: ownUniform(1200),
+    skyFogExponent: ownUniform(0.6),
+    skyFogExponent2: ownUniform(1.2),
+    skyFogDimension: ownUniform(2000),
+    skyFogStrength: ownUniform(1),
+    skyGlowSunDirection: ownUniform(new Vector3(0, 1, 0)),
+    skyGlowColor: ownUniform(new Color(0, 0, 0)),
+    skySunHaloColor: ownUniform(new Color(0, 0, 0)),
+    skyMoonHaloColor: ownUniform(new Color(0, 0, 0)),
+    skySunDiscColor: ownUniform(new Color(0, 0, 0)),
+    skyMoonDiscColor: ownUniform(new Color(0, 0, 0)),
+    skyDiscRadii: ownUniform(new Vector2(0.07, 0.07)),
+    cameraSubmersion: ownUniform(0),
+    cameraWaterPlaneY: ownUniform(0),
+    underwaterAmbient: ownUniform(new Color(0, 0, 0)),
+    underwaterViewScale: ownUniform(1),
+    directSunlight: ownUniform(1),
+  } as unknown as SkyFogInputs;
+}
+
+/**
+ * The deck's material: three-way face shading toward the sun, the world's
+ * sky fog by scaled horizontal distance, then a fade into the fog tint at
+ * the deck's far edge.
+ */
+function createCloudMaterial(
+  u: ReturnType<typeof createCloudUniforms>,
+  shared: {
+    atmosphere: SkyFogInputs;
+    sunDirection: Vec3Node;
+    endFadeNear: FloatNode;
+    endFadeFar: FloatNode;
+  },
+): NodeMaterial {
+  const fog = skyFog(shared.atmosphere);
+  const normal = normalWorld;
+  // Cloud faces are axis aligned, so splitting three ways by facing is
+  // enough to give a bank of cloud a top, a shadowed underside, and flanks.
+  // Without it every face renders at exactly one brightness and even a
+  // deeply billowed deck reads as a flat sheet of paper.
+  const faceShade = select(
+    normal.y.greaterThan(0.5),
+    float(1),
+    select(normal.y.lessThan(-0.5), u.bottomShade, u.sideShade),
+  );
+  // Flanks turned away from the sun lose some brightness, which is what
+  // separates the lit side of a billow from the shaded one. A darkening
+  // rather than a boost: cloud colours sit close to white already, and
+  // anything scaled above 1 clips flat and erases the shading it was for.
+  const towardSun = max(0, dot(normal, normalize(shared.sunDirection)));
+  const shade = faceShade.mul(mix(u.sunTint.oneMinus(), 1, towardSun));
+  const flatDistance = length(positionWorld.xz.sub(cameraPosition.xz)).div(
+    max(u.fogDistanceScale, 0.001),
+  );
+  const fogged = fog.apply(
+    u.cloudColor.mul(shade),
+    positionWorld,
+    float(1),
+    false,
+    flatDistance,
+    false,
+  );
+  const endFade = smoothstep(shared.endFadeNear, shared.endFadeFar, flatDistance);
+  const ray = normalize(positionWorld.sub(cameraPosition));
+  const material = new NodeMaterial();
+  material.name = "clouds";
+  material.transparent = true;
+  material.side = FrontSide;
+  material.fog = false;
+  material.lights = false;
+  // An output node, not a fragment node: the deck blends, and only a
+  // material's output reaches the order-independent accumulation.
+  material.outputNode = vec4(
+    fog.haze(fogged, ray, endFade, false),
+    u.cloudAlpha.mul(endFade.oneMinus()),
+  );
+  return material;
 }

@@ -274,16 +274,6 @@ if (shouldRun("tiers")) {
   await bench("setTier", "high");
 }
 
-// ── context loss/restore ─────────────────────────────────────────────────
-if (shouldRun("context")) {
-  await teleportAndLook(EYE, ORIGIN);
-  await settle();
-  await bench("loseContext");
-  await sleep(4000);
-  results.scenes.context = await measure("after context restore", 6);
-  await screenshot("s_context_restored");
-}
-
 results.finishedAt = new Date().toISOString();
 await mkdir(dirname(outPath), { recursive: true });
 await writeFile(outPath, JSON.stringify(results, null, 2));

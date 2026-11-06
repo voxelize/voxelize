@@ -1,4 +1,4 @@
-import * as THREE from "three";
+import * as THREE from "three/webgpu";
 
 // Mirrors the incrementLightingFrame pattern: the render loop publishes the
 // camera position once per frame and entities query it during their update.

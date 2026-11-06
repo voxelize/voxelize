@@ -2,12 +2,9 @@ import { describe, expect, it } from "vitest";
 
 import {
   band,
-  installVoxelNativeShaderChunk,
   snapLengthToTexels,
   snapToTexel,
   stepTime,
-  VOXEL_NATIVE_CHUNK_NAME,
-  VOXEL_NATIVE_GLSL,
 } from "./voxel-native-shading";
 
 describe("snapToTexel", () => {
@@ -64,27 +61,5 @@ describe("snapLengthToTexels", () => {
     expect(snapLengthToTexels(0.5, 16)).toBe(0.5);
     expect(snapLengthToTexels(0.52, 16)).toBe(0.5);
     expect(snapLengthToTexels(0.001, 16)).toBe(1 / 16);
-  });
-});
-
-describe("the GLSL chunk", () => {
-  it("declares every function the mirror implements", () => {
-    for (const signature of [
-      "float snapToTexel(float p, float texelsPerUnit)",
-      "vec2 snapToTexel(vec2 p, float texelsPerUnit)",
-      "vec3 snapToTexel(vec3 p, float texelsPerUnit)",
-      "float band(float x, float steps)",
-      "float stepTime(float t, float framesPerSecond)",
-    ]) {
-      expect(VOXEL_NATIVE_GLSL).toContain(signature);
-    }
-  });
-
-  it("installs under its include name", () => {
-    const chunks: Record<string, string> = {};
-    installVoxelNativeShaderChunk(chunks);
-    installVoxelNativeShaderChunk(chunks);
-    expect(chunks[VOXEL_NATIVE_CHUNK_NAME]).toBe(VOXEL_NATIVE_GLSL);
-    expect(Object.keys(chunks)).toEqual([VOXEL_NATIVE_CHUNK_NAME]);
   });
 });

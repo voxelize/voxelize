@@ -1,4 +1,4 @@
-import { Matrix4, Quaternion, Vector3 } from "three";
+import { Matrix4, Quaternion, Vector3 } from "three/webgpu";
 
 const TWO_PI = Math.PI * 2;
 

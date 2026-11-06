@@ -1,52 +1,52 @@
+import { Color } from "three/webgpu";
 import { describe, expect, it } from "vitest";
 
 import {
   CRUSTED_FLUID_DEFAULTS,
-  createCrustedFluidShader,
+  createCrustedFluidSurface,
 } from "./crusted-fluid-shader";
 import { SHADER_CLOCK_WRAP_SECONDS } from "./shader-clock";
 
-describe("crusted fluid shader", () => {
+describe("crusted fluid surface", () => {
   it("replaces the lit colour and scales the surface wave", () => {
-    const shader = createCrustedFluidShader();
-    expect(shader.fragmentShader).not.toContain(
-      "outgoingLight.rgb *= totalLight;",
-    );
-    expect(shader.fragmentShader).toContain(
-      "outgoingLight.rgb = crustColor * crustFaceShade;",
-    );
-    expect(shader.vertexShader).toContain("uTime * 0.0006 * uCrustWave.y");
-    expect(shader.vertexShader).toContain(
-      "POSITION_UNITS_PER_BLOCK * uCrustWave.x",
-    );
+    const { hooks, uniforms } = createCrustedFluidSurface();
+    expect(typeof hooks.lit).toBe("function");
+    // Derivatives of the crust's uv run outside every branch.
+    expect(typeof hooks.prepare).toBe("function");
+    expect(hooks.wave).toBeDefined();
+    expect(uniforms.wave.value.x).toBe(CRUSTED_FLUID_DEFAULTS.wave.amplitude);
+    expect(uniforms.wave.value.y).toBe(CRUSTED_FLUID_DEFAULTS.wave.speed);
   });
 
-  it("declares every uniform it returns", () => {
-    const shader = createCrustedFluidShader();
-    for (const name of Object.keys(shader.uniforms)) {
-      const source =
-        name === "uCrustWave" ? shader.vertexShader : shader.fragmentShader;
-      expect(source).toMatch(new RegExp(`uniform \\w+ ${name}(\\[\\d+\\])?;`));
-    }
+  it("keys every surface's program apart", () => {
+    const a = createCrustedFluidSurface();
+    const b = createCrustedFluidSurface();
+    expect(a.hooks.key).toMatch(/^crusted-fluid:/);
+    expect(a.hooks.key).not.toBe(b.hooks.key);
   });
 
-  it("takes the 5-tap shadow path by default, like the water", () => {
-    const shader = createCrustedFluidShader();
-    expect(shader.fragmentShader).toContain("sampleShadowMapFast(uShadowMap0");
-    expect(shader.fragmentShader).not.toContain("sampleShadowMap(uShadowMap0");
+  it("exposes every option as a live uniform", () => {
+    const { uniforms } = createCrustedFluidSurface({
+      plateTexels: 7,
+      bands: [0.1, 0.2, 0.3, 0.4],
+      faceShades: { sideX: 0.5, sideZ: 0.4, bottom: 0.3, top: 0.9 },
+    });
+    expect(uniforms.shape.value.y).toBe(7);
+    expect(uniforms.bands.value.toArray()).toEqual([0.1, 0.2, 0.3, 0.4]);
+    expect(uniforms.faceShades.value.toArray()).toEqual([0.5, 0.4, 0.3, 0.9]);
+    expect(uniforms.flow.value.z).toBe(CRUSTED_FLUID_DEFAULTS.cycleSeconds);
+    const palette = uniforms.palette.array as Color[];
+    expect(palette).toHaveLength(6);
+    expect(palette[5].equals(new Color(CRUSTED_FLUID_DEFAULTS.palette[5]))).toBe(true);
   });
 
   it("settles a grazing view by its squeezed axis only past the anisotropy allowance", () => {
-    const shader = createCrustedFluidShader();
-    expect(shader.fragmentShader).toContain(
-      "max(crustSpanMinor, crustSpanMajor / uCrustFarAnisotropy)",
-    );
-    expect(shader.uniforms.uCrustFarAnisotropy.value).toBe(
+    expect(createCrustedFluidSurface().uniforms.farAnisotropy.value).toBe(
       CRUSTED_FLUID_DEFAULTS.farFadeAnisotropy,
     );
     expect(
-      createCrustedFluidShader({ farFadeAnisotropy: 0 }).uniforms
-        .uCrustFarAnisotropy.value,
+      createCrustedFluidSurface({ farFadeAnisotropy: 0 }).uniforms
+        .farAnisotropy.value,
     ).toBe(1);
   });
 
@@ -54,20 +54,14 @@ describe("crusted fluid shader", () => {
     expect(
       SHADER_CLOCK_WRAP_SECONDS % CRUSTED_FLUID_DEFAULTS.cycleSeconds,
     ).toBe(0);
-    expect(() => createCrustedFluidShader({ cycleSeconds: 10 })).toThrow(
+    expect(() => createCrustedFluidSurface({ cycleSeconds: 10 })).toThrow(
       /cycleSeconds/,
     );
   });
 
   it("needs a six-colour palette", () => {
-    expect(() => createCrustedFluidShader({ palette: ["#000"] })).toThrow(
+    expect(() => createCrustedFluidSurface({ palette: ["#000"] })).toThrow(
       /six/,
     );
-  });
-
-  it("fails loudly when the base shader lacks an anchor", () => {
-    expect(() =>
-      createCrustedFluidShader({}, { vertex: "", fragment: "" }),
-    ).toThrow(/exactly one/);
   });
 });

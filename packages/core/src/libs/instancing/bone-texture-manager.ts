@@ -1,6 +1,10 @@
-import * as THREE from "three";
+import * as THREE from "three/webgpu";
+
+import { writeTextureRows } from "../../utils/gpu-texture-writes";
 
 const BONE_TEXTURE_MAX_WIDTH = 2048;
+/** RGBA half floats: four channels of two bytes. */
+const BONE_TEXEL_BYTES = 8;
 const IDENTITY_MATRIX_ELEMENTS = [
   1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1,
 ] as const;
@@ -13,9 +17,23 @@ const IDENTITY_MATRIX_HALF_FLOATS = Uint16Array.from(
   (value) => THREE.DataUtils.toHalfFloat(value),
 );
 
+/** The half-float typed array, where the browser has one. */
+type HalfFloatArray = {
+  set(values: ArrayLike<number>, offset?: number): void;
+};
+const HalfFloatArray = (
+  globalThis as {
+    Float16Array?: new (buffer: ArrayBufferLike) => HalfFloatArray;
+  }
+).Float16Array;
+
 export class BoneTextureManager {
   private texture: THREE.DataTexture;
   private data: Uint16Array;
+  /// The same bytes as `data`, written as half floats natively: a crowd
+  /// poses thousands of bones a frame, and converting each element in JS
+  /// (`toHalfFloat`) was a third of the bone writes' cost.
+  private halves: HalfFloatArray | null;
   private width: number;
   private height: number;
   private bonesPerInstance: number;
@@ -38,6 +56,7 @@ export class BoneTextureManager {
 
     const totalPixels = this.width * this.height;
     this.data = new Uint16Array(totalPixels * 4);
+    this.halves = HalfFloatArray ? new HalfFloatArray(this.data.buffer) : null;
     this.fillIdentity(maxInstances * bonesPerInstance);
 
     this.texture = new THREE.DataTexture(
@@ -86,6 +105,10 @@ export class BoneTextureManager {
   }
 
   private setMatrixData(dataOffset: number, elements: ArrayLike<number>): void {
+    if (this.halves) {
+      this.halves.set(elements, dataOffset);
+      return;
+    }
     for (let i = 0; i < 16; i++) {
       this.data[dataOffset + i] = THREE.DataUtils.toHalfFloat(elements[i]);
     }
@@ -134,60 +157,32 @@ export class BoneTextureManager {
     this.markDirty(instanceIndex, boneIndex);
   }
 
-  // Uploads only the rows covering the dirty pixel range with a raw
-  // texSubImage2D. Marking the whole texture with `needsUpdate` re-uploaded
-  // every pool's full bone texture each animated frame, and three's partial
-  // paths (updateRanges, copyTextureToTexture) bracket uploads with
-  // synchronous gl.getParameter round-trips to the GPU process that stall
-  // the main thread for longer than the upload itself.
+  // Uploads only the rows covering the dirty pixel range, straight to the
+  // GPU queue. Marking the whole texture with `needsUpdate` re-uploaded
+  // every pool's full bone texture each animated frame.
   //
   // A hidden page skips the upload and keeps the dirty range for its first
   // visible frame. Its update tick still runs at 60 Hz off a worker timer,
   // and uploads that no frame consumes piled up in the GPU process (~7 MB/s,
   // only reclaimed in bursts): a tab left hidden on a sleeping Mac grew
   // Arc's GPU process to 50 GB overnight and froze the machine.
-  upload(renderer: THREE.WebGLRenderer): void {
+  upload(renderer: THREE.Renderer): void {
     if (this.dirtyMaxPixel < 0) return;
     if (typeof document !== "undefined" && document.hidden) return;
 
-    const textureProperties = renderer.properties.get(this.texture) as {
-      __webglTexture?: WebGLTexture;
-    };
-    if (!textureProperties.__webglTexture) {
-      // Not GPU-resident yet: the first bind uploads the full data array.
-      this.texture.needsUpdate = true;
-      this.dirtyMinPixel = Infinity;
-      this.dirtyMaxPixel = -1;
-      return;
-    }
-
-    const gl = renderer.getContext() as WebGL2RenderingContext;
     const startRow = Math.floor(this.dirtyMinPixel / this.width);
     const endRow = Math.floor(this.dirtyMaxPixel / this.width);
-    const rowCount = endRow - startRow + 1;
-
-    renderer.state.bindTexture(gl.TEXTURE_2D, textureProperties.__webglTexture);
-    gl.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL, this.texture.flipY);
-    gl.pixelStorei(
-      gl.UNPACK_PREMULTIPLY_ALPHA_WEBGL,
-      this.texture.premultiplyAlpha,
-    );
-    gl.pixelStorei(gl.UNPACK_ALIGNMENT, this.texture.unpackAlignment);
-    gl.pixelStorei(gl.UNPACK_COLORSPACE_CONVERSION_WEBGL, gl.NONE);
-    gl.texSubImage2D(
-      gl.TEXTURE_2D,
-      0,
-      0,
-      startRow,
-      this.width,
-      rowCount,
-      gl.RGBA,
-      gl.HALF_FLOAT,
+    const isWritten = writeTextureRows(
+      renderer,
+      this.texture,
       this.data,
-      startRow * this.width * 4,
+      this.width,
+      BONE_TEXEL_BYTES,
+      startRow,
+      endRow - startRow + 1,
     );
-    renderer.state.unbindTexture();
-
+    // Not GPU-resident yet: the first bind uploads the full data array.
+    if (!isWritten) this.texture.needsUpdate = true;
     this.dirtyMinPixel = Infinity;
     this.dirtyMaxPixel = -1;
   }

@@ -1,8 +1,9 @@
 {
   "compilerOptions": {
     "allowJs": true,
-    "module": "commonjs",
-    "target": "es2017",
+    "module": "esnext",
+    "moduleResolution": "bundler",
+    "target": "es2020",
     "sourceMap": true,
     "declaration": true,
     "declarationMap": true,

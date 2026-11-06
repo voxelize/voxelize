@@ -4,10 +4,12 @@ import {
   NearestFilter,
   RedIntegerFormat,
   RGBAFormat,
-  UnsignedShortType,
+  UnsignedIntType,
   Vector3,
   Vector4,
-} from "three";
+} from "three/webgpu";
+
+import { textureSlot, worldUniform } from "../shading/uniforms";
 
 import {
   localLightFalloff,
@@ -45,7 +47,7 @@ export const GRID_CELLS_PER_ROW = 32;
 export const MAX_CLUSTERED_LIGHTS = 255;
 
 /**
- * A grid slot (R16UI): the light's packed data row + 1 in the low byte (0 is
+ * A grid slot (R32UI): the light's packed data row + 1 in the low byte (0 is
  * an empty slot and ends the cell's list) and the slot's fade weight 0..255
  * in the high byte. Mirrored by `localLightSlot` in shader.ts.
  */
@@ -110,7 +112,6 @@ type LightClusterGridOptions = Pick<
   Partial<
     Pick<
       LocalLightsOptions,
-      | "temporalStability"
       | "slotFadeMs"
       | "fadingRowReserve"
       | "windowFadeBlocks"
@@ -140,32 +141,30 @@ type LightClusterGridOptions = Pick<
  */
 export class LightClusterGrid {
   readonly uniforms = {
-    lightGrid: { value: null as DataTexture | null },
-    lightData: { value: null as DataTexture | null },
+    lightGrid: textureSlot("uint"),
+    lightData: textureSlot("float"),
     /** Per cell, the lights past its slots (`writeCellOverflow`). */
-    lightOverflow: { value: null as DataTexture | null },
-    gridOrigin: { value: new Vector3() },
-    gridCellSize: { value: 8 },
-    gridDims: { value: new Vector3() },
+    lightOverflow: textureSlot("uint"),
+    gridOrigin: worldUniform(new Vector3()),
+    gridCellSize: worldUniform(8),
+    gridDims: worldUniform(new Vector3()),
     /** The window origin's cell mod the dims: its storage cell, per axis. */
-    gridStorageOffset: { value: new Vector3() },
+    gridStorageOffset: worldUniform(new Vector3()),
     /**
      * The point the window is centred on (xyz), written every frame, and
      * the rim fade width in blocks (w). The rim fade is continuous in it, so
      * a world point's analytic light never steps when the window scrolls.
      */
-    gridCenter: { value: new Vector4() },
+    gridCenter: worldUniform(new Vector4()),
     /** Half extent the window covers around its centre on every frame. */
-    gridHalf: { value: new Vector3() },
-    /** 1: the temporally stable layer. 0: the legacy frame, for A/B. */
-    stable: { value: 1 },
-    clusteredCount: { value: 0 },
-    maskKnee: { value: 5 / 15 },
-    specularStrength: { value: 1 },
+    gridHalf: worldUniform(new Vector3()),
+    clusteredCount: worldUniform(0),
+    maskKnee: worldUniform(5 / 15),
+    specularStrength: worldUniform(1),
     /** 0..1: how strongly analytic claims suppress the baked flood term. */
-    ownership: { value: 1 },
-    debugMode: { value: 0 },
-    emissiveLevels: { value: new Vector4(1.0, 1.75, 2.5, 3.5) },
+    ownership: worldUniform(1),
+    debugMode: worldUniform(0),
+    emissiveLevels: worldUniform(new Vector4(1.0, 1.75, 2.5, 3.5)),
   };
 
   /** Selected registry slot per rank; `selectedCount` entries are live. */
@@ -191,8 +190,8 @@ export class LightClusterGrid {
   private readonly gridTexture: DataTexture;
   private readonly dataTexture: DataTexture;
   private readonly overflowTexture: DataTexture;
-  private readonly overflowData: Uint16Array;
-  private readonly gridData: Uint16Array;
+  private readonly overflowData: Uint32Array;
+  private readonly gridData: Uint32Array;
   private readonly lightData: Float32Array;
 
   private readonly heapScores: Float64Array;
@@ -291,7 +290,6 @@ export class LightClusterGrid {
   private readonly highResolutionPixels: number;
   private readonly highResolutionLightsPerCell: number;
   private readonly highResolutionHysteresis: number;
-  private isStable: boolean;
   private isHighResolution = false;
   /** The next pack starts every cell fresh: its lights at full weight. */
   private isResetPending = true;
@@ -328,24 +326,21 @@ export class LightClusterGrid {
     this.highResolutionPixels = settings.highResolutionPixels;
     this.highResolutionLightsPerCell = settings.highResolutionLightsPerCell;
     this.highResolutionHysteresis = settings.highResolutionHysteresis;
-    this.isStable = settings.temporalStability;
 
     const gridWidth = GRID_CELLS_PER_ROW * MAX_LIGHTS_PER_CELL;
     const gridHeight = Math.ceil(this.cellCount / GRID_CELLS_PER_ROW);
-    this.gridData = new Uint16Array(gridWidth * gridHeight);
+    this.gridData = new Uint32Array(gridWidth * gridHeight);
     this.gridTexture = new DataTexture(
       this.gridData,
       gridWidth,
       gridHeight,
       RedIntegerFormat,
-      UnsignedShortType,
+      UnsignedIntType,
     );
-    this.gridTexture.internalFormat = "R16UI";
     this.gridTexture.minFilter = NearestFilter;
     this.gridTexture.magFilter = NearestFilter;
     this.gridTexture.generateMipmaps = false;
     this.gridTexture.flipY = false;
-    this.gridTexture.unpackAlignment = 2;
 
     this.lightData = new Float32Array(
       DATA_TEXELS_PER_LIGHT * 4 * MAX_CLUSTERED_LIGHTS,
@@ -363,24 +358,20 @@ export class LightClusterGrid {
     this.dataTexture.flipY = false;
 
     const overflowWidth = GRID_CELLS_PER_ROW * OVERFLOW_SLOTS_PER_CELL;
-    this.overflowData = new Uint16Array(overflowWidth * gridHeight);
+    this.overflowData = new Uint32Array(overflowWidth * gridHeight);
     this.overflowTexture = new DataTexture(
       this.overflowData,
       overflowWidth,
       gridHeight,
       RedIntegerFormat,
-      UnsignedShortType,
+      UnsignedIntType,
     );
-    this.overflowTexture.internalFormat = "R16UI";
     this.overflowTexture.minFilter = NearestFilter;
     this.overflowTexture.magFilter = NearestFilter;
     this.overflowTexture.generateMipmaps = false;
     this.overflowTexture.flipY = false;
-    this.overflowTexture.unpackAlignment = 2;
-    // Both integer textures upload their zeros now: a texture three has
-    // never uploaded binds as its RGBA8 placeholder, which a usampler2D
-    // rejects (GL_INVALID_OPERATION), dropping every chunk draw. The
-    // overflow texture is otherwise only flagged once a cell overflows.
+    // Both integer textures upload their zeros now: the overflow texture is
+    // otherwise only flagged once a cell overflows.
     this.gridTexture.needsUpdate = true;
     this.overflowTexture.needsUpdate = true;
 
@@ -402,7 +393,6 @@ export class LightClusterGrid {
       guaranteedHalf(this.gridDims[2]),
     );
     this.uniforms.gridCenter.value.w = this.windowFadeBlocks;
-    this.uniforms.stable.value = this.isStable ? 1 : 0;
     this.uniforms.maskKnee.value = settings.maskKnee;
     this.uniforms.specularStrength.value = settings.fluidSpecularStrength;
 
@@ -495,22 +485,6 @@ export class LightClusterGrid {
   }
 
   /**
-   * Stable layer on (default) or the legacy frame, for A/B captures. Either
-   * way the next pass rebuilds every cell from scratch.
-   */
-  setTemporalStability(isStable: boolean) {
-    if (this.isStable === isStable) return;
-    this.isStable = isStable;
-    this.uniforms.stable.value = isStable ? 1 : 0;
-    this.clearCellState();
-    this.isForceDirty = true;
-  }
-
-  get isTemporallyStable(): boolean {
-    return this.isStable;
-  }
-
-  /**
    * The drawing buffer's pixel count, fed every frame. Crossing the
    * high-resolution gate (with hysteresis) changes how many steady lights a
    * cell keeps; the cells that lose or gain one fade like any other change.
@@ -528,13 +502,6 @@ export class LightClusterGrid {
 
   get isHighResolutionGate(): boolean {
     return this.isHighResolution;
-  }
-
-  /** Re-upload GPU state after a restored context; CPU data is authoritative. */
-  markTexturesDirty() {
-    this.gridTexture.needsUpdate = true;
-    this.dataTexture.needsUpdate = true;
-    this.overflowTexture.needsUpdate = true;
   }
 
   dispose() {
@@ -699,7 +666,7 @@ export class LightClusterGrid {
         wrapCell(relX, offset.x, dimX);
       gridBase = this.gridBaseOf(cell);
     }
-    const windowFade = this.windowFadeAt(x, y, z, relX, relY, relZ);
+    const windowFade = this.windowFadeAt(x, y, z);
     const gridData = this.gridData;
     const overflowData = this.overflowData;
     const overflowBase = cell >= 0 ? this.overflowBaseOf(cell) : -1;
@@ -859,31 +826,15 @@ export class LightClusterGrid {
   // ── internals ────────────────────────────────────────────────────────────
 
   /** Mirrors `localLightWindowFade` in shader.ts. */
-  private windowFadeAt(
-    x: number,
-    y: number,
-    z: number,
-    relX: number,
-    relY: number,
-    relZ: number,
-  ): number {
-    if (this.isStable) {
-      const center = this.uniforms.gridCenter.value;
-      const half = this.uniforms.gridHalf.value;
-      const edge = Math.min(
-        half.x - Math.abs(x - center.x),
-        half.y - Math.abs(y - center.y),
-        half.z - Math.abs(z - center.z),
-      );
-      return Math.min(Math.max(edge / center.w, 0), 1);
-    }
-    // Legacy: the fade steps with the window, which snaps in whole cells.
-    const [dimX, dimY, dimZ] = this.gridDims;
-    const edgeCells = Math.min(
-      Math.min(relX, dimX - relX),
-      Math.min(Math.min(relY, dimY - relY), Math.min(relZ, dimZ - relZ)),
+  private windowFadeAt(x: number, y: number, z: number): number {
+    const center = this.uniforms.gridCenter.value;
+    const half = this.uniforms.gridHalf.value;
+    const edge = Math.min(
+      half.x - Math.abs(x - center.x),
+      half.y - Math.abs(y - center.y),
+      half.z - Math.abs(z - center.z),
     );
-    return Math.min(Math.max(edgeCells * 0.5, 0), 1);
+    return Math.min(Math.max(edge / center.w, 0), 1);
   }
 
   /** Toroidal storage cell of a world cell, mirroring `localLightCell`. */
@@ -904,7 +855,7 @@ export class LightClusterGrid {
 
   /** Steady lights a cell may keep this frame. */
   private slotCap(): number {
-    if (this.isStable && this.isHighResolution) {
+    if (this.isHighResolution) {
       return Math.min(this.maxLightsPerCell, this.highResolutionLightsPerCell);
     }
     return this.maxLightsPerCell;
@@ -928,7 +879,6 @@ export class LightClusterGrid {
   }
 
   private encodeWeight(weight: number): number {
-    if (!this.isStable) return SLOT_WEIGHT_SCALE;
     // Smoothstep: a fade eases in and out instead of starting and stopping
     // abruptly, and a crossfade's two sides still sum to one.
     const eased = weight * weight * (3 - 2 * weight);
@@ -1006,14 +956,12 @@ export class LightClusterGrid {
       shares,
     } = this.registry;
     const radius = this.analyticRadius;
-    // The stable layer keeps rows free for lights fading out of the
-    // selection; the legacy frame spends every row on the selection.
-    const limit = this.isStable
-      ? Math.min(
-          this.maxClusteredLights,
-          MAX_CLUSTERED_LIGHTS - this.fadingRowReserve,
-        )
-      : this.maxClusteredLights;
+    // Rows are kept free for lights fading out of the selection, so a light
+    // leaving it can finish its fade instead of vanishing.
+    const limit = Math.min(
+      this.maxClusteredLights,
+      MAX_CLUSTERED_LIGHTS - this.fadingRowReserve,
+    );
     const cellSize = this.uniforms.gridCellSize.value;
     // Candidates must be able to touch both the analytic radius and the
     // exact cell-aligned window the binning and the shader use (the vertical
@@ -1136,7 +1084,7 @@ export class LightClusterGrid {
         churn++;
         this.entryStamps[i] = this.passStamp;
         // After a reset every cell starts at full weight, and so does this.
-        if (this.isStable && !this.isResetPending) {
+        if (!this.isResetPending) {
           this.entryTimes[i] = this.nowMs;
           if (this.isEntering[i] === 0) {
             this.isEntering[i] = 1;
@@ -1215,9 +1163,7 @@ export class LightClusterGrid {
     const originX = Math.round(origin.x / cellSize);
     const originY = Math.round(origin.y / cellSize);
     const originZ = Math.round(origin.z / cellSize);
-    const isStable = this.isStable;
-    // The legacy frame is stateless: every pass rebuilds every cell.
-    const isReset = this.isResetPending || !isStable;
+    const isReset = this.isResetPending;
     this.isResetPending = false;
     const stamp = this.passStamp;
     const slotCap = this.slotCap();
@@ -1232,9 +1178,7 @@ export class LightClusterGrid {
     // 1. Desired membership: each selected light offers itself to every
     // cell it reaches, and each cell keeps its `slotCap` most important
     // offers. Importance is the light's falloff at the cell, independent of
-    // the camera, so the camera moving never reorders a cell. The legacy
-    // frame ranks by selection score instead (camera distance): its first
-    // `slotCap` ranks win.
+    // the camera, so the camera moving never reorders a cell.
     for (let rank = 0; rank < this.selectedCount; rank++) {
       const i = this.selectedIndices[rank];
       const px = positions[i * 3];
@@ -1286,11 +1230,10 @@ export class LightClusterGrid {
           colors[i * 3 + 2] * LUMA_B);
       // Cells the sphere misses entirely are skipped: they would spend a
       // slot on a light that contributes nothing there.
-      const isReachTested = isStable && !isCapsule;
+      const isReachTested = !isCapsule;
       const isMasked = (registry.flags[i] & LIGHT_FLAG_MASKED) !== 0;
       const isDynamic = (registry.flags[i] & LIGHT_FLAG_STATIC) === 0;
       const rangeSq = range * range;
-      const legacyImportance = MAX_CLUSTERED_LIGHTS - rank;
 
       for (let cz = cellMinZ; cz <= cellMaxZ; cz++) {
         const dz = spanDistance(pz, cz * cellSize, cellSize);
@@ -1315,9 +1258,8 @@ export class LightClusterGrid {
               this.offerHead[cell] = -1;
               this.touchedCells[touchedCount++] = cell;
             }
-            const importance = isStable
-              ? energy * localLightFalloff(windowDist, range, d2)
-              : legacyImportance;
+            const importance =
+              energy * localLightFalloff(windowDist, range, d2);
             this.recordOffer(cell, i, importance);
             overflowed += this.offerToCell(cell, i, importance, slotCap);
             if (isDynamic) {
@@ -1602,25 +1544,23 @@ export class LightClusterGrid {
       count++;
     }
 
-    if (this.isStable) {
-      const registry = this.registry;
-      for (let k = 0; k < previous && count < MAX_LIGHTS_PER_CELL; k++) {
-        if (matched[k] === 1) continue;
-        const weight = this.slotWeights[base + k];
-        if (weight <= 0) continue;
-        const handle = this.slotHandles[base + k];
-        const i = registry.resolve(handle);
-        // Gone or switched off: the source itself vanished, so does its light.
-        if (i < 0 || !registry.isEnabledAt(i) || registry.shares[i] <= 0) {
-          continue;
-        }
-        // Moved out of reach: it contributes nothing here any more.
-        if (!this.reachesCell(i, cellX, cellY, cellZ)) continue;
-        handles[count] = handle;
-        weights[count] = weight;
-        targets[count] = 0;
-        count++;
+    const registry = this.registry;
+    for (let k = 0; k < previous && count < MAX_LIGHTS_PER_CELL; k++) {
+      if (matched[k] === 1) continue;
+      const weight = this.slotWeights[base + k];
+      if (weight <= 0) continue;
+      const handle = this.slotHandles[base + k];
+      const i = registry.resolve(handle);
+      // Gone or switched off: the source itself vanished, so does its light.
+      if (i < 0 || !registry.isEnabledAt(i) || registry.shares[i] <= 0) {
+        continue;
       }
+      // Moved out of reach: it contributes nothing here any more.
+      if (!this.reachesCell(i, cellX, cellY, cellZ)) continue;
+      handles[count] = handle;
+      weights[count] = weight;
+      targets[count] = 0;
+      count++;
     }
 
     let isFading = false;
@@ -1639,7 +1579,7 @@ export class LightClusterGrid {
 
   /** Starting weight of a light new to a cell. */
   private entryWeight(i: number, isFresh: boolean): number {
-    if (!this.isStable || isFresh) return 1;
+    if (isFresh) return 1;
     // New to the selection: fade in.
     if (this.entryStamps[i] === this.passStamp) return 0;
     // A light that moved carries its light with it into the cell.

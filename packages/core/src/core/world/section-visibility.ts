@@ -1,4 +1,4 @@
-import { Frustum, Vector3 } from "three";
+import { Frustum, Vector3 } from "three/webgpu";
 
 /**
  * Face order for connectivity bits: -X, +X, -Y, +Y, -Z, +Z. Mirrors

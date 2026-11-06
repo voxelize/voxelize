@@ -1,4 +1,4 @@
-import { ShaderMaterial } from "three";
+import { ShaderMaterial } from "three/webgpu";
 import { describe, expect, it } from "vitest";
 
 import { FarBatch } from "./far-terrain-batch";

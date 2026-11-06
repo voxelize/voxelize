@@ -1,8 +1,5 @@
 import { BlockRotation } from "../block";
-import {
-  analyticColorFromLevels,
-  BLOCK_LIGHT_TUNING,
-} from "../block-light-transfer";
+import { analyticColorFromLevels } from "../block-light-transfer";
 
 import { LightSourceRegistry } from "./registry";
 import {
@@ -549,10 +546,7 @@ export class SectionTracker {
       // its centroid: its energy spreads over the wider range's area, so
       // it no longer peaks where no emitter is (a glowberry ceiling's
       // cream plateau).
-      const spread =
-        BLOCK_LIGHT_TUNING.proxyEnergy.value === 1
-          ? (base.range / range) ** 2
-          : 1;
+      const spread = (base.range / range) ** 2;
       const intensity =
         base.intensity * Math.min(memberCount, PROXY_INTENSITY_CAP) * spread;
       const kept = this.takeReusableProxy(cx, cy, cz, range, intensity);

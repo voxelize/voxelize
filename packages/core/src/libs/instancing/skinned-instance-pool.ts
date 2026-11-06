@@ -1,11 +1,14 @@
-import * as THREE from "three";
+import * as THREE from "three/webgpu";
 
-import { ShaderLightingUniforms } from "../../core/world/chunk-renderer";
-import { updateEntityShadowUniforms } from "../../core/world/entity-shadow-uniforms";
 
 import { BoneTextureManager } from "./bone-texture-manager";
 import { atlasSurface, EntitySurfaceOptions } from "./entity-surface";
-import { writeInstanceColor, writeInstanceMatrix } from "./instance-write";
+import {
+  type InstanceAttribute,
+  markInstanceChanged,
+  writeInstanceColor,
+  writeInstanceMatrix,
+} from "./instance-write";
 import {
   EntityFaceShades,
   InstancedSkinnedDepthMaterial,
@@ -14,6 +17,7 @@ import {
 } from "./instanced-skinned-material";
 import { measureLegLength } from "./leg-length";
 import { measureMeshTop } from "./mesh-top";
+import { packVertexBuffers } from "./vertex-buffers";
 import {
   noteLazyBake,
   peekNextRosterEntry,
@@ -145,10 +149,10 @@ interface VariantPool {
   rigInfo: SkinnedRigInfo;
   slots: Map<number, InstanceSlot>;
   freeIndices: number[];
-  instanceBoneOffsetAttr: THREE.InstancedBufferAttribute;
-  instanceHitEffectAttr: THREE.InstancedBufferAttribute;
-  instanceLightColorAttr: THREE.InstancedBufferAttribute;
-  instanceEmissiveAttr: THREE.InstancedBufferAttribute | null;
+  instanceBoneOffsetAttr: InstanceAttribute;
+  instanceHitEffectAttr: InstanceAttribute;
+  instanceLightColorAttr: InstanceAttribute;
+  instanceEmissiveAttr: InstanceAttribute | null;
   emissiveDefault: number;
 }
 
@@ -188,12 +192,6 @@ export class SkinnedInstancePool<
   private warnedFullKeys = new Set<string>();
 
   private zeroMatrix = new THREE.Matrix4().makeScale(0, 0, 0);
-
-  /// The lighting the pools were last shown. A variant baked mid-session
-  /// has missed every `updateShadowUniforms` so far, so it is caught up at
-  /// birth rather than rendering its first frame with the material's
-  /// unlit defaults.
-  private lightingUniforms: ShaderLightingUniforms | null = null;
 
   constructor(
     config: SkinnedFamilyConfig<TVariant>,
@@ -303,13 +301,6 @@ export class SkinnedInstancePool<
       },
     );
 
-    if (this.lightingUniforms) {
-      updateEntityShadowUniforms(
-        material.shadowUniforms,
-        this.lightingUniforms,
-      );
-    }
-
     const mesh = new THREE.InstancedMesh(geometry, material, max);
     mesh.name = `${config.family}:${key}`;
     mesh.frustumCulled = false;
@@ -367,6 +358,13 @@ export class SkinnedInstancePool<
       geometry.setAttribute("instanceEmissive", instanceEmissiveAttr);
     }
 
+    // One buffer per rate, the per-vertex attributes in one and the
+    // per-instance ones in another: separately they would pass WebGPU's
+    // eight vertex buffers a pipeline may bind.
+    const packed = packVertexBuffers(geometry);
+    const attributeOf = (name: string) =>
+      (packed.get(name) ?? geometry.getAttribute(name)) as InstanceAttribute;
+
     const freeIndices: number[] = [];
     for (let i = max - 1; i >= 0; i--) {
       freeIndices.push(i);
@@ -384,10 +382,12 @@ export class SkinnedInstancePool<
       rigInfo,
       slots: new Map(),
       freeIndices,
-      instanceBoneOffsetAttr,
-      instanceHitEffectAttr,
-      instanceLightColorAttr,
-      instanceEmissiveAttr,
+      instanceBoneOffsetAttr: attributeOf("instanceBoneOffset"),
+      instanceHitEffectAttr: attributeOf("instanceHitEffect"),
+      instanceLightColorAttr: attributeOf("instanceLightColor"),
+      instanceEmissiveAttr: instanceEmissiveAttr
+        ? attributeOf("instanceEmissive")
+        : null,
       emissiveDefault,
     };
 
@@ -429,7 +429,7 @@ export class SkinnedInstancePool<
       localIndex,
       boneOffset * pool.rigInfo.boneCount,
     );
-    pool.instanceBoneOffsetAttr.needsUpdate = true;
+    markInstanceChanged(pool.instanceBoneOffsetAttr, localIndex);
 
     pool.mesh.count = Math.max(pool.mesh.count, localIndex + 1);
 
@@ -454,15 +454,14 @@ export class SkinnedInstancePool<
     pool.slots.delete(localIndex);
     pool.freeIndices.push(localIndex);
 
-    pool.mesh.setMatrixAt(localIndex, this.zeroMatrix);
-    pool.mesh.instanceMatrix.needsUpdate = true;
+    writeInstanceMatrix(pool.mesh, localIndex, this.zeroMatrix);
 
     pool.instanceHitEffectAttr.setX(localIndex, 0);
-    pool.instanceHitEffectAttr.needsUpdate = true;
+    markInstanceChanged(pool.instanceHitEffectAttr, localIndex);
 
     if (pool.instanceEmissiveAttr) {
       pool.instanceEmissiveAttr.setX(localIndex, pool.emissiveDefault);
-      pool.instanceEmissiveAttr.needsUpdate = true;
+      markInstanceChanged(pool.instanceEmissiveAttr, localIndex);
     }
 
     this.updateMeshCount(pool);
@@ -559,14 +558,13 @@ export class SkinnedInstancePool<
     const index = resolved.slot.localIndex;
     if (attr.getX(index) === value) return;
     attr.setX(index, value);
-    attr.needsUpdate = true;
+    markInstanceChanged(attr, index);
   }
 
-  update(_deltaTime: number, renderer: THREE.WebGLRenderer): void {
+  update(_deltaTime: number, renderer: THREE.Renderer): void {
     const now = performance.now();
 
     for (const pool of this.variantPools.values()) {
-      let isHitEffectDirty = false;
       for (const [localIndex, slot] of pool.slots) {
         if (slot.hitEffect > 0) {
           const elapsed = now - slot.hitEffectDecayStart;
@@ -577,13 +575,11 @@ export class SkinnedInstancePool<
               this.hitEffectIntensity * (1 - elapsed / HIT_EFFECT_DURATION_MS);
           }
           pool.instanceHitEffectAttr.setX(localIndex, slot.hitEffect);
-          isHitEffectDirty = true;
+          markInstanceChanged(pool.instanceHitEffectAttr, localIndex);
         }
       }
 
-      if (isHitEffectDirty) pool.instanceHitEffectAttr.needsUpdate = true;
       pool.boneManager.upload(renderer);
-      pool.material.setTime(now * 0.001);
     }
   }
 
@@ -615,17 +611,6 @@ export class SkinnedInstancePool<
       meshes.set(pool.key, pool.mesh);
     }
     return meshes;
-  }
-
-  updateShadowUniforms(lightingUniforms: ShaderLightingUniforms): void {
-    this.lightingUniforms = lightingUniforms;
-
-    for (const pool of this.variantPools.values()) {
-      updateEntityShadowUniforms(
-        pool.material.shadowUniforms,
-        lightingUniforms,
-      );
-    }
   }
 
   dispose(): void {

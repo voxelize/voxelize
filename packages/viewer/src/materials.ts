@@ -7,11 +7,15 @@
  * game's pixels.
  */
 import {
+  arrayUniform,
+  type ArrayUniform,
   AtlasTexture,
   type AtlasFilteringMode,
   type Block,
   ChunkRenderer,
-  type CustomChunkShaderMaterial,
+  type ChunkMaterial,
+  type ChunkMaterialOptions,
+  type ChunkShadingInputs,
   everyFaceOf,
   forkChunkMaterial,
   isOwnTextureFace,
@@ -23,11 +27,10 @@ import {
   positionUnitsPerBlock,
   Registry,
   setOwnFaceTexture,
-  SHADER_LIGHTING_CHUNK_SHADERS,
   SHARED_OPAQUE_MATERIAL_KEY,
   sharedFaceCustomizationError,
 } from "@voxelize/core";
-import { Color, type Texture, Uniform } from "three";
+import { Color, type Texture, Vector4 } from "three/webgpu";
 
 export type WorldShape = {
   chunkSize: number;
@@ -39,15 +42,15 @@ export type WorldShape = {
 export type MaterialOptions = {
   textureUnitDimension: number;
   blockTextureFiltering: AtlasFilteringMode;
-  /** Per-world chunk uniform overrides, as a game's `World` takes them. */
-  chunkUniformsOverwrite: Partial<ChunkRenderer["uniforms"]>;
+  /** Starting values of chunk uniforms, as a game's `World` takes them. */
+  chunkUniformValues: Partial<Record<keyof ChunkRenderer["uniforms"], number>>;
   swayProfileCapacity: number;
 };
 
 const DEFAULT_MATERIAL_OPTIONS: MaterialOptions = {
   textureUnitDimension: 16,
   blockTextureFiltering: "nearest",
-  chunkUniformsOverwrite: {},
+  chunkUniformValues: {},
   swayProfileCapacity: 64,
 };
 
@@ -120,7 +123,24 @@ export class ViewerMaterials {
 
   readonly localLights: LocalLights;
 
-  readonly swayProfileTable: Uniform;
+  readonly swayProfileTable: ArrayUniform<Vector4, "vec4">;
+
+  private static nextShadingId = 1_000_000;
+
+  private shadingInputsCache: ChunkShadingInputs | null = null;
+
+  /** What every chunk material of these reads, as a `World`'s do. */
+  get shadingInputs(): ChunkShadingInputs {
+    this.shadingInputsCache ??= {
+      id: ViewerMaterials.nextShadingId++,
+      chunk: this.chunkRenderer.uniforms,
+      lighting: this.chunkRenderer.shaderLightingUniforms,
+      cones: this.lightCones.uniforms,
+      local: this.localLights.shadingInputs,
+      swayTable: this.swayProfileTable,
+    };
+    return this.shadingInputsCache;
+  }
 
   readonly registry = new Registry();
 
@@ -178,8 +198,22 @@ export class ViewerMaterials {
       }),
       () => this.registry.blocksById.values(),
     );
-    this.swayProfileTable = new Uniform(
-      new Float32Array(this.options.swayProfileCapacity * 8),
+    const chunkUniforms = this.chunkRenderer.uniforms as Record<
+      string,
+      { value: unknown }
+    >;
+    for (const [key, value] of Object.entries(this.options.chunkUniformValues)) {
+      const uniform = chunkUniforms[key];
+      if (uniform && typeof uniform.value === "number" && value !== undefined) {
+        uniform.value = value;
+      }
+    }
+    this.swayProfileTable = arrayUniform(
+      Array.from(
+        { length: this.options.swayProfileCapacity * 2 },
+        () => new Vector4(),
+      ),
+      "vec4",
     );
   }
 
@@ -196,22 +230,6 @@ export class ViewerMaterials {
   async build() {
     await loadChunkMaterials(this);
     for (const material of this.chunkRenderer.materials.values()) {
-      // Lookup textures a World uploads on its first light pass (the light
-      // grid is an integer texture: bound before its first upload, three
-      // falls back to a float one and every chunk draw is refused).
-      for (const uniform of Object.values(material.uniforms)) {
-        const value = (
-          uniform as {
-            value?: {
-              isDataTexture?: boolean;
-              version?: number;
-              needsUpdate?: boolean;
-            };
-          }
-        ).value;
-        if (value?.isDataTexture && value.version === 0)
-          value.needsUpdate = true;
-      }
       if (!this.atlas && material.map instanceof AtlasTexture) {
         this.atlas = material.map;
       }
@@ -223,23 +241,19 @@ export class ViewerMaterials {
   }
 
   /**
-   * The game's own block and face shaders (a frame strip that shows one
+   * The game's own block and face shading (a frame strip that shows one
    * flame, cross-shaded plants, a glow mask), installed the way `World`
-   * installs them. Their clocks hold still here, so an animated one shows
-   * its first frame.
+   * installs it. Its clocks hold still here, so an animated one shows its
+   * first frame.
    */
-  customizeMaterialShaders(
+  customizeMaterial(
     idOrName: number | string,
     faceName: string | null = null,
-    data: {
-      vertexShader?: string;
-      fragmentShader?: string;
-      uniforms?: Record<string, Uniform>;
-    } = {},
+    customization: Partial<ChunkMaterialOptions> = {},
   ) {
     const block = this.getBlockOf(idOrName);
-    // Opting out precedes the lookup: a block-level shader lands on the
-    // block's own material, never on the bucket it shares.
+    // Opting out precedes the lookup: a block-level customization lands on
+    // the block's own material, never on the bucket it shares.
     if (faceName === null) this.customBlockIds.add(block.id);
     let material = this.getBlockFaceMaterial(block.id, faceName ?? undefined);
     if (!material) {
@@ -261,12 +275,7 @@ export class ViewerMaterials {
       material = forkChunkMaterial(material);
       this.chunkRenderer.materials.set(`${block.id}`, material);
     }
-    material.vertexShader =
-      data.vertexShader ?? SHADER_LIGHTING_CHUNK_SHADERS.vertex;
-    material.fragmentShader =
-      data.fragmentShader ?? SHADER_LIGHTING_CHUNK_SHADERS.fragment;
-    material.uniforms = { ...material.uniforms, ...data.uniforms };
-    material.needsUpdate = true;
+    material.setVariant(customization);
     return material;
   }
 
@@ -513,7 +522,7 @@ export class ViewerMaterials {
       "getBlockOf",
       "getBlockFacesByFaceNames",
       "getBlockFaceMaterial",
-      "customizeMaterialShaders",
+      "customizeMaterial",
       "hasCustomBlockMaterial",
     ]);
     return new Proxy(this, {
@@ -531,7 +540,7 @@ export class ViewerMaterials {
   }
 
   /** The material a geometry of block `id` (and own-texture `face`) renders with. */
-  materialFor(key: string): CustomChunkShaderMaterial | undefined {
+  materialFor(key: string): ChunkMaterial | undefined {
     return this.chunkRenderer.materials.get(key);
   }
 

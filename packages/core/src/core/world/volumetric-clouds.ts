@@ -1,38 +1,35 @@
 import {
   BufferGeometry,
-  Camera,
+  type Camera,
   Data3DTexture,
   Float32BufferAttribute,
-  type Group,
   LinearFilter,
-  Matrix4,
   Mesh,
-  type Scene,
-  type Texture,
-  NormalBlending,
-  type Object3D,
+  type NodeMaterial,
+  type Renderer,
   RepeatWrapping,
   RGBAFormat,
-  ShaderMaterial,
+  Scene,
+  type Texture,
   UnsignedByteType,
-  Vector2,
-  Vector3,
-  Vector4,
-  type IUniform,
-  type WebGLRenderer,
-  type WebGLRenderTarget,
-} from "three";
+} from "three/webgpu";
 
 import { WorkerPool } from "../../libs/worker-pool";
-import VolumetricCloudsFragmentShader from "../../shaders/volumetric-clouds/fragment.glsl?raw";
-import VolumetricCloudsVertexShader from "../../shaders/volumetric-clouds/vertex.glsl?raw";
 import { Coords3 } from "../../types";
+import { callbackRenderer } from "../../utils/three-utils";
 
 import { ORDER_INDEPENDENT_KEY } from "./order-independent-transparency";
 import { SceneDepthCopy } from "./scene-depth-copy";
 import { exemptFromLightCones } from "./light-cones";
 import { markNeverCaster } from "./shadow-casters";
-import { createSkyFogFragment, SKY_FOG_UNIFORM_DECLARATIONS } from "./sky-fog";
+import {
+  createVolumetricCloudMaterial,
+  createVolumetricCloudUniforms,
+  VOLUMETRIC_CLOUD_MAX_LAYERS,
+  type VolumetricCloudsSharedInputs,
+  type VolumetricCloudUniforms,
+} from "./shading/volumetric-clouds";
+import { ownUniform } from "./shading/uniforms";
 import { driftShift } from "./volumetric-clouds-drift";
 import VolumetricCloudWorker from "./workers/volumetric-clouds-worker.ts?worker&inline";
 
@@ -86,7 +83,7 @@ export type VolumetricCloudsOptions = {
   seed: number;
 };
 
-export const VOLUMETRIC_CLOUD_MAX_LAYERS = 2;
+export { VOLUMETRIC_CLOUD_MAX_LAYERS };
 
 const defaultLayer: VolumetricCloudLayer = {
   bottom: 260,
@@ -113,11 +110,11 @@ export const defaultVolumetricCloudsOptions: VolumetricCloudsOptions = {
 };
 
 /**
- * The uniforms a volumetric deck reads from the rest of the world (fog, sky
- * glow, sun, and the cloud colour the day cycle drives): pass the classic
- * deck's material uniforms and both decks light and haze alike.
+ * What a volumetric deck reads from the rest of the world (fog, sky glow,
+ * sun, and the cloud colour the day cycle drives): pass the classic deck's
+ * `Clouds.shared` and both decks light and haze alike.
  */
-export type VolumetricCloudsSharedUniforms = Record<string, IUniform>;
+export type VolumetricCloudsSharedUniforms = VolumetricCloudsSharedInputs;
 
 /**
  * Clouds marched through a tileable noise volume instead of meshed. Drawn as
@@ -130,7 +127,7 @@ export type VolumetricCloudsSharedUniforms = Record<string, IUniform>;
  * the face the ray crossed into it); the soft style marches evenly through a
  * filtered volume.
  */
-export class VolumetricClouds extends Mesh<BufferGeometry, ShaderMaterial> {
+export class VolumetricClouds extends Mesh<BufferGeometry, NodeMaterial> {
   public options: VolumetricCloudsOptions;
 
   public isInitialized = false;
@@ -142,18 +139,23 @@ export class VolumetricClouds extends Mesh<BufferGeometry, ShaderMaterial> {
     name: "volumetric-cloud-worker",
   });
 
-  private depthUniforms = {
-    sceneDepth: { value: null },
-    sceneDepthReady: { value: 0 },
-  };
+  private readonly uniforms: VolumetricCloudUniforms;
 
-  private depthCopy = new SceneDepthCopy(this.depthUniforms);
+  private depthCopy: SceneDepthCopy;
+
+  /**
+   * The half of the deck behind the blended layers: the same march over
+   * the same uniforms, split at their distance, drawn in its own render
+   * under their composite.
+   */
+  private readonly behind: {
+    scene: Scene;
+    mesh: Mesh<BufferGeometry, NodeMaterial>;
+  };
 
   private generation = 0;
 
   private isDisposed = false;
-
-  private resolution = new Vector2();
 
   private isHidden = false;
 
@@ -165,12 +167,31 @@ export class VolumetricClouds extends Mesh<BufferGeometry, ShaderMaterial> {
 
   constructor(
     options: Partial<VolumetricCloudsOptions> = {},
-    shared: VolumetricCloudsSharedUniforms = {},
+    shared: VolumetricCloudsSharedUniforms,
   ) {
-    super(...VolumetricClouds.createParts(shared));
-    const material = this.material;
-    material.uniforms.uSceneDepth = this.depthUniforms.sceneDepth;
-    material.uniforms.uSceneDepthReady = this.depthUniforms.sceneDepthReady;
+    const geometry = new BufferGeometry();
+    geometry.setAttribute(
+      "position",
+      new Float32BufferAttribute([-1, -1, 0, 3, -1, 0, -1, 3, 0], 3),
+    );
+    const uniforms = createVolumetricCloudUniforms();
+    super(geometry, createVolumetricCloudMaterial(uniforms, shared));
+    this.uniforms = uniforms;
+    this.depthCopy = new SceneDepthCopy({
+      sceneDepth: uniforms.sceneDepth,
+      sceneDepthReady: uniforms.sceneDepthReady,
+    });
+    this.material.userData[ORDER_INDEPENDENT_KEY] = false;
+
+    const behindMaterial = createVolumetricCloudMaterial(
+      { ...uniforms, blendedSplit: ownUniform(1) },
+      shared,
+    );
+    const behindMesh = new Mesh(geometry, behindMaterial);
+    behindMesh.frustumCulled = false;
+    const behindScene = new Scene();
+    behindScene.add(behindMesh);
+    this.behind = { scene: behindScene, mesh: behindMesh };
 
     this.options = { ...defaultVolumetricCloudsOptions, ...options };
     this.frustumCulled = false;
@@ -183,83 +204,6 @@ export class VolumetricClouds extends Mesh<BufferGeometry, ShaderMaterial> {
 
     this.applyOptions();
     this.regenerate();
-  }
-
-  private static createParts(
-    shared: VolumetricCloudsSharedUniforms,
-  ): [BufferGeometry, ShaderMaterial] {
-    const geometry = new BufferGeometry();
-    geometry.setAttribute(
-      "position",
-      new Float32BufferAttribute([-1, -1, 0, 3, -1, 0, -1, 3, 0], 3),
-    );
-
-    const material = new ShaderMaterial({
-      vertexShader: VolumetricCloudsVertexShader,
-      fragmentShader: VolumetricCloudsFragmentShader.replace(
-        "#include <sky_fog_pars_fragment>",
-        SKY_FOG_UNIFORM_DECLARATIONS,
-      ).replace(
-        "#include <sky_fog_fragment>",
-        createSkyFogFragment(
-          "sqrt(dot(fogDiff, fogDiff)) / max(uCloudFogDistanceScale, 0.001)",
-        ),
-      ),
-      transparent: true,
-      depthTest: false,
-      depthWrite: false,
-      blending: NormalBlending,
-      uniforms: {
-        ...shared,
-        uCloudNoise: { value: null },
-        uNoiseSize: { value: new Vector3() },
-        uSceneDepth: { value: null },
-        uSceneDepthReady: { value: 0 },
-        uInverseProjection: { value: new Matrix4() },
-        uCameraWorld: { value: new Matrix4() },
-        uResolution: { value: new Vector2(1, 1) },
-        uStyle: { value: 0 },
-        uBlendedSplit: { value: 0 },
-        uBlendedLayers: { value: null },
-        uMaxDistance: { value: 2400 },
-        uFadeStart: { value: 1200 },
-        uLayerCount: { value: 0 },
-        uLayerSpan: {
-          value: Array.from(
-            { length: VOLUMETRIC_CLOUD_MAX_LAYERS },
-            () => new Vector4(),
-          ),
-        },
-        uLayerCell: {
-          value: Array.from(
-            { length: VOLUMETRIC_CLOUD_MAX_LAYERS },
-            () => new Vector4(1, 1, 1, 1),
-          ),
-        },
-        uLayerShape: {
-          value: Array.from(
-            { length: VOLUMETRIC_CLOUD_MAX_LAYERS },
-            () => new Vector4(),
-          ),
-        },
-        uLayerGridShift: {
-          value: Array.from(
-            { length: VOLUMETRIC_CLOUD_MAX_LAYERS },
-            () => new Vector2(),
-          ),
-        },
-        uLayerNoiseShift: {
-          value: Array.from(
-            { length: VOLUMETRIC_CLOUD_MAX_LAYERS },
-            () => new Vector4(),
-          ),
-        },
-      },
-    });
-    material.toneMapped = false;
-    material.userData[ORDER_INDEPENDENT_KEY] = false;
-
-    return [geometry, material];
   }
 
   /** Change the style or the layers in place; the noise is kept. */
@@ -290,7 +234,12 @@ export class VolumetricClouds extends Mesh<BufferGeometry, ShaderMaterial> {
    */
   update(driftClock: number) {
     const { speed, noiseSize } = this.options;
-    const uniforms = this.material.uniforms;
+    const grid = this.uniforms.layerGridShift.array as unknown as {
+      set(x: number, y: number, z: number, w: number): void;
+    }[];
+    const noise = this.uniforms.layerNoiseShift.array as unknown as {
+      set(x: number, y: number, z: number, w: number): void;
+    }[];
     for (let i = 0; i < this.resolvedLayers.length; i++) {
       const layer = this.resolvedLayers[i];
       const shift = driftShift(
@@ -299,8 +248,8 @@ export class VolumetricClouds extends Mesh<BufferGeometry, ShaderMaterial> {
         noiseSize[2],
         layer.coverageScale,
       );
-      uniforms.uLayerGridShift.value[i].set(0, shift.grid);
-      uniforms.uLayerNoiseShift.value[i].set(0, shift.noise, 0, shift.coverage);
+      grid[i].set(0, shift.grid, 0, 0);
+      noise[i].set(0, shift.noise, 0, shift.coverage);
     }
   }
 
@@ -308,69 +257,30 @@ export class VolumetricClouds extends Mesh<BufferGeometry, ShaderMaterial> {
    * Draws the half of the deck behind the scene's blended layers, under
    * their composite: `layers` is the accumulation's weight target, read for
    * where they stand. Called with the scene's target bound, just before the
-   * composite; the deck's own draw later this render is the front half.
+   * composite; the deck's own draw later this frame is the front half.
    */
-  drawBehindBlended(
-    renderer: WebGLRenderer,
-    scene: Scene,
-    camera: Camera,
-    layers: Texture,
-  ) {
+  drawBehindBlended(renderer: Renderer, camera: Camera, layers: Texture) {
     if (!this.visible) return;
-    // Every argument three passes: a game may wrap this hook and read them.
-    (this.onBeforeRender as Object3D["onBeforeRender"])(
-      renderer,
-      scene,
-      camera,
-      this.geometry,
-      this.material,
-      null as unknown as Group,
-    );
-    const uniforms = this.material.uniforms;
-    uniforms.uBlendedLayers.value = layers;
-    this.setSplit(1);
-    renderer.renderBufferDirect(
-      camera,
-      scene,
-      this.geometry,
-      this.material,
-      this,
-      null,
-    );
-    this.setSplit(2);
-    this.splitFrame = renderer.info.render.frame;
+    this.uniforms.blendedLayers.value = layers;
+    this.captureDepth(renderer);
+    const autoClear = renderer.autoClear;
+    renderer.autoClear = false;
+    renderer.render(this.behind.scene, camera);
+    renderer.autoClear = autoClear;
+    this.uniforms.blendedSplit.value = 2;
+    this.splitFrame = renderer.info.frame;
   }
 
-  private setSplit(split: number) {
-    const uniforms = this.material.uniforms;
-    if (uniforms.uBlendedSplit.value === split) return;
-    uniforms.uBlendedSplit.value = split;
-    // The same material draws twice in a render: make three upload again.
-    this.material.uniformsNeedUpdate = true;
-  }
-
-  onBeforeRender = (
-    renderer: WebGLRenderer,
-    _scene: unknown,
-    camera: Camera,
-  ) => {
-    const uniforms = this.material.uniforms;
-    uniforms.uInverseProjection.value.copy(camera.projectionMatrixInverse);
-    uniforms.uCameraWorld.value.copy(camera.matrixWorld);
-
-    const target = renderer.getRenderTarget() as WebGLRenderTarget | null;
-    if (target) {
-      this.resolution.set(target.width, target.height);
-    } else {
-      renderer.getDrawingBufferSize(this.resolution);
-    }
-    uniforms.uResolution.value.copy(this.resolution);
-
-    // No back half this render (no blended layers accumulated): one march.
-    if (this.splitFrame !== renderer.info.render.frame) this.setSplit(0);
-
-    this.depthCopy.capture(renderer, target);
+  onBeforeRender = (renderer: unknown) => {
+    const gpu = callbackRenderer(renderer);
+    // No back half this frame (no blended layers accumulated): one march.
+    if (this.splitFrame !== gpu.info.frame) this.uniforms.blendedSplit.value = 0;
+    this.captureDepth(gpu);
   };
+
+  private captureDepth(renderer: Renderer) {
+    this.depthCopy.capture(renderer, renderer.getRenderTarget());
+  }
 
   dispose() {
     this.isDisposed = true;
@@ -379,35 +289,34 @@ export class VolumetricClouds extends Mesh<BufferGeometry, ShaderMaterial> {
     this.texture?.dispose();
     this.geometry.dispose();
     this.material.dispose();
+    this.behind.mesh.material.dispose();
   }
 
   private applyOptions() {
     const { style, layers, maxDistance, fadeStartRatio } = this.options;
-    const uniforms = this.material.uniforms;
+    const u = this.uniforms;
 
-    uniforms.uStyle.value = style === "soft" ? 1 : 0;
-    uniforms.uMaxDistance.value = maxDistance;
-    uniforms.uFadeStart.value = maxDistance * fadeStartRatio;
+    u.style.value = style === "soft" ? 1 : 0;
+    u.maxDistance.value = maxDistance;
+    u.fadeStart.value = maxDistance * fadeStartRatio;
 
     const count = Math.min(layers.length, VOLUMETRIC_CLOUD_MAX_LAYERS);
-    uniforms.uLayerCount.value = count;
+    u.layerCount.value = count;
+    const span = u.layerSpan.array as unknown as Vector4Like[];
+    const cell = u.layerCell.array as unknown as Vector4Like[];
+    const shape = u.layerShape.array as unknown as Vector4Like[];
     this.resolvedLayers.length = 0;
     for (let i = 0; i < count; i++) {
       const layer = { ...defaultLayer, ...layers[i] };
       this.resolvedLayers.push(layer);
-      uniforms.uLayerSpan.value[i].set(
-        layer.bottom,
-        layer.top,
-        layer.coverage,
-        layer.extinction,
-      );
-      uniforms.uLayerCell.value[i].set(
+      span[i].set(layer.bottom, layer.top, layer.coverage, layer.extinction);
+      cell[i].set(
         layer.cell[0],
         layer.cell[1],
         layer.cell[2],
         layer.coverageScale,
       );
-      uniforms.uLayerShape.value[i].set(
+      shape[i].set(
         layer.bottomRound,
         layer.topRound,
         layer.shadeFloor,
@@ -416,6 +325,7 @@ export class VolumetricClouds extends Mesh<BufferGeometry, ShaderMaterial> {
     }
 
     this.visible = this.isInitialized && count > 0 && !this.isHidden;
+    this.behind.mesh.visible = this.visible;
   }
 
   private regenerate() {
@@ -448,11 +358,13 @@ export class VolumetricClouds extends Mesh<BufferGeometry, ShaderMaterial> {
 
         this.texture?.dispose();
         this.texture = texture;
-        this.material.uniforms.uCloudNoise.value = texture;
-        this.material.uniforms.uNoiseSize.value.set(...noiseSize);
+        this.uniforms.noise.value = texture;
+        this.uniforms.noiseSize.value.set(...noiseSize);
         this.isInitialized = true;
         this.applyOptions();
       },
     });
   }
 }
+
+type Vector4Like = { set(x: number, y: number, z: number, w: number): void };

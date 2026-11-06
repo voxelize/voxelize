@@ -34,7 +34,7 @@ vi.mock("../../libs/workers/interval-worker?worker&inline", () => ({
   default: SilentWorker,
 }));
 
-import { SHARED_OPAQUE_MATERIAL_KEY } from "./chunk-materials";
+import { isChunkMaterial, SHARED_OPAQUE_MATERIAL_KEY } from "./chunk-materials";
 import { positionUnitsPerBlock } from "./vertex-quantization";
 
 import { World } from "./index";
@@ -85,10 +85,11 @@ const init = (
   json: { blocks, items: [], options, stats: { time: 0 }, registryDigest },
 });
 
+/** The fixed-point position units each chunk material decodes with. */
 const definesOf = (world: World) =>
   [...world.chunkRenderer.materials.values()]
-    .map((material) => material.defines?.POSITION_UNITS_PER_BLOCK)
-    .filter((value) => value !== undefined);
+    .filter(isChunkMaterial)
+    .map((material) => material.positionUnits.toFixed(1));
 
 beforeEach(() => {
   SilentWorker.posted = [];

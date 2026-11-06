@@ -1,12 +1,14 @@
 import {
+  type CoordinateSystem,
   DepthTexture,
   Matrix4,
   NearestFilter,
   PerspectiveCamera,
   UnsignedIntType,
   Vector3,
-  WebGLRenderTarget,
-} from "three";
+  RenderTarget,
+  WebGLCoordinateSystem,
+} from "three/webgpu";
 
 /**
  * Cube-face bases for local point-light shadows, index-matched between this
@@ -71,17 +73,30 @@ const scratchBack = new Vector3();
 const scratchMatrix = new Matrix4();
 
 /**
- * Compute the perspective projection for a shadow face camera. Standard GL
- * frustum, aspect 1; `tanHalf` is the half-FOV tangent (guard included).
+ * Compute the perspective projection for a shadow face camera: aspect 1,
+ * `tanHalf` the half-FOV tangent (guard included), in the clip convention
+ * the renderer draws it with (`renderer.coordinateSystem`). A WebGL-style
+ * projection drawn by WebGPU stores clip depth -1..1 as if it ran 0..1:
+ * every occluder read back nearer than it stood, and walls round a torch
+ * shaded themselves.
  */
 export function makeShadowFaceProjection(
   out: Matrix4,
   tanHalf: number,
   near: number,
   far: number,
+  coordinateSystem: CoordinateSystem = WebGLCoordinateSystem,
 ): Matrix4 {
   const top = near * tanHalf;
-  return out.makePerspective(-top, top, top, -top, near, far);
+  return out.makePerspective(
+    -top,
+    top,
+    top,
+    -top,
+    near,
+    far,
+    coordinateSystem,
+  );
 }
 
 /**
@@ -200,7 +215,13 @@ function applyShadowCameraBasis(
   camera.matrixWorldInverse.copy(camera.matrixWorld).invert();
   camera.matrix.copy(camera.matrixWorld);
   camera.position.set(x, y, z);
-  makeShadowFaceProjection(scratchMatrix, tanHalf, near, far);
+  makeShadowFaceProjection(
+    scratchMatrix,
+    tanHalf,
+    near,
+    far,
+    camera.coordinateSystem,
+  );
   camera.projectionMatrix.copy(scratchMatrix);
   camera.projectionMatrixInverse.copy(scratchMatrix).invert();
   camera.near = near;
@@ -260,14 +281,25 @@ export function projectPointLightFragment(
   return { face, u: ndcU * 0.5 + 0.5, v: ndcV * 0.5 + 0.5, w };
 }
 
-/** Linear view depth stored at a face texel, back from hardware depth 0..1. */
+/**
+ * Linear view depth stored at a face texel, back from hardware depth 0..1:
+ * the same for either clip convention once the projection was built for
+ * the renderer (`perspectiveDepthToViewZ`, the shader's).
+ */
 export function linearizeShadowDepth(
   depth01: number,
   near: number,
   far: number,
 ): number {
-  const zNdc = depth01 * 2 - 1;
-  return (2 * far * near) / (far + near - zNdc * (far - near));
+  return (near * far) / (far - depth01 * (far - near));
+}
+
+function makeAtlasTarget(size: number): RenderTarget {
+  const depthTexture = new DepthTexture(size, size);
+  depthTexture.type = UnsignedIntType;
+  depthTexture.minFilter = NearestFilter;
+  depthTexture.magFilter = NearestFilter;
+  return new RenderTarget(size, size, { depthTexture, generateMipmaps: false });
 }
 
 /**
@@ -278,7 +310,7 @@ export function linearizeShadowDepth(
  * never grant a shadow never pay its memory.
  */
 export class LocalShadowAtlas {
-  private renderTarget: WebGLRenderTarget | null = null;
+  private renderTarget: RenderTarget | null = null;
   private atlasSize: number;
   private slotSize: number;
 
@@ -322,22 +354,22 @@ export class LocalShadowAtlas {
     return this.atlasSize * this.atlasSize * (4 + 4);
   }
 
-  ensureAllocated(): WebGLRenderTarget {
+  /**
+   * A 1×1 target in the atlas's formats, for building the pipelines its
+   * passes draw with before the atlas itself exists (a pipeline is keyed by
+   * formats, never by size). The caller disposes it.
+   */
+  makeFormatTwin(): RenderTarget {
+    return makeAtlasTarget(1);
+  }
+
+  ensureAllocated(): RenderTarget {
     if (!this.renderTarget) {
-      const depthTexture = new DepthTexture(this.atlasSize, this.atlasSize);
-      depthTexture.type = UnsignedIntType;
-      depthTexture.minFilter = NearestFilter;
-      depthTexture.magFilter = NearestFilter;
-      this.renderTarget = new WebGLRenderTarget(
-        this.atlasSize,
-        this.atlasSize,
-        {
-          depthTexture,
-          generateMipmaps: false,
-        },
-      );
-      // The scissored face passes each clear their own cell; a full-target
-      // clear between them would wipe every cached map in the atlas.
+      this.renderTarget = makeAtlasTarget(this.atlasSize);
+      // Each face pass draws, and clears, only its own cell (the scissor
+      // confines the draws; the clear is a quad, `ScissoredDepthClear`,
+      // since a WebGPU clear covers the whole target): a full-target clear
+      // between them would wipe every cached map in the atlas.
       this.renderTarget.scissorTest = true;
     }
     return this.renderTarget;

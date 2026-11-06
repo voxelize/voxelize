@@ -1,35 +1,58 @@
 import {
+  cameraFar,
+  cameraNear,
+  clamp,
+  Discard,
+  float,
+  Fn,
+  If,
+  ivec2,
+  max,
+  mrt,
+  output,
+  positionView,
+  pow,
+  renderGroup,
+  screenCoordinate,
+  screenUV,
+  vec4,
+} from "three/tsl";
+import {
   AddEquation,
   AdditiveBlending,
-  BufferAttribute,
-  BufferGeometry,
+  BlendMode,
+  BoxGeometry,
   type Camera,
   Color,
   CustomBlending,
-  GLSL3,
   HalfFloatType,
   type Material,
   Mesh,
+  MeshBasicNodeMaterial,
   NearestFilter,
+  NodeMaterial,
   NormalBlending,
   type Object3D,
   OneFactor,
   OneMinusSrcAlphaFactor,
   type PerspectiveCamera,
+  QuadMesh,
+  type Renderer,
+  RenderTarget,
   RGBAFormat,
   RGFormat,
-  type Scene,
-  ShaderMaterial,
+  Scene,
   SrcAlphaFactor,
   type Texture,
   Vector2,
   Vector4,
-  type WebGLRenderer,
-  WebGLRenderTarget,
-  ZeroFactor,
-} from "three";
+} from "three/webgpu";
 
+import { type PassClears, renderClearing } from "./clearing-render";
 import { exemptFromLightCones } from "./light-cones";
+import { perspectiveDepthToViewZ } from "./shading/conventions";
+import type { Vec4Node } from "./shading/types";
+import { passUniform, textureSlot } from "./shading/uniforms";
 
 /**
  * The depth weight of a blended fragment, by its distance from the camera
@@ -134,15 +157,17 @@ export const OIT_PHASE_FRONT = 2;
 /**
  * Whether a material can accumulate, and how: it blends (normal blending,
  * or custom blending equal to it, straight or premultiplied), writes colour
- * and no depth, and is written in a shader dialect the encoder can wrap.
+ * and no depth, and is a node material whose output the accumulation's
+ * encoder reads (three hands a `fragmentNode` material no render-target
+ * outputs, so one cannot accumulate).
  */
 export function blendedKindOf(material: Material): BlendedKind | null {
   if (!material.transparent || material.depthWrite || !material.colorWrite) {
     return null;
   }
   if (material.userData?.[ORDER_INDEPENDENT_KEY] === false) return null;
-  const shader = material as ShaderMaterial & { isRawShaderMaterial?: boolean };
-  if (shader.isRawShaderMaterial || shader.glslVersion === GLSL3) return null;
+  const node = material as NodeMaterial;
+  if (!node.isNodeMaterial || node.fragmentNode) return null;
   if (material.blending === NormalBlending) {
     return material.premultipliedAlpha ? "premultiplied" : "straight";
   }
@@ -158,90 +183,6 @@ export function blendedKindOf(material: Material): BlendedKind | null {
   return null;
 }
 
-const SHADE_FUNCTION = "orderIndependentShade";
-const KEY_MARK = "|order-independent-";
-
-/**
- * The accumulation encoder around a material's fragment stage. The source's
- * `main` is renamed by the preprocessor, not by editing its text, so a hook
- * that later finds `void main() {` still edits the material's own body.
- * The new `main` first drops what the pass does not keep (the far or near
- * side of the separating surface's nearest face), before any of the
- * material's own work. It then runs the body and (while the accumulation is
- * open) turns its colour into the weighted sums: premultiplied colour times
- * the weight into the first target (its alpha keeps the product of
- * transmittances through the blend state), alpha times the weight into the
- * second's red, and that times the fragment's view depth into its green, so
- * a pass after the band can tell where the layers it composited stand.
- */
-export function orderIndependentFragment(source: string, kind: BlendedKind) {
-  const premultiplied =
-    kind === "premultiplied"
-      ? "gl_FragColor.rgb"
-      : "gl_FragColor.rgb * oitAlpha";
-  const keep = `float oitSeparator = texture2D(uOitSeparatorDepth, gl_FragCoord.xy / uOitViewport).r;
-    bool oitIsBehind = oitDistanceAt(gl_FragCoord.z)
-      > oitDistanceAt(oitSeparator) + uOitSeparatorBias;
-    if (oitIsBehind != (uOitPhase < ${(OIT_PHASE_BEHIND + 0.5).toFixed(1)})) discard;`;
-  return `#define main ${SHADE_FUNCTION}
-${source}
-#undef main
-uniform float uOitActive;
-uniform float uOitPhase;
-uniform vec2 uOitClip;
-uniform vec2 uOitViewport;
-uniform vec4 uOitWeight;
-uniform vec2 uOitWeightRange;
-uniform sampler2D uOitSeparatorDepth;
-uniform float uOitSeparatorBias;
-layout(location = 1) out highp vec4 pc_fragOitWeight;
-float oitDistanceAt(float depth) {
-  return uOitClip.x * uOitClip.y
-    / (uOitClip.y - depth * (uOitClip.y - uOitClip.x));
-}
-void main() {
-  if (uOitActive > 0.5 && uOitPhase > ${(OIT_PHASE_ALL + 0.5).toFixed(1)}) {
-    ${keep}
-  }
-  ${SHADE_FUNCTION}();
-  pc_fragOitWeight = vec4(0.0);
-  if (uOitActive < 0.5) return;
-  float oitAlpha = clamp(gl_FragColor.a, 0.0, 1.0);
-  if (oitAlpha <= 0.0) discard;
-  float oitDistance = oitDistanceAt(gl_FragCoord.z);
-  float oitDepthWeight = clamp(
-    uOitWeight.x / (1.0
-      + oitDistance / uOitWeight.y
-      + pow(oitDistance / uOitWeight.z, 6.0)),
-    uOitWeightRange.x,
-    uOitWeightRange.y
-  );
-  float oitWeight = oitAlpha * oitDepthWeight;
-  gl_FragColor = vec4(${premultiplied} * oitWeight, oitAlpha);
-  pc_fragOitWeight = vec4(oitAlpha * oitWeight, oitAlpha * oitWeight * oitDistance, 0.0, 0.0);
-}
-`;
-}
-
-const COMPOSITE_VERTEX = `
-void main() {
-  gl_Position = vec4(position.xy, 0.0, 1.0);
-}
-`;
-
-const COMPOSITE_FRAGMENT = `
-uniform sampler2D tAccumulation;
-uniform sampler2D tWeight;
-void main() {
-  ivec2 pixel = ivec2(gl_FragCoord.xy);
-  vec4 accumulation = texelFetch(tAccumulation, pixel, 0);
-  float coverage = 1.0 - accumulation.a;
-  if (coverage <= 0.0) discard;
-  float weight = texelFetch(tWeight, pixel, 0).r;
-  gl_FragColor = vec4(accumulation.rgb / max(weight, 1e-5) * coverage, coverage);
-}
-`;
-
 /** Why a render of the scene drew its blended layers in list order. */
 export type OrderIndependentSkipReason =
   | "canvas"
@@ -255,102 +196,122 @@ export type OrderIndependentStats = {
   opened: number;
   /** Renders with the armed camera that could not, by reason. */
   skipped: Partial<Record<OrderIndependentSkipReason, number>>;
-  /** Materials wrapped with the encoder. */
+  /** Materials found able to accumulate. */
   adopted: number;
-  /**
-   * Materials wrapped after they had compiled: each one compiled again on
-   * a frame mid-play, the hitch a warmup is for.
-   */
-  lateAdopted: string[];
   /** Blended materials that cannot accumulate and draw over the composite. */
   drawnAfter: string[];
 };
-
-type Adoption = { kind: BlendedKind; version: number };
 
 const SKIP_MESSAGES: Record<OrderIndependentSkipReason, string> = {
   canvas:
     "the scene rendered straight to the canvas; render it into a target with a depth texture",
   "no-depth-texture":
-    "the scene's target has no depth texture to share with the accumulation (EffectComposer: a pass that needs depth, or createDepthTexture())",
+    "the scene's target has no depth texture to share with the accumulation",
   multisampled:
-    "the scene's target is multisampled; its depth and colour are not resolved mid-render",
+    "the scene's target is multisampled; its depth and colour are not resolved mid-frame",
   "not-perspective":
     "the camera is not a perspective camera; the depth weights need its clip planes",
   "special-depth":
     "the renderer uses a logarithmic or reversed depth buffer, which the depth weights cannot read",
 };
 
-const BLACK = new Color(0, 0, 0);
-const CLEAR_ACCUMULATION = [0, 0, 0, 1];
-const CLEAR_WEIGHT = [0, 0, 0, 0];
-
-/** What a render item of three's transparent list carries to a draw. */
-type ListItem = {
+/** One draw of three's lists, kept from the scene pass to be drawn later. */
+type RecordedDraw = {
   object: Object3D;
-  geometry: BufferGeometry;
+  scene: Scene;
+  geometry: Parameters<Renderer["renderObject"]>[3];
   material: Material;
-  group: Parameters<Object3D["onBeforeRender"]>[5];
+  group: Parameters<Renderer["renderObject"]>[5];
+  lightsNode: Parameters<Renderer["renderObject"]>[6];
+  clippingContext: Parameters<Renderer["renderObject"]>[7];
+  passId: Parameters<Renderer["renderObject"]>[8];
 };
 
+type RenderObjectFunction = NonNullable<
+  ReturnType<Renderer["getRenderObjectFunction"]>
+>;
+
 /**
- * Weighted blended order-independent transparency for one scene.
+ * Weighted blended order-independent transparency for one scene, as a
+ * frame of passes ({@link render}):
  *
- * Marker objects bracket the blended band of the scene's transparent list.
- * The opening one (after the sky and the depth writers) hands the scene's
- * colour to whoever samples it mid-render (the water's refraction),
- * switches the render to an accumulation target that shares the scene's
- * depth texture, and forces the accumulation blend state on every adopted
- * material; the closing one switches back and draws the composite. With a
- * separating surface in view, the band first keeps only what lies behind
- * that surface, the split marker composites it and draws the band again
- * for the rest. Adopted materials draw their ordinary colour in any other
- * render, so a material shared with an inventory scene or drawn into a
- * shadow map is untouched.
+ * 1. The scene, without its blended band: three's lists draw as always,
+ *    but each blended draw (and each draw that must come after them) is
+ *    kept instead of drawn.
+ * 2. The kept blended draws, into an accumulation target that shares the
+ *    scene's depth (tested, not written), each material's own colour
+ *    turned into the weighted sums by a render-target output (`mrt`) the
+ *    renderer lays over every material. With a separating surface in view
+ *    the band draws twice: first what lies behind the surface, composited,
+ *    then the surface and what lies in front of it.
+ * 3. The composite over the scene.
+ * 4. The draws that come after the blended layers (additive light,
+ *    overlays, labels).
+ *
+ * The kept draws replay through one marker object's draw, so no pass
+ * walks the scene again. Adopted materials draw their ordinary colour in
+ * every other render (a shadow cascade, an inventory scene): only the
+ * accumulation passes carry the encoder.
  */
 export class OrderIndependentTransparency {
-  readonly open: Mesh;
-  readonly split: Mesh;
-  readonly close: Mesh;
   readonly uniforms = {
-    uOitActive: { value: 0 },
-    uOitPhase: { value: OIT_PHASE_ALL },
-    uOitClip: { value: new Vector2(0.1, 1000) },
-    uOitViewport: { value: new Vector2(1, 1) },
-    uOitWeight: { value: new Vector4() },
-    uOitWeightRange: { value: new Vector2() },
-    uOitSeparatorDepth: { value: null as Texture | null },
-    uOitSeparatorBias: { value: 0 },
+    /**
+     * OIT_PHASE_*: which side of the separating surface a pass keeps. It
+     * changes between the passes of one render, so it lives in the
+     * render's shared group and moves it on (`setPhase`): one small write
+     * a pass. In an object's own group every blended draw rewrote its
+     * buffer twice a frame, ~350 writes over a lake.
+     */
+    phase: passUniform(OIT_PHASE_ALL),
+    /** (scale, near distance, far distance, unused) of the depth weight. */
+    weight: passUniform(new Vector4()),
+    /** The depth weight's clamp. */
+    weightRange: passUniform(new Vector2()),
+    separatorDepth: textureSlot("depth"),
+    separatorBias: passUniform(0),
   };
   readonly stats: OrderIndependentStats = {
     opened: 0,
     skipped: {},
     adopted: 0,
-    lateAdopted: [],
     drawnAfter: [],
   };
 
-  private readonly adopted = new WeakMap<Material, Adoption>();
-  private readonly declined = new WeakSet<Material>();
-  private readonly composite: ShaderMaterial;
-  private readonly compositeGeometry: BufferGeometry;
-  private accumulation: WebGLRenderTarget | null = null;
-  private accumulationDepthHandle: unknown = null;
-  private sceneTarget: WebGLRenderTarget | null = null;
-  private camera: Camera | null = null;
-  private renderer: WebGLRenderer | null = null;
-  private restoreSetMaterial: (() => void) | null = null;
+  private readonly kinds = new WeakMap<Material, BlendedKind | null>();
+  private readonly composite: QuadMesh;
+  private readonly compositeMaterial: NodeMaterial;
+  private readonly compositeInputs = {
+    accumulation: textureSlot("float"),
+    weight: textureSlot("float"),
+  };
+  private readonly encoder: ReturnType<typeof mrt>;
+  private accumulation: RenderTarget | null = null;
   private readonly reportedSkips = new Set<OrderIndependentSkipReason>();
   private isAccumulating = false;
-  /** Whether an object is in the scene, asked once per armed frame. */
+  /** Whether an object is in the scene, asked once per frame. */
   private readonly membership = new WeakMap<
     Object3D,
     { frame: number; isMember: boolean }
   >();
-  private armedFrame = 0;
+  private frame = 0;
+
+  /** The scene pass's kept draws, reused frame to frame. */
+  private readonly blended: RecordedDraw[] = [];
+  private readonly after: RecordedDraw[] = [];
+  private blendedCount = 0;
+  private afterCount = 0;
+  /** The last draw kept of each object this frame, to drop a double pass's second. */
+  private readonly lastKept = new WeakMap<
+    Object3D,
+    { frame: number; material: Material; group: unknown }
+  >();
+
+  /** The object whose draw replays a list of kept draws. */
+  private readonly marker: Mesh;
+  private readonly markerScene = new Scene();
 
   constructor(
-    /** The scene whose renders accumulate; it holds {@link open} and {@link close}. */
+    /** The scene whose renders accumulate. */
     private readonly scene: Object3D,
     options: OrderIndependentTransparencyOptions,
     private readonly hooks: {
@@ -359,7 +320,7 @@ export class OrderIndependentTransparency {
        * once as the accumulation opens, and again after a split, when it
        * also holds what lies behind the separating surface.
        */
-      onOpen?: (renderer: WebGLRenderer, target: WebGLRenderTarget) => void;
+      onOpen?: (renderer: Renderer, target: RenderTarget) => void;
       /**
        * Right before the closing composite, with the scene's target bound:
        * whatever lies behind the blended layers and could not draw before
@@ -368,8 +329,7 @@ export class OrderIndependentTransparency {
        * weighted alpha (r) and that times their view depth (g).
        */
       beforeComposite?: (
-        renderer: WebGLRenderer,
-        scene: Scene,
+        renderer: Renderer,
         camera: Camera,
         layers: Texture,
       ) => void;
@@ -377,137 +337,78 @@ export class OrderIndependentTransparency {
     } = {},
   ) {
     this.setWeights(options.weights);
-    this.uniforms.uOitSeparatorBias.value = hooks.separator?.bias ?? 0;
+    this.uniforms.separatorBias.value = hooks.separator?.bias ?? 0;
+    this.encoder = this.createEncoder();
 
-    const marker = new BufferGeometry();
-    marker.setAttribute(
-      "position",
-      new BufferAttribute(new Float32Array(9), 3),
-    );
-    marker.setDrawRange(0, 0);
-    const markerMaterial = new ShaderMaterial({
-      vertexShader: "void main() { gl_Position = vec4(0.0); }",
-      fragmentShader: "void main() {}",
-      transparent: true,
-      depthTest: false,
-      depthWrite: false,
-      colorWrite: false,
-    });
-    this.open = new Mesh(marker, markerMaterial);
-    this.open.name = "OrderIndependent.open";
-    this.open.frustumCulled = false;
-    this.open.renderOrder = OIT_OPEN_RENDER_ORDER;
-    this.open.onBeforeRender = (renderer, scene, camera) =>
-      this.begin(renderer, scene, camera);
-    this.split = new Mesh(marker, markerMaterial);
-    this.split.name = "OrderIndependent.split";
-    this.split.frustumCulled = false;
-    this.split.renderOrder = OIT_SPLIT_RENDER_ORDER;
-    this.split.onBeforeRender = (renderer, scene, camera) =>
-      this.splitAtSeparator(renderer, scene as Scene, camera);
+    // Never drawn: its draw is where a replay pass draws its list.
+    this.marker = new Mesh(new BoxGeometry(), new MeshBasicNodeMaterial());
+    this.marker.frustumCulled = false;
+    this.marker.name = "OrderIndependent.replay";
+    exemptFromLightCones(this.marker, "a replay marker, never drawn");
+    this.markerScene.add(this.marker);
+    this.markerScene.matrixWorldAutoUpdate = false;
 
-    this.compositeGeometry = new BufferGeometry();
-    this.compositeGeometry.setAttribute(
-      "position",
-      new BufferAttribute(new Float32Array([-1, -1, 0, 3, -1, 0, -1, 3, 0]), 3),
-    );
-    this.compositeGeometry.setDrawRange(0, 0);
-    this.composite = new ShaderMaterial({
-      vertexShader: COMPOSITE_VERTEX,
-      fragmentShader: COMPOSITE_FRAGMENT,
-      uniforms: {
-        tAccumulation: { value: null as Texture | null },
-        tWeight: { value: null as Texture | null },
-      },
-      transparent: true,
-      depthTest: false,
-      depthWrite: false,
-      blending: CustomBlending,
-      blendSrc: OneFactor,
-      blendDst: OneMinusSrcAlphaFactor,
-      blendSrcAlpha: ZeroFactor,
-      blendDstAlpha: OneFactor,
-    });
-    this.close = new Mesh(this.compositeGeometry, this.composite);
-    this.close.name = "OrderIndependent.close";
-    this.close.frustumCulled = false;
-    this.close.renderOrder = OIT_CLOSE_RENDER_ORDER;
-    for (const pass of [this.open, this.split, this.close]) {
-      exemptFromLightCones(pass, "a full-screen compositing pass, no surface");
-    }
-    this.close.onBeforeRender = (renderer, scene, camera) =>
-      this.end(renderer, scene as Scene, camera);
-    this.close.onAfterRender = () => this.compositeGeometry.setDrawRange(0, 0);
-    this.declined.add(this.open.material as Material);
-    this.declined.add(this.composite);
+    const { accumulation, weight } = this.compositeInputs;
+    this.compositeMaterial = new NodeMaterial();
+    this.compositeMaterial.name = "OrderIndependent.composite";
+    this.compositeMaterial.fragmentNode = Fn(() => {
+      const pixel = ivec2(screenCoordinate.xy);
+      const sums = accumulation.load(pixel) as unknown as Vec4Node;
+      const coverage = clamp(sums.a, 0, 1).toVar("oitCoverage");
+      Discard(coverage.lessThanEqual(0));
+      const total = (weight.load(pixel) as unknown as Vec4Node).r;
+      return vec4(sums.rgb.div(max(total, 1e-5)).mul(coverage), coverage);
+    })();
+    this.compositeMaterial.transparent = true;
+    this.compositeMaterial.depthTest = false;
+    this.compositeMaterial.depthWrite = false;
+    this.compositeMaterial.blending = CustomBlending;
+    this.compositeMaterial.blendSrc = OneFactor;
+    this.compositeMaterial.blendDst = OneMinusSrcAlphaFactor;
+    this.compositeMaterial.blendSrcAlpha = OneFactor;
+    this.compositeMaterial.blendDstAlpha = OneMinusSrcAlphaFactor;
+    this.composite = new QuadMesh(this.compositeMaterial);
   }
 
-  /** Whether this render's blended layers are accumulating right now. */
+  /** Whether this frame's blended layers are accumulating right now. */
   get isOpen() {
     return this.isAccumulating;
   }
 
   setWeights(weights: OrderIndependentWeights) {
-    this.uniforms.uOitWeight.value.set(
+    this.uniforms.weight.value.set(
       weights.scale,
       weights.nearDistance,
       weights.farDistance,
       0,
     );
-    this.uniforms.uOitWeightRange.value.set(weights.min, weights.max);
+    this.uniforms.weightRange.value.set(weights.min, weights.max);
   }
 
   /**
-   * The camera whose renders of the scene accumulate. Renders with any other
-   * camera (shadow cascades, a portrait) draw their blended layers in list
-   * order. Call it before each frame's render.
-   */
-  arm(renderer: WebGLRenderer, camera: Camera) {
-    if (this.isAccumulating) this.abandon();
-    this.renderer = renderer;
-    this.camera = camera;
-    this.armedFrame += 1;
-  }
-
-  /**
-   * Wraps `material` with the encoder if it can accumulate; returns whether
-   * it draws in the blended band. Call it before the material first
-   * compiles (a warmup), or it compiles twice.
+   * Whether `material` draws in the blended band. The answer is kept per
+   * material; nothing about the material changes.
    */
   adopt(material: Material): boolean {
-    const adoption = this.adopted.get(material);
-    if (adoption) {
-      if (adoption.version !== material.version)
-        this.verify(material, adoption);
-      return true;
-    }
-    if (this.declined.has(material)) return false;
-    const kind = blendedKindOf(material);
-    if (!kind) {
-      this.declined.add(material);
-      if (material.transparent && !material.depthWrite) {
+    let kind = this.kinds.get(material);
+    if (kind === undefined) {
+      kind = blendedKindOf(material);
+      this.kinds.set(material, kind);
+      if (kind) {
+        this.stats.adopted += 1;
+      } else if (material.transparent && !material.depthWrite) {
         const isAdditive =
           material.blending === AdditiveBlending ||
           (material.blending === CustomBlending &&
             material.blendDst === OneFactor);
         if (!isAdditive) this.stats.drawnAfter.push(describe(material));
       }
-      return false;
     }
-    this.wrap(material, kind);
-    return true;
+    return kind !== null;
   }
 
-  /**
-   * {@link adopt} for a warmup: a material that already compiled is left to
-   * the sort. Every blended item this scene draws is adopted before its
-   * first draw, so one compiled unadopted was drawn outside the band (the
-   * sky, an overlay) or in another scene; wrapping it would only compile it
-   * again.
-   */
+  /** {@link adopt}, for a warmup. */
   adoptBeforeCompile(material: Material): boolean {
-    if (this.adopted.has(material)) return true;
-    if (this.renderer?.properties.has(material)) return false;
     return this.adopt(material);
   }
 
@@ -517,9 +418,6 @@ export class OrderIndependentTransparency {
    * render order: an item of another scene, the sky, an overlay.
    */
   bandOf(object: Object3D, material: Material | undefined): number | undefined {
-    if (object === this.open) return OIT_OPEN_RENDER_ORDER;
-    if (object === this.split) return OIT_SPLIT_RENDER_ORDER;
-    if (object === this.close) return OIT_CLOSE_RENDER_ORDER;
     if (!material) return undefined;
     const order = object.renderOrder;
     if (order < 0 || order >= OIT_CLOSE_RENDER_ORDER) return undefined;
@@ -530,279 +428,382 @@ export class OrderIndependentTransparency {
       : OIT_AFTER_RENDER_ORDER;
   }
 
+  /**
+   * Draws `scene` from `camera` into `target` (which must hold a depth
+   * texture), its blended layers order-independent. A target that cannot
+   * share its depth draws them in list order, and says why once.
+   */
+  render(
+    renderer: Renderer,
+    scene: Scene,
+    camera: Camera,
+    target: RenderTarget,
+  ) {
+    this.frame += 1;
+    renderer.setRenderTarget(target);
+    const reason = skipReasonOf(renderer, target, camera);
+    if (reason) {
+      this.skip(reason);
+      renderer.render(scene, camera);
+      return;
+    }
+
+    const autoClear = renderer.autoClear;
+    const previous = renderer.getRenderObjectFunction();
+    try {
+      this.blendedCount = 0;
+      this.afterCount = 0;
+      const frame = this.frame;
+      const draw: RenderObjectFunction = (
+        object,
+        drawScene,
+        drawCamera,
+        geometry,
+        material,
+        group,
+        lightsNode,
+        clippingContext,
+        passId,
+      ) => {
+        const band = material.transparent
+          ? this.bandOf(object, material)
+          : undefined;
+        const isAfter =
+          band === OIT_AFTER_RENDER_ORDER ||
+          (band === undefined &&
+            material.transparent &&
+            object.renderOrder >= OIT_CLOSE_RENDER_ORDER);
+        if (band !== OIT_BLENDED_RENDER_ORDER && !isAfter) {
+          renderer.renderObject(
+            object,
+            drawScene,
+            drawCamera,
+            geometry,
+            material,
+            group,
+            lightsNode,
+            clippingContext,
+            passId,
+          );
+          return;
+        }
+        // A double-sided item draws in two passes of the list (back faces,
+        // then front); its replay draws both sides at once.
+        const last = this.lastKept.get(object);
+        if (
+          last?.frame === frame &&
+          last.material === material &&
+          last.group === group
+        ) {
+          return;
+        }
+        if (last) {
+          last.frame = frame;
+          last.material = material;
+          last.group = group;
+        } else {
+          this.lastKept.set(object, { frame, material, group });
+        }
+        const list = isAfter ? this.after : this.blended;
+        const index = isAfter ? this.afterCount++ : this.blendedCount++;
+        const kept = list[index];
+        if (kept) {
+          kept.object = object;
+          kept.scene = drawScene as Scene;
+          kept.geometry = geometry;
+          kept.material = material;
+          kept.group = group;
+          kept.lightsNode = lightsNode;
+          kept.clippingContext = clippingContext;
+          kept.passId = passId;
+        } else {
+          list.push({
+            object,
+            scene: drawScene as Scene,
+            geometry,
+            material,
+            group,
+            lightsNode,
+            clippingContext,
+            passId,
+          });
+        }
+      };
+      renderer.setRenderObjectFunction(draw);
+      renderer.render(scene, camera);
+      // The scene is recorded; what follows (the hooks, the accumulation,
+      // the composite) draws as itself.
+      renderer.setRenderObjectFunction(previous);
+      renderer.autoClear = false;
+
+      this.hooks.onOpen?.(renderer, target);
+      if (this.blendedCount > 0) {
+        this.stats.opened += 1;
+        const accumulation = this.accumulationFor(target);
+        const separatorDepth = this.hooks.separator?.depth() ?? null;
+        if (separatorDepth) {
+          this.uniforms.separatorDepth.value = separatorDepth;
+          this.accumulate(renderer, camera, accumulation, OIT_PHASE_BEHIND);
+          this.compose(renderer, target, accumulation);
+          this.hooks.onOpen?.(renderer, target);
+          this.accumulate(renderer, camera, accumulation, OIT_PHASE_FRONT);
+        } else {
+          this.accumulate(renderer, camera, accumulation, OIT_PHASE_ALL);
+        }
+        renderer.setRenderTarget(target);
+        this.hooks.beforeComposite?.(
+          renderer,
+          camera,
+          accumulation.textures[1],
+        );
+        this.compose(renderer, target, accumulation);
+      }
+      if (this.afterCount > 0) {
+        renderer.setRenderTarget(target);
+        this.replay(renderer, camera, this.after, this.afterCount);
+      }
+    } finally {
+      this.isAccumulating = false;
+      this.setPhase(OIT_PHASE_ALL);
+      renderer.setMRT(null);
+      renderer.setRenderObjectFunction(previous);
+      renderer.autoClear = autoClear;
+      renderer.setRenderTarget(target);
+      // Kept draws hold scene objects only until the next frame's pass.
+      this.release(this.blended, this.blendedCount);
+      this.release(this.after, this.afterCount);
+    }
+  }
+
+  /**
+   * Where the accumulation draws for a scene drawn into `target`: its
+   * targets and the outputs it lays over every material. For a warmup that
+   * builds the blended pipelines before their first frame.
+   */
+  accumulationPass(target: RenderTarget) {
+    return { target: this.accumulationFor(target), mrt: this.encoder };
+  }
+
   private isInScene(object: Object3D) {
     const known = this.membership.get(object);
-    if (known?.frame === this.armedFrame) return known.isMember;
+    if (known?.frame === this.frame) return known.isMember;
     let root = object;
     while (root.parent) root = root.parent;
     const isMember = root === this.scene;
     if (known) {
-      known.frame = this.armedFrame;
+      known.frame = this.frame;
       known.isMember = isMember;
     } else {
-      this.membership.set(object, { frame: this.armedFrame, isMember });
+      this.membership.set(object, { frame: this.frame, isMember });
     }
     return isMember;
   }
 
   dispose() {
-    if (this.isAccumulating) this.abandon();
     this.releaseAccumulation();
-    this.compositeGeometry.dispose();
-    this.composite.dispose();
-    this.open.geometry.dispose();
-    (this.open.material as Material).dispose();
-  }
-
-  private wrap(material: Material, kind: BlendedKind) {
-    const previousCompile = material.onBeforeCompile;
-    const previousKey = material.customProgramCacheKey;
-    const uniforms = this.uniforms;
-    const compile: Material["onBeforeCompile"] = function (
-      this: Material,
-      shader,
-      renderer,
-    ) {
-      previousCompile.call(this, shader, renderer);
-      Object.assign(shader.uniforms, uniforms);
-      shader.fragmentShader = orderIndependentFragment(
-        shader.fragmentShader,
-        kind,
-      );
-    };
-    compile.toString = () => previousCompile.toString();
-    material.onBeforeCompile = compile;
-    material.customProgramCacheKey = function (this: Material) {
-      return `${previousKey.call(this)}${KEY_MARK}${kind}`;
-    };
-    // Accumulation needs no back-to-front pass: one draw of both sides.
-    material.forceSinglePass = true;
-    if (this.renderer?.properties.has(material)) {
-      this.stats.lateAdopted.push(describe(material));
-      console.warn(
-        `[order-independent] ${describe(material)} compiled before it was adopted; it compiles again now (adopt it before the warmup)`,
-      );
-    }
-    material.needsUpdate = true;
-    this.adopted.set(material, { kind, version: material.version });
-    this.stats.adopted += 1;
+    this.compositeMaterial.dispose();
+    this.composite.geometry.dispose();
+    this.marker.geometry.dispose();
+    (this.marker.material as Material).dispose();
   }
 
   /**
-   * Someone touched the material since: if the encoder is no longer in its
-   * program key, a hook replaced the wrapper rather than wrapping it, and
-   * the material would draw unencoded colour into the accumulation.
+   * The render-target outputs laid over every material in an accumulation
+   * pass: the material's own colour (three's `output`) turned into the
+   * weighted sums. Premultiplied colour times the weight into the first
+   * target, whose alpha accumulates coverage (`1 - Π(1 - a)`) through its
+   * blend state; alpha times the weight into the second's red, and that
+   * times the fragment's view depth into its green, so a pass after the
+   * band can tell where the layers it composited stand. A pass split at
+   * the separating surface first drops the fragments on the side it does
+   * not keep.
    */
-  private verify(material: Material, adoption: Adoption) {
-    if (material.customProgramCacheKey().includes(KEY_MARK)) {
-      adoption.version = material.version;
-      return;
-    }
-    this.adopted.delete(material);
-    this.wrap(material, adoption.kind);
+  private createEncoder() {
+    const u = this.uniforms;
+    const distance = positionView.z.negate();
+    const weightOf = Fn(() => {
+      const alpha = clamp(output.a, 0, 1);
+      const depthWeight = clamp(
+        u.weight.x.div(
+          distance
+            .div(u.weight.y)
+            .add(pow(distance.div(u.weight.z), 6))
+            .add(1),
+        ),
+        u.weightRange.x,
+        u.weightRange.y,
+      );
+      return alpha.mul(depthWeight);
+    });
+    const color = Fn((builder) => {
+      If(u.phase.greaterThan(OIT_PHASE_ALL + 0.5), () => {
+        const separator = u.separatorDepth.sample(screenUV).level(float(0)).r;
+        const isBehind = distance.greaterThan(
+          perspectiveDepthToViewZ(separator, cameraNear, cameraFar).add(
+            u.separatorBias,
+          ),
+        );
+        const keepsBehind = u.phase.lessThan(OIT_PHASE_BEHIND + 0.5);
+        // A fragment on the side this phase does not keep goes. Inverted,
+        // each phase kept the other's: the layers in front of the water
+        // composited first, and a portal before the sea vanished from the
+        // layers the cloud deck splits on, so the clouds painted over it.
+        Discard(isBehind.xor(keepsBehind));
+      });
+      const alpha = clamp(output.a, 0, 1).toVar("oitAlpha");
+      Discard(alpha.lessThanEqual(0));
+      const kind = blendedKindOf(builder.material as Material);
+      const premultiplied =
+        kind === "premultiplied" ? output.rgb : output.rgb.mul(alpha);
+      return vec4(premultiplied.mul(weightOf()), alpha);
+    })();
+    const weight = Fn(() => {
+      const w = clamp(output.a, 0, 1).mul(weightOf());
+      return vec4(w, w.mul(distance), 0, 0);
+    })();
+    const encoder = mrt({ output: color, weight });
+    const sums = new BlendMode(CustomBlending);
+    sums.blendEquation = AddEquation;
+    sums.blendSrc = OneFactor;
+    sums.blendDst = OneFactor;
+    sums.blendEquationAlpha = AddEquation;
+    sums.blendSrcAlpha = OneFactor;
+    sums.blendDstAlpha = OneMinusSrcAlphaFactor;
+    encoder.setBlendMode("output", sums);
+    const added = new BlendMode(CustomBlending);
+    added.blendEquation = AddEquation;
+    added.blendSrc = OneFactor;
+    added.blendDst = OneFactor;
+    added.blendEquationAlpha = AddEquation;
+    added.blendSrcAlpha = OneFactor;
+    added.blendDstAlpha = OneFactor;
+    encoder.setBlendMode("weight", added);
+    return encoder;
   }
 
-  private begin(renderer: WebGLRenderer, scene: Scene, camera: Camera) {
-    this.isAccumulating = false;
-    if (camera !== this.camera || scene.overrideMaterial) return;
-    const target = renderer.getRenderTarget() as WebGLRenderTarget | null;
-    const reason = skipReasonOf(renderer, target, camera);
-    if (reason || !target) {
-      this.skip(reason ?? "canvas");
-      return;
-    }
-
-    this.hooks.onOpen?.(renderer, target);
-    this.accumulationFor(renderer, target);
-    this.sceneTarget = target;
-    const perspective = camera as PerspectiveCamera;
-    this.uniforms.uOitClip.value.set(perspective.near, perspective.far);
-    this.uniforms.uOitViewport.value.set(target.width, target.height);
-    const separatorDepth = this.hooks.separator?.depth() ?? null;
-    this.uniforms.uOitSeparatorDepth.value = separatorDepth;
-    this.openAccumulation(
-      renderer,
-      separatorDepth ? OIT_PHASE_BEHIND : OIT_PHASE_ALL,
-    );
-    this.isAccumulating = true;
-    this.stats.opened += 1;
+  /** Moves the pass phase, uploading the render group once if it changed. */
+  private setPhase(phase: number) {
+    if (this.uniforms.phase.value === phase) return;
+    this.uniforms.phase.value = phase;
+    renderGroup.needsUpdate = true;
   }
 
-  private openAccumulation(renderer: WebGLRenderer, phase: number) {
-    renderer.setRenderTarget(this.accumulation);
-    const gl = renderer.getContext() as WebGL2RenderingContext;
-    renderer.state.buffers.color.setMask(true);
-    gl.clearBufferfv(gl.COLOR, 0, CLEAR_ACCUMULATION);
-    gl.clearBufferfv(gl.COLOR, 1, CLEAR_WEIGHT);
-    this.uniforms.uOitPhase.value = phase;
-    this.uniforms.uOitActive.value = 1;
-    this.forceAccumulationBlending(renderer);
-  }
-
-  /**
-   * After the layers behind the separating surface accumulated: composite
-   * them into the scene, hand the scene over again (the surface reads it as
-   * it draws), and draw the blended band once more for the surface and
-   * what lies in front of it. The band comes from three's list for this
-   * render; drawn here, each item goes through the steps three's own draw
-   * of it takes.
-   */
-  private splitAtSeparator(
-    renderer: WebGLRenderer,
-    scene: Scene,
+  /** One accumulation pass of the kept blended draws. */
+  private accumulate(
+    renderer: Renderer,
     camera: Camera,
+    accumulation: RenderTarget,
+    phase: number,
   ) {
-    if (
-      !this.isAccumulating ||
-      this.uniforms.uOitPhase.value !== OIT_PHASE_BEHIND ||
-      !this.sceneTarget
-    ) {
-      return;
-    }
-    const list = (
-      renderer as unknown as {
-        renderLists: {
-          get: (scene: Scene, depth: number) => { transparent: ListItem[] };
-        };
-      }
-    ).renderLists.get(scene, 0);
-    const items = list.transparent;
-    if (!items.some((item) => item.object === this.split)) {
-      // Not the list being drawn: draw the rest as one pass.
-      this.uniforms.uOitPhase.value = OIT_PHASE_ALL;
-      return;
-    }
-    this.composeInto(renderer, camera, scene);
-    this.hooks.onOpen?.(renderer, this.sceneTarget);
-    this.openAccumulation(renderer, OIT_PHASE_FRONT);
-    for (const { object, geometry, material, group } of items) {
-      if (this.bandOf(object, material) !== OIT_BLENDED_RENDER_ORDER) continue;
-      object.onBeforeRender(renderer, scene, camera, geometry, material, group);
-      object.modelViewMatrix.multiplyMatrices(
-        camera.matrixWorldInverse,
-        object.matrixWorld,
-      );
-      object.normalMatrix.getNormalMatrix(object.modelViewMatrix);
-      material.onBeforeRender(renderer, scene, camera, geometry, object, group);
-      renderer.renderBufferDirect(
-        camera,
-        scene,
-        geometry,
-        material,
-        object,
-        group,
-      );
-      object.onAfterRender(renderer, scene, camera, geometry, material, group);
+    renderer.setRenderTarget(accumulation);
+    const clearColor = renderer.getClearColor(scratchColor);
+    const clearAlpha = renderer.getClearAlpha();
+    renderer.setClearColor(0x000000, 0);
+    this.setPhase(phase);
+    this.isAccumulating = true;
+    renderer.setMRT(this.encoder);
+    try {
+      // The accumulation starts empty: cleared by the replay's own pass.
+      this.replay(renderer, camera, this.blended, this.blendedCount, {
+        color: true,
+      });
+    } finally {
+      renderer.setClearColor(clearColor, clearAlpha);
+      renderer.setMRT(null);
+      this.isAccumulating = false;
     }
   }
 
-  /** Draws the accumulation over the scene target, as the close does. */
-  private composeInto(renderer: WebGLRenderer, camera: Camera, scene: Scene) {
-    if (!this.accumulation) return;
-    this.restoreSetMaterial?.();
-    this.restoreSetMaterial = null;
-    this.uniforms.uOitActive.value = 0;
-    renderer.setRenderTarget(this.sceneTarget);
-    this.composite.uniforms.tAccumulation.value = this.accumulation.textures[0];
-    this.composite.uniforms.tWeight.value = this.accumulation.textures[1];
-    this.compositeGeometry.setDrawRange(0, 3);
-    renderer.renderBufferDirect(
-      camera,
-      scene,
-      this.compositeGeometry,
-      this.composite,
-      this.close,
-      null,
-    );
-    this.compositeGeometry.setDrawRange(0, 0);
-  }
-
-  private end(renderer: WebGLRenderer, scene: Scene, camera: Camera) {
-    if (!this.isAccumulating || !this.accumulation) return;
-    this.abandon();
-    renderer.setRenderTarget(this.sceneTarget);
-    this.hooks.beforeComposite?.(
-      renderer,
-      scene,
-      camera,
-      this.accumulation.textures[1],
-    );
-    this.composite.uniforms.tAccumulation.value = this.accumulation.textures[0];
-    this.composite.uniforms.tWeight.value = this.accumulation.textures[1];
-    this.compositeGeometry.setDrawRange(0, 3);
-  }
-
-  /** Leaves the accumulation without compositing (or before it). */
-  private abandon() {
-    this.restoreSetMaterial?.();
-    this.restoreSetMaterial = null;
-    this.uniforms.uOitActive.value = 0;
-    this.uniforms.uOitPhase.value = OIT_PHASE_ALL;
-    this.isAccumulating = false;
+  /** Draws the accumulation over the scene target. */
+  private compose(
+    renderer: Renderer,
+    target: RenderTarget,
+    accumulation: RenderTarget,
+  ) {
+    renderer.setRenderTarget(target);
+    this.compositeInputs.accumulation.value = accumulation.textures[0];
+    this.compositeInputs.weight.value = accumulation.textures[1];
+    this.composite.render(renderer);
   }
 
   /**
-   * three sets each draw's blend state from its material; during the
-   * accumulation an adopted material blends into the sums instead: colour
-   * added, the target's alpha multiplied by one minus the fragment's.
+   * Draws `count` kept draws, in the order the scene pass kept them, from
+   * inside the marker's draw: the renderer is mid-render there, so each
+   * draw is three's own, with the scene, lights and clipping it was kept
+   * with.
    */
-  private forceAccumulationBlending(renderer: WebGLRenderer) {
-    const state = renderer.state;
-    const setMaterial = state.setMaterial;
-    const adopted = this.adopted;
-    state.setMaterial = (...args: Parameters<typeof setMaterial>) => {
-      setMaterial(...args);
-      if (!adopted.has(args[0])) return;
-      (state.setBlending as unknown as (...args: unknown[]) => void)(
-        CustomBlending,
-        AddEquation,
-        OneFactor,
-        OneFactor,
-        AddEquation,
-        ZeroFactor,
-        OneMinusSrcAlphaFactor,
-        BLACK,
-        0,
-        false,
-      );
-    };
-    this.restoreSetMaterial = () => {
-      state.setMaterial = setMaterial;
-    };
+  private replay(
+    renderer: Renderer,
+    camera: Camera,
+    list: RecordedDraw[],
+    count: number,
+    clears: PassClears = {},
+  ) {
+    const marker = this.marker;
+    const previous = renderer.getRenderObjectFunction();
+    renderer.setRenderObjectFunction((object) => {
+      if (object !== marker) return;
+      for (let i = 0; i < count; i++) {
+        const d = list[i];
+        renderer.renderObject(
+          d.object,
+          d.scene,
+          camera,
+          d.geometry,
+          d.material,
+          d.group,
+          d.lightsNode,
+          d.clippingContext,
+          d.passId,
+        );
+      }
+    });
+    try {
+      renderClearing(renderer, this.markerScene, camera, clears);
+    } finally {
+      // Left installed, it would swallow every later draw: the composite
+      // quad first.
+      renderer.setRenderObjectFunction(previous);
+    }
   }
 
-  private accumulationFor(renderer: WebGLRenderer, target: WebGLRenderTarget) {
+  /** Lets go of the kept draws' objects past `count`, and the rest's refs. */
+  private release(list: RecordedDraw[], count: number) {
+    for (let i = 0; i < Math.min(count, list.length); i++) {
+      const d = list[i];
+      d.object = this.marker;
+      d.scene = this.markerScene;
+      d.lightsNode = null as unknown as RecordedDraw["lightsNode"];
+      d.clippingContext = null as unknown as RecordedDraw["clippingContext"];
+    }
+  }
+
+  private accumulationFor(target: RenderTarget) {
     const depthTexture = target.depthTexture;
-    const depthHandle = depthTexture
-      ? (renderer.properties.get(depthTexture) as { __webglTexture?: unknown })
-          .__webglTexture
-      : null;
     const current = this.accumulation;
     if (
       current &&
       current.depthTexture === depthTexture &&
       current.width === target.width &&
-      current.height === target.height &&
-      this.accumulationDepthHandle === depthHandle
+      current.height === target.height
     ) {
       return current;
     }
     this.releaseAccumulation();
-    const accumulation = new WebGLRenderTarget(target.width, target.height, {
+    const accumulation = new RenderTarget(target.width, target.height, {
       count: 2,
       type: HalfFloatType,
       format: RGBAFormat,
       depthBuffer: true,
-      depthTexture,
       minFilter: NearestFilter,
       magFilter: NearestFilter,
       generateMipmaps: false,
     });
-    accumulation.textures[0].name = "OrderIndependent.accumulation";
-    accumulation.textures[1].name = "OrderIndependent.weight";
+    accumulation.depthTexture = depthTexture;
+    accumulation.textures[0].name = "output";
+    accumulation.textures[1].name = "weight";
     accumulation.textures[1].format = RGFormat;
     this.accumulation = accumulation;
-    this.accumulationDepthHandle = depthHandle;
     return accumulation;
   }
 
@@ -812,7 +813,6 @@ export class OrderIndependentTransparency {
     this.accumulation.depthTexture = null;
     this.accumulation.dispose();
     this.accumulation = null;
-    this.accumulationDepthHandle = null;
   }
 
   private skip(reason: OrderIndependentSkipReason) {
@@ -825,22 +825,20 @@ export class OrderIndependentTransparency {
   }
 }
 
+const scratchColor = new Color();
+
 function skipReasonOf(
-  renderer: WebGLRenderer,
-  target: WebGLRenderTarget | null,
+  renderer: Renderer,
+  target: RenderTarget | null,
   camera: Camera,
 ): OrderIndependentSkipReason | null {
   if (!target) return "canvas";
   if (!target.depthTexture) return "no-depth-texture";
-  if (target.samples > 0) return "multisampled";
+  if (target.samples > 1) return "multisampled";
   if (!(camera as PerspectiveCamera).isPerspectiveCamera) {
     return "not-perspective";
   }
-  const capabilities = renderer.capabilities as {
-    logarithmicDepthBuffer?: boolean;
-    reversedDepthBuffer?: boolean;
-  };
-  if (capabilities.logarithmicDepthBuffer || capabilities.reversedDepthBuffer) {
+  if (renderer.logarithmicDepthBuffer || renderer.reversedDepthBuffer) {
     return "special-depth";
   }
   return null;

@@ -12,3 +12,4 @@ export * from "./mesh-top";
 export * from "./pool-warmup";
 export * from "./skinned-instance-pool";
 export * from "./skinned-parts";
+export * from "./vertex-buffers";

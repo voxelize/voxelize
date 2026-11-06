@@ -1,4 +1,4 @@
-import { LinearFilter, Sprite, SpriteMaterial, Texture } from "three";
+import { LinearFilter, Sprite, SpriteNodeMaterial, Texture } from "three/webgpu";
 
 import { ColorText } from "./color-text";
 
@@ -45,13 +45,22 @@ export class SpriteText extends Sprite {
   private _canvas = document.createElement("canvas");
 
   /**
+   * Whether the canvas is behind the text and style. A label is painted once,
+   * when it next updates its matrix, however many of its properties were set
+   * since: a name tag set four of them as it was made, and each used to
+   * repaint its canvas and upload a new texture (~10-30 ms of 2D raster per
+   * creature met in flight).
+   */
+  private isDirty = true;
+
+  /**
    * Create a new sprite text.
    *
    * @param text The text to display.
    * @param textHeight The height of the text in pixels.
    */
   constructor(text = "", textHeight = 10) {
-    super(new SpriteMaterial());
+    super(new SpriteNodeMaterial());
 
     this._text = `${text}`;
     this._textHeight = textHeight;
@@ -59,7 +68,7 @@ export class SpriteText extends Sprite {
 
     this.layers.set(SCENE_OVERLAY_LAYER);
 
-    this.generate();
+    this.isDirty = true;
   }
 
   /**
@@ -75,7 +84,7 @@ export class SpriteText extends Sprite {
   set text(text) {
     if (this._text === text) return;
     this._text = text;
-    this.generate();
+    this.isDirty = true;
   }
 
   /**
@@ -91,7 +100,7 @@ export class SpriteText extends Sprite {
   set textHeight(textHeight) {
     if (this._textHeight === textHeight) return;
     this._textHeight = textHeight;
-    this.generate();
+    this.isDirty = true;
   }
 
   /**
@@ -107,7 +116,7 @@ export class SpriteText extends Sprite {
   set backgroundColor(color) {
     if (this._backgroundColor === color) return;
     this._backgroundColor = color;
-    this.generate();
+    this.isDirty = true;
   }
 
   /**
@@ -125,7 +134,7 @@ export class SpriteText extends Sprite {
   set padding(padding) {
     if (this._padding === padding) return;
     this._padding = padding;
-    this.generate();
+    this.isDirty = true;
   }
 
   /**
@@ -141,7 +150,7 @@ export class SpriteText extends Sprite {
   set borderWidth(borderWidth) {
     if (this._borderWidth === borderWidth) return;
     this._borderWidth = borderWidth;
-    this.generate();
+    this.isDirty = true;
   }
 
   /**
@@ -157,7 +166,7 @@ export class SpriteText extends Sprite {
   set borderRadius(borderRadius) {
     if (this._borderRadius === borderRadius) return;
     this._borderRadius = borderRadius;
-    this.generate();
+    this.isDirty = true;
   }
 
   /**
@@ -173,7 +182,7 @@ export class SpriteText extends Sprite {
   set borderColor(borderColor) {
     if (this._borderColor === borderColor) return;
     this._borderColor = borderColor;
-    this.generate();
+    this.isDirty = true;
   }
 
   /**
@@ -189,7 +198,7 @@ export class SpriteText extends Sprite {
   set fontFace(fontFace) {
     if (this._fontFace === fontFace) return;
     this._fontFace = fontFace;
-    this.generate();
+    this.isDirty = true;
   }
 
   /**
@@ -205,7 +214,7 @@ export class SpriteText extends Sprite {
   set fontSize(fontSize) {
     if (this._fontSize === fontSize) return;
     this._fontSize = fontSize;
-    this.generate();
+    this.isDirty = true;
   }
 
   /**
@@ -221,7 +230,7 @@ export class SpriteText extends Sprite {
   set fontWeight(fontWeight) {
     if (this._fontWeight === fontWeight) return;
     this._fontWeight = fontWeight;
-    this.generate();
+    this.isDirty = true;
   }
 
   /**
@@ -237,7 +246,7 @@ export class SpriteText extends Sprite {
   set strokeWidth(strokeWidth) {
     if (this._strokeWidth === strokeWidth) return;
     this._strokeWidth = strokeWidth;
-    this.generate();
+    this.isDirty = true;
   }
 
   /**
@@ -255,13 +264,20 @@ export class SpriteText extends Sprite {
   set strokeColor(strokeColor) {
     if (this._strokeColor === strokeColor) return;
     this._strokeColor = strokeColor;
-    this.generate();
+    this.isDirty = true;
   }
 
   /**
    * Regenerate the sprite text.
    */
+  updateMatrixWorld(force?: boolean) {
+    // Before the matrix: the painted size sets the sprite's scale.
+    if (this.isDirty) this.generate();
+    super.updateMatrixWorld(force);
+  }
+
   private generate = () => {
+    this.isDirty = false;
     const canvas = this._canvas;
     const ctx = canvas.getContext("2d");
 

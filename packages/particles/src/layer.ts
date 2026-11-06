@@ -6,16 +6,23 @@ import {
   BufferGeometry,
   Color,
   DoubleSide,
-  DynamicDrawUsage,
   FrontSide,
   InstancedBufferAttribute,
   InstancedMesh,
   Matrix4,
-  MeshBasicMaterial,
+  MeshBasicNodeMaterial,
   NormalBlending,
   PlaneGeometry,
   Texture,
-} from "three";
+} from "three/webgpu";
+import {
+  attribute,
+  materialOpacity,
+  output,
+  texture,
+  uv,
+  vec4,
+} from "three/tsl";
 
 import type {
   ParticleBlendMode,
@@ -35,11 +42,6 @@ export type LayerSpec = {
    * layer out, or null when bloom may take it.
    */
   bloomExemptLayer: number | null;
-  /**
-   * A double-sided quad layer draws in one pass instead of three's
-   * back-then-front pair (see `ParticleSystemOptions.isQuadSinglePass`).
-   */
-  isSinglePass?: boolean;
   /** The layer mesh's render order (see `softLayerRenderOrder`). */
   renderOrder?: number;
 };
@@ -64,7 +66,7 @@ const WHITE = new Color(0xffffff);
 
 /** One instanced draw of a layer, and the slots it fills this frame. */
 type LayerDraw = {
-  mesh: InstancedMesh<BufferGeometry, MeshBasicMaterial>;
+  mesh: InstancedMesh<BufferGeometry, MeshBasicNodeMaterial>;
   alpha: InstancedBufferAttribute;
   /** Per-instance atlas window (offsetU, offsetV, spanU, spanV). */
   uvRect: InstancedBufferAttribute | null;
@@ -84,8 +86,8 @@ type LayerDraw = {
  * pool, sparks on its bed.
  */
 export class ParticleLayer {
-  readonly mesh: InstancedMesh<BufferGeometry, MeshBasicMaterial>;
-  readonly wetMesh: InstancedMesh<BufferGeometry, MeshBasicMaterial> | null;
+  readonly mesh: InstancedMesh<BufferGeometry, MeshBasicNodeMaterial>;
+  readonly wetMesh: InstancedMesh<BufferGeometry, MeshBasicNodeMaterial> | null;
   private readonly dry: LayerDraw;
   private readonly wet: LayerDraw | null;
   /** Each particle's atlas window, copied into its slot every frame. */
@@ -145,7 +147,7 @@ export class ParticleLayer {
     this.mediumVoxel = new Int32Array(capacity * 3).fill(UNSEEN_VOXEL);
     this.isWet = new Uint8Array(capacity);
 
-    const material = new MeshBasicMaterial({
+    const material = new MeshBasicNodeMaterial({
       map: spec.map,
       transparent: true,
       // Cutouts take part in the depth buffer so they occlude each other;
@@ -160,53 +162,21 @@ export class ParticleLayer {
     // transparent double-sided materials buys nothing here and costs a
     // second draw plus a material update (program parameters rebuilt) per
     // pass, every frame, even with no particle alive.
-    material.forceSinglePass =
-      spec.shape !== "cube" && (spec.isSinglePass ?? false);
-    material.onBeforeCompile = (shader) => {
-      shader.vertexShader = injectChunk(
-        shader.vertexShader,
-        "#include <common>",
-        "attribute float instanceAlpha;\nvarying float vInstanceAlpha;",
-      );
-      shader.vertexShader = injectChunk(
-        shader.vertexShader,
-        "#include <begin_vertex>",
-        "vInstanceAlpha = instanceAlpha;",
-      );
-      shader.fragmentShader = injectChunk(
-        shader.fragmentShader,
-        "#include <common>",
-        "varying float vInstanceAlpha;",
-      );
-      if (spec.isCutout) {
-        // After the alpha test, not before it: the test decides where the
-        // silhouette is, and a particle halfway through its fade must not
-        // have its whole shape tested away.
-        shader.fragmentShader = injectChunk(
-          shader.fragmentShader,
-          "#include <alphatest_fragment>",
-          "diffuseColor.a *= vInstanceAlpha;",
-        );
-      } else {
-        shader.fragmentShader = replaceChunk(
-          shader.fragmentShader,
-          "vec4 diffuseColor = vec4( diffuse, opacity );",
-          "vec4 diffuseColor = vec4( diffuse, opacity * vInstanceAlpha );",
-        );
-      }
-      if (hasUvRects) {
-        shader.vertexShader = injectChunk(
-          shader.vertexShader,
-          "#include <common>",
-          "attribute vec4 instanceUvRect;",
-        );
-        shader.vertexShader = injectChunk(
-          shader.vertexShader,
-          "#include <uv_vertex>",
-          "#ifdef USE_MAP\nvMapUv = instanceUvRect.xy + vMapUv * instanceUvRect.zw;\n#endif",
-        );
-      }
-    };
+    material.forceSinglePass = spec.shape !== "cube";
+    const instanceAlpha = attribute("instanceAlpha", "float");
+    if (hasUvRects && spec.map) {
+      // Each particle reads its own cell of the atlas.
+      const rect = attribute("instanceUvRect", "vec4");
+      material.colorNode = texture(spec.map, rect.xy.add(uv().mul(rect.zw)));
+    }
+    if (spec.isCutout) {
+      // After the alpha test, not before it: the test decides where the
+      // silhouette is, and a particle halfway through its fade must not
+      // have its whole shape tested away.
+      material.outputNode = vec4(output.rgb, output.a.mul(instanceAlpha));
+    } else {
+      material.opacityNode = materialOpacity.mul(instanceAlpha);
+    }
 
     // Shares the shape's buffers but not its instance attributes, which are
     // added to the dry draw's geometry below.
@@ -256,7 +226,7 @@ export class ParticleLayer {
   }
 
   /** Every mesh the layer draws through. */
-  get meshes(): InstancedMesh<BufferGeometry, MeshBasicMaterial>[] {
+  get meshes(): InstancedMesh<BufferGeometry, MeshBasicNodeMaterial>[] {
     return this.wetMesh ? [this.mesh, this.wetMesh] : [this.mesh];
   }
 
@@ -405,7 +375,7 @@ function shareShape(source: BufferGeometry): BufferGeometry {
 /** One instanced draw over `shape`, with its own per-instance attributes. */
 function makeDraw(
   shape: BufferGeometry,
-  material: MeshBasicMaterial,
+  material: MeshBasicNodeMaterial,
   capacity: number,
   spec: LayerSpec,
   hasUvRects: boolean,
@@ -414,13 +384,11 @@ function makeDraw(
     new Float32Array(capacity).fill(1),
     1,
   );
-  alpha.setUsage(DynamicDrawUsage);
   shape.setAttribute("instanceAlpha", alpha);
 
   let uvRect: InstancedBufferAttribute | null = null;
   if (hasUvRects) {
     uvRect = new InstancedBufferAttribute(new Float32Array(capacity * 4), 4);
-    uvRect.setUsage(DynamicDrawUsage);
     shape.setAttribute("instanceUvRect", uvRect);
   }
 
@@ -430,7 +398,6 @@ function makeDraw(
   // beam to shade, and too small to read one.
   mesh.userData.lightConesExempt =
     "particles: lit per instance on the CPU, too small to read a beam";
-  mesh.instanceMatrix.setUsage(DynamicDrawUsage);
   mesh.frustumCulled = false;
   mesh.renderOrder = spec.renderOrder ?? 0;
   mesh.count = 0;
@@ -448,12 +415,24 @@ function makeDraw(
   return { mesh, alpha, uvRect, count: 0 };
 }
 
+/**
+ * Hands the frame's live instances to the GPU: only the first `count` of
+ * each attribute (the live ones are packed at the front), and nothing for
+ * an empty draw, which draws nothing. Whole-capacity uploads of every layer
+ * each frame cost milliseconds of buffer writes for a handful of particles.
+ */
 function markDrawDirty(draw: LayerDraw): void {
   draw.mesh.count = draw.count;
-  draw.mesh.instanceMatrix.needsUpdate = true;
-  if (draw.mesh.instanceColor) draw.mesh.instanceColor.needsUpdate = true;
-  draw.alpha.needsUpdate = true;
-  if (draw.uvRect) draw.uvRect.needsUpdate = true;
+  if (draw.count === 0) return;
+  const upload = (attribute: InstancedBufferAttribute) => {
+    attribute.clearUpdateRanges();
+    attribute.addUpdateRange(0, draw.count * attribute.itemSize);
+    attribute.needsUpdate = true;
+  };
+  upload(draw.mesh.instanceMatrix);
+  if (draw.mesh.instanceColor) upload(draw.mesh.instanceColor);
+  upload(draw.alpha);
+  if (draw.uvRect) upload(draw.uvRect);
 }
 
 function makeBodies(capacity: number, physics: ParticlePhysics): RigidBody[] {
@@ -506,23 +485,3 @@ export function relaunchBody(
   body.applyImpulse([velocityX, velocityY, velocityZ]);
 }
 
-function injectChunk(source: string, anchor: string, added: string): string {
-  return replaceChunk(source, anchor, `${anchor}\n${added}`);
-}
-
-// The anchors are stable chunks of three's built-in shaders. A three upgrade
-// that renames one is reported here rather than silently dropping the effect.
-function replaceChunk(
-  source: string,
-  anchor: string,
-  replacement: string,
-): string {
-  if (!source.includes(anchor)) {
-    console.error(
-      `[particles] shader anchor "${anchor}" is gone, so particles will ` +
-        "render wrong. A three upgrade renamed it; update the injection.",
-    );
-    return source;
-  }
-  return source.replace(anchor, replacement);
-}

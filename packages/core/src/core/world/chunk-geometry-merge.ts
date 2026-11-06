@@ -1,7 +1,12 @@
 import type { GeometryProtocol } from "@voxelize/protocol";
-import { BufferAttribute, BufferGeometry } from "three";
+import { BufferAttribute, BufferGeometry } from "three/webgpu";
 
 import { writeBiomeTint } from "./biome-tint";
+import {
+  BYTE_VECTOR_STRIDE,
+  POSITION_STRIDE,
+  packQuantizedPositions,
+} from "./vertex-layout";
 import { computeNormalsFromBuffers } from "./chunk-normals";
 import { computeQuadLightTwist } from "./quad-light";
 
@@ -36,14 +41,25 @@ export const ownMergeStorage: MergeStorage = (_name, kind, length) =>
  * view of the length it asked for, so merging allocates no buffers.
  */
 export class ScratchMergeStorage {
-  private arrays = new Map<string, TypedArray>();
+  /**
+   * By name and array kind: buckets merge different kinds under one name
+   * (float positions for fluids, quantized ones for the rest). Keyed by
+   * name alone, each switch of kind grew the array half again over the
+   * other kind's length: a few thousand alternations held gigabytes.
+   */
+  private arrays = new Map<string, Map<unknown, TypedArray>>();
 
   readonly take: MergeStorage = (name, kind, length) => {
-    let array = this.arrays.get(name);
-    if (!(array instanceof kind) || array.length < length) {
+    let byKind = this.arrays.get(name);
+    if (!byKind) {
+      byKind = new Map();
+      this.arrays.set(name, byKind);
+    }
+    let array = byKind.get(kind);
+    if (!array || array.length < length) {
       const capacity = Math.max(length, Math.ceil((array?.length ?? 0) * 1.5));
       array = new kind(capacity);
-      this.arrays.set(name, array);
+      byKind.set(kind, array);
     }
     return (array as InstanceType<typeof kind>).subarray(0, length) as never;
   };
@@ -65,7 +81,8 @@ export type ChunkMergeExtras = {
  * One section's geometries of one material bucket as a single indexed
  * geometry, the layout `makeChunkBufferGeometry` gives one of them:
  * position, uv, light, lightTwist, normal, biomeTint when the chunk has
- * colour corners, swayProfile when the bucket sways, and an index offset
+ * colour corners (a quantized position carries the sway profile in its
+ * fourth lane when the bucket sways), and an index offset
  * per part. Every array is sized once from the parts and written in place,
  * where a general merge collects plain arrays and copies them again.
  * Returns null for parts whose arrays disagree in type (one quantized, one
@@ -105,16 +122,21 @@ export function mergeSectionGeometries(
     indexCount += part.indices.length;
   }
 
-  const positions = storage("position", positionKind, vertexCount * 3);
+  // Quantized positions four-wide with the sway profile (vertex-layout).
+  const positionStride = isQuantized ? POSITION_STRIDE : 3;
+  const positions = storage(
+    "position",
+    positionKind,
+    vertexCount * positionStride,
+  );
   const uvs = storage("uv", uvKind, vertexCount * 2);
   const lights = storage("light", lightKind, vertexCount);
   const twists = storage("lightTwist", Uint8Array, vertexCount * 4);
-  const normals = storage("normal", normalKind, vertexCount * 3);
+  // Quantized normals and tints are bytes, carried four-wide (vertex-layout).
+  const normalStride = isQuantized ? BYTE_VECTOR_STRIDE : 3;
+  const normals = storage("normal", normalKind, vertexCount * normalStride);
   const tints = extras.biomeCorners
-    ? storage("biomeTint", Uint8Array, vertexCount * 3)
-    : null;
-  const sways = extras.swayProfileOf
-    ? storage("swayProfile", Uint8Array, vertexCount)
+    ? storage("biomeTint", Uint8Array, vertexCount * BYTE_VECTOR_STRIDE)
     : null;
   const indices =
     vertexCount > 65535
@@ -125,29 +147,40 @@ export function mergeSectionGeometries(
   let index = 0;
   for (const part of parts) {
     const count = part.positions.length / 3;
-    positions.set(part.positions, vertex * 3);
+    if (isQuantized) {
+      packQuantizedPositions(
+        part.positions,
+        extras.swayProfileOf?.(part.voxel) ?? 0,
+        (positions as Uint16Array).subarray(
+          vertex * POSITION_STRIDE,
+          (vertex + count) * POSITION_STRIDE,
+        ),
+      );
+    } else {
+      positions.set(part.positions, vertex * 3);
+    }
     uvs.set(part.uvs, vertex * 2);
     lights.set(part.lights, vertex);
     twists.set(
       part.lightTwist ?? computeQuadLightTwist(part.lights, part.indices),
       vertex * 4,
     );
-    if (part.normals && part.normals.length > 0) {
-      normals.set(part.normals, vertex * 3);
-    } else {
-      const flat = computeNormalsFromBuffers(part.positions, part.indices);
-      if (isQuantized) {
-        for (let i = 0; i < flat.length; i++) {
-          normals[vertex * 3 + i] = Math.round(flat[i] * 127);
-        }
-      } else {
-        normals.set(flat, vertex * 3);
+    const source3 =
+      part.normals && part.normals.length > 0
+        ? part.normals
+        : computeNormalsFromBuffers(part.positions, part.indices);
+    const isFlat = !(part.normals && part.normals.length > 0);
+    for (let v = 0; v < count; v++) {
+      for (let c = 0; c < 3; c++) {
+        const value = source3[v * 3 + c];
+        normals[(vertex + v) * normalStride + c] =
+          isQuantized && isFlat ? Math.round(value * 127) : value;
       }
     }
     if (tints) {
       writeBiomeTint(
         tints,
-        vertex * 3,
+        vertex * BYTE_VECTOR_STRIDE,
         part.positions,
         part.lights,
         extras.biomeCorners,
@@ -155,9 +188,6 @@ export function mergeSectionGeometries(
         isQuantized ? extras.positionUnits : 1,
         isQuantized ? extras.positionBias : 0,
       );
-    }
-    if (sways && extras.swayProfileOf) {
-      sways.fill(extras.swayProfileOf(part.voxel), vertex, vertex + count);
     }
     const source = part.indices;
     for (let i = 0; i < source.length; i++) {
@@ -168,16 +198,22 @@ export function mergeSectionGeometries(
   }
 
   const geometry = new BufferGeometry();
-  geometry.setAttribute("position", new BufferAttribute(positions, 3));
+  geometry.setAttribute(
+    "position",
+    new BufferAttribute(positions, positionStride),
+  );
   geometry.setAttribute("uv", new BufferAttribute(uvs, 2, isQuantized));
   geometry.setAttribute("light", new BufferAttribute(lights, 1));
   geometry.setAttribute("lightTwist", new BufferAttribute(twists, 4));
-  geometry.setAttribute("normal", new BufferAttribute(normals, 3, isQuantized));
+  geometry.setAttribute(
+    "normal",
+    new BufferAttribute(normals, normalStride, isQuantized),
+  );
   if (tints) {
-    geometry.setAttribute("biomeTint", new BufferAttribute(tints, 3, true));
-  }
-  if (sways) {
-    geometry.setAttribute("swayProfile", new BufferAttribute(sways, 1));
+    geometry.setAttribute(
+      "biomeTint",
+      new BufferAttribute(tints, BYTE_VECTOR_STRIDE, true),
+    );
   }
   geometry.setIndex(new BufferAttribute(indices, 1));
   return geometry;

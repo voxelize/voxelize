@@ -1,12 +1,12 @@
 import {
   BoxGeometry,
   Mesh,
-  MeshBasicMaterial,
+  MeshBasicNodeMaterial,
   PerspectiveCamera,
   Scene,
   Vector3,
-  WebGLRenderer,
-} from "three";
+  WebGPURenderer,
+} from "three/webgpu";
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 
 import { Clouds } from "./clouds";
@@ -44,10 +44,8 @@ const SUN = new Vector3(-0.6, 0.7, 0.3).normalize();
 function visibleDuringDepthPasses(
   scene: Scene,
   watched: Record<string, { visible: boolean }>,
-  isExcludingEffects: boolean,
 ) {
   const csm = new CSMRenderer({ entityShadowFrameInterval: 1 });
-  csm.setNonCasterExclusion(isExcludingEffects);
   const seen: Record<string, boolean[]> = {};
   for (const name of Object.keys(watched)) seen[name] = [];
   const stub = {
@@ -58,7 +56,7 @@ function visibleDuringDepthPasses(
         seen[name].push(object.visible);
       }
     },
-  } as Partial<WebGLRenderer> as WebGLRenderer;
+  } as Partial<WebGPURenderer> as WebGPURenderer;
 
   // A flier at the owner's TV1 pose: the deck sits inside the far cascade.
   const position = new Vector3(0.5, 150, 16.5);
@@ -83,20 +81,19 @@ describe("the sky and the cloud deck in the sun's shadow maps", () => {
     expect(isMarkedNeverCaster(new Mesh())).toBe(false);
   });
 
-  it("sit out of every depth pass while the ground still casts, whatever the effect switch", () => {
-    for (const isExcludingEffects of [true, false]) {
+  it("sit out of every depth pass while the ground still casts", () => {
+    {
       const scene = new Scene();
       const sky = new Sky();
       const clouds = new Clouds();
       clouds.position.y = 300;
-      const ground = new Mesh(new BoxGeometry(), new MeshBasicMaterial());
+      const ground = new Mesh(new BoxGeometry(), new MeshBasicNodeMaterial());
       ground.position.y = 70;
       scene.add(ground, sky, clouds);
 
       const seen = visibleDuringDepthPasses(
         scene,
         { sky, clouds, ground },
-        isExcludingEffects,
       );
 
       expect(seen.ground.length).toBeGreaterThan(0);
@@ -109,13 +106,13 @@ describe("the sky and the cloud deck in the sun's shadow maps", () => {
 
   it("leaves an unmarked group that reaches the cascade drawn, as the deck was", () => {
     const scene = new Scene();
-    const deck = new Mesh(new BoxGeometry(), new MeshBasicMaterial());
+    const deck = new Mesh(new BoxGeometry(), new MeshBasicNodeMaterial());
     deck.position.y = 300;
-    const marked = new Mesh(new BoxGeometry(), new MeshBasicMaterial());
+    const marked = new Mesh(new BoxGeometry(), new MeshBasicNodeMaterial());
     markNeverCaster(marked);
     scene.add(deck, marked);
 
-    const seen = visibleDuringDepthPasses(scene, { deck, marked }, true);
+    const seen = visibleDuringDepthPasses(scene, { deck, marked });
     expect(seen.deck.every(Boolean)).toBe(true);
     expect(seen.marked.some(Boolean)).toBe(false);
   });

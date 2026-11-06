@@ -1,4 +1,4 @@
-import { DoubleSide, FrontSide, MeshBasicMaterial } from "three";
+import { DoubleSide, FrontSide, MeshBasicNodeMaterial } from "three/webgpu";
 import { describe, expect, it } from "vitest";
 
 import {
@@ -28,7 +28,7 @@ describe("normalsShareOneDirection", () => {
 
 describe("singlePassWhenOneFacing", () => {
   it("draws a transparent double-sided card in one pass", () => {
-    const material = new MeshBasicMaterial({
+    const material = new MeshBasicNodeMaterial({
       transparent: true,
       side: DoubleSide,
     });
@@ -37,7 +37,7 @@ describe("singlePassWhenOneFacing", () => {
   });
 
   it("keeps back-then-front passes where both sides can overlap", () => {
-    const material = new MeshBasicMaterial({
+    const material = new MeshBasicNodeMaterial({
       transparent: true,
       side: DoubleSide,
     });
@@ -46,8 +46,8 @@ describe("singlePassWhenOneFacing", () => {
   });
 
   it("leaves opaque and front-sided materials alone", () => {
-    const opaque = new MeshBasicMaterial({ side: DoubleSide });
-    const front = new MeshBasicMaterial({ transparent: true, side: FrontSide });
+    const opaque = new MeshBasicNodeMaterial({ side: DoubleSide });
+    const front = new MeshBasicNodeMaterial({ transparent: true, side: FrontSide });
     singlePassWhenOneFacing(opaque, card);
     singlePassWhenOneFacing(front, card);
     expect(opaque.forceSinglePass).toBe(false);

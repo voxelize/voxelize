@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 
-import * as THREE from "three";
+import * as THREE from "three/webgpu";
 import { describe, it } from "vitest";
 
 import { defineSkinnedFamily } from "./define-skinned-family";

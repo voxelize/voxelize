@@ -78,6 +78,11 @@ export class HeadlessBrowser {
         ...(lowered ? { executablePath: lowered } : {}),
         args: [
           ...(process.platform === "linux" ? ["--no-sandbox"] : []),
+          // The viewer draws with WebGPU (WebGL 2 is its fallback).
+          "--enable-unsafe-webgpu",
+          ...(process.platform === "linux"
+            ? ["--enable-features=Vulkan", "--use-angle=vulkan"]
+            : []),
           "--enable-webgl",
           "--ignore-gpu-blocklist",
           "--enable-gpu-rasterization",

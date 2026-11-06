@@ -1,22 +1,30 @@
-import { Color, Material, Mesh, Object3D, Vector3 } from "three";
+import {
+  Color,
+  Material,
+  Mesh,
+  type NodeMaterial,
+  Object3D,
+  Vector3,
+} from "three/webgpu";
 
 import { World } from "../../core";
 import {
   composeEntityLight,
   EntityLightSample,
 } from "../../core/world/entity-light";
+import { isChunkMaterial } from "../../core/world/shading/chunk-material";
 import {
-  injectLightCones,
-  LightConeUniformBinding,
-  markLightConesCovered,
-} from "../../core/world/light-cones";
+  applyEntityLight,
+  entityLightOriginalOf,
+  type EntityLightValue,
+} from "../../core/world/shading/entity-light";
 import { blockLightFloodRemainder } from "../../core/world/local-lights";
 import {
   getDownwellingTransmittance,
   WATER_OPTICS,
   WATER_SURFACE_SCATTER_COLOR,
 } from "../../core/world/water-optics";
-import { ChunkUtils, ThreeUtils } from "../../utils";
+import { ChunkUtils } from "../../utils";
 import { NameTag } from "../nametag";
 
 const position = new Vector3();
@@ -58,66 +66,12 @@ type IgnoredType = abstract new (...args: never[]) => object;
 
 type MaterialOwner = {
   root: Object3D | null;
-  lightUniform: { value: Color };
-  baseOnBeforeCompile: Material["onBeforeCompile"] | undefined;
+  /** The light the material is drawn in, which the root's update eases. */
+  lightUniform: EntityLightValue;
   copyOf: Material | null;
 };
 
 const isMesh = (object: Object3D): object is Mesh => object instanceof Mesh;
-
-type CompileHook = Material["onBeforeCompile"];
-
-/**
- * Every light hook an effect put on a material, to the hook it wrapped
- * (undefined: the material had none of its own). The hook is made here, at
- * module level, so it closes over its light uniform and the wrapped hook
- * and never over the effect: a material that outlives its effect (art
- * shared page-wide, kept across a world switch) must not keep that effect,
- * and its world, alive. The next effect to meet such a material wraps what
- * the old hook wrapped, instead of skipping it as already set up and
- * leaving it on the dead effect's frozen light.
- */
-const lightEffectHooks = new WeakMap<CompileHook, CompileHook | undefined>();
-
-const makeLightEffectHook = (
-  base: CompileHook | undefined,
-  lightUniform: { value: Color },
-  coneBindings: Record<string, LightConeUniformBinding>,
-): CompileHook => {
-  const hook: CompileHook = (shader, renderer) => {
-    if (base) {
-      base(shader, renderer);
-    }
-
-    shader.uniforms.lightEffect = lightUniform;
-    // Flashlights and headlights shine on what it lights, per pixel, the
-    // same as on the blocks around it.
-    injectLightCones(shader, coneBindings);
-    shader.vertexShader = shader.vertexShader.replace(
-      "void main() {",
-      `
-          uniform vec3 lightEffect;
-          void main() {
-          `,
-    );
-    shader.fragmentShader = shader.fragmentShader.replace(
-      "void main() {",
-      `
-          uniform vec3 lightEffect;
-          void main() {
-          `,
-    );
-    shader.fragmentShader = shader.fragmentShader.replace(
-      "#include <color_fragment>",
-      `
-          #include <color_fragment>
-          diffuseColor.rgb *= lightConeLit(lightEffect);
-          `,
-    );
-  };
-  lightEffectHooks.set(hook, base);
-  return hook;
-};
 
 const isWithin = (object: Object3D, ancestor: Object3D) => {
   for (let node: Object3D | null = object; node; node = node.parent) {
@@ -165,17 +119,6 @@ export type LightShinedOptions = {
    */
   resampleDistance: number;
   /**
-   * Notice children added under a shined object by wrapping every
-   * `children` array and mesh material in its subtree in a Proxy, the old
-   * path, kept only to A/B measure its cost. A Proxy puts a slow path in
-   * every scene-graph walk over those nodes (matrix updates, culling,
-   * traversals) and in every material read three makes per draw, and a
-   * sibling removal re-wrapped the shifted children in nested Proxies. The
-   * default listens for three's `childadded` events instead. Defaults to
-   * `false`.
-   */
-  useProxyChangeDetection: boolean;
-  /**
    * Skip a registered object whose ancestors do not end in a `Scene`. The
    * entity manager releases an entity by detaching its root, so an object
    * lit below that root (a character inside its entity) keeps a parent and
@@ -193,7 +136,6 @@ const defaultOptions: LightShinedOptions = {
   maxBrightness: 1,
   sampleIntervalFrames: 4,
   resampleDistance: 0.5,
-  useProxyChangeDetection: false,
   skipDetached: false,
 };
 
@@ -273,9 +215,7 @@ export class LightShined {
    * Every material this effect has set up: the shined root whose light
    * uniform it carries (null once that root is removed, so the entry does
    * not keep it alive and the next root to meet the material adopts it),
-   * that uniform, the `onBeforeCompile` it had before the effect wrapped
-   * it, so a copy made for another root starts from that hook, and, for a
-   * copy, the material it was copied from.
+   * that uniform, and, for a copy, the material it was copied from.
    */
   private materialOwners = new WeakMap<Material, MaterialOwner>();
 
@@ -321,7 +261,7 @@ export class LightShined {
   remove = (obj: Object3D) => {
     this.list.delete(obj);
     this.samples.delete(obj);
-    if (!this.options.useProxyChangeDetection) this.unhookSubtree(obj, obj);
+    this.unhookSubtree(obj, obj);
     const materials = this.rootMaterials.get(obj);
     if (materials) {
       for (const material of materials) {
@@ -377,45 +317,34 @@ export class LightShined {
   };
 
   private setupMaterial = (root: Object3D, material: Material) => {
-    // Set up by an earlier effect (a world since switched away from): it is
-    // this effect's to light now, from the hook the earlier one wrapped.
-    const earlierHook = lightEffectHooks.has(material.onBeforeCompile)
-      ? material.onBeforeCompile
-      : null;
     if (
-      ThreeUtils.isShaderMaterial(material) ||
-      (material.userData.lightEffectSetup && earlierHook === null) ||
+      !(material as NodeMaterial).isNodeMaterial ||
+      isChunkMaterial(material) ||
+      this.materialOwners.has(material) ||
       material.userData.heldObjectLighting === true ||
+      // A material that builds the voxel light in itself (an instanced
+      // drop, an arrow, a natural creature's body) would be lit twice.
+      material.userData.lightEffectSetup === true ||
       isSelfIlluminated(material)
-    )
+    ) {
       return;
+    }
 
-    const lightUniform = { value: new Color(1, 1, 1) };
-    const baseOnBeforeCompile =
-      earlierHook !== null
-        ? lightEffectHooks.get(earlierHook)
-        : Object.prototype.hasOwnProperty.call(material, "onBeforeCompile")
-          ? material.onBeforeCompile
-          : undefined;
-    this.materialOwners.set(material, {
-      root,
-      lightUniform,
-      baseOnBeforeCompile,
-      copyOf: null,
-    });
+    // Composed over the material's own nodes; a material an earlier
+    // effect lit (a world since switched away from) is recomposed from the
+    // nodes it had before that one.
+    const lightUniform: EntityLightValue = { value: new Color(1, 1, 1) };
+    this.materialOwners.set(material, { root, lightUniform, copyOf: null });
     this.trackRootMaterial(root, material);
-    material.onBeforeCompile = makeLightEffectHook(
-      baseOnBeforeCompile,
+    applyEntityLight(
+      material as NodeMaterial,
       lightUniform,
-      this.world.lightCones.uniformBindings,
+      this.world.lightCones.uniforms,
     );
-    markLightConesCovered(material);
-    material.needsUpdate = true;
     if (!root.userData.lightUniforms) {
       root.userData.lightUniforms = [];
     }
     root.userData.lightUniforms.push(lightUniform);
-    material.userData.lightEffectSetup = true;
   };
 
   /**
@@ -448,11 +377,14 @@ export class LightShined {
     let copies = this.ownedCopies.get(root);
     const existing = copies?.get(material);
     if (existing) return existing;
-    const copy = material.clone();
-    if (owner.baseOnBeforeCompile) {
-      copy.onBeforeCompile = owner.baseOnBeforeCompile;
+    const copy = material.clone() as NodeMaterial;
+    // The copy starts from the material's own nodes, not from the light
+    // the original root composed in.
+    const original = entityLightOriginalOf(material as NodeMaterial);
+    if (original) {
+      copy.colorNode = original.colorNode;
+      copy.outputNode = original.outputNode;
     }
-    delete copy.userData.lightEffectSetup;
     this.setupMaterial(root, copy);
     const copyOwner = this.materialOwners.get(copy);
     if (copyOwner) copyOwner.copyOf = material;
@@ -512,11 +444,6 @@ export class LightShined {
     // Setup initial materials
     this.setupObjectAndChildren(obj, obj);
 
-    if (this.options.useProxyChangeDetection) {
-      this.setupProxies(obj, obj);
-      return;
-    }
-
     if (this.hookSubtree(obj, obj)) {
       obj.userData.justChanged = true;
     }
@@ -565,35 +492,6 @@ export class LightShined {
     const root = this.owners.get(event.target);
     if (!root) return;
     this.unhookSubtree(root, event.child);
-  };
-
-  /** The old change detection; see `useProxyChangeDetection`. */
-  private setupProxies = (obj: Object3D, object: Object3D) => {
-    if (isMesh(object)) {
-      object.material = new Proxy(object.material, {
-        set: (target, prop, value) => {
-          target[prop] = value;
-          if (prop === "needsUpdate" && value === true) {
-            this.setupObjectAndChildren(obj, object);
-          }
-          return true;
-        },
-      });
-      obj.userData.justChanged = true;
-    }
-
-    object.children = new Proxy(object.children, {
-      set: (target, prop, value) => {
-        target[prop as unknown as number] = value;
-        if (typeof prop === "string" && !isNaN(Number(prop))) {
-          this.setupObjectAndChildren(obj, value);
-          this.setupProxies(obj, value);
-        }
-        return true;
-      },
-    });
-
-    object.children.forEach((child) => this.setupProxies(obj, child));
   };
 
   private updateObject = (obj: Object3D, color: Color) => {

@@ -30,7 +30,7 @@
     "puppeteer": "^25.16.0"
   },
   "peerDependencies": {
-    "three": "^0.183.0"
+    "three": "^0.187.0"
   },
   "devDependencies": {
     "@types/node": "^20.14.11",

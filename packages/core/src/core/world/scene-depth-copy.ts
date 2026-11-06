@@ -1,28 +1,31 @@
 import {
   DepthTexture,
+  FloatType,
   NearestFilter,
+  type Renderer,
+  type RenderTarget,
   type Texture,
-  type WebGLRenderer,
-  WebGLRenderTarget,
-} from "three";
+} from "three/webgpu";
 
-/** The uniforms the copy writes for the chunk materials. */
+/** The inputs the copy writes for the chunk materials. */
 export type SceneDepthUniforms = {
-  sceneDepth: { value: Texture | null };
+  sceneDepth: { value: Texture };
   sceneDepthReady: { value: number };
 };
 
 /**
  * Why a frame's depth could not be copied, or null when it can be: a copy
- * blits the depth attachment of the target the scene draws into, which the
- * canvas does not expose and a multisampled target keeps in a renderbuffer.
+ * reads the depth attachment of the target the scene draws into, which the
+ * canvas keeps to itself, a multisampled target keeps per sample, and
+ * WebGPU copies only from a 32-bit float depth (never `depth24plus`).
  */
 export function sceneDepthSkipReason(
-  source: WebGLRenderTarget | null,
-): "canvas" | "no-depth-texture" | "multisampled" | null {
+  source: RenderTarget | null,
+): "canvas" | "no-depth-texture" | "multisampled" | "not-copyable" | null {
   if (!source) return "canvas";
   if (!source.depthTexture) return "no-depth-texture";
-  if (source.samples > 0) return "multisampled";
+  if (source.samples > 1) return "multisampled";
+  if (source.depthTexture.type !== FloatType) return "not-copyable";
   return null;
 }
 
@@ -36,93 +39,77 @@ export function sceneDepthSkipReason(
  * water draws, that texture is the depth attachment of the bound target
  * (the scene's, or with order-independent transparency the accumulation,
  * which shares it), and sampling it there is a feedback loop. So it is
- * blitted once a frame into a texture of the same format, from inside the
- * render, with the scene's target bound, and the binding is restored.
+ * copied once a frame: from inside the render when the copy is asked for
+ * mid-pass (three ends the pass, copies, and resumes it), else texture to
+ * texture, after what the passes so far submitted.
  */
 export class SceneDepthCopy {
-  private target: WebGLRenderTarget | null = null;
+  private copy: DepthTexture | null = null;
   private copiedFrame = -1;
 
   constructor(private readonly uniforms: SceneDepthUniforms) {}
 
   /**
    * Copies the depth of `source`, the target bound right now, unless this
-   * render already copied it. Leaves `source` bound.
+   * frame already copied it.
    */
-  capture(renderer: WebGLRenderer, source: WebGLRenderTarget | null) {
-    const frame = renderer.info.render.frame;
+  capture(renderer: Renderer, source: RenderTarget | null) {
+    const frame = renderer.info.frame;
     if (frame === this.copiedFrame) return;
     this.copiedFrame = frame;
     this.uniforms.sceneDepthReady.value = 0;
     if (!source || sceneDepthSkipReason(source)) return;
-    const depth = source.depthTexture as DepthTexture;
 
-    const target = this.targetFor(source, depth);
-    renderer.initRenderTarget(target);
-    const gl = renderer.getContext() as WebGL2RenderingContext;
-    const properties = renderer.properties as unknown as {
-      get: (object: object) => { __webglFramebuffer?: WebGLFramebuffer };
-    };
-    const read = properties.get(source).__webglFramebuffer;
-    const draw = properties.get(target).__webglFramebuffer;
-    if (!read || !draw) return;
-
-    const { width, height } = source;
-    renderer.state.bindFramebuffer(gl.READ_FRAMEBUFFER, read);
-    renderer.state.bindFramebuffer(gl.DRAW_FRAMEBUFFER, draw);
-    gl.blitFramebuffer(
-      0,
-      0,
-      width,
-      height,
-      0,
-      0,
-      width,
-      height,
-      gl.DEPTH_BUFFER_BIT,
-      gl.NEAREST,
-    );
-    renderer.state.bindFramebuffer(gl.READ_FRAMEBUFFER, null);
-    renderer.setRenderTarget(source);
-
-    this.uniforms.sceneDepth.value = target.depthTexture;
+    const copy = this.copyFor(source);
+    // Between renders the renderer's "framebuffer" is whatever context it
+    // last drew: only a pass drawing into `source` right now can be copied
+    // from that way.
+    const current = (
+      renderer as unknown as {
+        _currentRenderContext: { renderTarget: RenderTarget | null } | null;
+      }
+    )._currentRenderContext;
+    if (current?.renderTarget === source) {
+      // three copies a depth texture from the bound depth attachment; its
+      // typing names only colour framebuffer textures.
+      renderer.copyFramebufferToTexture(
+        copy as unknown as Parameters<Renderer["copyFramebufferToTexture"]>[0],
+      );
+    } else {
+      renderer.copyTextureToTexture(source.depthTexture as DepthTexture, copy);
+    }
+    this.uniforms.sceneDepth.value = copy;
     this.uniforms.sceneDepthReady.value = 1;
   }
 
-  /** Marks this frame's copy missing, without copying. */
   skip() {
     this.uniforms.sceneDepthReady.value = 0;
   }
 
   dispose() {
-    this.target?.dispose();
-    this.target = null;
+    this.copy?.dispose();
+    this.copy = null;
   }
 
-  /** A target whose depth matches `source`'s exactly, as a blit requires. */
-  private targetFor(source: WebGLRenderTarget, depth: DepthTexture) {
-    const current = this.target?.depthTexture;
+  private copyFor(source: RenderTarget): DepthTexture {
+    const depth = source.depthTexture as DepthTexture;
+    const current = this.copy;
     if (
-      this.target &&
       current &&
-      this.target.width === source.width &&
-      this.target.height === source.height &&
+      current.image.width === source.width &&
+      current.image.height === source.height &&
       current.type === depth.type &&
       current.format === depth.format
     ) {
-      return this.target;
+      return current;
     }
-    this.target?.dispose();
+    current?.dispose();
     const copy = new DepthTexture(source.width, source.height, depth.type);
     copy.format = depth.format;
     copy.minFilter = NearestFilter;
     copy.magFilter = NearestFilter;
-    this.target = new WebGLRenderTarget(source.width, source.height, {
-      depthBuffer: true,
-      stencilBuffer: source.stencilBuffer,
-      depthTexture: copy,
-      generateMipmaps: false,
-    });
-    return this.target;
+    copy.name = "voxelize-scene-depth-copy";
+    this.copy = copy;
+    return copy;
   }
 }

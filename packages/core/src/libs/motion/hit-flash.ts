@@ -1,4 +1,4 @@
-import { Color } from "three";
+import { Color } from "three/webgpu";
 
 /**
  * The flash a struck body shows, for any rig that owns its own tint: a

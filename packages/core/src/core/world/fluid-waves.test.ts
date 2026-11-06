@@ -2,10 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import {
   FLUID_WAVE,
-  fluidWaveOctavesGlsl,
   fluidWaveOffset,
-  fluidWaveSumGlsl,
-  fluidWaveTimeGlsl,
   simplexNoise3,
 } from "./fluid-waves";
 
@@ -136,13 +133,4 @@ describe("fluid waves", () => {
     }
   });
 
-  it("writes the same swell into the vertex stage", () => {
-    expect(fluidWaveTimeGlsl("uTime")).toBe("uTime * 0.0006");
-    expect(fluidWaveOctavesGlsl("p.x", "p.z", "waveTime").split("\n")).toEqual([
-      "float wave1 = snoise(vec3(p.x * 0.1500 + waveTime * 0.3000, p.z * 0.1500 + waveTime * -0.2000, 0.0000)) * 0.0800;",
-      "float wave2 = snoise(vec3(p.x * 0.4000 + waveTime * -0.5000, p.z * 0.4000 + waveTime * 0.4000, 10.0000)) * 0.0400;",
-      "float wave3 = snoise(vec3(p.x * 0.8000 + waveTime * 0.7000, p.z * 0.8000 + waveTime * -0.5000, 20.0000)) * 0.0200;",
-    ]);
-    expect(fluidWaveSumGlsl()).toBe("wave1 + wave2 + wave3");
-  });
 });

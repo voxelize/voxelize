@@ -1,4 +1,4 @@
-import type { Vector3 } from "three";
+import type { Vector3 } from "three/webgpu";
 
 /// Tunables for one land animal's stride cycle. Swing amplitude and cadence
 /// are both derived from the body's travel, so the legs match the ground

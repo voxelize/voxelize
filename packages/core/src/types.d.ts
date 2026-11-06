@@ -23,14 +23,3 @@ declare module "*?worker&inline" {
   export default WebWorkerFactory;
 }
 
-declare module "*.glsl" {
-  const value: string;
-  export default value;
-}
-
-declare module "*.glsl?raw" {
-  const value: string;
-  export default value;
-}
-
-declare module "postprocessing";

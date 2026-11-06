@@ -1,27 +1,27 @@
 import {
   AdditiveBlending,
   BoxGeometry,
+  Color,
   Group,
   InstancedMesh,
   Mesh,
-  MeshBasicMaterial,
+  MeshBasicNodeMaterial,
   Scene,
-  ShaderMaterial,
-} from "three";
+  Vector3,
+} from "three/webgpu";
 import { describe, expect, it } from "vitest";
 
 import {
   auditLightCones,
   exemptFromLightCones,
-  injectLightCones,
+  isLightConesCovered,
   markLightConesCovered,
-  LIGHT_CONE_SCATTER_STYLE,
+  LIGHT_CONE_STRIDE,
   LIGHT_CONES,
-  LIGHT_CONES_FUNCTIONS,
-  LIGHT_CONES_UNIFORM_DECLARATIONS,
   LightCones,
   styleLightConeScatter,
 } from "./light-cones";
+import { ChunkMaterial, type ChunkShadingInputs } from "./shading/chunk-material";
 
 const LEGACY = { x: 0, y: 0, z: 0 };
 const DEFAULT = {
@@ -29,16 +29,12 @@ const DEFAULT = {
   y: LIGHT_CONES.scatterBands,
   z: LIGHT_CONES.scatterCeiling,
 };
-/** The banded look, still available live: four flat levels. */
+/** The banded look: four flat levels. */
 const VOXEL = { ...DEFAULT, y: 4 };
 
 describe("light cone scatter style", () => {
-  it("defaults to snapped and capped, unbanded, and flips back to smooth", () => {
-    expect(LIGHT_CONE_SCATTER_STYLE.value.toArray()).toEqual([
-      DEFAULT.x,
-      0,
-      DEFAULT.z,
-    ]);
+  it("defaults to snapped and capped, unbanded; an empty style is smooth", () => {
+    expect([DEFAULT.x, DEFAULT.y, DEFAULT.z]).toEqual([16, 0, 0.3]);
     // Unbanded: a beam's glow ramps smoothly up to the ceiling.
     expect(styleLightConeScatter(0.12, DEFAULT)).toBeCloseTo(0.12, 12);
     expect(styleLightConeScatter(0.9, DEFAULT)).toBeCloseTo(DEFAULT.z, 12);
@@ -70,96 +66,73 @@ describe("light cone scatter style", () => {
     expect(styleLightConeScatter(0.12, capOnly)).toBeCloseTo(0.12, 12);
     expect(styleLightConeScatter(0.9, capOnly)).toBeCloseTo(0.3, 12);
   });
-
-  it("is one switch every material binding shares", () => {
-    const a = new LightCones();
-    const b = new LightCones();
-    expect(a.uniformBindings.uConeScatterStyle).toBe(LIGHT_CONE_SCATTER_STYLE);
-    expect(b.uniformBindings.uConeScatterStyle).toBe(LIGHT_CONE_SCATTER_STYLE);
-    expect(a.uniforms.coneScatterStyle).toBe(LIGHT_CONE_SCATTER_STYLE);
-  });
-
-  it("declares and uses the style uniform in the shader chunks", () => {
-    expect(LIGHT_CONES_UNIFORM_DECLARATIONS).toContain(
-      "uniform vec3 uConeScatterStyle;",
-    );
-    expect(LIGHT_CONES_FUNCTIONS).toContain(
-      "floor((lcCam + lcRayDir * lcT) * lcSnap) * lcSnapInv + lcSnapOffset",
-    );
-    expect(LIGHT_CONES_FUNCTIONS).toContain(
-      "lightConeScatterStyled(lcSum * (lcStrength * lcStep), lcSubmersion)",
-    );
-    // Dry air is never banded or snapped: the style is underwater's.
-    expect(LIGHT_CONES_FUNCTIONS).toContain(
-      "if (lcSubmersion <= 0.0) return lcScatter;",
-    );
-    expect(LIGHT_CONES_FUNCTIONS).toContain(
-      "lcSubmersion > 0.5 ? uConeScatterStyle.x : 0.0",
-    );
-    // Samples are spent only on the stretch of the ray inside the cone.
-    expect(LIGHT_CONES_FUNCTIONS).toContain(
-      "vec2 lcSeg = lightConeSegment(i, lcCam, lcRayDir, lcMax);",
-    );
-    // The surface term is not styled: only the scattered shaft is.
-    const start = LIGHT_CONES_FUNCTIONS.indexOf("vec3 lightConeSurface");
-    const surface = LIGHT_CONES_FUNCTIONS.slice(
-      start,
-      LIGHT_CONES_FUNCTIONS.indexOf("\n}\n", start),
-    );
-    expect(surface).toContain("lcTotal +=");
-    expect(surface).not.toContain("uConeScatterStyle");
-  });
 });
 
 describe("light cone coverage", () => {
-  const builtIn = () => ({
-    uniforms: {} as Record<string, unknown>,
-    vertexShader: "#include <common>\nvoid main() {\n#include <project_vertex>\n}",
-    fragmentShader:
-      "#include <common>\nvoid main() {\n#include <color_fragment>\ngl_FragColor = vec4(1.0);\n}",
-  });
-
-  it("injects the cones into a built-in shader, the glow last in main", () => {
-    const cones = new LightCones();
-    const shader = builtIn();
-    injectLightCones(shader, cones.uniformBindings);
-    expect(shader.uniforms.uConeCount).toBe(cones.uniforms.coneCount);
-    expect(shader.vertexShader).toContain("varying vec3 vLightConeWorld;");
-    expect(shader.vertexShader.indexOf("vLightConeWorld =")).toBeGreaterThan(
-      shader.vertexShader.indexOf("#include <project_vertex>"),
-    );
-    expect(shader.fragmentShader).toContain("vec3 lightConeLit(vec3 lcLight)");
-    const glow = shader.fragmentShader.indexOf("lightConeScatter(cameraPosition");
-    expect(glow).toBeGreaterThan(shader.fragmentShader.indexOf("gl_FragColor ="));
-    expect(shader.fragmentShader.trimEnd().endsWith("}")).toBe(true);
-  });
-
   it("reports a drawn mesh whose material skips the cones", () => {
     const scene = new Scene();
-    const lit = new MeshBasicMaterial();
-    const missed = new MeshBasicMaterial({ name: "forgot" });
-    const lamp = new MeshBasicMaterial();
-    const glow = new MeshBasicMaterial({ blending: AdditiveBlending });
-    const chunk = new ShaderMaterial({
-      uniforms: { ...new LightCones().uniformBindings },
-    });
+    const lit = new MeshBasicNodeMaterial();
+    const missed = new MeshBasicNodeMaterial({ name: "forgot" });
+    const lamp = new MeshBasicNodeMaterial();
+    const glow = new MeshBasicNodeMaterial({ blending: AdditiveBlending });
     markLightConesCovered(lit);
     exemptFromLightCones(lamp, "an emitter");
-    for (const material of [lit, missed, lamp, glow, chunk]) {
+    for (const material of [lit, missed, lamp, glow]) {
       scene.add(new Mesh(new BoxGeometry(), material));
     }
-    const hidden = new Mesh(new BoxGeometry(), new MeshBasicMaterial());
+    const hidden = new Mesh(new BoxGeometry(), new MeshBasicNodeMaterial());
     hidden.visible = false;
     scene.add(hidden);
     const sky = new Group();
-    sky.add(new Mesh(new BoxGeometry(), new MeshBasicMaterial()));
+    sky.add(new Mesh(new BoxGeometry(), new MeshBasicNodeMaterial()));
     exemptFromLightCones(sky, "the sky");
     scene.add(sky);
-    const empty = new InstancedMesh(new BoxGeometry(), new MeshBasicMaterial(), 4);
+    const empty = new InstancedMesh(new BoxGeometry(), new MeshBasicNodeMaterial(), 4);
     empty.count = 0;
     scene.add(empty);
 
     const missing = auditLightCones(scene);
     expect(missing.map((entry) => entry.material)).toEqual(["forgot"]);
+  });
+});
+
+describe("light cone storage", () => {
+  it("packs each cone into the node's own vectors and caps the count", () => {
+    const cones = new LightCones();
+    const slots = cones.uniforms.cones.value;
+    expect(slots).toHaveLength(LIGHT_CONES.maxCones * LIGHT_CONE_STRIDE);
+    // The array node reads the very vectors the CPU writes.
+    expect(cones.uniforms.cones.node.array).toBe(slots);
+    const cone = {
+      origin: new Vector3(1, 2, 3),
+      direction: new Vector3(0, 0, -2),
+      color: new Color(1, 0.5, 0.25),
+      intensity: 2,
+      angleDeg: 60,
+      innerRatio: 0.5,
+      range: 20,
+      scatterStrength: 0.4,
+      submersion: 3,
+    };
+    expect(cones.pushCone(cone)).toBe(true);
+    expect(cones.uniforms.coneCount.value).toBe(1);
+    expect(slots[0].toArray()).toEqual([1, 2, 3, 1]);
+    expect(slots[1].toArray()).toEqual([0, 0, -1, 0]);
+    expect(slots[2].toArray()).toEqual([2, 1, 0.5, 0]);
+    expect(slots[3].x).toBeCloseTo(Math.cos(Math.PI / 6), 12);
+    expect(slots[3].z).toBe(20);
+    for (let i = 1; i < LIGHT_CONES.maxCones; i++) cones.pushCone(cone);
+    expect(cones.pushCone(cone)).toBe(false);
+    expect(cones.uniforms.coneCount.value).toBe(LIGHT_CONES.maxCones);
+    cones.beginFrame();
+    expect(cones.uniforms.coneCount.value).toBe(0);
+  });
+
+  it("counts a chunk material, which shades with the cones, as covered", () => {
+    const material = new ChunkMaterial(
+      { id: 1 } as unknown as ChunkShadingInputs,
+      { kind: "opaque" },
+    );
+    expect(isLightConesCovered(material)).toBe(true);
   });
 });

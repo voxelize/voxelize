@@ -2,8 +2,8 @@ import {
   BufferAttribute,
   BufferGeometry,
   Matrix4,
-  MeshBasicMaterial,
-} from "three";
+  MeshBasicNodeMaterial,
+} from "three/webgpu";
 import { describe, expect, it } from "vitest";
 
 import { PoolPage, SectionPool } from "./section-pool";
@@ -32,7 +32,7 @@ const page = (pool: SectionPool) => pool.group.children[0] as PoolPage;
 
 describe("a section pool", () => {
   it("copies each section to its slot with its indices rebased there", () => {
-    const pool = new SectionPool(new MeshBasicMaterial(), 4096, false);
+    const pool = new SectionPool(new MeshBasicNodeMaterial(), 4096, false);
     pool.add(section(2, 100), new Matrix4());
     const second = pool.add(section(3, 500), new Matrix4());
     expect(pool.stats).toMatchObject({ pages: 1, slots: 2 });
@@ -60,7 +60,7 @@ describe("a section pool", () => {
   });
 
   it("reuses a freed slot of the same size instead of growing", () => {
-    const pool = new SectionPool(new MeshBasicMaterial(), 4096, false);
+    const pool = new SectionPool(new MeshBasicNodeMaterial(), 4096, false);
     const first = pool.add(section(2), new Matrix4());
     pool.remove(first);
     expect(pool.stats).toMatchObject({ slots: 0, freeSlots: 1 });
@@ -75,7 +75,7 @@ describe("a section pool", () => {
   });
 
   it("sizes a page for many sections like the one that opens it", () => {
-    const pool = new SectionPool(new MeshBasicMaterial(), 256, false);
+    const pool = new SectionPool(new MeshBasicNodeMaterial(), 256, false);
     pool.add(section(1), new Matrix4());
     // A 256-vertex slot opens a page with room for 128 of them...
     expect(pool.stats).toMatchObject({ pages: 1, capacity: 256 * 128 });

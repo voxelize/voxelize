@@ -8,24 +8,24 @@
  */
 import { CSMRenderer, type AtlasFilteringMode } from "@voxelize/core";
 import {
-  BackSide,
   Color,
   DepthTexture,
+  FloatType,
   HalfFloatType,
+  LinearFilter,
+  LinearSRGBColorSpace,
   Matrix4,
   Mesh,
-  OrthographicCamera,
-  PlaneGeometry,
+  NoToneMapping,
+  QuadMesh,
+  RenderTarget,
   Scene,
-  ShaderMaterial,
   SphereGeometry,
-  Vector2,
   Vector3,
   Vector4,
-  WebGLRenderer,
-  WebGLRenderTarget,
+  WebGPURenderer,
   type Camera,
-} from "three";
+} from "three/webgpu";
 
 import {
   type CameraFeel,
@@ -52,6 +52,7 @@ import {
 } from "./overlays";
 import { type PinAction, PinLayer } from "./pin-layer";
 import type { PinLighting } from "./pin-model";
+import { createViewerComposite, createViewerSkyMaterial } from "./shading";
 import type { Pin, PinFact } from "./pins";
 import {
   type Bookmark,
@@ -147,9 +148,13 @@ type View = {
   overlays: OverlayCompositor;
   sky: Mesh;
   /** What the view draws into while the camera moves. */
-  target: WebGLRenderTarget;
-  /** What it draws into once the camera rests, antialiased; null where the display needs none. */
-  stillTarget: WebGLRenderTarget | null;
+  target: RenderTarget;
+  /**
+   * What it draws into once the camera rests: twice the resolution each
+   * way, averaged down by the composite's filtered read (2x2 supersampling);
+   * null where the display's own density smooths edges.
+   */
+  stillTarget: RenderTarget | null;
   csm: CSMRenderer;
   textures: TextureSummary;
 };
@@ -196,141 +201,8 @@ export type IdleReport = {
   views: ViewerState["views"];
 };
 
-const SKY_VERTEX = `
-varying vec3 vDirection;
-void main() {
-  vDirection = normalize((modelMatrix * vec4(position, 1.0)).xyz - cameraPosition);
-  gl_Position = projectionMatrix * viewMatrix * modelMatrix * vec4(position, 1.0);
-}`;
-
-const SKY_FRAGMENT = `
-uniform vec3 uSkyFogTopColor;
-uniform vec3 uSkyFogMiddleColor;
-uniform vec3 uSkyFogBottomColor;
-uniform float uSkyFogOffset;
-uniform float uSkyFogVoidOffset;
-uniform float uSkyFogExponent;
-uniform float uSkyFogExponent2;
-uniform float uSkyFogDimension;
-uniform vec3 uSunDirection;
-uniform vec3 uSunColor;
-uniform float uSunlightIntensity;
-varying vec3 vDirection;
-void main() {
-  vec3 ray = normalize(vDirection);
-  vec3 dome = ray * uSkyFogDimension;
-  float h = normalize(dome + uSkyFogOffset).y;
-  float h2 = normalize(dome + uSkyFogVoidOffset).y;
-  vec3 color = mix(uSkyFogMiddleColor, uSkyFogTopColor, max(pow(max(h, 0.0), uSkyFogExponent), 0.0));
-  color = mix(color, uSkyFogBottomColor, max(pow(max(-h2, 0.0), uSkyFogExponent2), 0.0));
-  color += uSunColor * pow(max(0.0, dot(ray, uSunDirection)), 6.0) * uSunlightIntensity * 0.35;
-  gl_FragColor = vec4(color, 1.0);
-}`;
-
-const COMPOSITE_VERTEX = `
-varying vec2 vUv;
-void main() {
-  vUv = uv;
-  gl_Position = vec4(position.xy, 0.0, 1.0);
-}`;
-
-const COMPOSITE_FRAGMENT = `
-uniform sampler2D tColorA;
-uniform sampler2D tDepthA;
-uniform sampler2D tColorB;
-uniform sampler2D tDepthB;
-uniform mat4 uInverseA;
-uniform mat4 uInverseB;
-uniform sampler2D tOverlayA;
-uniform sampler2D tOverlayB;
-uniform vec4 uOverlayRectA;
-uniform vec4 uOverlayRectB;
-uniform float uHasOverlayA;
-uniform float uHasOverlayB;
-uniform sampler2D tHeightA;
-uniform sampler2D tHeightB;
-uniform float uHasHeightA;
-uniform float uHasHeightB;
-uniform float uOverlayOpacity;
-uniform float uGrid;
-uniform float uGridSize;
-uniform float uContours;
-uniform float uContourStep;
-uniform float uSplit;
-uniform float uSwipe;
-uniform vec2 uResolution;
-varying vec2 vUv;
-
-vec3 toLinear(vec3 c) {
-  return mix(c / 12.92, pow((c + 0.055) / 1.055, vec3(2.4)), step(0.04045, c));
-}
-vec3 toSrgb(vec3 c) {
-  c = max(c, 0.0);
-  return mix(c * 12.92, 1.055 * pow(c, vec3(1.0 / 2.4)) - 0.055, step(0.0031308, c));
-}
-
-vec3 shade(sampler2D color, sampler2D depthMap, mat4 inverse, sampler2D overlay, vec4 rect, float hasOverlay, sampler2D heights, float hasHeights, vec2 uv) {
-  vec3 c = texture2D(color, uv).rgb;
-  float depth = texture2D(depthMap, uv).r;
-  if (depth >= 1.0) return c;
-  vec4 ndc = vec4(uv * 2.0 - 1.0, depth * 2.0 - 1.0, 1.0);
-  vec4 world = inverse * ndc;
-  world /= world.w;
-  if (hasOverlay > 0.5) {
-    vec2 o = (world.xz - rect.xy) * rect.zw;
-    if (o.x >= 0.0 && o.y >= 0.0 && o.x < 1.0 && o.y < 1.0) {
-      vec4 ov = texture2D(overlay, o);
-      c = mix(c, toLinear(ov.rgb), ov.a * uOverlayOpacity);
-    }
-  }
-  // Lines are drawn only where the surface is continuous across the pixel:
-  // at a silhouette the derivatives jump and would outline every block.
-  if (uGrid > 0.5) {
-    vec2 cell = world.xz / uGridSize;
-    vec2 fw = fwidth(cell);
-    if (max(fw.x, fw.y) < 0.06) {
-      vec2 d = abs(fract(cell + 0.5) - 0.5) / max(fw, vec2(1e-4));
-      float line = 1.0 - clamp(min(d.x, d.y) - 0.5, 0.0, 1.0);
-      c = mix(c, vec3(1.0, 0.85, 0.2), line * 0.6);
-    }
-  }
-  // Contours of the filtered height map, so they run as smooth lines over
-  // blocky ground and read the same from above as from the side.
-  if (uContours > 0.5 && hasHeights > 0.5) {
-    vec2 o = (world.xz - rect.xy) * rect.zw;
-    if (o.x >= 0.0 && o.y >= 0.0 && o.x < 1.0 && o.y < 1.0) {
-      float h = texture2D(heights, o).r / uContourStep;
-      float fw = fwidth(h);
-      if (h > 0.0 && fw < 0.5) {
-        float d = abs(fract(h + 0.5) - 0.5) / max(fw, 1e-4);
-        float line = 1.0 - clamp(d - 0.5, 0.0, 1.0);
-        float major = step(0.5, 1.0 - abs(mod(floor(h + 0.5), 5.0)));
-        c = mix(c, mix(vec3(0.16, 0.1, 0.05), vec3(0.04, 0.02, 0.0), major), line * (0.55 + 0.35 * major));
-      }
-    }
-  }
-  return c;
-}
-
-void main() {
-  vec3 color;
-  if (uSplit < 0.5) {
-    color = shade(tColorA, tDepthA, uInverseA, tOverlayA, uOverlayRectA, uHasOverlayA, tHeightA, uHasHeightA, vUv);
-  } else if (uSplit < 1.5) {
-    bool left = vUv.x < 0.5;
-    vec2 uv = vec2(left ? vUv.x * 2.0 : (vUv.x - 0.5) * 2.0, vUv.y);
-    color = left
-      ? shade(tColorA, tDepthA, uInverseA, tOverlayA, uOverlayRectA, uHasOverlayA, tHeightA, uHasHeightA, uv)
-      : shade(tColorB, tDepthB, uInverseB, tOverlayB, uOverlayRectB, uHasOverlayB, tHeightB, uHasHeightB, uv);
-    if (abs(vUv.x - 0.5) * uResolution.x < 1.5) color = vec3(1.0);
-  } else {
-    color = vUv.x < uSwipe
-      ? shade(tColorA, tDepthA, uInverseA, tOverlayA, uOverlayRectA, uHasOverlayA, tHeightA, uHasHeightA, vUv)
-      : shade(tColorB, tDepthB, uInverseB, tOverlayB, uOverlayRectB, uHasOverlayB, tHeightB, uHasHeightB, vUv);
-    if (abs(vUv.x - uSwipe) * uResolution.x < 1.5) color = vec3(1.0);
-  }
-  gl_FragColor = vec4(toSrgb(color), 1.0);
-}`;
+const inverseScratch = new Matrix4();
+const overlayRectScratch = new Vector4();
 
 async function getJson<T>(url: string): Promise<T> {
   const response = await fetch(url);
@@ -340,7 +212,12 @@ async function getJson<T>(url: string): Promise<T> {
 }
 
 export class WorldViewer {
-  readonly renderer: WebGLRenderer;
+  readonly renderer: WebGPURenderer;
+
+  /** Resolves once the renderer's device is up; nothing draws before. */
+  private readonly rendererReady: Promise<void>;
+
+  private isRendererReady = false;
 
   readonly rig: CameraRig;
 
@@ -356,13 +233,9 @@ export class WorldViewer {
 
   private overlays: ViewerOverlay[];
 
-  private composite: ShaderMaterial;
+  private composite = createViewerComposite();
 
-  private quad: Mesh;
-
-  private quadCamera = new OrthographicCamera(-1, 1, 1, -1, 0, 1);
-
-  private quadScene = new Scene();
+  private quad = new QuadMesh(this.composite.material);
 
   private frame = 0;
 
@@ -441,14 +314,18 @@ export class WorldViewer {
       container.style.position = "relative";
     container.append(this.canvas, this.hud);
 
-    this.renderer = new WebGLRenderer({
+    this.renderer = new WebGPURenderer({
       canvas: this.canvas,
       antialias: false,
       powerPreference: "high-performance",
-      preserveDrawingBuffer: true,
     });
     this.renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
-    this.renderer.debug.checkShaderErrors = true;
+    // The composite encodes the output itself: no separate output pass.
+    this.renderer.outputColorSpace = LinearSRGBColorSpace;
+    this.renderer.toneMapping = NoToneMapping;
+    this.rendererReady = this.renderer.init().then(() => {
+      this.isRendererReady = true;
+    });
 
     this.rig = new CameraRig(this.canvas, host.fov ?? 60);
     this.rig.groundAt = (x, z) => this.groundAt(x, z);
@@ -512,41 +389,7 @@ export class WorldViewer {
       this.pins.click(p.x, p.y, e.detail);
     });
 
-    this.composite = new ShaderMaterial({
-      vertexShader: COMPOSITE_VERTEX,
-      fragmentShader: COMPOSITE_FRAGMENT,
-      depthTest: false,
-      depthWrite: false,
-      uniforms: {
-        tColorA: { value: null },
-        tDepthA: { value: null },
-        tColorB: { value: null },
-        tDepthB: { value: null },
-        uInverseA: { value: new Matrix4() },
-        uInverseB: { value: new Matrix4() },
-        tOverlayA: { value: null },
-        tOverlayB: { value: null },
-        uOverlayRectA: { value: new Vector4() },
-        uOverlayRectB: { value: new Vector4() },
-        uHasOverlayA: { value: 0 },
-        uHasOverlayB: { value: 0 },
-        tHeightA: { value: null },
-        tHeightB: { value: null },
-        uHasHeightA: { value: 0 },
-        uHasHeightB: { value: 0 },
-        uOverlayOpacity: { value: 0.6 },
-        uGrid: { value: 0 },
-        uGridSize: { value: 16 },
-        uContours: { value: 0 },
-        uContourStep: { value: 8 },
-        uSplit: { value: 0 },
-        uSwipe: { value: 0.5 },
-        uResolution: { value: new Vector2(1, 1) },
-      },
-    });
-    this.quad = new Mesh(new PlaneGeometry(2, 2), this.composite);
-    this.quad.frustumCulled = false;
-    this.quadScene.add(this.quad);
+
 
     this.canvas.addEventListener("pointermove", (e) => {
       const rect = this.canvas.getBoundingClientRect();
@@ -583,6 +426,10 @@ export class WorldViewer {
     this.resize();
     const loop = () => {
       if (!this.running) return;
+      if (!this.isRendererReady) {
+        requestAnimationFrame(loop);
+        return;
+      }
       const now = performance.now();
       this.isDrawingIdle = this.isQuiet(now);
       if (
@@ -660,6 +507,7 @@ export class WorldViewer {
   }
 
   async setSources(a: SourceRef, b: SourceRef | null = null) {
+    await this.rendererReady;
     const make = async (ref: SourceRef | null, current: View | null) => {
       if (!ref) return null;
       if (current && current.ref.id === ref.id) return current;
@@ -756,29 +604,7 @@ export class WorldViewer {
     scene.add(far.terrain);
     const sky = new Mesh(
       new SphereGeometry(9000, 32, 16),
-      new ShaderMaterial({
-        vertexShader: SKY_VERTEX,
-        fragmentShader: SKY_FRAGMENT,
-        side: BackSide,
-        depthWrite: false,
-        uniforms: {
-          uSkyFogTopColor: materials.chunkRenderer.uniforms.skyFogTopColor,
-          uSkyFogMiddleColor:
-            materials.chunkRenderer.uniforms.skyFogMiddleColor,
-          uSkyFogBottomColor:
-            materials.chunkRenderer.uniforms.skyFogBottomColor,
-          uSkyFogOffset: materials.chunkRenderer.uniforms.skyFogOffset,
-          uSkyFogVoidOffset: materials.chunkRenderer.uniforms.skyFogVoidOffset,
-          uSkyFogExponent: materials.chunkRenderer.uniforms.skyFogExponent,
-          uSkyFogExponent2: materials.chunkRenderer.uniforms.skyFogExponent2,
-          uSkyFogDimension: materials.chunkRenderer.uniforms.skyFogDimension,
-          uSunDirection:
-            materials.chunkRenderer.shaderLightingUniforms.sunDirection,
-          uSunColor: materials.chunkRenderer.shaderLightingUniforms.sunColor,
-          uSunlightIntensity:
-            materials.chunkRenderer.shaderLightingUniforms.sunlightIntensity,
-        },
-      }),
+      createViewerSkyMaterial(materials.chunkRenderer),
     );
     sky.renderOrder = -10;
     sky.frustumCulled = false;
@@ -788,12 +614,12 @@ export class WorldViewer {
       new FarTileClient(`${base}/far`),
       `${base}/annotations`,
     );
-    const target = this.makeTarget(1, 1, 0);
+    const target = this.makeTarget(1, 1);
     // At two device pixels a CSS pixel the display's density smooths
-    // edges; at one, a resting view gets 4x MSAA. Moving, no view does: 4x
-    // took a pan from about 90 fps to 37, and 2x to 60.
+    // edges; at one, a resting view is supersampled 2x2. Moving, no view
+    // is: four times the pixels takes a pan from about 90 fps to 37.
     const stillTarget =
-      this.renderer.getPixelRatio() >= 2 ? null : this.makeTarget(1, 1, 4);
+      this.renderer.getPixelRatio() >= 2 ? null : this.makeTarget(1, 1);
     const csm = new CSMRenderer({
       maxShadowDistance: 256,
       shadowMapSize: 2048,
@@ -825,11 +651,14 @@ export class WorldViewer {
     };
   }
 
-  private makeTarget(width: number, height: number, samples: number) {
-    const target = new WebGLRenderTarget(width, height, {
+  private makeTarget(width: number, height: number) {
+    const depthTexture = new DepthTexture(width, height);
+    depthTexture.type = FloatType;
+    const target = new RenderTarget(width, height, {
       type: HalfFloatType,
-      depthTexture: new DepthTexture(width, height),
-      samples,
+      depthTexture,
+      minFilter: LinearFilter,
+      magFilter: LinearFilter,
     });
     return target;
   }
@@ -1091,8 +920,13 @@ export class WorldViewer {
     }
   }
 
-  /** The current frame as a PNG data URL (the WebGL canvas only). */
+  /**
+   * The current frame as a PNG data URL (the canvas only). The frame is
+   * drawn again in this task, so the canvas still holds it when read: a
+   * WebGPU canvas keeps no drawing buffer past the task that presented it.
+   */
   captureCanvas(): string {
+    if (this.isRendererReady) this.tick();
     return this.canvas.toDataURL("image/png");
   }
 
@@ -1139,14 +973,11 @@ export class WorldViewer {
     for (const view of [this.views.a, this.views.b]) {
       for (const target of [view?.target, view?.stillTarget]) {
         if (!target) continue;
+        const scale = target === view?.stillTarget ? 2 : 1;
         target.setSize(
-          Math.floor(viewWidth * ratio),
-          Math.floor(height * ratio),
+          Math.floor(viewWidth * ratio) * scale,
+          Math.floor(height * ratio) * scale,
         );
-        if (target.depthTexture) {
-          target.depthTexture.image.width = Math.floor(viewWidth * ratio);
-          target.depthTexture.image.height = Math.floor(height * ratio);
-        }
         // Allocated now rather than by the first frame that draws into it.
         this.renderer.initRenderTarget(target);
       }
@@ -1154,10 +985,7 @@ export class WorldViewer {
     this.rig.resize(viewWidth, height);
     this.hud.width = Math.floor(width * ratio);
     this.hud.height = Math.floor(height * ratio);
-    (this.composite.uniforms.uResolution.value as Vector2).set(
-      width * ratio,
-      height * ratio,
-    );
+    this.composite.uniforms.resolution.value.set(width * ratio, height * ratio);
   }
 
   private fog(): { near: number; far: number } {
@@ -1256,44 +1084,44 @@ export class WorldViewer {
       this.renderer.clear();
       this.renderer.render(view.scene, viewCamera);
 
-      const key = index === 0 ? "A" : "B";
-      const uniforms = this.composite.uniforms;
-      uniforms[`tColor${key}`].value = target.texture;
-      uniforms[`tDepth${key}`].value = target.depthTexture;
-      (uniforms[`uInverse${key}`].value as Matrix4).multiplyMatrices(
-        viewCamera.matrixWorld,
-        viewCamera.projectionMatrixInverse,
-      );
-      uniforms[`tOverlay${key}`].value = view.overlays.texture;
       const r = view.overlays.rect;
-      (uniforms[`uOverlayRect${key}`].value as Vector4).set(
-        r.x0,
-        r.z0,
-        1 / (1024 * r.res),
-        1 / (1024 * r.res),
-      );
-      uniforms[`uHasOverlay${key}`].value = view.overlays.hasRaster ? 1 : 0;
-      uniforms[`tHeight${key}`].value = view.overlays.heightTexture;
-      uniforms[`uHasHeight${key}`].value = view.overlays.hasHeights ? 1 : 0;
+      this.composite.setSide(index as 0 | 1, {
+        color: target.texture,
+        depth: target.depthTexture,
+        inverse: inverseScratch.multiplyMatrices(
+          viewCamera.matrixWorld,
+          viewCamera.projectionMatrixInverse,
+        ),
+        overlay: view.overlays.texture,
+        overlayRect: overlayRectScratch.set(
+          r.x0,
+          r.z0,
+          1 / (1024 * r.res),
+          1 / (1024 * r.res),
+        ),
+        hasOverlay: view.overlays.hasRaster,
+        height: view.overlays.heightTexture,
+        hasHeight: view.overlays.hasHeights,
+      });
     });
 
     const uniforms = this.composite.uniforms;
-    uniforms.uOverlayOpacity.value = this.options.overlayOpacity;
-    uniforms.uGrid.value = grid ? 1 : 0;
-    uniforms.uGridSize.value =
+    uniforms.overlayOpacity.value = this.options.overlayOpacity;
+    uniforms.grid.value = grid ? 1 : 0;
+    uniforms.gridSize.value =
       grid && grid.kind === "grid" ? grid.interval : 16;
-    uniforms.uContours.value = contours ? 1 : 0;
-    uniforms.uContourStep.value =
+    uniforms.contours.value = contours ? 1 : 0;
+    uniforms.contourStep.value =
       contours && contours.kind === "contours" ? contours.interval : 8;
-    uniforms.uSplit.value =
+    uniforms.split.value =
       !this.views.b || this.options.split === "none"
         ? 0
         : this.options.split === "side"
           ? 1
           : 2;
-    uniforms.uSwipe.value = this.options.swipe;
+    uniforms.swipe.value = this.options.swipe;
     this.renderer.setRenderTarget(null);
-    this.renderer.render(this.quadScene, this.quadCamera);
+    this.quad.render(this.renderer);
 
     this.updateHover();
     const cssWidth = this.canvas.clientWidth;

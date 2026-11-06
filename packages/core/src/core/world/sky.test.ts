@@ -1,4 +1,4 @@
-import { Object3D, Vector3 } from "three";
+import { Object3D, Vector3 } from "three/webgpu";
 import { describe, expect, it } from "vitest";
 
 import { getSunDiscDirection, getVisibleDiscDirection } from "./sky";

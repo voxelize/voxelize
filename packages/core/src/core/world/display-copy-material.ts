@@ -1,5 +1,5 @@
-import type { Side, Texture } from "three";
-import { DoubleSide, FrontSide } from "three";
+import type { Side, Texture } from "three/webgpu";
+import { DoubleSide, FrontSide } from "three/webgpu";
 
 /**
  * The alpha below which a see-through display copy discards a texel, the

@@ -14,12 +14,11 @@ import {
   Quaternion,
   Vector3,
   Vector4,
-} from "three";
+} from "three/webgpu";
 
 import {
-  EntityShadowUniforms,
-  ShaderLightingUniforms,
-  updateEntityShadowUniforms,
+  createEntityShadowBody,
+  type EntityShadowBody,
 } from "../core/world/entity-shadow-uniforms";
 import { AnimationUtils, MathUtils as VoxMathUtils } from "../utils";
 
@@ -247,6 +246,16 @@ export type CharacterOptions = {
    * turns its body. Off by default: head and body share every direction.
    */
   headLedBody?: HeadLedBodyOptions;
+
+  /**
+   * Whether the boxes get the default colours (`paintDefaultColors`) as they
+   * are built. Defaults to `true`. A character that is repainted right away,
+   * or whose boxes only stand as the frame of a mesh drawn in their place,
+   * passes `false`: painting gives each face canvas a 2D context, and the
+   * browser finalizes contexts one by one when the character is collected
+   * (a crowd streaming in and out cost whole-second garbage collections).
+   */
+  isPaintedOnBuild?: boolean;
 
   /**
    * Parameters to create the character's head.
@@ -520,14 +529,21 @@ export class Character extends Group {
   public readonly rideOffset = new Vector3();
 
   /**
-   * The body's bounding sphere in world space (centre xyz, radius w). Every
-   * part's entity shadow uniforms read it as `uShadowSelfBounds`, so no face
-   * is shaded by the body it belongs to while anything beyond the body
-   * still shades it. Kept current by {@link update} and
-   * {@link updateShadowUniforms}; {@link bindShadowSelfBounds} shares it
-   * with an accessory's uniforms.
+   * The body's bounding sphere in world space (centre xyz, radius w): the
+   * bounds of {@link shadowBody}, so no face is shaded by the body it
+   * belongs to while anything beyond the body still shades it. Kept current
+   * by {@link update}.
    */
   public readonly shadowSelfBounds = new Vector4();
+
+  /**
+   * The body every part is shaded as part of. An accessory with a shadowed
+   * material of its own (armour, a hat) points its material at it too
+   * (`setShadowBody`), so it is shaded like the body it is worn on.
+   */
+  public readonly shadowBody: EntityShadowBody = createEntityShadowBody(
+    this.shadowSelfBounds,
+  );
 
   /**
    * How far the farthest mesh under the parts reaches from the centre of
@@ -613,9 +629,7 @@ export class Character extends Group {
     }
 
     for (const part of this.shadowParts()) {
-      for (const layer of part.boxLayers) {
-        this.bindShadowSelfBounds(layer.shadowUniforms);
-      }
+      part.setShadowBody(this.shadowBody);
     }
     this.refreshShadowSelfBounds();
 
@@ -839,26 +853,6 @@ export class Character extends Group {
     return this.options.arms.color;
   }
 
-  updateShadowUniforms(lightingUniforms: ShaderLightingUniforms): void {
-    if (!this.options.receiveShadows) return;
-
-    this.refreshShadowSelfBounds();
-    for (const part of this.shadowParts()) {
-      if (part?.shadowUniforms) {
-        updateEntityShadowUniforms(part.shadowUniforms, lightingUniforms);
-      }
-    }
-  }
-
-  /**
-   * Have `uniforms` read this body's {@link shadowSelfBounds}: for an
-   * accessory with a shadowed material of its own (armour, a hat), so it is
-   * shaded like the body it is worn on.
-   */
-  bindShadowSelfBounds(uniforms: EntityShadowUniforms | null | undefined) {
-    if (uniforms) uniforms.uShadowSelfBounds.value = this.shadowSelfBounds;
-  }
-
   /**
    * Recompute {@link shadowSelfBounds} from the current pose: a sphere about
    * the middle of the body that holds every part however the arms swing,
@@ -955,6 +949,18 @@ export class Character extends Group {
 
   get legColor(): string | Color {
     return this.options.legs.color;
+  }
+
+  /** Paint every box its colour from the options (see `isPaintedOnBuild`). */
+  paintDefaultColors() {
+    const { head, body, arms, legs } = this.options;
+    this.head.paint("all", new Color(head.color));
+    this.head.paint("front", new Color(head.faceColor));
+    this.body.paint("all", new Color(body.color));
+    this.leftArm.paint("all", new Color(arms.color));
+    this.rightArm.paint("all", new Color(arms.color));
+    this.leftLeg.paint("all", new Color(legs.color));
+    this.rightLeg.paint("all", new Color(legs.color));
   }
 
   set headColor(color: string | Color) {
@@ -1060,7 +1066,6 @@ export class Character extends Group {
       ...defaultHeadOptions,
       ...(this.options.head ? this.options.head : {}),
       receiveShadows,
-      underwaterFog: true,
       ...merged,
     });
 
@@ -1068,7 +1073,6 @@ export class Character extends Group {
       ...defaultBodyOptions,
       ...(this.options.body ? this.options.body : {}),
       receiveShadows,
-      underwaterFog: true,
       ...merged,
     });
 
@@ -1076,7 +1080,6 @@ export class Character extends Group {
       ...defaultArmsOptions,
       ...(this.options.arms ? this.options.arms : {}),
       receiveShadows,
-      underwaterFog: true,
       ...merged,
     });
 
@@ -1084,7 +1087,6 @@ export class Character extends Group {
       ...defaultArmsOptions,
       ...(this.options.arms ? this.options.arms : {}),
       receiveShadows,
-      underwaterFog: true,
       ...merged,
     });
 
@@ -1092,7 +1094,6 @@ export class Character extends Group {
       ...defaultLegsOptions,
       ...(this.options.legs ? this.options.legs : {}),
       receiveShadows,
-      underwaterFog: true,
       ...merged,
     });
 
@@ -1100,7 +1101,6 @@ export class Character extends Group {
       ...defaultLegsOptions,
       ...(this.options.legs ? this.options.legs : {}),
       receiveShadows,
-      underwaterFog: true,
       ...merged,
     });
 
@@ -1160,14 +1160,6 @@ export class Character extends Group {
       this.rightLegGroup.position.x += this.options.legs.betweenLegsGap / 2;
     }
 
-    head.paint("all", new Color(this.options.head.color));
-    head.paint("front", new Color(this.options.head.faceColor));
-    body.paint("all", new Color(this.options.body.color));
-    leftArm.paint("all", new Color(this.options.arms.color));
-    rightArm.paint("all", new Color(this.options.arms.color));
-    leftLeg.paint("all", new Color(this.options.legs.color));
-    rightLeg.paint("all", new Color(this.options.legs.color));
-
     this.add(this.headGroup, this.bodyGroup);
 
     this.bodyGroup.add(
@@ -1189,6 +1181,8 @@ export class Character extends Group {
     this.rightArm = rightArm;
     this.leftLeg = leftLeg;
     this.rightLeg = rightLeg;
+
+    if (this.options.isPaintedOnBuild !== false) this.paintDefaultColors();
   };
 
   /**

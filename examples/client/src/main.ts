@@ -3,12 +3,27 @@ import "./style.css";
 import * as VOXELIZE from "@voxelize/core";
 import { GUI } from "lil-gui";
 import {
+  Effect,
   EffectComposer,
   EffectPass,
-  RenderPass,
-  SMAAEffect,
-} from "postprocessing";
-import * as THREE from "three";
+  FxaaEffect,
+  SceneOverlayEffect,
+  ScenePass,
+  type EffectInputs,
+  type Vec4Node,
+} from "@voxelize/postprocessing";
+import {
+  clamp,
+  fract,
+  Fn,
+  mix,
+  pow,
+  step,
+  uv,
+  vec3,
+  vec4,
+} from "three/tsl";
+import * as THREE from "three/webgpu";
 
 import "@voxelize/core/styles.css"; //? For official use, you should do `@voxelize/core/styles.css` instead.
 
@@ -54,7 +69,7 @@ const camera = new THREE.PerspectiveCamera(
 );
 camera.layers.enable(VOXELIZE.SCENE_OVERLAY_LAYER);
 
-const renderer = new THREE.WebGLRenderer({
+const renderer = new THREE.WebGPURenderer({
   canvas,
 });
 renderer.setSize(
@@ -63,12 +78,8 @@ renderer.setSize(
 );
 renderer.setPixelRatio(1);
 renderer.outputColorSpace = THREE.SRGBColorSpace;
-
-// Local light GPU state is rebuilt from CPU pools on a restored context.
-canvas.addEventListener("webglcontextlost", (event) => event.preventDefault());
-canvas.addEventListener("webglcontextrestored", () => {
-  world.localLights.onContextRestored();
-});
+// Nothing draws until the device is up (`start` waits on it).
+const rendererReady = renderer.init();
 
 // resize window event listener found inside start() function
 
@@ -188,8 +199,12 @@ const minRadius = 1;
 const circular = true;
 
 inputs.scroll(
-  () => (radius = Math.min(maxRadius, radius + 1)),
-  () => (radius = Math.max(minRadius, radius - 1)),
+  () => {
+    radius = Math.min(maxRadius, radius + 1);
+  },
+  () => {
+    radius = Math.max(minRadius, radius - 1);
+  },
   "in-game",
 );
 
@@ -642,35 +657,20 @@ const toggleAtlasViewer = (x: number, y: number, z: number, size: number) => {
     atlasViewerMesh = null;
     return;
   }
-  const bindings = world.localLights.uniformBindings;
-  const material = new THREE.ShaderMaterial({
-    uniforms: {
-      uAtlas: bindings.uLocalShadowAtlas,
-      uParams: bindings.uLocalShadowParams,
-    },
-    vertexShader: `
-      varying vec2 vUv;
-      void main() {
-        vUv = uv;
-        gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
-      }
-    `,
-    fragmentShader: `
-      uniform sampler2D uAtlas;
-      uniform vec4 uParams;
-      varying vec2 vUv;
-      void main() {
-        float d = texture2D(uAtlas, vUv).r;
-        // Perspective depth clusters near 1; stretch the useful range.
-        float shade = pow(clamp(1.0 - d, 0.0, 1.0), 0.30);
-        vec2 cell = fract(vUv * uParams.x / uParams.y);
-        float line = step(cell.x, 0.02) + step(cell.y, 0.02);
-        vec3 color = mix(vec3(shade), vec3(1.0, 0.55, 0.1), clamp(line, 0.0, 1.0) * 0.6);
-        gl_FragColor = vec4(color, 1.0);
-      }
-    `,
-    side: THREE.DoubleSide,
-  });
+  const { shadow } = world.localLights.shadingInputs;
+  const material = new THREE.NodeMaterial();
+  material.side = THREE.DoubleSide;
+  material.fragmentNode = Fn(() => {
+    const depth = (shadow.atlas.sample(uv()) as unknown as VOXELIZE.Vec4Node).r;
+    // Perspective depth clusters near 1; stretch the useful range.
+    const shade = pow(clamp(depth.oneMinus(), 0, 1), 0.3);
+    const cell = fract(uv().mul(shadow.params.x.div(shadow.params.y)));
+    const line = step(cell.x, 0.02).add(step(cell.y, 0.02));
+    return vec4(
+      mix(vec3(shade), vec3(1, 0.55, 0.1), clamp(line, 0, 1).mul(0.6)),
+      1,
+    );
+  })();
   material.userData.skipShadow = true;
   atlasViewerMesh = new THREE.Mesh(
     new THREE.PlaneGeometry(size, size),
@@ -681,7 +681,7 @@ const toggleAtlasViewer = (x: number, y: number, z: number, size: number) => {
 };
 
 // Headless benchmark hooks: deterministic scenes, stats sampling, tier and
-// debug switching, scripted context loss. Driven by scripts/bench-local-lights.mjs.
+// debug switching. Driven by scripts/bench-local-lights.mjs.
 const frameSamples = new Float64Array(600);
 let frameSampleCount = 0;
 let frameSampleCursor = 0;
@@ -710,7 +710,6 @@ const frameStats = () => {
     frame: frameStats(),
     localLights: { ...world.localLights.stats },
     render: { ...renderer.info.render },
-    programs: renderer.info.programs?.length ?? 0,
     memory:
       (performance as Performance & { memory?: { usedJSHeapSize: number } })
         .memory?.usedJSHeapSize ?? 0,
@@ -735,177 +734,6 @@ const frameStats = () => {
       Math.max(value, 0),
       1,
     );
-  },
-  // Deterministic renderer diff harness (scripts/render-off-parity.mjs):
-  // renders the loaded scene twice in ONE synchronous turn — once with the
-  // shipped chunk programs, once with true "local lights never existed"
-  // programs compiled via stripLocalLightsFromFragment — through the same
-  // renderer, camera, and shared uniform objects, then compares every byte
-  // of the full RGBA readbacks (alpha included). Every pixel input is
-  // frozen by construction: nothing (world update, animation, particles,
-  // clocks) runs between the two renders, the uniforms are the same live
-  // objects for both programs, and uTime is pinned for reproducibility of
-  // the captures. At the off tier the outputs must be byte-identical.
-  renderOffParityDiff: () => {
-    const size = 512;
-    world.chunkRenderer.uniforms.time.value = 123456;
-    const chunkMaterials = [
-      ...new Set(world.chunkRenderer.materials.values()),
-    ] as THREE.ShaderMaterial[];
-    // globalThis: the demo shadows Map with its minimap component import.
-    const legacyOf = new globalThis.Map<THREE.Material, THREE.ShaderMaterial>();
-    for (const material of chunkMaterials) {
-      const legacy = new THREE.ShaderMaterial({
-        vertexShader: material.vertexShader,
-        fragmentShader: VOXELIZE.stripLocalLightsFromFragment(
-          material.fragmentShader,
-        ),
-        uniforms: material.uniforms, // shared: identical inputs, both passes
-        vertexColors: material.vertexColors,
-        transparent: material.transparent,
-        side: material.side,
-        depthWrite: material.depthWrite,
-        depthTest: material.depthTest,
-        blending: material.blending,
-        alphaTest: material.alphaTest,
-        polygonOffset: material.polygonOffset,
-        polygonOffsetFactor: material.polygonOffsetFactor,
-        polygonOffsetUnits: material.polygonOffsetUnits,
-        defines: { ...material.defines },
-      });
-      // The chunk pipeline assigns `.map` after construction; the program
-      // builder keys USE_MAP off the property, so the legacy program must
-      // carry it too or it compiles untextured.
-      (legacy as THREE.ShaderMaterial & { map?: THREE.Texture }).map = (
-        material as THREE.ShaderMaterial & { map?: THREE.Texture }
-      ).map;
-      legacyOf.set(material, legacy);
-    }
-
-    const target = new THREE.WebGLRenderTarget(size, size, {
-      depthBuffer: true,
-      stencilBuffer: false,
-    });
-    const readback = () => {
-      renderer.setRenderTarget(target);
-      renderer.render(world, camera);
-      const pixels = new Uint8Array(size * size * 4);
-      renderer.readRenderTargetPixels(target, 0, 0, size, size, pixels);
-      return pixels;
-    };
-    const swap = (toLegacy: boolean) => {
-      world.traverse((object) => {
-        const mesh = object as THREE.Mesh;
-        if (!mesh.isMesh) return;
-        const material = mesh.material as THREE.Material;
-        const legacy = legacyOf.get(material);
-        if (toLegacy && legacy) {
-          mesh.userData.__parityOriginal = material;
-          mesh.material = legacy;
-        } else if (!toLegacy && mesh.userData.__parityOriginal) {
-          mesh.material = mesh.userData.__parityOriginal;
-          delete mesh.userData.__parityOriginal;
-        }
-      });
-    };
-
-    // The world's own per-render hook flushes animated-atlas frames on a
-    // real-time clock — a texture patch landing between two passes would
-    // fail the control for reasons outside the programs under test. Freeze
-    // it for the harness; queued patches flush on the next live frame.
-    const worldOnBeforeRender = world.onBeforeRender;
-    world.onBeforeRender = () => undefined;
-
-    // The contract under test is the CHUNK programs. Sky, clouds, entities,
-    // and overlays render identical programs in both passes but animate on
-    // their own real-time clocks, so they only add nondeterminism; hide
-    // everything that is not chunk geometry for the duration.
-    const hidden: THREE.Object3D[] = [];
-    world.traverse((object) => {
-      const mesh = object as THREE.Mesh;
-      if (!mesh.isMesh || !mesh.visible) return;
-      if (!legacyOf.has(mesh.material as THREE.Material)) {
-        mesh.visible = false;
-        hidden.push(mesh);
-      }
-    });
-
-    // Warm-up render: lazily-initialized render-path state (target
-    // allocation, first-render uploads, program compiles) settles before
-    // the measured passes, exactly like a real frame stream.
-    readback();
-    // Control: two consecutive readbacks with the SAME programs must be
-    // byte-identical, or the surface itself has order-dependent state and
-    // the legacy comparison would be meaningless.
-    const shippedControl = readback();
-    const shipped = readback();
-    swap(true);
-    // Compile + settle the legacy programs, then measure their pass.
-    readback();
-    const legacy = readback();
-    swap(false);
-    renderer.setRenderTarget(null);
-    for (const object of hidden) object.visible = true;
-    world.onBeforeRender = worldOnBeforeRender;
-
-    // Full-RGBA comparison: every byte of the readback counts, alpha
-    // included — the contract is byte-identical output, not RGB-close.
-    const compare = (a: Uint8Array, b: Uint8Array) => {
-      let diffBytes = 0;
-      let diffPixels = 0;
-      let maxDelta = 0;
-      for (let p = 0; p < size * size; p++) {
-        const i = p * 4;
-        let d = 0;
-        for (let c = 0; c < 4; c++) {
-          const delta = Math.abs(a[i + c] - b[i + c]);
-          if (delta > 0) diffBytes++;
-          d += delta;
-        }
-        if (d > 0) {
-          diffPixels++;
-          if (d > maxDelta) maxDelta = d;
-        }
-      }
-      return { diffBytes, diffPixels, maxDelta };
-    };
-    const control = compare(shippedControl, shipped);
-    const { diffBytes, diffPixels, maxDelta } = compare(shipped, legacy);
-
-    const toPng = (pixels: Uint8Array) => {
-      const canvas = document.createElement("canvas");
-      canvas.width = size;
-      canvas.height = size;
-      const ctx = canvas.getContext("2d");
-      if (!ctx) throw new Error("parity harness: no 2d context for the PNG");
-      const image = ctx.createImageData(size, size);
-      // GL readback is bottom-up; PNGs are top-down.
-      for (let row = 0; row < size; row++) {
-        image.data.set(
-          pixels.subarray((size - 1 - row) * size * 4, (size - row) * size * 4),
-          row * size * 4,
-        );
-      }
-      ctx.putImageData(image, 0, 0);
-      return canvas.toDataURL("image/png");
-    };
-    const result = {
-      diffPixels,
-      /** Differing BYTES across the full RGBA readback (alpha included). */
-      diffBytes,
-      maxDelta,
-      controlDiffPixels: control.diffPixels,
-      controlDiffBytes: control.diffBytes,
-      controlMaxDelta: control.maxDelta,
-      totalPixels: size * size,
-      totalBytes: size * size * 4,
-      shippedPng: toPng(shipped),
-      legacyPng: toPng(legacy),
-    };
-
-    target.dispose();
-    for (const legacyMaterial of legacyOf.values()) legacyMaterial.dispose();
-    return result;
   },
   // Positions of every registered light, for QA sweeps of leftover emitters.
   lightReport: () => {
@@ -961,11 +789,6 @@ const frameStats = () => {
   setTime: (time: number) => method.call("time", { time }),
   setTimeFrac: (frac: number) =>
     method.call("time", { time: world.options.timePerDay * frac }),
-  loseContext: () => {
-    const ext = renderer.getContext().getExtension("WEBGL_lose_context");
-    ext?.loseContext();
-    setTimeout(() => ext?.restoreContext(), 1500);
-  },
   worldReady: () => world.isInitialized,
   pendingWork: () => ({
     scans: world.localLights.stats.sectionsPendingScan,
@@ -1396,7 +1219,7 @@ debug.registerDisplay("Concurrent WebWorkers", () => {
 const gui = new GUI();
 gui.domElement.style.top = "10px";
 
-inputs.bind("KeyJ", debug.toggle, "*");
+inputs.bind("KeyJ", () => debug.toggle(), "*");
 
 // debug.registerDisplay("Active Voxels", async () => {
 //   const data = await fetch(`${BACKEND_SERVER}info`);
@@ -1617,7 +1440,7 @@ class Drop extends VOXELIZE.Entity<{
   };
   (
     window as Window & { __bench__?: Record<string, unknown> }
-  ).__bench__.entityMessages = () => entityMessageCount;
+  ).__bench__!.entityMessages = () => entityMessageCount;
 }
 
 inputs.on("namespace", (namespace) => {
@@ -1629,7 +1452,6 @@ world.addChunkInitListener([0, 0], () => {
   controls.teleportToTop(0, 0);
 });
 
-renderer.setTransparentSort(VOXELIZE.TRANSPARENT_SORT(controls.object));
 
 controls.on("lock", () => {
   inputs.setNamespace("in-game");
@@ -1850,7 +1672,8 @@ window.addEventListener("resize", () => {
   const height = window.innerHeight as number;
 
   renderer.setSize(width, height);
-  renderer.pixelRatio = window.devicePixelRatio;
+  renderer.setPixelRatio(window.devicePixelRatio);
+  composer.setSize(...renderer.getDrawingBufferSize(new THREE.Vector2()).toArray());
 
   camera.aspect = width / height;
   camera.updateProjectionMatrix();
@@ -1937,14 +1760,36 @@ const update = () => {
 
 let isFocused = true;
 
+/** The engine's block overlay as an effect of the frame's effect pass. */
+class BlockOverlay extends Effect {
+  constructor(readonly overlay: VOXELIZE.BlockOverlayEffect) {
+    super("block-overlay", "src");
+  }
+
+  fragment({ color }: EffectInputs): Vec4Node {
+    return this.overlay.apply(color);
+  }
+
+  update() {
+    this.overlay.update();
+  }
+}
+
 const composer = new EffectComposer(renderer);
-composer.addPass(new RenderPass(world, camera));
-// The blended layers accumulate against the scene's own depth.
-composer.createDepthTexture();
+// The world draws its own frame: shadows already rendered, the scene pass,
+// then its blended layers accumulated against the scene's own depth.
+composer.addPass(
+  new ScenePass((r, target) => world.renderFrame(r, camera, target)),
+);
 
 const overlayEffect = new VOXELIZE.BlockOverlayEffect(world, camera);
 overlayEffect.addOverlay("water", new THREE.Color("#5F9DF7"), 0.001);
-composer.addPass(new EffectPass(camera, new SMAAEffect({}), overlayEffect));
+// The arm draws over the finished frame with a depth buffer of its own.
+const armOverlay = new SceneOverlayEffect(armScene, armCamera);
+composer.addPass(
+  new EffectPass(new FxaaEffect(), new BlockOverlay(overlayEffect), armOverlay),
+);
+composer.setSize(...renderer.getDrawingBufferSize(new THREE.Vector2()).toArray());
 
 const animate = () => {
   requestAnimationFrame(animate);
@@ -1954,13 +1799,9 @@ const animate = () => {
   // plus the local-light atlas) exactly the way a production host does.
   if (world.isInitialized && SHADOWS_ENABLED) {
     world.updateShaderLighting(camera, controls.object.position);
-    roster.updateShadowUniforms(world.chunkRenderer.shaderLightingUniforms);
     world.renderShadowMaps(renderer, collectShadowCasters());
   }
-  if (world.isInitialized) world.prepareTransparency(renderer, camera);
   composer.render();
-  renderer.clearDepth();
-  renderer.render(armScene, armCamera);
 };
 
 const start = async () => {
@@ -1985,6 +1826,7 @@ const start = async () => {
 
   document.addEventListener("visibilitychange", handleVisibilityChange);
 
+  await rendererReady;
   animate();
 
   await network.connect(BACKEND_SERVER, { secret: "test" });

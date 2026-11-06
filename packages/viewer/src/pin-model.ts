@@ -10,13 +10,32 @@ import {
   BufferAttribute,
   BufferGeometry,
   CanvasTexture,
+  type Color,
   Group,
   Mesh,
   NearestFilter,
-  ShaderMaterial,
+  NodeMaterial,
   SRGBColorSpace,
   type Texture,
-} from "three";
+  type UniformNode,
+  type Vector3,
+  type Vector4,
+} from "three/webgpu";
+import {
+  abs,
+  Discard,
+  dot,
+  Fn,
+  max,
+  mix,
+  normalize,
+  normalWorld,
+  select,
+  texture,
+  uv,
+  vec3,
+  vec4,
+} from "three/tsl";
 
 import {
   paintCap,
@@ -195,61 +214,72 @@ export type PinColors = {
 };
 
 /** Uniforms the model shares with the chunk shader, so it is lit like the terrain. */
-export type PinLighting = Record<
-  | "sunDirection"
-  | "sunColor"
-  | "sunlightIntensity"
-  | "ambientColor"
-  | "minLightLevel"
-  | "baseAmbient"
-  | "faceShades",
-  { value: unknown }
->;
+export type PinLighting = {
+  sunDirection: UniformNode<"vec3", Vector3>;
+  sunColor: UniformNode<"vec3", Color>;
+  sunlightIntensity: UniformNode<"float", number>;
+  ambientColor: UniformNode<"vec3", Color>;
+  minLightLevel: UniformNode<"float", number>;
+  baseAmbient: UniformNode<"float", number>;
+  faceShades: UniformNode<"vec4", Vector4>;
+};
 
 const D = CHUNK_DAYLIGHT;
 
-const VERTEX = `
-varying vec2 vUv;
-varying vec3 vNormal;
-void main() {
-  vUv = uv;
-  vNormal = normalize(mat3(modelMatrix) * normal);
-  gl_Position = projectionMatrix * viewMatrix * modelMatrix * vec4(position, 1.0);
-}`;
-
-// The chunk shader's open-face daylight (CHUNK_DAYLIGHT), without fog: a
-// pin should read at any distance.
-const FRAGMENT = `
-uniform sampler2D uMap;
-uniform vec3 uSunDirection;
-uniform vec3 uSunColor;
-uniform float uSunlightIntensity;
-uniform vec3 uAmbientColor;
-uniform float uMinLightLevel;
-uniform float uBaseAmbient;
-uniform vec4 uFaceShades;
-varying vec2 vUv;
-varying vec3 vNormal;
-void main() {
-  vec4 texel = texture2D(uMap, vUv);
-  if (texel.a < 0.5) discard;
-  vec3 albedo = texel.rgb;
-  vec3 normal = normalize(vNormal);
-  float NdotL = max(dot(normal, uSunDirection) * ${D.sunWrap.scale} + ${D.sunWrap.bias}, 0.0);
-  vec3 sun = uSunColor * NdotL * uSunlightIntensity;
-  float hemisphere = normal.y * 0.5 + 0.5;
-  vec3 skyAmbient = mix(uAmbientColor * ${D.groundAmbient}, uAmbientColor, hemisphere);
-  float ambientFloor = max(uMinLightLevel + uBaseAmbient, 0.0);
-  vec3 globalAmbient = vec3(${D.starlight}) + uAmbientColor * ambientFloor;
-  vec3 weights = abs(normal);
-  weights /= max(weights.x + weights.y + weights.z, 0.0001);
-  float verticalShade = normal.y > 0.0 ? uFaceShades.w : uFaceShades.z;
-  float faceShade = weights.x * uFaceShades.x + weights.z * uFaceShades.y + weights.y * verticalShade;
-  vec3 light = (skyAmbient + sun + globalAmbient) * vec3(${D.daylightBalance}) * faceShade;
-  light = (light * (${D.toneMap.a} * light + ${D.toneMap.b})) / (light * (${D.toneMap.c} * light + ${D.toneMap.d}) + ${D.toneMap.e});
-  light = max(light, vec3(ambientFloor) * faceShade);
-  gl_FragColor = vec4(albedo * light, 1.0);
-}`;
+/**
+ * The chunk shader's open-face daylight (CHUNK_DAYLIGHT) on the banner's
+ * texels, without fog: a pin should read at any distance.
+ */
+function pinMaterial(map: Texture, l: PinLighting): NodeMaterial {
+  const material = new NodeMaterial();
+  material.name = "viewer-pin";
+  material.fog = false;
+  material.lights = false;
+  material.fragmentNode = Fn(() => {
+    const texel = texture(map, uv());
+    Discard(texel.a.lessThan(0.5));
+    const albedo = texel.rgb;
+    const normal = normalize(normalWorld).toVar("pinNormal");
+    const ndotl = max(
+      dot(normal, l.sunDirection).mul(D.sunWrap.scale).add(D.sunWrap.bias),
+      0,
+    );
+    const sun = l.sunColor.mul(ndotl).mul(l.sunlightIntensity);
+    const hemisphere = normal.y.mul(0.5).add(0.5);
+    const skyAmbient = mix(
+      l.ambientColor.mul(D.groundAmbient),
+      l.ambientColor,
+      hemisphere,
+    );
+    const ambientFloor = max(l.minLightLevel.add(l.baseAmbient), 0);
+    const globalAmbient = vec3(...D.starlight).add(
+      l.ambientColor.mul(ambientFloor),
+    );
+    const a = abs(normal);
+    const weights = a.div(max(a.x.add(a.y).add(a.z), 0.0001));
+    const verticalShade = select(
+      normal.y.greaterThan(0),
+      l.faceShades.w,
+      l.faceShades.z,
+    );
+    const faceShade = weights.x
+      .mul(l.faceShades.x)
+      .add(weights.z.mul(l.faceShades.y))
+      .add(weights.y.mul(verticalShade));
+    const light = skyAmbient
+      .add(sun)
+      .add(globalAmbient)
+      .mul(vec3(...D.daylightBalance))
+      .mul(faceShade)
+      .toVar("pinLight");
+    const { a: ta, b: tb, c: tc, d: td, e: te } = D.toneMap;
+    const mapped = light
+      .mul(light.mul(ta).add(tb))
+      .div(light.mul(light.mul(tc).add(td)).add(te));
+    return vec4(albedo.mul(max(mapped, vec3(ambientFloor).mul(faceShade))), 1);
+  })();
+  return material;
+}
 
 /** One pin's voxel banner; `group` stands on the ground at its origin. */
 export class PinModel {
@@ -257,7 +287,7 @@ export class PinModel {
 
   private texture: Texture;
 
-  private material: ShaderMaterial;
+  private material: NodeMaterial;
 
   private canvas: HTMLCanvasElement;
 
@@ -277,20 +307,7 @@ export class PinModel {
     this.texture.minFilter = NearestFilter;
     this.texture.generateMipmaps = false;
     this.texture.colorSpace = SRGBColorSpace;
-    this.material = new ShaderMaterial({
-      vertexShader: VERTEX,
-      fragmentShader: FRAGMENT,
-      uniforms: {
-        uMap: { value: this.texture },
-        uSunDirection: lighting.sunDirection,
-        uSunColor: lighting.sunColor,
-        uSunlightIntensity: lighting.sunlightIntensity,
-        uAmbientColor: lighting.ambientColor,
-        uMinLightLevel: lighting.minLightLevel,
-        uBaseAmbient: lighting.baseAmbient,
-        uFaceShades: lighting.faceShades,
-      },
-    });
+    this.material = pinMaterial(this.texture, lighting);
     const mesh = new Mesh(
       buildGeometry(this.atlas.rects, this.atlas.width, this.atlas.height),
       this.material,

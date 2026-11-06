@@ -1,4 +1,4 @@
-import { NearestFilter, SRGBColorSpace } from "three";
+import { NearestFilter, SRGBColorSpace } from "three/webgpu";
 import { describe, expect, it } from "vitest";
 
 import {

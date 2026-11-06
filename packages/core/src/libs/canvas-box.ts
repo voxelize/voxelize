@@ -9,27 +9,19 @@ import {
   Group,
   LinearMipMapLinearFilter,
   Mesh,
-  MeshBasicMaterial,
+  MeshBasicNodeMaterial,
   NearestFilter,
   RepeatWrapping,
   SRGBColorSpace,
   Side,
   Texture,
-} from "three";
-
+} from "three/webgpu";
 import {
-  createEntityShadowUniforms,
-  ENTITY_SHADOW_FRAGMENT_PARS,
-  ENTITY_SHADOW_VERTEX_MAIN,
-  ENTITY_SHADOW_VERTEX_PARS,
-  EntityShadowUniforms,
+  createEntityShadowBody,
+  type EntityShadowBody,
+  setShadowBody,
 } from "../core/world/entity-shadow-uniforms";
-import {
-  createUnderwaterFogUniforms,
-  UnderwaterFogUniforms,
-  UNDERWATER_FOG_FRAGMENT,
-  UNDERWATER_FOG_UNIFORM_DECLARATIONS,
-} from "../core/world/water-optics";
+import { shadowedBodyColorNode } from "../core/world/shading/entity-shadow";
 import { DOMUtils } from "../utils";
 
 /**
@@ -104,13 +96,6 @@ export type CanvasBoxOptions = {
    * Whether this canvas box should receive shadows. Defaults to `false`.
    */
   receiveShadows?: boolean;
-
-  /**
-   * Whether this canvas box tints toward the ambient water color while the
-   * camera is submerged, matching the underwater look of instanced entities.
-   * Defaults to `false`.
-   */
-  underwaterFog?: boolean;
 
   /**
    * Draw each layer in one call instead of six. The six face canvases stay
@@ -349,18 +334,14 @@ export class BoxLayer extends Mesh {
   /**
    * The materials of the six faces of this box layer.
    */
-  public materials: Map<string, MeshBasicMaterial> = new Map();
+  public materials: Map<string, MeshBasicNodeMaterial> = new Map();
 
   /**
-   * Shadow uniforms for this box layer (only set if receiveShadows is true).
+   * The body this layer's faces are shaded as part of (only set if
+   * receiveShadows is true): its own until {@link setShadowBody} points it
+   * at the body it belongs to (a character's).
    */
-  public shadowUniforms: EntityShadowUniforms | null = null;
-
-  /**
-   * Underwater fog uniforms for this box layer (only set if underwaterFog is
-   * true). Driven externally from the camera's water-optics state.
-   */
-  public underwaterUniforms: UnderwaterFogUniforms | null = null;
+  public shadowBody: EntityShadowBody | null = null;
 
   /**
    * The width of the box layer.
@@ -408,11 +389,6 @@ export class BoxLayer extends Mesh {
   private receiveShadows: boolean;
 
   /**
-   * Whether or not should this canvas box tint underwater.
-   */
-  private underwaterFog: boolean;
-
-  /**
    * The one atlas this layer draws with when its faces are merged
    * (`CanvasBoxOptions.mergeFaces`), else `null` and the layer draws each
    * face with its own material.
@@ -420,7 +396,7 @@ export class BoxLayer extends Mesh {
   public atlas: {
     canvas: HTMLCanvasElement;
     texture: CanvasTexture;
-    material: MeshBasicMaterial;
+    material: MeshBasicNodeMaterial;
     layout: CanvasBoxAtlasLayout | null;
   } | null = null;
 
@@ -441,7 +417,6 @@ export class BoxLayer extends Mesh {
    * @param side The side of the box layer to render.
    * @param transparent Whether or not should this canvas box be rendered as transparent.
    * @param receiveShadows Whether or not should this canvas box receive shadows.
-   * @param underwaterFog Whether or not should this canvas box tint underwater.
    * @param mergeFaces Whether to draw the six faces in one call through an atlas.
    */
   constructor(
@@ -454,7 +429,6 @@ export class BoxLayer extends Mesh {
     side: Side,
     transparent: boolean,
     receiveShadows = false,
-    underwaterFog = false,
     mergeFaces = false,
   ) {
     super(new BoxGeometry(width, height, depth));
@@ -468,15 +442,10 @@ export class BoxLayer extends Mesh {
     this.side = side;
     this.transparent = transparent;
     this.receiveShadows = receiveShadows;
-    this.underwaterFog = underwaterFog;
 
     if (receiveShadows) {
-      this.shadowUniforms = createEntityShadowUniforms();
+      this.shadowBody = createEntityShadowBody();
       this.userData.receiveShadows = true;
-    }
-
-    if (underwaterFog) {
-      this.underwaterUniforms = createUnderwaterFogUniforms();
     }
 
     for (const face of BOX_SIDES) {
@@ -658,6 +627,17 @@ export class BoxLayer extends Mesh {
   }
 
   /**
+   * Shades this layer's faces (and its merged atlas) as part of `body`.
+   * No-op for a layer that does not receive shadows.
+   */
+  setShadowBody(body: EntityShadowBody) {
+    if (!this.shadowBody) return;
+    this.shadowBody = body;
+    for (const material of this.materials.values()) setShadowBody(material, body);
+    if (this.atlas) setShadowBody(this.atlas.material, body);
+  }
+
+  /**
    * Create a canvas material for a given side of the box layer.
    */
   private createCanvasMaterial = (face: BoxSides) => {
@@ -672,12 +652,16 @@ export class BoxLayer extends Mesh {
 
   /**
    * The material a face (or a merged layer's atlas) draws with: unlit,
-   * nearest-magnified, with this layer's shadow and underwater hooks.
+   * nearest-magnified, with this layer's shadow; the world's fog node fogs
+   * it (the camera's water included) like every other world material.
    */
   private createMaterial = (texture: CanvasTexture, name: string) => {
     texture.colorSpace = SRGBColorSpace;
+    // A face's texture is never offset, repeated or turned: its uv matrix
+    // stays identity, instead of being rebuilt for every draw.
+    texture.matrixAutoUpdate = false;
 
-    const material = new MeshBasicMaterial({
+    const material = new MeshBasicNodeMaterial({
       side: this.side,
       map: texture,
       transparent: this.transparent,
@@ -694,109 +678,14 @@ export class BoxLayer extends Mesh {
       material.map.needsUpdate = true;
     }
 
-    const shadowUniforms =
-      this.receiveShadows && this.shadowUniforms ? this.shadowUniforms : null;
-    const underwaterUniforms = this.underwaterUniforms;
-
-    if (shadowUniforms || underwaterUniforms) {
-      material.onBeforeCompile = (shader) => {
-        if (shadowUniforms) {
-          Object.assign(shader.uniforms, shadowUniforms);
-        }
-        if (underwaterUniforms) {
-          Object.assign(shader.uniforms, underwaterUniforms);
-        }
-
-        let vertex = shader.vertexShader;
-        let fragment = shader.fragmentShader;
-
-        if (shadowUniforms) {
-          vertex = vertex
-            .replace(
-              "#include <uv_pars_vertex>",
-              `#include <uv_pars_vertex>
-${ENTITY_SHADOW_VERTEX_PARS}
-varying vec3 vCanvasBoxShadowNormal;
-varying vec3 vCanvasBoxShadowPosition;
-`,
-            )
-            .replace(
-              "#include <worldpos_vertex>",
-              `#include <worldpos_vertex>
-vec4 worldPosition = modelMatrix * vec4(transformed, 1.0);
-${ENTITY_SHADOW_VERTEX_MAIN}
-vCanvasBoxShadowNormal = normalize(
-  mat3(uShadowWorldMatrix) * mat3(modelMatrix) * normal
-);
-vCanvasBoxShadowPosition = shadowWorldPos.xyz;
-`,
-            );
-          fragment = fragment.replace(
-            "#include <common>",
-            `#include <common>
-${ENTITY_SHADOW_FRAGMENT_PARS}
-varying vec3 vCanvasBoxShadowNormal;
-varying vec3 vCanvasBoxShadowPosition;
-`,
-          );
-        }
-
-        if (underwaterUniforms) {
-          vertex = vertex
-            .replace(
-              "#include <uv_pars_vertex>",
-              `#include <uv_pars_vertex>
-varying vec3 vCanvasBoxWorldPosition;
-`,
-            )
-            .replace(
-              "#include <worldpos_vertex>",
-              `#include <worldpos_vertex>
-vCanvasBoxWorldPosition = (modelMatrix * vec4(transformed, 1.0)).xyz;
-`,
-            );
-          fragment = fragment.replace(
-            "#include <common>",
-            `#include <common>
-${UNDERWATER_FOG_UNIFORM_DECLARATIONS}
-varying vec3 vCanvasBoxWorldPosition;
-`,
-          );
-        }
-
-        let colorInjection = "#include <dithering_fragment>";
-        if (shadowUniforms) {
-          // The face's own normal drives the slope-scaled bias, so a face
-          // turned away from the sun is not darkened by the volume behind it;
-          // the owner's self bounds (`uShadowSelfBounds`) cap that bias at
-          // the edge of its body.
-          colorInjection += `
-float shadow = getEntityShadowAt(
-  normalize(vCanvasBoxShadowNormal),
-  vCanvasBoxShadowPosition
-);
-gl_FragColor.rgb *= shadow;`;
-        }
-        if (underwaterUniforms) {
-          colorInjection += `
-{
-  vec3 vWorldPosition = vCanvasBoxWorldPosition;
-${UNDERWATER_FOG_FRAGMENT}
-}`;
-        }
-        fragment = fragment.replace(
-          "#include <dithering_fragment>",
-          colorInjection,
-        );
-
-        shader.vertexShader = vertex;
-        shader.fragmentShader = fragment;
-      };
-
-      const cacheKey = `canvasbox${shadowUniforms ? "-shadow" : ""}${
-        underwaterUniforms ? "-underwater" : ""
-      }-shader`;
-      material.onBeforeCompile.toString = () => cacheKey;
+    if (this.receiveShadows && this.shadowBody) {
+      // The sun's shadow on the face's colour, before the world's fog (the
+      // scene's fog node) lands over it: the face's own normal drives the
+      // slope-scaled bias, so a face turned away from the sun is not
+      // darkened by the volume behind it; the body's bounds cap that bias
+      // at its edge. One node for every face of every body.
+      material.colorNode = shadowedBodyColorNode();
+      setShadowBody(material, this.shadowBody);
     }
 
     return material;
@@ -897,19 +786,16 @@ export class CanvasBox extends Group {
   }
 
   /**
-   * Get the shadow uniforms for this canvas box (from the first layer).
-   * Returns null if receiveShadows is false.
+   * The body this canvas box is shaded as part of (its first layer's).
+   * Null if receiveShadows is false.
    */
-  get shadowUniforms(): EntityShadowUniforms | null {
-    return this.boxLayers[0]?.shadowUniforms ?? null;
+  get shadowBody(): EntityShadowBody | null {
+    return this.boxLayers[0]?.shadowBody ?? null;
   }
 
-  /**
-   * Get the underwater fog uniforms for this canvas box (from the first
-   * layer). Returns null if underwaterFog is false.
-   */
-  get underwaterUniforms(): UnderwaterFogUniforms | null {
-    return this.boxLayers[0]?.underwaterUniforms ?? null;
+  /** Shades every layer as part of `body` (a character's). */
+  setShadowBody(body: EntityShadowBody) {
+    for (const layer of this.boxLayers) layer.setShadowBody(body);
   }
 
   /**
@@ -957,7 +843,6 @@ export class CanvasBox extends Group {
       texelsPerBlock,
       transparent,
       receiveShadows,
-      underwaterFog,
       mergeFaces,
     } = this.options;
     let { widthSegments, heightSegments, depthSegments } = this.options;
@@ -988,7 +873,6 @@ export class CanvasBox extends Group {
         side,
         transparent,
         receiveShadows,
-        underwaterFog,
         mergeFaces,
       );
       this.boxLayers.push(newBoxLayer);

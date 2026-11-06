@@ -20,7 +20,7 @@ import {
   RedFormat,
   RGBAFormat,
   UnsignedByteType,
-} from "three";
+} from "three/webgpu";
 
 import type { FarSpec, FarTileClient } from "./far-layer";
 import type { FarTileFile } from "./formats";

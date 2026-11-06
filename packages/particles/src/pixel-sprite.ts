@@ -1,4 +1,4 @@
-import { CanvasTexture, NearestFilter, SRGBColorSpace } from "three";
+import { CanvasTexture, NearestFilter, SRGBColorSpace } from "three/webgpu";
 
 /**
  * Pixel art for effects, baked the way block textures are drawn: whole

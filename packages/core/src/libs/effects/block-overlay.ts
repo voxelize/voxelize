@@ -1,27 +1,25 @@
-import { Effect } from "postprocessing";
-import { Color, PerspectiveCamera, Uniform, Vector3 } from "three";
+import { Color, type PerspectiveCamera, Vector3 } from "three/webgpu";
+import { mix, vec4 } from "three/tsl";
 
 import { World } from "../../core/world";
-import OverlayFragmentShader from "../../shaders/effects/overlay.frag.glsl?raw";
+import type { Vec4Node } from "../../core/world/shading/types";
+import { ownUniform } from "../../core/world/shading/uniforms";
 
 /**
  * The block overlay effect is used to add a color blend whenever the camera is inside certain types of blocks.
  *
- * This module is dependent on the [`postprocessing`](https://github.com/pmndrs/postprocessing) package.
+ * A screen effect: `apply` takes the frame's colour node and returns it with
+ * the overlay mixed in; call `update` once a frame.
  *
  * # Example
  * ```ts
- * import { EffectComposer, RenderPass } from "postprocessing";
- *
- * const composer = new EffectComposer(renderer);
- * composer.addPass(new RenderPass(world, camera));
- *
- * const overlayEffect = new VOXELIZE.BlockOverlayEffect(world, camera);
- * overlayEffect.addOverlay("water", new THREE.Color("#5F9DF7"), 0.05);
- *
- * composer.addPass(
- *   new EffectPass(camera, overlayEffect)
- * );
+ * const overlay = new VOXELIZE.BlockOverlayEffect(world, camera);
+ * overlay.addOverlay("water", new THREE.Color("#5F9DF7"), 0.05);
+ * // An effect of a `@voxelize/postprocessing` effect pass:
+ * class Overlay extends Effect {
+ *   fragment({ color }) { return overlay.apply(color); }
+ *   update() { overlay.update(); }
+ * }
  * ```
  *
  * ![Block overlay effect](/img/docs/overlay.png)
@@ -29,7 +27,12 @@ import OverlayFragmentShader from "../../shaders/effects/overlay.frag.glsl?raw";
  * @noInheritDoc
  * @category Effects
  */
-export class BlockOverlayEffect extends Effect {
+export class BlockOverlayEffect {
+  readonly uniforms = {
+    overlay: ownUniform(new Color(0, 0, 1)),
+    opacity: ownUniform(0),
+  };
+
   /**
    * A map of block IDs to overlay colors.
    */
@@ -49,13 +52,12 @@ export class BlockOverlayEffect extends Effect {
   constructor(
     public world: World,
     public camera: PerspectiveCamera,
-  ) {
-    super("BlockOverlayEffect", OverlayFragmentShader, {
-      uniforms: new Map([
-        ["overlay", new Uniform(new Vector3(0, 0, 1))],
-        ["opacity", new Uniform(0.0 as any)],
-      ]),
-    });
+  ) {}
+
+  /** The frame's colour with the overlay of the block the camera is in. */
+  apply(color: Vec4Node): Vec4Node {
+    const { overlay, opacity } = this.uniforms;
+    return vec4(mix(color.rgb, overlay, opacity), color.a);
   }
 
   /**
@@ -73,9 +75,7 @@ export class BlockOverlayEffect extends Effect {
   };
 
   /**
-   * This is called by the effect composer to update the effect.
-   *
-   * @hidden
+   * Call once a frame: follows the block the camera is in.
    */
   update = () => {
     if (!this.world.isInitialized) {
@@ -109,30 +109,27 @@ export class BlockOverlayEffect extends Effect {
    * Get the opacity of the overlay.
    */
   private get opacity() {
-    return this.uniforms.get("opacity").value;
+    return this.uniforms.opacity.value;
   }
 
   /**
    * Set the opacity of the overlay.
    */
   private set opacity(value: number) {
-    this.uniforms.get("opacity").value = value;
+    this.uniforms.opacity.value = value;
   }
 
   /**
    * Get the current overlay color.
    */
   private get overlay() {
-    return this.uniforms.get("overlay").value;
+    return this.uniforms.overlay.value;
   }
 
   /**
    * Set the current overlay color.
    */
   private set overlay(value: Color) {
-    const old = this.uniforms.get("overlay").value;
-    old.x = value.r;
-    old.y = value.g;
-    old.z = value.b;
+    this.uniforms.overlay.value.copy(value);
   }
 }

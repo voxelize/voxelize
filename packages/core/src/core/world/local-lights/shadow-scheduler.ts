@@ -1,17 +1,18 @@
+import { vec4 } from "three/tsl";
 import {
   Box3,
   Group,
-  MeshDepthMaterial,
+  NodeMaterial,
   Object3D,
   PerspectiveCamera,
-  RGBADepthPacking,
   Scene,
-  WebGLRenderer,
-} from "three";
-import type { Material, Mesh } from "three";
+  Renderer,
+} from "three/webgpu";
+import type { Material, Mesh } from "three/webgpu";
 
 import { boundsIntersectSphere } from "../dynamic-caster-bounds";
-import { BorrowedCasterScene } from "../shadow-casters";
+import { ScissoredDepthClear } from "../scissored-depth-clear";
+import { BorrowedCasterScene, markShadowView } from "../shadow-casters";
 
 import {
   LIGHT_FLAG_SHADOW_REQUEST,
@@ -43,8 +44,15 @@ const ENTITY_CASTER_RADIUS = 1.6;
 /** Anchor movement (blocks) beyond which a moving light's maps are stale. */
 const MOVE_EPSILON = 0.01;
 
-/** Shadow cameras hug the light; nearer geometry cannot occlude usefully. */
-const SHADOW_NEAR = 0.25;
+/**
+ * Shadow cameras start half a block out: a light sits in its emitter's own
+ * cell, and a 90-degree face clipped there loses exactly that cell. Its
+ * own model (a lamp's base, a torch's stick) cannot shade the light it
+ * holds; at a quarter block a hanging lamp stamped its base's shadow on
+ * the floor below it. Nothing nearer could occlude anything lit anyway: a
+ * neighbouring block's face sits on the cell's boundary.
+ */
+const SHADOW_NEAR = 0.5;
 
 /** Scratch views for the face-render camera calls; zero per-face allocation. */
 const pointViewScratch = {
@@ -67,7 +75,6 @@ export type ShadowInvalidationCause =
   | "chunkMeshed"
   | "eviction"
   | "tierChange"
-  | "contextRestore"
   | "manualRegion"
   | "lightMoved"
   | "lightRotated"
@@ -168,32 +175,18 @@ export class LocalShadowScheduler {
   /** Called whenever packed shadow texels must be rewritten. */
   onShadowDataChanged: (() => void) | null = null;
 
-  /**
-   * Draw an overlay face's casters from borrowed lists (on by default):
-   * the near entities in one call without reparenting them, and the slot's
-   * pools in one more, instead of moving each entity into a scratch scene
-   * and back (a `childremoved`/`childadded` pair on its real parent every
-   * time) and rendering each pool as its own root (a matrix walk and a
-   * render call per pool per face). Off restores the old path for A/B
-   * timing; the world flips it with the cascades' single caster pass.
-   */
-  isBorrowingCasters = true;
-
   private frame = 0;
   private challengerIndex = -1;
   private challengerGeneration = 0;
   private challengerFrames = 0;
 
-  private readonly depthMaterial: MeshDepthMaterial;
-  private readonly faceCamera = new PerspectiveCamera();
-  private readonly casterScene = new Scene();
+  private readonly depthMaterial: NodeMaterial;
+  private readonly faceCamera = markShadowView(new PerspectiveCamera());
   private readonly casterBatch = new BorrowedCasterScene();
+  /** Clears one atlas cell: a WebGPU clear would wipe the whole atlas. */
+  private readonly cellClear = new ScissoredDepthClear();
   private readonly borrowedCasters: Object3D[] = [];
   private readonly hiddenObjects: { object: Object3D; visible: boolean }[] = [];
-  private readonly reparentedCasters: {
-    object: Object3D;
-    parent: Object3D | null;
-  }[] = [];
   private readonly poolMaterialSwaps: {
     mesh: Mesh;
     material: Material | Material[];
@@ -204,24 +197,20 @@ export class LocalShadowScheduler {
   private readonly worldPassHidden: Object3D[] = [];
 
   /**
-   * Static world geometry near one light, reparented here for its world-cell
-   * depth renders so a 13-block torch never pays a traversal of the whole
-   * scene graph. Owns the depth override permanently: nothing else renders
-   * through this scene.
+   * Static world geometry near one light, borrowed for its world-cell depth
+   * renders so a 13-block torch never pays a traversal of the whole scene
+   * graph.
    */
-  private readonly worldCellScene = new Scene();
+  private readonly worldCellCasters = new BorrowedCasterScene();
   private readonly worldCellRoots: Object3D[] = [];
-  private readonly reparentedWorldRoots: {
-    object: Object3D;
-    parent: Object3D | null;
-  }[] = [];
 
   /** Per-slot pool subset scratch; rebuilt for each slot that renders. */
   private readonly slotPoolsScratch: Group[] = [];
 
   /**
    * Static caster collection hook, wired by the world: append every world
-   * root (chunk group) whose geometry can occlude a light at `(x, y, z)`
+   * root (chunk group, region arena page) whose geometry can occlude a
+   * light at `(x, y, z)`
    * with range `radius` to `out`. Null falls back to rendering the whole
    * scene per face, which stays correct but pays full-graph traversal.
    */
@@ -245,8 +234,6 @@ export class LocalShadowScheduler {
   private cachedSlotFrames = 0;
   private activeSlotFrames = 0;
 
-  /** Fades shadows and keeps stale faces sampled (see setTemporalStability). */
-  private isStable: boolean;
   private readonly shadowFadeMs: number;
   private readonly now: () => number;
   private lastUpdateAt = Number.NaN;
@@ -268,15 +255,12 @@ export class LocalShadowScheduler {
       shadowAtlasSize: number;
       shadowSlotSize: number;
       shadowEvictionHysteresis: { ratio: number; frames: number };
-      temporalStability?: boolean;
       shadowFadeMs?: number;
       /** Clock for the shadow fades; tests inject one. */
       now?: () => number;
     },
   ) {
     this.registry = registry;
-    this.isStable =
-      options.temporalStability ?? defaultLocalLightsOptions.temporalStability;
     this.shadowFadeMs =
       options.shadowFadeMs ?? defaultLocalLightsOptions.shadowFadeMs;
     this.now = options.now ?? (() => performance.now());
@@ -294,10 +278,12 @@ export class LocalShadowScheduler {
 
     for (let s = 0; s < this.maxSlots; s++) this.slots.push(makeEmptySlot());
 
-    this.depthMaterial = new MeshDepthMaterial({
-      depthPacking: RGBADepthPacking,
-    });
-    this.worldCellScene.overrideMaterial = this.depthMaterial;
+    // Depth alone: the shading reads the atlas's depth texture.
+    this.depthMaterial = new NodeMaterial();
+    this.depthMaterial.name = "voxelize-local-shadow-depth";
+    this.depthMaterial.fragmentNode = vec4(0);
+    this.depthMaterial.colorWrite = false;
+    this.depthMaterial.fog = false;
 
     this.candidateScores = new Float64Array(registry.capacity);
     this.candidateIndices = new Uint32Array(registry.capacity);
@@ -347,30 +333,6 @@ export class LocalShadowScheduler {
     }
   }
 
-  /** GPU context restored: atlas contents are gone; re-render lazily. */
-  onContextRestored(): void {
-    this.invalidateAll("contextRestore");
-  }
-
-  /**
-   * On (default): shadows fade in once their faces exist and fade out
-   * before a slot changes hands, and an invalidated face keeps sampling its
-   * last map until the re-render lands. Off: the legacy behaviour, where an
-   * invalidation blanks every face of the light (fully lit) until the
-   * budgeted re-render, and a swap is instant.
-   */
-  setTemporalStability(isStable: boolean): void {
-    if (this.isStable === isStable) return;
-    this.isStable = isStable;
-    for (const slot of this.slots) {
-      if (slot.index < 0) continue;
-      slot.shadowWeight = 1;
-      slot.isRetiring = false;
-      slot.successor = -1;
-    }
-    this.onShadowDataChanged?.();
-  }
-
   invalidateAll(cause: ShadowInvalidationCause): void {
     let changed = false;
     for (let s = 0; s < this.slots.length; s++) {
@@ -380,7 +342,7 @@ export class LocalShadowScheduler {
       slot.dynamicMask = 0;
       slot.staticPending = slot.allowedMask;
       // The atlas itself is gone: the shadow fades back in once re-rendered.
-      if (this.isStable) slot.shadowWeight = 0;
+      slot.shadowWeight = 0;
       this.logInvalidation(s, cause);
       changed = true;
     }
@@ -457,7 +419,6 @@ export class LocalShadowScheduler {
       // date at worst, and it keeps sampling until the re-render replaces
       // it. Blanking it lights every shadowed corner of the room until the
       // budgeted FIFO gets round to it — a flash on every nearby remesh.
-      if (!this.isStable) slot.staticMask = 0;
       slot.staticPending = slot.allowedMask;
       this.logInvalidation(s, cause);
       this.statsInvalidations++;
@@ -672,19 +633,12 @@ export class LocalShadowScheduler {
         this.challengerFrames = 1;
       }
       if (this.challengerFrames >= this.evictionFrames) {
-        if (this.isStable) {
-          // The holder's shadow fades out first; advanceShadowFades hands
-          // the slot over once it is gone.
-          const slot = this.slots[weakestSlot];
-          slot.isRetiring = true;
-          slot.successor = challenger;
-          slot.successorGeneration = generation;
-        } else {
-          this.releaseSlot(weakestSlot);
-          this.logInvalidation(weakestSlot, "eviction");
-          this.statsEvictions++;
-          this.assignSlot(weakestSlot, challenger);
-        }
+        // The holder's shadow fades out first; advanceShadowFades hands
+        // the slot over once it is gone.
+        const slot = this.slots[weakestSlot];
+        slot.isRetiring = true;
+        slot.successor = challenger;
+        slot.successorGeneration = generation;
         this.challengerIndex = -1;
         this.challengerFrames = 0;
         changed = true;
@@ -708,7 +662,6 @@ export class LocalShadowScheduler {
       ? Math.max(now - this.lastUpdateAt, 0)
       : 0;
     this.lastUpdateAt = now;
-    if (!this.isStable) return false;
     const step = this.shadowFadeMs > 0 ? elapsed / this.shadowFadeMs : 1;
     let changed = false;
     for (let s = 0; s < this.slots.length; s++) {
@@ -844,7 +797,7 @@ export class LocalShadowScheduler {
     slot.dynamicMask = 0;
     slot.staticPending = slot.allowedMask;
     slot.overlayHashes.fill(0);
-    slot.shadowWeight = this.isStable ? 0 : 1;
+    slot.shadowWeight = 0;
     slot.isRetiring = false;
     slot.successor = -1;
   }
@@ -905,7 +858,7 @@ export class LocalShadowScheduler {
       record.near = SHADOW_NEAR;
       record.far = slot.far;
       record.tanHalf = slot.tanHalf;
-      record.weight = this.isStable ? slot.shadowWeight : 1;
+      record.weight = slot.shadowWeight;
       return record;
     }
     return null;
@@ -947,12 +900,25 @@ export class LocalShadowScheduler {
   }
 
   /**
+   * Builds the pipelines the shadow frame draws with on its own (the cell
+   * clear) before the first shadowed light needs them; the casters' depth
+   * graphs are the warmup's. Resolves once they are built.
+   */
+  compilePrograms(renderer: Renderer): Promise<void> {
+    const twin = this.atlas.makeFormatTwin();
+    return this.cellClear.prepare(renderer, twin).finally(() => {
+      twin.depthTexture?.dispose();
+      twin.dispose();
+    });
+  }
+
+  /**
    * Render the faces the ledger grants. Order inside the local tier:
    * moving-light refreshes and entity overlays (dynamic units, reserved)
    * first, then the invalidated-static FIFO (free units only).
    */
   render(
-    renderer: WebGLRenderer,
+    renderer: Renderer,
     scene: Scene,
     ledger: ShadowFrameLedger,
     entities: Object3D[] | undefined,
@@ -964,8 +930,19 @@ export class LocalShadowScheduler {
     if (this.activeSlotCount === 0) return;
 
     const start = performance.now();
+    const isNewAtlas = !this.atlas.isAllocated;
     const target = this.atlas.ensureAllocated();
     const previousTarget = renderer.getRenderTarget();
+    if (isNewAtlas) {
+      // A new atlas caches nothing, so one whole-target clear is right, and
+      // it covers the frames before the cell clear's pipeline exists (a
+      // draw waiting on its pipeline is skipped, and a new depth texture
+      // reads 0: every cell would shadow everything).
+      renderer.setRenderTarget(target);
+      renderer.clear(false, true, false);
+      void this.cellClear.prepare(renderer, target);
+      renderer.setRenderTarget(previousTarget);
+    }
     const originalOverride = scene.overrideMaterial;
 
     let facesStatic = 0;
@@ -985,6 +962,10 @@ export class LocalShadowScheduler {
     }
 
     renderer.setRenderTarget(target);
+    // Every face clears its own cell (`renderFace`); a render that cleared
+    // on its own would clear the whole atlas, every cached cell with it.
+    const autoClear = renderer.autoClear;
+    renderer.autoClear = false;
 
     for (let s = 0; s < this.slots.length; s++) {
       const slot = this.slots[s];
@@ -1109,6 +1090,7 @@ export class LocalShadowScheduler {
     if (arePoolsSwapped) this.restorePoolDepthSwaps();
     for (const { object, visible } of hidden) object.visible = visible;
     scene.overrideMaterial = originalOverride;
+    renderer.autoClear = autoClear;
     renderer.setRenderTarget(previousTarget);
 
     if (texelsChanged) this.onShadowDataChanged?.();
@@ -1126,13 +1108,14 @@ export class LocalShadowScheduler {
   dispose(): void {
     this.atlas.dispose();
     this.depthMaterial.dispose();
+    this.cellClear.dispose();
     for (let s = 0; s < this.slots.length; s++) this.releaseSlot(s);
   }
 
   // ── internals ────────────────────────────────────────────────────────────
 
   private renderFace(
-    renderer: WebGLRenderer,
+    renderer: Renderer,
     scene: Scene,
     slot: ShadowSlot,
     slotId: number,
@@ -1153,6 +1136,9 @@ export class LocalShadowScheduler {
     },
   ): void {
     const camera = this.faceCamera;
+    // Built in the renderer's clip convention, and marked so: a camera three
+    // finds in the other one gets its projection rebuilt from its fov.
+    camera.coordinateSystem = renderer.coordinateSystem;
     if (slot.isSpot) {
       const i = slot.index;
       const view = spotViewScratch;
@@ -1182,40 +1168,29 @@ export class LocalShadowScheduler {
     const viewport = this.viewportScratch;
     this.atlas.cellViewport(cell, viewport);
     const target = this.atlas.ensureAllocated();
-    target.viewport.set(viewport[0], viewport[1], viewport[2], viewport[2]);
-    target.scissor.set(viewport[0], viewport[1], viewport[2], viewport[2]);
+    // Cells are laid out from the atlas's bottom row, as the shading reads
+    // them (shading/local-lights.ts); the renderer's viewports run from its
+    // top-left corner.
+    const top = target.height - viewport[1] - viewport[2];
+    target.viewport.set(viewport[0], top, viewport[2], viewport[2]);
+    target.scissor.set(viewport[0], top, viewport[2], viewport[2]);
     renderer.setRenderTarget(target);
-    renderer.clear(true, true, false);
+    this.cellClear.clear(renderer);
 
     if (casters.includeWorld) {
       if (this.getStaticCasterRoots) {
-        // Static occluders for a local light are the chunk groups within its
-        // range sphere. Rendering only those from a scratch scene skips the
+        // Static occluders for a local light are the chunk groups and region
+        // arena pages within its range sphere. Drawing only those skips the
         // full scene-graph traversal (and every hide/restore) a whole-scene
         // depth pass pays per face — for a torch that reaches 13 blocks,
-        // that was thousands of objects visited to draw a handful.
-        // Reparenting is transform-safe: chunk groups sit at identity under
-        // the world scene, exactly like the entity overlay's casterScene
-        // borrowing below.
+        // that was thousands of objects visited to draw a handful. They are
+        // borrowed, not reparented: an arena page is a direct child of the
+        // world, whose listeners hear every move.
         const roots = this.worldCellRoots;
         roots.length = 0;
         this.getStaticCasterRoots(slot.x, slot.y, slot.z, slot.far, roots);
-        const reparented = this.reparentedWorldRoots;
-        reparented.length = 0;
-        for (const root of roots) {
-          reparented.push({ object: root, parent: root.parent });
-          this.worldCellScene.add(root);
-        }
-        renderer.render(this.worldCellScene, camera);
-        for (const { object, parent } of reparented) {
-          if (parent) {
-            parent.add(object);
-          } else {
-            this.worldCellScene.remove(object);
-          }
-        }
-        this.worldCellScene.children.length = 0;
-        reparented.length = 0;
+        this.worldCellCasters.render(renderer, camera, roots, this.depthMaterial);
+        roots.length = 0;
       } else {
         // Entity casters live exclusively in the per-frame dynamic overlay.
         // They are also children of the world scene, so without this they
@@ -1254,11 +1229,10 @@ export class LocalShadowScheduler {
     // own then brings its matrices up to date first, as it always has.
     const isGraphStale = scene.matrixWorldAutoUpdate;
 
-    if (
-      this.isBorrowingCasters &&
-      casters.entities &&
-      casters.entities.length > 0
-    ) {
+    // An overlay face's casters draw from borrowed lists: the near
+    // entities in one call without reparenting them, and the slot's pools
+    // in one more.
+    if (casters.entities && casters.entities.length > 0) {
       const near = this.borrowedCasters;
       near.length = 0;
       for (const entity of casters.entities) {
@@ -1274,47 +1248,19 @@ export class LocalShadowScheduler {
         isGraphStale,
       );
       near.length = 0;
-    } else if (casters.entities && casters.entities.length > 0) {
-      const reparented = this.reparentedCasters;
-      reparented.length = 0;
-      for (const entity of casters.entities) {
-        if (entity.userData.castsShadow === false) continue;
-        if (!this.isEntityNearSlot(slot, entity)) continue;
-        reparented.push({ object: entity, parent: entity.parent });
-        this.casterScene.add(entity);
-      }
-      if (reparented.length > 0) {
-        this.casterScene.overrideMaterial = this.depthMaterial;
-        renderer.render(this.casterScene, camera);
-        this.casterScene.overrideMaterial = null;
-        for (const { object, parent } of reparented) {
-          if (parent) {
-            parent.add(object);
-          } else {
-            this.casterScene.remove(object);
-          }
-        }
-        this.casterScene.children.length = 0;
-      }
     }
 
     // Depth materials were swapped in once for the whole shadow frame by
     // `render()` (lazily, on the first face that has pools to draw), so a
     // face render is just the draws.
     if (casters.instancePools && casters.instancePools.length > 0) {
-      if (this.isBorrowingCasters) {
-        this.casterBatch.render(
-          renderer,
-          camera,
-          casters.instancePools,
-          null,
-          isGraphStale,
-        );
-      } else {
-        for (const pool of casters.instancePools) {
-          renderer.render(pool, camera);
-        }
-      }
+      this.casterBatch.render(
+        renderer,
+        camera,
+        casters.instancePools,
+        null,
+        isGraphStale,
+      );
     }
   }
 

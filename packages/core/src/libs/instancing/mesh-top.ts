@@ -1,4 +1,4 @@
-import type * as THREE from "three";
+import type * as THREE from "three/webgpu";
 
 /// Height of a baked skinned mesh's tallest rest-pose vertex above the
 /// entity origin, in mesh units (size 1): the crown, a hat's tip or a

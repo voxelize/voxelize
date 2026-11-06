@@ -1,4 +1,4 @@
-import * as THREE from "three";
+import * as THREE from "three/webgpu";
 
 // Bridges IK joint positions to the flat-bone instanced skinning shader
 // (out = pivot + M * (v - pivot), no parent inheritance). Each segment's

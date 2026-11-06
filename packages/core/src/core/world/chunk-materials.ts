@@ -2,48 +2,35 @@ import {
   BackSide,
   CanvasTexture,
   ClampToEdgeWrapping,
-  Color,
+  type Color,
   DoubleSide,
   FrontSide,
   type Material,
-  Matrix4,
+  type Matrix4,
   NearestFilter,
-  ShaderLib,
-  ShaderMaterial,
   type Side,
   SRGBColorSpace,
   Texture,
-  Uniform,
-  UniformsUtils,
-  Vector2,
-} from "three";
+} from "three/webgpu";
 
 import { Coords3 } from "../../types";
 import { ThreeUtils } from "../../utils";
 
 import { Block, TUFTS_FACE_NAME } from "./block";
-import { BLOCK_LIGHT_TUNING } from "./block-light-transfer";
 import { ChunkRenderer } from "./chunk-renderer";
 import { forwardDraws } from "./forward-draws";
-import { LightCones } from "./light-cones";
-import { LocalLights } from "./local-lights";
-import { QUAD_LIGHT_TWIST_NEUTRAL } from "./quad-light";
 import { Registry } from "./registry";
 import {
-  createSwayTableShader,
-  SHADER_LIGHTING_CHUNK_SHADERS,
-  SHADER_LIGHTING_FLUID_CHUNK_SHADERS,
-  SHADER_LIGHTING_SEE_THROUGH_CHUNK_SHADERS,
-  WATER_DEPTH_SIDE_OFF,
-} from "./shaders";
-import { bindSkyGlowUniforms } from "./sky";
-import {
-  bindSurfaceWeatherUniforms,
-  SURFACE_OPEN_LIGHT,
-  SURFACE_RESPONSE,
-} from "./surface-weather";
+  ChunkMaterial,
+  type ChunkMaterialOptions,
+  type ChunkShadingInputs,
+  isChunkMaterial,
+} from "./shading/chunk-material";
+import { SURFACE_OPEN_LIGHT, SURFACE_RESPONSE } from "./surface-weather";
 import { AtlasTexture, type AtlasFilteringMode } from "./textures";
 import { positionUnitsPerBlock } from "./vertex-quantization";
+
+export { ChunkMaterial, isChunkMaterial };
 
 export const SHARED_OPAQUE_MATERIAL_KEY = "shared-opaque";
 export const SHARED_CUTOUT_MATERIAL_KEY = "shared-cutout";
@@ -66,46 +53,15 @@ const UNIT_CUBE_FACE_DIRECTIONS = [
 ];
 
 /**
- * Chunk geometry that is not main-thread sorted arrives with fixed-point
- * positions whose dequantization lives in the mesh matrix. The shader still
- * needs the scale for displacement math (sway, waves) that reads the raw
- * `position` attribute before any matrix applies; without the define the
- * shader's fallback of 1.0 treats positions as block-space floats.
- */
-export function applyQuantizedPositionDefine(
-  material: ShaderMaterial,
-  unitsPerBlock: number,
-) {
-  material.defines = {
-    ...material.defines,
-    POSITION_UNITS_PER_BLOCK: unitsPerBlock.toFixed(1),
-  };
-}
-
-/**
- * Custom shader material for chunks, simply a `ShaderMaterial` from ThreeJS with a map texture. Keep in mind that
- * if you want to change its map, you also have to change its `uniforms.map`.
- */
-export type CustomChunkShaderMaterial = ShaderMaterial & {
-  /**
-   * The texture that this map runs on.
-   */
-  map: Texture;
-};
-
-/**
  * What the chunk material factory needs from the world: the renderer that
- * owns shared uniforms and the material registry, the per-world uniform
- * overrides, and the light cones whose bindings every chunk shader shares.
+ * owns the material registry, and the shading inputs every chunk material
+ * of the world reads alike.
  */
 export interface ChunkMaterialHost {
   chunkRenderer: ChunkRenderer;
-  lightCones: LightCones;
-  localLights: LocalLights;
-  swayProfileTable: Uniform;
+  shadingInputs: ChunkShadingInputs;
   hasCustomBlockMaterial(id: number): boolean;
   options: {
-    chunkUniformsOverwrite: Partial<ChunkRenderer["uniforms"]>;
     textureUnitDimension: number;
     chunkSize: number;
     maxHeight: number;
@@ -147,24 +103,12 @@ export function sharedCutoutBlending(isClosedCube: boolean): {
 }
 
 /**
- * Detach a customized block without cloning the world's live uniforms/atlas.
- * `clone()` never sees the uniforms: three deep-copies them, and a render
- * target's texture (the shadow maps, the scene colour the water refracts
- * under order-independent transparency) cannot be copied, so every fork
- * would warn, only to throw the copies away.
+ * A material of its own with the same program, inputs and per-material
+ * values, for a block or face that is about to diverge from the one it
+ * shared.
  */
-export function forkChunkMaterial(material: CustomChunkShaderMaterial) {
-  const { uniforms } = material;
-  material.uniforms = {};
-  let own: CustomChunkShaderMaterial;
-  try {
-    own = material.clone() as CustomChunkShaderMaterial;
-  } finally {
-    material.uniforms = uniforms;
-  }
-  own.map = material.map;
-  own.uniforms = { ...uniforms };
-  return own;
+export function forkChunkMaterial(material: ChunkMaterial): ChunkMaterial {
+  return material.fork();
 }
 
 /** The bucket materials many blocks draw with at once. */
@@ -209,12 +153,14 @@ export function sharedFaceCustomizationError(
  * animated from that material's draws still advances.
  */
 export function forkVoxelBoxMaterial(
-  material: CustomChunkShaderMaterial,
+  material: ChunkMaterial,
   frame: { readonly value: Matrix4 },
 ) {
   const own = forkChunkMaterial(material);
-  own.uniforms.uGreedyFrame = frame;
-  own.uniforms.uHasGreedyFrame = { value: 1 };
+  // The box's frame itself, read as each draw uploads: its moves reach the
+  // material.
+  own.greedyFrame = frame;
+  own.hasGreedyFrame = 1;
   forwardDraws(own, material);
   return own;
 }
@@ -316,195 +262,18 @@ export function makeChunkMaterialKey(
   return `${id}`;
 }
 
-export function makeChunkShaderMaterial(
+/**
+ * A chunk material of `kind` reading the world's shading inputs, with the
+ * unknown-texture checker until a texture is assigned.
+ */
+export function makeChunkMaterial(
   world: ChunkMaterialHost,
-  fragmentShader?: string,
-  vertexShader?: string,
-  uniforms: Record<string, Uniform> = {},
-): CustomChunkShaderMaterial {
-  const actualFragmentShader =
-    fragmentShader ?? SHADER_LIGHTING_CHUNK_SHADERS.fragment;
-  const actualVertexShader =
-    vertexShader ?? SHADER_LIGHTING_CHUNK_SHADERS.vertex;
-
-  const chunksUniforms = {
-    ...world.chunkRenderer.uniforms,
-    ...world.options.chunkUniformsOverwrite,
-  };
-
-  const shaderLightingUniforms = {
-    uSunDirection: world.chunkRenderer.shaderLightingUniforms.sunDirection,
-    uCelestialDirection:
-      world.chunkRenderer.shaderLightingUniforms.celestialDirection,
-    uSunColor: world.chunkRenderer.shaderLightingUniforms.sunColor,
-    uAmbientColor: world.chunkRenderer.shaderLightingUniforms.ambientColor,
-    uShadowMap0: world.chunkRenderer.shaderLightingUniforms.shadowMap0,
-    uShadowMap1: world.chunkRenderer.shaderLightingUniforms.shadowMap1,
-    uShadowMap2: world.chunkRenderer.shaderLightingUniforms.shadowMap2,
-    uShadowMatrix0: world.chunkRenderer.shaderLightingUniforms.shadowMatrix0,
-    uShadowMatrix1: world.chunkRenderer.shaderLightingUniforms.shadowMatrix1,
-    uShadowMatrix2: world.chunkRenderer.shaderLightingUniforms.shadowMatrix2,
-    uCascadeSplit0: world.chunkRenderer.shaderLightingUniforms.cascadeSplit0,
-    uCascadeSplit1: world.chunkRenderer.shaderLightingUniforms.cascadeSplit1,
-    uCascadeSplit2: world.chunkRenderer.shaderLightingUniforms.cascadeSplit2,
-    uShadowBias: world.chunkRenderer.shaderLightingUniforms.shadowBias,
-    uShadowNormalBias:
-      world.chunkRenderer.shaderLightingUniforms.shadowNormalBias,
-    uShadowSlopeBiasScale:
-      world.chunkRenderer.shaderLightingUniforms.shadowSlopeBiasScale,
-    uShadowSlopeBiasMin:
-      world.chunkRenderer.shaderLightingUniforms.shadowSlopeBiasMin,
-    uShadowTopFaceBiasScale:
-      world.chunkRenderer.shaderLightingUniforms.shadowTopFaceBiasScale,
-    uShadowSideFaceBiasScale:
-      world.chunkRenderer.shaderLightingUniforms.shadowSideFaceBiasScale,
-    uShadowStrength: world.chunkRenderer.shaderLightingUniforms.shadowStrength,
-    uWaterTint: world.chunkRenderer.shaderLightingUniforms.waterTint,
-    uWaterAbsorption:
-      world.chunkRenderer.shaderLightingUniforms.waterAbsorption,
-    uWaterStreakStrength:
-      world.chunkRenderer.shaderLightingUniforms.waterStreakStrength,
-    uWaterFresnelStrength:
-      world.chunkRenderer.shaderLightingUniforms.waterFresnelStrength,
-    uBedCausticScale:
-      world.chunkRenderer.shaderLightingUniforms.bedCausticScale,
-    uDirectSunlight: world.chunkRenderer.shaderLightingUniforms.directSunlight,
-    uSurfaceUndersideScale:
-      world.chunkRenderer.shaderLightingUniforms.surfaceUndersideScale,
-    uSurfaceUndersideTuning:
-      world.chunkRenderer.shaderLightingUniforms.surfaceUndersideTuning,
-    uWaterSurfaceCrisp:
-      world.chunkRenderer.shaderLightingUniforms.waterSurfaceCrisp,
-    // Block-light model switches and their derived constants, shared with
-    // the CPU mirrors (block-light-transfer.ts).
-    uBlockLightCurve: BLOCK_LIGHT_TUNING.curve,
-    uBlockLightToneMap: BLOCK_LIGHT_TUNING.toneMap,
-    uBlockLightKernel: BLOCK_LIGHT_TUNING.kernel,
-    uBlockLightDiamond: BLOCK_LIGHT_TUNING.diamond,
-    uBlockLightGain: BLOCK_LIGHT_TUNING.gain,
-    uBlockLightDominanceKnee: BLOCK_LIGHT_TUNING.dominanceKnee,
-    uBlockLightKernelCore: BLOCK_LIGHT_TUNING.kernelCore,
-    uBlockLightKernelGain: BLOCK_LIGHT_TUNING.kernelGain,
-    uBlockLightAdaptation: BLOCK_LIGHT_TUNING.adaptation,
-    uBlockLightCeilingWeight: BLOCK_LIGHT_TUNING.ceilingWeight,
-    uBlockLightWarmFloor: BLOCK_LIGHT_TUNING.warmFloor,
-    uBlockLightHueLevels: BLOCK_LIGHT_TUNING.hueLevels,
-    uBlockLightMountFade: BLOCK_LIGHT_TUNING.mountFade,
-    uBlockLightHueRamp: BLOCK_LIGHT_TUNING.hueRamp,
-    uBlockLightHueFill: BLOCK_LIGHT_TUNING.hueFill,
-    uBlockLightBilinear: BLOCK_LIGHT_TUNING.bilinear,
-    uSkyTopColor: world.chunkRenderer.shaderLightingUniforms.skyTopColor,
-    uSkyMiddleColor: world.chunkRenderer.shaderLightingUniforms.skyMiddleColor,
-    uShadowDebugMode:
-      world.chunkRenderer.shaderLightingUniforms.shadowDebugMode,
-  };
-
-  const material = new ShaderMaterial({
-    vertexColors: true,
-    fragmentShader: actualFragmentShader,
-    vertexShader: actualVertexShader,
-    uniforms: {
-      ...UniformsUtils.clone(ShaderLib.basic.uniforms),
-      uLightIntensityAdjustment: chunksUniforms.lightIntensityAdjustment,
-      uSunlightIntensity: chunksUniforms.sunlightIntensity,
-      uAOTable: chunksUniforms.ao,
-      uStageTints: chunksUniforms.stageTints,
-      uPigmentTints: chunksUniforms.pigmentTints,
-      uFaceShades: chunksUniforms.faceShades,
-      uMinLightLevel: chunksUniforms.minLightLevel,
-      uBaseAmbient: chunksUniforms.baseAmbient,
-      uFogNear: chunksUniforms.fogNear,
-      uFogFar: chunksUniforms.fogFar,
-      uFogColor: chunksUniforms.fogColor,
-      uFogHeightOrigin: chunksUniforms.fogHeightOrigin,
-      uFogHeightDensity: chunksUniforms.fogHeightDensity,
-      uFogVerticalBlend: chunksUniforms.fogVerticalBlend,
-      uSkyFogTopColor: chunksUniforms.skyFogTopColor,
-      uSkyFogMiddleColor: chunksUniforms.skyFogMiddleColor,
-      uSkyFogBottomColor: chunksUniforms.skyFogBottomColor,
-      uSkyFogOffset: chunksUniforms.skyFogOffset,
-      uSkyFogVoidOffset: chunksUniforms.skyFogVoidOffset,
-      uSkyFogExponent: chunksUniforms.skyFogExponent,
-      uSkyFogExponent2: chunksUniforms.skyFogExponent2,
-      uSkyFogDimension: chunksUniforms.skyFogDimension,
-      uSkyFogStrength: chunksUniforms.skyFogStrength,
-      ...bindSkyGlowUniforms({
-        sunDirection: chunksUniforms.skyGlowSunDirection,
-        color: chunksUniforms.skyGlowColor,
-        sunHaloColor: chunksUniforms.skySunHaloColor,
-        moonHaloColor: chunksUniforms.skyMoonHaloColor,
-        sunDiscColor: chunksUniforms.skySunDiscColor,
-        moonDiscColor: chunksUniforms.skyMoonDiscColor,
-        discRadii: chunksUniforms.skyDiscRadii,
-      }),
-      uSceneColor: chunksUniforms.sceneColor,
-      uSceneTextureSize: chunksUniforms.sceneTextureSize,
-      uWaterRefractionReady: chunksUniforms.waterRefractionReady,
-      uWaterDepth: chunksUniforms.waterDepth,
-      uWaterDepthState: chunksUniforms.waterDepthState,
-      uWaterDepthViewport: chunksUniforms.waterDepthViewport,
-      uWaterDepthClip: chunksUniforms.waterDepthClip,
-      uWaterExitDepth: chunksUniforms.waterExitDepth,
-      uWaterExitReady: chunksUniforms.waterExitReady,
-      uSceneDepth: chunksUniforms.sceneDepth,
-      uSceneDepthReady: chunksUniforms.sceneDepthReady,
-      // Both depths are drawn with the camera the pass reads its planes from.
-      uPaneDepthClip: chunksUniforms.waterDepthClip,
-      // Per material: only a pane's two forks take a side.
-      uWaterDepthSide: { value: WATER_DEPTH_SIDE_OFF },
-      uWaterRefractionStrength: chunksUniforms.waterRefractionStrength,
-      uWaterNormalMap: chunksUniforms.waterNormalMap,
-      uCameraSubmersion: chunksUniforms.cameraSubmersion,
-      uCameraWaterPlaneY: chunksUniforms.cameraWaterPlaneY,
-      uUnderwaterAmbient: chunksUniforms.underwaterAmbient,
-      uUnderwaterViewScale: chunksUniforms.underwaterViewScale,
-      uWindDirection: chunksUniforms.windDirection,
-      uWindOffset: chunksUniforms.windOffset,
-      uWindSpeed: chunksUniforms.windSpeed,
-      uTime: chunksUniforms.time,
-      uAtlasSize: chunksUniforms.atlasSize,
-      uShowGreedyDebug: chunksUniforms.showGreedyDebug,
-      uFarCoverMask: chunksUniforms.farCoverMask,
-      uFarCover: chunksUniforms.farCover,
-      uFarSeam: chunksUniforms.farSeam,
-      ...bindSurfaceWeatherUniforms(chunksUniforms),
-      // Per material: how it takes the weather (SURFACE_RESPONSE). Forks
-      // share it with the material they draw for.
-      uSurfaceResponse: { value: SURFACE_RESPONSE.solid as number },
-      uSurfaceOpenLight: { value: new Vector2(...SURFACE_OPEN_LIGHT.solid) },
-      uChunkReveal: { value: 1 },
-      // Per material: a chunk's greedy faces take their texels from where
-      // they are drawn; a voxel box's forks turn on a frame of their own.
-      uGreedyFrame: { value: new Matrix4() },
-      uHasGreedyFrame: { value: 0 },
-      ...world.lightCones.uniformBindings,
-      ...world.localLights.uniformBindings,
-      ...shaderLightingUniforms,
-      ...uniforms,
-    },
-  }) as CustomChunkShaderMaterial;
-
-  Object.defineProperty(material, "renderStage", {
-    get: function () {
-      return material.uniforms.renderStage.value;
-    },
-
-    set: function (stage) {
-      material.uniforms.renderStage.value = parseFloat(stage);
-    },
-  });
-
+  options: ChunkMaterialOptions = { kind: "opaque" },
+): ChunkMaterial {
+  const material = new ChunkMaterial(world.shadingInputs, options);
   material.map = AtlasTexture.makeUnknownTexture(
     world.options.textureUnitDimension,
   );
-  material.uniforms.map = { value: material.map };
-
-  // A geometry without a light twist (a held block, a preview) keeps the
-  // per-triangle light: the neutral bytes carry no twist and no corner.
-  Object.assign(material.defaultAttributeValues, {
-    biomeTint: [0, 0, 0],
-    lightTwist: [...QUAD_LIGHT_TWIST_NEUTRAL],
-  });
   return material;
 }
 
@@ -556,15 +325,11 @@ export function makeOwnFaceTexture(
 }
 
 /** Point an own-texture face's material at `texture`. */
-export function setOwnFaceTexture(
-  material: CustomChunkShaderMaterial,
-  texture: Texture,
-) {
+export function setOwnFaceTexture(material: ChunkMaterial, texture: Texture) {
   const previous = material.map;
 
+  // The program reads its texture per draw: no rebuild.
   material.map = texture;
-  material.uniforms.map.value = texture;
-  material.needsUpdate = true;
 
   if (previous && previous !== texture && mintedFaceTextures.has(previous)) {
     previous.dispose();
@@ -639,14 +404,9 @@ export async function loadChunkMaterials(
     transparentStandalone: boolean,
     castsShadow: boolean,
   ) => {
-    const mat = makeChunkShaderMaterial(
-      world,
-      isFluid
-        ? SHADER_LIGHTING_FLUID_CHUNK_SHADERS.fragment
-        : transparent
-          ? SHADER_LIGHTING_SEE_THROUGH_CHUNK_SHADERS.fragment
-          : undefined,
-    );
+    const mat = makeChunkMaterial(world, {
+      kind: isFluid ? "fluid" : transparent ? "seeThrough" : "opaque",
+    });
 
     mat.side = isFluid ? FrontSide : transparent ? DoubleSide : FrontSide;
     mat.transparent = transparent;
@@ -664,22 +424,18 @@ export async function loadChunkMaterials(
       mat.depthWrite =
         !isFluid && (transparentStandalone || lightAttenuation > 0);
       mat.alphaTest = SEE_THROUGH_ALPHA_TEST;
-      mat.uniforms.alphaTest.value = SEE_THROUGH_ALPHA_TEST;
     }
     mat.map = map;
-    mat.uniforms.map.value = map;
     mat.userData.skipShadow = !castsShadow;
     mat.userData.isFluid = isFluid;
-    mat.uniforms.uSurfaceResponse.value = isFluid
+    mat.surfaceResponse = isFluid
       ? SURFACE_RESPONSE.fluid
       : transparent
         ? SURFACE_RESPONSE.seeThrough
         : SURFACE_RESPONSE.solid;
     // A see-through block's faces carry its own voxel's light.
     if (transparent) {
-      mat.uniforms.uSurfaceOpenLight.value.set(
-        ...SURFACE_OPEN_LIGHT.seeThrough,
-      );
+      mat.surfaceOpenLight.set(...SURFACE_OPEN_LIGHT.seeThrough);
     }
 
     // Sorted-transparent meshes (the depth-non-writing ones the main-thread
@@ -687,7 +443,8 @@ export async function loadChunkMaterials(
     // quantized. This mirrors `isMainThreadSortedBlock`, so every material
     // serves exactly one vertex format.
     if (!(transparent && !mat.depthWrite)) {
-      applyQuantizedPositionDefine(mat, positionUnits);
+      mat.positionUnits = positionUnits;
+      mat.userData.isQuantized = true;
     }
 
     return mat;
@@ -721,33 +478,23 @@ export async function loadChunkMaterials(
     sharedOpaqueMaterial,
   );
 
-  const swayShaders = createSwayTableShader(
-    SHADER_LIGHTING_CHUNK_SHADERS,
-    world.options.swayProfileCapacity,
-  );
   const makeSharedCutout = (
     isShadowCasting: boolean,
     side: Side = DoubleSide,
     isClosedCube = false,
   ) => {
-    const mat = makeChunkShaderMaterial(
-      world,
-      swayShaders.fragmentShader,
-      swayShaders.vertexShader,
-      { uSwayParams: world.swayProfileTable },
-    );
+    const mat = makeChunkMaterial(world, { kind: "cutout" });
     const blending = sharedCutoutBlending(isClosedCube);
     mat.side = side;
     mat.transparent = blending.transparent;
     mat.depthWrite = true;
     mat.alphaTest = blending.alphaTest;
-    mat.uniforms.alphaTest.value = blending.alphaTest;
     mat.map = atlas;
-    mat.uniforms.map.value = atlas;
     mat.userData.skipShadow = !isShadowCasting;
-    mat.uniforms.uSurfaceResponse.value = SURFACE_RESPONSE.cutout;
-    mat.uniforms.uSurfaceOpenLight.value.set(...SURFACE_OPEN_LIGHT.seeThrough);
-    applyQuantizedPositionDefine(mat, positionUnits);
+    mat.surfaceResponse = SURFACE_RESPONSE.cutout;
+    mat.surfaceOpenLight.set(...SURFACE_OPEN_LIGHT.seeThrough);
+    mat.positionUnits = positionUnits;
+    mat.userData.isQuantized = true;
     return mat;
   };
   world.chunkRenderer.materials.set(

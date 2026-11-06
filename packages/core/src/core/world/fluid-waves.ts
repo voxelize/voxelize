@@ -1,7 +1,12 @@
+import { float, vec3 } from "three/tsl";
+
+import { simplexNoise3Node } from "./shading/noise";
+import type { FloatNode } from "./shading/types";
+
 /**
  * The swell a resting fluid surface rides: three octaves of the chunk
  * shader's simplex noise over world x/z and the shader clock. The vertex
- * stage (`shaders.ts`) is generated from this table, and
+ * stage sums this table ({@link fluidWaveNode}), and
  * {@link fluidWaveOffset} sums the same octaves on the CPU, so something
  * floating on the water can ride the surface the player sees instead of
  * sinking into its crests. The shader clock follows the world's shared
@@ -17,37 +22,31 @@ export const FLUID_WAVE = {
   ],
 } as const;
 
-const glslFloat = (value: number) => value.toFixed(4);
-
-/** GLSL for the wave time at shader clock `timeMs` (ms). */
-export const fluidWaveTimeGlsl = (timeMs: string): string =>
-  `${timeMs} * ${glslFloat(FLUID_WAVE.timeScale)}`;
-
 /**
- * GLSL declaring each octave of the swell (in blocks) at world `x`/`z` and
- * wave time `waveTime` ({@link fluidWaveTimeGlsl}) as `wave1`, `wave2`, ...
- * over `snoise`; {@link fluidWaveSumGlsl} adds them up. Shader patches
- * anchor on the sum's text.
+ * The swell (blocks) at world `x`/`z` and shader clock `timeMs`, as a TSL
+ * node: what the chunk vertex stage adds to a resting fluid surface, and
+ * what anything drawn on the water (shore foam) rides to stay on it.
  */
-export const fluidWaveOctavesGlsl = (
-  x: string,
-  z: string,
-  waveTime: string,
-): string =>
-  FLUID_WAVE.octaves
-    .map(
-      ({ frequency, driftX, driftZ, seed, amplitude }, index) =>
-        `float wave${index + 1} = snoise(vec3(${x} * ${glslFloat(frequency)} + ${waveTime} * ${glslFloat(
-          driftX,
-        )}, ${z} * ${glslFloat(frequency)} + ${waveTime} * ${glslFloat(
-          driftZ,
-        )}, ${glslFloat(seed)})) * ${glslFloat(amplitude)};`,
-    )
-    .join("\n");
-
-/** GLSL summing the octaves {@link fluidWaveOctavesGlsl} declares. */
-export const fluidWaveSumGlsl = (): string =>
-  FLUID_WAVE.octaves.map((_, index) => `wave${index + 1}`).join(" + ");
+export function fluidWaveNode(
+  x: FloatNode,
+  z: FloatNode,
+  timeMs: FloatNode,
+): FloatNode {
+  const time = timeMs.mul(FLUID_WAVE.timeScale);
+  let sum: FloatNode = float(0);
+  for (const octave of FLUID_WAVE.octaves) {
+    sum = sum.add(
+      simplexNoise3Node(
+        vec3(
+          x.mul(octave.frequency).add(time.mul(octave.driftX)),
+          z.mul(octave.frequency).add(time.mul(octave.driftZ)),
+          octave.seed,
+        ),
+      ).mul(octave.amplitude),
+    );
+  }
+  return sum;
+}
 
 const mod289 = (x: number) => x - 289 * Math.floor(x / 289);
 const permute = (x: number) => mod289((x * 34 + 1) * x);
@@ -81,7 +80,7 @@ function cornerContribution(
   return m * m * (px * norm * dx + py * norm * dy + h * norm * dz);
 }
 
-/** The chunk shader's 3D simplex noise (`SIMPLEX_NOISE_GLSL`), on the CPU. */
+/** The chunk shader's 3D simplex noise (`simplexNoise3Node`), on the CPU. */
 export function simplexNoise3(vx: number, vy: number, vz: number): number {
   const s = (vx + vy + vz) * SKEW;
   const ix = Math.floor(vx + s);

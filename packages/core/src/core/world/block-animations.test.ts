@@ -1,4 +1,4 @@
-import { Group, Matrix4, Mesh, Vector3 } from "three";
+import { Group, Matrix4, Mesh, Vector3 } from "three/webgpu";
 import { describe, expect, it } from "vitest";
 
 import { Coords3 } from "../../types";

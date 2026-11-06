@@ -1,4 +1,4 @@
-import type { Vector3 } from "three";
+import type { Vector3 } from "three/webgpu";
 
 // Per-entity smoothing state, keyed by the entity's rendered position vector
 // (stable for the entity's lifetime), so callers need no extra fields.

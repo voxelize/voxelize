@@ -6,12 +6,6 @@ import {
   QUAD_LIGHT_TWIST_BIAS,
   QUAD_LIGHT_TWIST_NEUTRAL,
 } from "./quad-light";
-import {
-  SHADER_LIGHTING_CHUNK_SHADERS,
-  SHADER_LIGHTING_CROSS_CHUNK_SHADERS,
-  SHADER_LIGHTING_FLUID_CHUNK_SHADERS,
-  SHADER_LIGHTING_SEE_THROUGH_CHUNK_SHADERS,
-} from "./shaders";
 
 /** The two index patterns the mesher emits (faces.rs, greedy.rs). */
 const SPLIT_AD = [0, 1, 3, 3, 2, 0];
@@ -259,30 +253,5 @@ describe("bilinear voxel light across a quad", () => {
         ...QUAD_LIGHT_TWIST_NEUTRAL,
       ]);
     }
-  });
-
-  it("is what every chunk fragment reads its voxel light through", () => {
-    const fragments = {
-      opaque: SHADER_LIGHTING_CHUNK_SHADERS.fragment,
-      fluid: SHADER_LIGHTING_FLUID_CHUNK_SHADERS.fragment,
-      seeThrough: SHADER_LIGHTING_SEE_THROUGH_CHUNK_SHADERS.fragment,
-      cross: SHADER_LIGHTING_CROSS_CHUNK_SHADERS.fragment,
-    };
-    for (const [name, fragment] of Object.entries(fragments)) {
-      // vLight appears in its declaration and inside the helper only: a
-      // direct read elsewhere would skip the correction.
-      const reads = fragment.match(/\bvLight\b/g) ?? [];
-      expect(reads.length, name).toBe(2);
-      expect(fragment, name).toContain(
-        "vec4 voxelLight = bilinearVoxelLight();",
-      );
-      expect(fragment, name).toContain("uniform float uBlockLightBilinear;");
-    }
-    expect(SHADER_LIGHTING_CHUNK_SHADERS.vertex).toContain(
-      "attribute vec4 lightTwist;",
-    );
-    expect(SHADER_LIGHTING_CHUNK_SHADERS.vertex).toContain(
-      "vLightTwist = quadLightTwist * (quadLightHead / 15.0);",
-    );
   });
 });

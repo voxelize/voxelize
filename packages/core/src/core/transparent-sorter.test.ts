@@ -2,9 +2,9 @@ import {
   BufferAttribute,
   BufferGeometry,
   Mesh,
-  MeshBasicMaterial,
+  MeshBasicNodeMaterial,
   PerspectiveCamera,
-} from "three";
+} from "three/webgpu";
 import { describe, expect, it } from "vitest";
 
 import {
@@ -42,7 +42,7 @@ function makeQuadMesh(
     new BufferAttribute(new Float32Array(positions), 3),
   );
   geometry.setIndex(new BufferAttribute(new Uint32Array(indices), 1));
-  return new Mesh(geometry, new MeshBasicMaterial({ transparent: true }));
+  return new Mesh(geometry, new MeshBasicNodeMaterial({ transparent: true }));
 }
 
 describe("prepareTransparentMesh classification", () => {
@@ -83,7 +83,7 @@ describe("prepareTransparentMesh classification", () => {
     );
     const mesh = new Mesh(
       geometry,
-      new MeshBasicMaterial({ transparent: true }),
+      new MeshBasicNodeMaterial({ transparent: true }),
     );
     const data = prepareTransparentMesh(mesh);
     expect(data?.classification).toBe("distance");

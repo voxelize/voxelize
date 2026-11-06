@@ -1,9 +1,10 @@
 import {
+  DepthTexture,
   EventDispatcher,
-  MeshBasicMaterial,
+  MeshBasicNodeMaterial,
+  RenderTarget,
   Texture,
-  WebGLRenderTarget,
-} from "three";
+} from "three/webgpu";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 const { SilentWorker } = vi.hoisted(() => {
@@ -36,7 +37,7 @@ vi.mock("../../libs/workers/interval-worker?worker&inline", () => ({
   default: SilentWorker,
 }));
 
-import { CustomChunkShaderMaterial } from "./chunk-materials";
+import { ChunkMaterial } from "./chunk-materials";
 import { defaultOrderIndependentTransparencyOptions } from "./order-independent-transparency";
 import { AtlasTexture } from "./textures";
 
@@ -45,10 +46,10 @@ import { World } from "./index";
 /** The world's private passes, reached the way a debugger would. */
 type WorldInternals = {
   refractionCapture: Texture;
-  sceneDepthCopy: { target: WebGLRenderTarget | null; dispose(): void };
+  sceneDepthCopy: { copy: DepthTexture | null; dispose(): void };
   waterDepth: {
-    target: WebGLRenderTarget | null;
-    exitTarget: WebGLRenderTarget | null;
+    target: RenderTarget | null;
+    exitTarget: RenderTarget | null;
     dispose(): void;
   };
 };
@@ -105,26 +106,26 @@ describe("World.dispose", () => {
     }
 
     // The depth passes allocate their targets on first use; stand some in.
-    internals.sceneDepthCopy.target = new WebGLRenderTarget(4, 4);
-    internals.waterDepth.target = new WebGLRenderTarget(4, 4);
-    internals.waterDepth.exitTarget = new WebGLRenderTarget(4, 4);
+    internals.sceneDepthCopy.copy = new DepthTexture(4, 4);
+    internals.waterDepth.target = new RenderTarget(4, 4);
+    internals.waterDepth.exitTarget = new RenderTarget(4, 4);
 
     // A chunk material with its own atlas, and one still on the shared
     // unknown-texture checker.
     const ownAtlas = new Texture();
-    const ownMaterial = new MeshBasicMaterial({ map: ownAtlas });
+    const ownMaterial = new MeshBasicNodeMaterial({ map: ownAtlas });
     const sharedUnknown = new Texture();
     (
       AtlasTexture as unknown as { sharedUnknownTexture: Texture | null }
     ).sharedUnknownTexture = sharedUnknown;
-    const checkerMaterial = new MeshBasicMaterial({ map: sharedUnknown });
+    const checkerMaterial = new MeshBasicNodeMaterial({ map: sharedUnknown });
     world.chunkRenderer.materials.set(
       "own",
-      ownMaterial as unknown as CustomChunkShaderMaterial,
+      ownMaterial as unknown as ChunkMaterial,
     );
     world.chunkRenderer.materials.set(
       "checker",
-      checkerMaterial as unknown as CustomChunkShaderMaterial,
+      checkerMaterial as unknown as ChunkMaterial,
     );
 
     const skyLayer = world.sky.boxLayers[0];
@@ -137,7 +138,7 @@ describe("World.dispose", () => {
         "water normal map",
         disposals(world.chunkRenderer.uniforms.waterNormalMap.value),
       ],
-      ["scene depth copy target", disposals(internals.sceneDepthCopy.target)],
+      ["scene depth copy", disposals(internals.sceneDepthCopy.copy)],
       ["water depth target", disposals(internals.waterDepth.target)],
       ["water exit target", disposals(internals.waterDepth.exitTarget)],
       ["sky dome geometry", disposals(skyShading.geometry)],

@@ -1,4 +1,4 @@
-import type { Vector3 } from "three";
+import type { Vector3 } from "three/webgpu";
 
 import {
   type AmbientBeatContext,

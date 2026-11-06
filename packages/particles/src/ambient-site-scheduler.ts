@@ -1,4 +1,4 @@
-import type { Vector3 } from "three";
+import type { Vector3 } from "three/webgpu";
 
 import { getAmbientParticleDensity } from "./ambient-density";
 import { hashSeed, type RandomSource, seededRandom, unitOf } from "./random";

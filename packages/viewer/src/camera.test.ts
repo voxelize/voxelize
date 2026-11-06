@@ -1,4 +1,4 @@
-import { Vector3 } from "three";
+import { Vector3 } from "three/webgpu";
 import { describe, expect, it } from "vitest";
 
 import { CameraRig, orbitNear } from "./camera";

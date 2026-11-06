@@ -1,4 +1,4 @@
-import { BoxGeometry, Color, MeshBasicMaterial } from "three";
+import { BoxGeometry, Color, MeshBasicNodeMaterial } from "three/webgpu";
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 
 import {
@@ -247,7 +247,7 @@ describe("CanvasBox mergeFaces", () => {
     for (const layer of merged.boxLayers) {
       expect(Array.isArray(layer.material)).toBe(false);
       expect(layer.material).toBe(atlasOf(layer).material);
-      expect(layer.material).toBeInstanceOf(MeshBasicMaterial);
+      expect(layer.material).toBeInstanceOf(MeshBasicNodeMaterial);
     }
     const split = new CanvasBox({ width: 0.5 });
     expect(Array.isArray(split.boxLayers[0].material)).toBe(true);
@@ -403,24 +403,27 @@ describe("CanvasBox mergeFaces", () => {
     }
   });
 
-  it("keeps the shadow and underwater hooks on the atlas material", () => {
+  it("keeps the shadow on the atlas material", () => {
     const merged = new CanvasBox({
       width: 0.5,
       mergeFaces: true,
       receiveShadows: true,
-      underwaterFog: true,
     }).boxLayers[0];
     const split = new CanvasBox({
       width: 0.5,
       receiveShadows: true,
-      underwaterFog: true,
     }).boxLayers[0];
     const atlasMaterial = atlasOf(merged).material;
     const faceMaterial = must(split.materials.get("front"), "front");
-    // Same program key, so the merged layer reuses the per-face program.
-    expect(atlasMaterial.onBeforeCompile.toString()).toBe(
-      faceMaterial.onBeforeCompile.toString(),
-    );
+    // The shadowed colour, as on every face material of a shadowed layer;
+    // a box that receives no shadow keeps the plain map colour.
+    expect(atlasMaterial.colorNode).not.toBeNull();
+    expect(faceMaterial.colorNode).not.toBeNull();
+    expect(merged.shadowBody).not.toBeNull();
+    expect(atlasMaterial.colorNode).toBe(faceMaterial.colorNode);
+    expect(atlasMaterial.userData.shadowBody).toBe(merged.shadowBody);
+    const plain = new CanvasBox({ width: 0.5, mergeFaces: true }).boxLayers[0];
+    expect(atlasOf(plain).material.colorNode).toBeNull();
     expect(atlasMaterial.toneMapped).toBe(false);
     expect(atlasMaterial.side).toBe(faceMaterial.side);
     expect(must(atlasMaterial.map, "atlas map").magFilter).toBe(

@@ -1,27 +1,38 @@
 import merge from "deepmerge";
+import { screenUV } from "three/tsl";
 import {
   AmbientLight,
+  CanvasTarget,
+  Color,
   DirectionalLight,
   Material,
   Mesh,
-  MeshBasicMaterial,
+  MeshBasicNodeMaterial,
   NearestFilter,
   Object3D,
   OrthographicCamera,
   PlaneGeometry,
+  HalfFloatType,
+  NodeMaterial,
+  NoToneMapping,
+  QuadMesh,
+  type Renderer,
+  RenderTarget,
   Scene,
   SRGBColorSpace,
   Texture,
   Vector3,
-  WebGLRenderer,
-} from "three";
+} from "three/webgpu";
 
 import { CameraPerspective, noop } from "../common";
 import { Inputs } from "../core/inputs";
+import { textureSlot } from "../core/world/shading/uniforms";
 import { DOMUtils, ThreeUtils } from "../utils";
 
+const scratchClearColor = new Color();
+
 function disposeMaterial(material: Material) {
-  if (material instanceof MeshBasicMaterial && material.map) {
+  if (material instanceof MeshBasicNodeMaterial && material.map) {
     material.map.dispose();
   }
   material.dispose();
@@ -216,7 +227,7 @@ export class ItemSlot<T = number> {
       texture.colorSpace = SRGBColorSpace;
       texture.minFilter = NearestFilter;
       texture.magFilter = NearestFilter;
-      const material = new MeshBasicMaterial({
+      const material = new MeshBasicNodeMaterial({
         map: texture,
         transparent: true,
       });
@@ -343,7 +354,25 @@ export class ItemSlots<T = number> {
 
   public canvas: HTMLCanvasElement;
 
-  public renderer: WebGLRenderer;
+  /**
+   * The page's renderer, which draws the slots into {@link canvas} through
+   * its own canvas target ({@link attachRenderer}). Nothing draws until one
+   * is attached.
+   */
+  public renderer: Renderer | null = null;
+
+  /** The slots' canvas as a target of the page's renderer. */
+  private canvasTarget: CanvasTarget;
+
+  /**
+   * Every slot draws into this (linear, the canvas's drawing size), and one
+   * pass presents it to the canvas: three converts a frame to the output
+   * colour space in a pass of its own after each render to a canvas, which
+   * per scissored slot would cost a pass each and redraw the others.
+   */
+  private slotsTarget: RenderTarget | null = null;
+  private present: QuadMesh | null = null;
+  private presentInput = textureSlot("color");
 
   public focusedRow = -1;
 
@@ -472,8 +501,11 @@ export class ItemSlots<T = number> {
     }
 
     this.focusChangeCallbacks = [];
-    this.renderer.dispose();
-    this.renderer.forceContextLoss();
+    // The renderer is the page's; only this canvas's targets are ours.
+    this.canvasTarget.dispose();
+    this.slotsTarget?.dispose();
+    (this.present?.material as Material | undefined)?.dispose();
+    this.renderer = null;
     this.canvas.remove();
     this.wrapper.remove();
   };
@@ -738,6 +770,15 @@ export class ItemSlots<T = number> {
     return disconnect;
   };
 
+  /**
+   * Draws the slots with `renderer` (the page's one renderer) into this
+   * canvas from now on.
+   */
+  attachRenderer = (renderer: Renderer) => {
+    this.renderer = renderer;
+    this.requestRender();
+  };
+
   requestRender = () => {
     if (!this.activated || this.isRenderQueued) return;
     this.isRenderQueued = true;
@@ -750,9 +791,6 @@ export class ItemSlots<T = number> {
 
     if (!this.activated) return;
 
-    const { horizontalCount, verticalCount, slotMargin, slotPadding } =
-      this.options;
-
     const width = this.canvas.clientWidth;
     const height = this.canvas.clientHeight;
 
@@ -761,23 +799,145 @@ export class ItemSlots<T = number> {
     // visibility observer repaints once layout comes back.
     if (width === 0 || height === 0) return;
 
-    // The drawing buffer is CSS size times the renderer's pixel ratio;
-    // comparing against CSS size alone would reallocate it every frame.
-    const ratio = this.renderer.getPixelRatio();
+    const renderer = this.renderer;
+    if (!renderer) return;
+
+    // The drawing buffer is CSS size times the pixel ratio; comparing
+    // against CSS size alone would reallocate it every frame.
+    const target = this.canvasTarget;
+    const ratio = target.getPixelRatio();
     if (
       this.canvas.width !== Math.floor(width * ratio) ||
       this.canvas.height !== Math.floor(height * ratio)
     ) {
-      this.renderer.setSize(width, height, false);
+      target.setSize(width, height, false);
     }
 
-    this.renderer.setScissorTest(false);
-    this.renderer.clear();
-    this.renderer.setScissorTest(true);
+    // The renderer is the page's: draw into this canvas, then hand it back
+    // exactly as it was.
+    const previousCanvas = renderer.getCanvasTarget();
+    const previousTarget = renderer.getRenderTarget();
+    const previousToneMapping = renderer.toneMapping;
+    const previousClearAlpha = renderer.getClearAlpha();
+    renderer.getClearColor(scratchClearColor);
+    const slots = this.slotsTargetFor(this.canvas.width, this.canvas.height);
+    renderer.setCanvasTarget(target);
+    renderer.toneMapping = NoToneMapping;
+    renderer.setClearColor(0x000000, 0);
+    try {
+      renderer.setRenderTarget(slots);
+      this.drawSlots(renderer, slots, ratio);
+      renderer.setScissorTest(false);
+      renderer.setRenderTarget(null);
+      this.presentInput.value = slots.texture;
+      this.present ??= this.makePresent();
+      this.present.render(renderer);
+    } finally {
+      renderer.setScissorTest(false);
+      renderer.setClearColor(scratchClearColor, previousClearAlpha);
+      renderer.toneMapping = previousToneMapping;
+      renderer.setRenderTarget(previousTarget);
+      renderer.setCanvasTarget(previousCanvas);
+    }
+  };
 
-    const canvasRect = this.renderer.domElement.getBoundingClientRect();
+  /**
+   * Builds this view's draw pipelines (the present pass, and the output
+   * transform into its canvas) with one 1x1 draw, while it is still
+   * hidden behind the loading screen. Built by the first draw instead, on
+   * the click into play, they were a dropped frame there on a cold shader
+   * cache. The next real draw sizes the canvas again.
+   */
+  warm = () => {
+    const renderer = this.renderer;
+    if (!renderer) return;
+    const target = this.canvasTarget;
+    if (this.canvas.width === 0 || this.canvas.height === 0) {
+      target.setSize(1 / target.getPixelRatio(), 1 / target.getPixelRatio(), false);
+    }
+    const previousCanvas = renderer.getCanvasTarget();
+    const previousTarget = renderer.getRenderTarget();
+    const previousToneMapping = renderer.toneMapping;
+    const previousClearAlpha = renderer.getClearAlpha();
+    renderer.getClearColor(scratchClearColor);
+    const slots = this.slotsTargetFor(
+      Math.max(1, this.canvas.width),
+      Math.max(1, this.canvas.height),
+    );
+    renderer.setCanvasTarget(target);
+    renderer.toneMapping = NoToneMapping;
+    renderer.setClearColor(0x000000, 0);
+    try {
+      renderer.setRenderTarget(slots);
+      renderer.clear();
+      renderer.setRenderTarget(null);
+      this.presentInput.value = slots.texture;
+      this.present ??= this.makePresent();
+      this.present.render(renderer);
+    } finally {
+      renderer.setClearColor(scratchClearColor, previousClearAlpha);
+      renderer.toneMapping = previousToneMapping;
+      renderer.setRenderTarget(previousTarget);
+      renderer.setCanvasTarget(previousCanvas);
+    }
+  };
 
-    let hasRendered = false;
+  private slotsTargetFor(width: number, height: number) {
+    const current = this.slotsTarget;
+    if (current && current.width === width && current.height === height) {
+      return current;
+    }
+    current?.dispose();
+    this.slotsTarget = new RenderTarget(width, height, {
+      type: HalfFloatType,
+      depthBuffer: true,
+      generateMipmaps: false,
+    });
+    return this.slotsTarget;
+  }
+
+  private makePresent() {
+    const material = new NodeMaterial();
+    material.name = "item-slots-present";
+    material.fragmentNode = this.presentInput.sample(screenUV);
+    material.depthTest = false;
+    material.depthWrite = false;
+    return new QuadMesh(material);
+  }
+
+  /**
+   * Draws each slot's scene into its cell of `slots`, a target in drawing
+   * pixels (`ratio` per CSS pixel); a render target's viewport runs from
+   * its top-left corner.
+   */
+  private drawSlots(renderer: Renderer, slots: RenderTarget, ratio: number) {
+    slots.scissorTest = false;
+    renderer.clear();
+    slots.scissorTest = true;
+    // The target is cleared once, above. A WebGPU clear is the render
+    // pass's load op, which covers the whole attachment whatever the
+    // scissor, so a render that cleared for its own cell would wipe every
+    // cell drawn before it. The cells never overlap; none needs its own.
+    const autoClear = renderer.autoClear;
+    renderer.autoClear = false;
+    try {
+      this.drawSlotCells(renderer, slots, ratio);
+    } finally {
+      renderer.autoClear = autoClear;
+      slots.viewport.set(0, 0, slots.width, slots.height);
+      slots.scissor.copy(slots.viewport);
+      slots.scissorTest = false;
+    }
+  }
+
+  private drawSlotCells(
+    renderer: Renderer,
+    slots: RenderTarget,
+    ratio: number,
+  ) {
+    const { horizontalCount, verticalCount, slotMargin, slotPadding } =
+      this.options;
+    const canvasRect = this.canvas.getBoundingClientRect();
 
     for (let i = 0; i < verticalCount; i++) {
       for (let j = 0; j < horizontalCount; j++) {
@@ -796,34 +956,27 @@ export class ItemSlots<T = number> {
           continue;
         }
 
-        hasRendered = true;
-
-        const width = rect.right - rect.left - slotMargin * 2 - slotPadding * 2;
-        const height =
+        const slotWidth =
+          rect.right - rect.left - slotMargin * 2 - slotPadding * 2;
+        const slotHeight =
           rect.bottom - rect.top - slotMargin * 2 - slotPadding * 2;
 
-        if (width <= 0 || height <= 0) continue;
+        if (slotWidth <= 0 || slotHeight <= 0) continue;
 
         const left = rect.left - canvasRect.left + slotMargin + slotPadding;
-        const bottom =
-          canvasRect.height -
-          (rect.bottom - canvasRect.top) +
-          slotMargin +
-          slotPadding;
+        const top = rect.top - canvasRect.top + slotMargin + slotPadding;
 
-        this.renderer.setViewport(left, bottom, width, height);
-        this.renderer.setScissor(left, bottom, width, height);
-        this.renderer.render(scene, camera);
+        slots.viewport.set(
+          left * ratio,
+          top * ratio,
+          slotWidth * ratio,
+          slotHeight * ratio,
+        );
+        slots.scissor.copy(slots.viewport);
+        renderer.render(scene, camera);
       }
     }
-
-    if (!hasRendered) {
-      // Render transparent background
-      this.renderer.setViewport(0, 0, width, height);
-      this.renderer.setScissor(0, 0, width, height);
-      this.renderer.render(this.slots[0][0].scene, this.slots[0][0].camera);
-    }
-  };
+  }
 
   get element() {
     return this.wrapper;
@@ -920,13 +1073,11 @@ export class ItemSlots<T = number> {
 
     this.wrapper.appendChild(this.canvas);
 
-    this.renderer = new WebGLRenderer({
-      canvas: this.canvas,
-      antialias: false,
-      alpha: true,
-    });
-    this.renderer.outputColorSpace = SRGBColorSpace;
-    this.renderer.setSize(width, height);
+    this.canvasTarget = new CanvasTarget(this.canvas);
+    this.canvasTarget.setPixelRatio(
+      typeof window === "undefined" ? 1 : window.devicePixelRatio,
+    );
+    this.canvasTarget.setSize(width, height);
 
     // Renders are skipped while the canvas has no layout (hidden wrapper),
     // so the last painted frame can be stale by the time the slots are shown

@@ -1,13 +1,14 @@
 import {
   BatchedMesh,
   BoxGeometry,
-  Group,
+  type BufferGeometry,
+  type Camera,
+  type Material,
   Matrix4,
-  MeshBasicMaterial,
+  MeshBasicNodeMaterial,
+  OrthographicCamera,
   PerspectiveCamera,
-  Scene,
-  WebGLRenderer,
-} from "three";
+} from "three/webgpu";
 import { describe, expect, it } from "vitest";
 
 import { StaticBatchedMesh } from "./static-batched-mesh";
@@ -17,6 +18,12 @@ type Internals = {
   _multiDrawStarts: Int32Array;
   _multiDrawCounts: Int32Array;
   _indirectTexture: { image: { data: Uint32Array }; version: number };
+  _updateDrawParameters(
+    camera: Camera,
+    geometry: BufferGeometry,
+    material: Material,
+    drawFormat: "multiDraw" | "merged",
+  ): void;
 };
 
 /** A deterministic scatter of boxes, the same in both batches. */
@@ -46,7 +53,7 @@ const make = <T extends BatchedMesh>(
   Kind: new (...args: ConstructorParameters<typeof BatchedMesh>) => T,
   transparent: boolean,
 ) => {
-  const material = new MeshBasicMaterial({ transparent });
+  const material = new MeshBasicNodeMaterial({ transparent });
   const batch = new Kind(128, 4096, 8192, material);
   fill(batch, 100);
   batch.updateMatrixWorld(true);
@@ -61,16 +68,16 @@ const camera = (x: number, z: number, lookX: number, lookZ: number) => {
   return view;
 };
 
+// What three's batch node does once per drawn object per pass: build the
+// draw list for that pass's camera.
 const draw = (batch: BatchedMesh, view: PerspectiveCamera) => {
-  batch.onBeforeRender(
-    null as unknown as WebGLRenderer,
-    new Scene(),
+  const state = batch as unknown as Internals;
+  state._updateDrawParameters(
     view,
     batch.geometry,
-    batch.material as MeshBasicMaterial,
-    null as unknown as Group,
+    batch.material as MeshBasicNodeMaterial,
+    "multiDraw",
   );
-  const state = batch as unknown as Internals;
   const count = state._multiDrawCount;
   return {
     count,
@@ -108,6 +115,37 @@ describe("StaticBatchedMesh", () => {
     }
   }
 
+  it("draws a batch its frustum holds whole, or misses, as three does", () => {
+    // From high above, every box in view (perspective: an orthographic
+    // pass leaves opaque sections unsorted, which three does not).
+    const whole = new PerspectiveCamera(70, 1, 0.1, 2000);
+    whole.position.set(0, 600, 0);
+    whole.lookAt(0, 0, 0);
+    whole.updateMatrixWorld(true);
+    const away = camera(0, 0, 0, 0);
+    away.position.set(5000, 10, 5000);
+    away.lookAt(6000, 0, 6000);
+    away.updateMatrixWorld(true);
+    for (const transparent of [false, true]) {
+      const three = make(BatchedMesh, transparent);
+      const cached = make(StaticBatchedMesh, transparent);
+      const all = draw(three, whole);
+      expect(all.count).toBe(100);
+      expect(draw(cached, whole)).toEqual(all);
+      const none = draw(three, away);
+      expect(none.count).toBe(0);
+      expect(draw(cached, away)).toEqual(none);
+      // And back to a partial view, after a section moved out of the bounds.
+      for (const batch of [three, cached]) {
+        batch.setMatrixAt(3, new Matrix4().makeTranslation(900, 0, 900));
+      }
+      expect(draw(cached, views[1])).toEqual(draw(three, views[1]));
+      expect(draw(cached, whole)).toEqual(
+        draw(three, whole),
+      );
+    }
+  });
+
   it("follows an instance that moves, is hidden or is rewritten", () => {
     const three = make(BatchedMesh, false);
     const cached = make(StaticBatchedMesh, false);
@@ -140,5 +178,82 @@ describe("StaticBatchedMesh", () => {
     cached.setVisibleAt(draw(cached, view).order[0], false);
     draw(cached, view);
     expect(uploads(cached)).toBe(first + 3);
+  });
+
+  it("writes only the rows its list reaches once the texture is on the GPU", () => {
+    const batch = make(StaticBatchedMesh, false);
+    batch.sortObjects = false;
+    const texture = (batch as unknown as Internals)._indirectTexture;
+    const writes: { y: number; rows: number }[] = [];
+    const renderer = {
+      backend: {
+        isWebGPUBackend: true,
+        device: {
+          queue: {
+            writeTexture: (
+              destination: { origin: { y: number } },
+              _data: unknown,
+              _layout: unknown,
+              size: { height: number },
+            ) => writes.push({ y: destination.origin.y, rows: size.height }),
+          },
+        },
+        get: () => ({ texture: {} }),
+      },
+    };
+    batch.onBeforeRender(renderer as never);
+    const first = draw(batch, views[0]);
+    // The first list goes through three's own upload.
+    const flagged = uploads(batch);
+    expect(writes).toHaveLength(0);
+    const second = draw(batch, views[1]);
+    expect(second.order).not.toEqual(first.order);
+    expect(uploads(batch)).toBe(flagged);
+    const width = (texture.image as unknown as { width: number }).width;
+    expect(writes).toEqual([
+      { y: 0, rows: Math.max(1, Math.ceil(second.count / width)) },
+    ]);
+  });
+
+  it("leaves opaque sections unsorted under an orthographic (shadow) camera", () => {
+    const ortho = new OrthographicCamera(-120, 120, 120, -120, 0.1, 500);
+    ortho.position.set(0, 200, 0);
+    ortho.lookAt(0, 0, 0);
+    ortho.updateMatrixWorld(true);
+    for (const transparent of [false, true]) {
+      const three = make(BatchedMesh, transparent);
+      const cached = make(StaticBatchedMesh, transparent);
+      const expected = draw(three, ortho as unknown as PerspectiveCamera);
+      const drawn = draw(cached, ortho as unknown as PerspectiveCamera);
+      // The same sections either way.
+      expect([...drawn.order].sort((a, b) => a - b)).toEqual(
+        [...expected.order].sort((a, b) => a - b),
+      );
+      if (transparent) {
+        // A blended pass keeps three's order.
+        expect(drawn.order).toEqual(expected.order);
+      } else {
+        // In instance order: nothing sorted them.
+        expect(drawn.order).toEqual([...drawn.order].sort((a, b) => a - b));
+      }
+    }
+  });
+
+  it("leaves a shadow pass of blended sections, depth only, unsorted", () => {
+    const cached = make(StaticBatchedMesh, true);
+    const material = cached.material as MeshBasicNodeMaterial;
+    const ortho = new OrthographicCamera(-120, 120, 120, -120, 0.1, 500);
+    ortho.position.set(0, 200, 0);
+    ortho.lookAt(0, 0, 0);
+    ortho.updateMatrixWorld(true);
+    const view = ortho as unknown as PerspectiveCamera;
+    const blended = draw(cached, view);
+    material.colorWrite = false;
+    const depth = draw(cached, view);
+    expect([...depth.order].sort((a, b) => a - b)).toEqual(
+      [...blended.order].sort((a, b) => a - b),
+    );
+    expect(depth.order).toEqual([...depth.order].sort((a, b) => a - b));
+    expect(blended.order).not.toEqual(depth.order);
   });
 });

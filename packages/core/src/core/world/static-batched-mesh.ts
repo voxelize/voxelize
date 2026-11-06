@@ -4,24 +4,34 @@ import {
   Camera,
   DataTexture,
   Frustum,
-  Group,
   Material,
   Matrix4,
-  Scene,
   Sphere,
   Vector3,
-  WebGLRenderer,
-} from "three";
+} from "three/webgpu";
 
-/** The private BatchedMesh state the cached path reads (three 0.183). */
+import { writeTextureRows } from "../../utils/gpu-texture-writes";
+
+/** The private BatchedMesh state the cached path reads (three 0.187). */
 type BatchedMeshInternals = {
   _instanceInfo: { visible: boolean; active: boolean; geometryIndex: number }[];
   _geometryInfo: { start: number; count: number }[];
   _multiDrawStarts: Int32Array;
   _multiDrawCounts: Int32Array;
   _multiDrawCount: number;
+  _mergedDrawStarts: Int32Array;
+  _mergedDrawCounts: Int32Array;
+  _mergedDrawInstanceCounts: Int32Array;
+  _mergedDrawCount: number;
+  _multiDrawBytesPerElement: number;
   _indirectTexture: DataTexture;
   _visibilityChanged: boolean;
+  _updateDrawParameters(
+    camera: Camera,
+    geometry: BufferGeometry,
+    material: Material,
+    drawFormat: "multiDraw" | "merged",
+  ): void;
 };
 
 /** Sort distances are exact to within this many blocks either way. */
@@ -46,11 +56,10 @@ const _forward = new Vector3();
  *   texture and transformed each pass;
  * - the indirect texture (draw index to instance) uploads only when the
  *   list in it changed. A still camera draws the same list frame after
- *   frame, and on a Mac (ANGLE's Metal backend) every texture upload is a
- *   staged copy.
+ *   frame, and every texture upload is a staged copy.
  *
  * An array camera, a wireframe material or a custom sort take three's own
- * path. The state read here is three 0.183's; a three without it throws at
+ * path. The state read here is three 0.187's; a three without it throws at
  * construction rather than drawing a stale list.
  */
 export class StaticBatchedMesh extends BatchedMesh {
@@ -62,6 +71,13 @@ export class StaticBatchedMesh extends BatchedMesh {
 
   /** Visible instances of the pass being built. */
   private order: number[] = [];
+  /**
+   * Every active section's sphere in one, in the batch's frame: a pass whose
+   * frustum holds it whole draws every visible section untested, and one
+   * that misses it draws none. Taken again when a section's sphere is.
+   */
+  private readonly bounds = new Sphere();
+  private isBoundsStale = true;
 
   /**
    * Sort keys packing each visible instance's distance with its index (see
@@ -81,10 +97,12 @@ export class StaticBatchedMesh extends BatchedMesh {
       !Array.isArray(internals._geometryInfo) ||
       !internals._multiDrawStarts ||
       !internals._multiDrawCounts ||
-      !internals._indirectTexture
+      !internals._mergedDrawStarts ||
+      !internals._indirectTexture ||
+      typeof internals._updateDrawParameters !== "function"
     ) {
       throw new Error(
-        "[StaticBatchedMesh] this three's BatchedMesh lacks the draw-list state (three 0.183's) the cached cull reads",
+        "[StaticBatchedMesh] this three's BatchedMesh lacks the draw-list state (three 0.187's) the cached cull reads",
       );
     }
   }
@@ -109,14 +127,30 @@ export class StaticBatchedMesh extends BatchedMesh {
     return id;
   }
 
-  override onBeforeRender(
-    renderer: WebGLRenderer,
-    scene: Scene,
+  /** The renderer drawing this pass, for the draw list's own upload. */
+  private drawingRenderer: unknown = null;
+
+  /**
+   * three's WebGPU path flags the indirect texture for upload here on every
+   * culled or sorted pass; `_updateDrawParameters` uploads it only when the
+   * list in it changed. Kept for the renderer, which that call is not given.
+   */
+  override onBeforeRender(renderer: unknown) {
+    this.drawingRenderer = renderer;
+  }
+
+  /**
+   * Builds the pass's draw list: three's, from the cached spheres. Called
+   * by the batch node once per drawn object per pass, with the camera of
+   * that pass (a cascade's for the sun's shadow).
+   */
+  _updateDrawParameters(
     camera: Camera,
     geometry: BufferGeometry,
     material: Material,
-    group: Group,
+    drawFormat: "multiDraw" | "merged" = "multiDraw",
   ) {
+    const state = this as unknown as BatchedMeshInternals;
     if (
       (camera as { isArrayCamera?: boolean }).isArrayCamera ||
       (material as { wireframe?: boolean }).wireframe ||
@@ -124,10 +158,12 @@ export class StaticBatchedMesh extends BatchedMesh {
     ) {
       // Three's path rewrites the list and uploads it whatever we kept.
       this.uploaded = null;
-      super.onBeforeRender(renderer, scene, camera, geometry, material, group);
+      state._indirectTexture.needsUpdate = true;
+      (
+        BatchedMesh.prototype as unknown as BatchedMeshInternals
+      )._updateDrawParameters.call(this, camera, geometry, material, drawFormat);
       return;
     }
-    const state = this as unknown as BatchedMeshInternals;
     if (
       !state._visibilityChanged &&
       !this.perObjectFrustumCulled &&
@@ -153,9 +189,12 @@ export class StaticBatchedMesh extends BatchedMesh {
       spheres[i * 4 + 2] = _sphere.center.z;
       spheres[i * 4 + 3] = _sphere.radius;
       stale[i] = 0;
+      this.isBoundsStale = true;
     }
+    if (this.isBoundsStale) this.takeBounds(count);
 
-    const isCulled = this.perObjectFrustumCulled;
+    let isCulled = this.perObjectFrustumCulled;
+    let isMissed = false;
     if (isCulled) {
       _matrix
         .multiplyMatrices(camera.projectionMatrix, camera.matrixWorldInverse)
@@ -165,12 +204,24 @@ export class StaticBatchedMesh extends BatchedMesh {
         camera.coordinateSystem,
         (camera as { reversedDepth?: boolean }).reversedDepth,
       );
+      // The whole batch first: a shadow cascade mostly holds a page whole.
+      const { center, radius } = this.bounds;
+      let isWhole = radius >= 0;
+      for (let p = 0; p < 6 && radius >= 0; p++) {
+        const distance = _frustum.planes[p].distanceToPoint(center);
+        if (distance < -radius) {
+          isMissed = true;
+          break;
+        }
+        if (distance < radius) isWhole = false;
+      }
+      if (isWhole) isCulled = false;
     }
     const planes = _frustum.planes;
 
     const order = this.order;
     order.length = 0;
-    for (let i = 0; i < count; i++) {
+    for (let i = 0; i < count && !isMissed; i++) {
       const instance = instances[i];
       if (!instance.visible || !instance.active) continue;
       if (isCulled) {
@@ -191,7 +242,20 @@ export class StaticBatchedMesh extends BatchedMesh {
       order.push(i);
     }
 
-    if (this.sortObjects) {
+    // Opaque sections under an orthographic camera (a shadow cascade's
+    // pass) are drawn unsorted: front to back only saves overdraw a
+    // perspective view has, and sorting every visible section again for
+    // each cascade cost more than culling them. A blended pass keeps its
+    // order whatever the camera, unless it writes no colour: a depth pass
+    // blends nothing (a blended bucket's caster depth, which three marks
+    // transparent like the bucket).
+    const isBlended = material.transparent && material.colorWrite !== false;
+    const isSorted =
+      this.sortObjects &&
+      (isBlended ||
+        (camera as { isOrthographicCamera?: boolean }).isOrthographicCamera !==
+          true);
+    if (isSorted) {
       // Distance along the view direction, in the local frame, as three's.
       _matrix.copy(this.matrixWorld).invert();
       _camera.setFromMatrixPosition(camera.matrixWorld).applyMatrix4(_matrix);
@@ -204,27 +268,62 @@ export class StaticBatchedMesh extends BatchedMesh {
 
     const index = geometry.getIndex();
     const bytesPerElement = index === null ? 1 : index.array.BYTES_PER_ELEMENT;
-    const starts = state._multiDrawStarts;
-    const counts = state._multiDrawCounts;
+    const isMerged = drawFormat === "merged";
+    const starts = isMerged ? state._mergedDrawStarts : state._multiDrawStarts;
+    const counts = isMerged ? state._mergedDrawCounts : state._multiDrawCounts;
+    const instanceCounts = state._mergedDrawInstanceCounts;
     const texture = state._indirectTexture;
     const indirect = texture.image.data as Uint32Array;
     const geometries = state._geometryInfo;
     let isChanged = this.uploaded !== texture;
+    let drawCount = 0;
     for (let k = 0; k < order.length; k++) {
       const i = order[k];
       const info = geometries[instances[i].geometryIndex];
-      starts[k] = info.start * bytesPerElement;
-      counts[k] = info.count;
+      const start = info.start * bytesPerElement;
+      if (
+        isMerged &&
+        drawCount > 0 &&
+        starts[drawCount - 1] === start &&
+        counts[drawCount - 1] === info.count
+      ) {
+        // The same geometry again draws as one more instance of the last.
+        instanceCounts[drawCount - 1]++;
+      } else {
+        starts[drawCount] = start;
+        counts[drawCount] = info.count;
+        if (isMerged) instanceCounts[drawCount] = 1;
+        drawCount++;
+      }
       if (indirect[k] !== i) {
         indirect[k] = i;
         isChanged = true;
       }
     }
     if (isChanged) {
-      texture.needsUpdate = true;
+      // Only the rows the list reaches, straight to the GPU queue: a flagged
+      // texture went through three's whole texture update, all of it, for
+      // every pass whose camera saw a different set of sections (~15 a
+      // frame in flight). The first upload, or one before the texture is on
+      // the GPU, is three's.
+      const width = texture.image.width;
+      const isWritten =
+        this.uploaded === texture &&
+        writeTextureRows(
+          this.drawingRenderer,
+          texture,
+          indirect,
+          width,
+          Uint32Array.BYTES_PER_ELEMENT,
+          0,
+          Math.max(1, Math.ceil(order.length / width)),
+        );
+      if (!isWritten) texture.needsUpdate = true;
       this.uploaded = texture;
     }
     state._multiDrawCount = order.length;
+    if (isMerged) state._mergedDrawCount = drawCount;
+    state._multiDrawBytesPerElement = bytesPerElement;
     state._visibilityChanged = false;
   }
 
@@ -261,10 +360,29 @@ export class StaticBatchedMesh extends BatchedMesh {
     for (let k = 0; k < sorted.length; k++) order[k] = sorted[k] % span;
   }
 
+  /** {@link bounds} from the cached sphere of every active section. */
+  private takeBounds(count: number) {
+    const instances = (this as unknown as BatchedMeshInternals)._instanceInfo;
+    const spheres = this.spheres;
+    this.bounds.makeEmpty();
+    for (let i = 0; i < count; i++) {
+      if (!instances[i].active) continue;
+      _sphere.center.set(spheres[i * 4], spheres[i * 4 + 1], spheres[i * 4 + 2]);
+      _sphere.radius = spheres[i * 4 + 3];
+      this.bounds.union(_sphere);
+    }
+    this.isBoundsStale = false;
+  }
+
   private markStale(instanceId: number) {
     if (instanceId < 0) return;
     this.ensureCapacity(instanceId + 1);
     this.isSphereStale[instanceId] = 1;
+    // The batch's own sphere places it in the render list's sort (the three
+    // patch: a batch sorts by it, not by its shared geometry's every
+    // reserved vertex); taken again, from cached per-geometry spheres, by
+    // the next pass that sorts it.
+    this.boundingSphere = null;
   }
 
   /** Grows the per-instance arrays; new instances start stale. */

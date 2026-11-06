@@ -1,4 +1,6 @@
-import { BufferAttribute } from "three";
+import { BufferAttribute } from "three/webgpu";
+
+import { BYTE_VECTOR_STRIDE } from "./vertex-layout";
 
 /** Stack-count code that marks a colour-table face under the sign bit
  * (mirrors `PIGMENT_CODE` in the mesher's vertex_light.rs and in
@@ -15,7 +17,7 @@ export function biomeTintAttribute(
   positionUnits = 1,
   positionBias = 0,
 ): BufferAttribute {
-  const colors = new Uint8Array(positions.length);
+  const colors = new Uint8Array((positions.length / 3) * BYTE_VECTOR_STRIDE);
   writeBiomeTint(
     colors,
     0,
@@ -28,7 +30,7 @@ export function biomeTintAttribute(
   );
   // An all-zero vertex falls back to the authored stage palette. Every
   // bucket has the same attribute layout, preserving merged/arena draws.
-  return new BufferAttribute(colors, 3, true);
+  return new BufferAttribute(colors, BYTE_VECTOR_STRIDE, true);
 }
 
 /**
@@ -47,7 +49,8 @@ export function writeBiomeTint(
   positionUnits = 1,
   positionBias = 0,
 ) {
-  target.fill(0, offset, offset + positions.length);
+  const vertexCount = positions.length / 3;
+  target.fill(0, offset, offset + vertexCount * BYTE_VECTOR_STRIDE);
   if (corners?.length !== 12) return;
   const inverseSize = 1 / size;
   const inverseUnits = 1 / positionUnits;
@@ -70,7 +73,9 @@ export function writeBiomeTint(
     for (let c = 0; c < 3; c++) {
       const north = corners[c] + (corners[3 + c] - corners[c]) * x;
       const south = corners[6 + c] + (corners[9 + c] - corners[6 + c]) * x;
-      target[offset + i + c] = Math.round(north + (south - north) * z);
+      target[offset + vertex * BYTE_VECTOR_STRIDE + c] = Math.round(
+        north + (south - north) * z,
+      );
     }
   }
 }
@@ -101,7 +106,7 @@ export function biomeTintAttributeAt({
   chunkSize,
   cornersAt,
 }: BiomeTintAtOptions): BufferAttribute {
-  const colors = new Uint8Array(positions.length);
+  const colors = new Uint8Array((positions.length / 3) * BYTE_VECTOR_STRIDE);
   const inverseUnits = 1 / positionUnits;
   for (let i = 0, vertex = 0; i < positions.length; i += 3, vertex++) {
     const light = lights[vertex] ?? 0;
@@ -118,8 +123,10 @@ export function biomeTintAttributeAt({
     for (let c = 0; c < 3; c++) {
       const north = corners[c] + (corners[3 + c] - corners[c]) * x;
       const south = corners[6 + c] + (corners[9 + c] - corners[6 + c]) * x;
-      colors[i + c] = Math.round(north + (south - north) * z);
+      colors[vertex * BYTE_VECTOR_STRIDE + c] = Math.round(
+        north + (south - north) * z,
+      );
     }
   }
-  return new BufferAttribute(colors, 3, true);
+  return new BufferAttribute(colors, BYTE_VECTOR_STRIDE, true);
 }

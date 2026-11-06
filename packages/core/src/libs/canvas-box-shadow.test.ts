@@ -1,20 +1,17 @@
 import {
   Box3,
   Matrix4,
-  MeshBasicMaterial,
   OrthographicCamera,
   Quaternion,
-  ShaderLib,
   Sphere,
-  UniformsUtils,
   Vector3,
-} from "three";
+  WebGLCoordinateSystem,
+  WebGPUCoordinateSystem,
+} from "three/webgpu";
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 
 import {
-  createEntityShadowUniforms,
-  ENTITY_SHADOW_BOUNDS_VERTEX_FUNCTIONS,
-  ENTITY_SHADOW_FRAGMENT_PARS,
+  createEntityShadowBody,
   shadowDepthPerBlock,
 } from "../core/world/entity-shadow-uniforms";
 
@@ -35,66 +32,83 @@ afterAll(() => {
   vi.unstubAllGlobals();
 });
 
-/** The shader three would compile for `material`, after its hook. */
-function compiled(material: MeshBasicMaterial) {
-  const shader = {
-    uniforms: UniformsUtils.clone(ShaderLib.basic.uniforms),
-    vertexShader: ShaderLib.basic.vertexShader,
-    fragmentShader: ShaderLib.basic.fragmentShader,
-  };
-  material.onBeforeCompile(
-    shader as Parameters<MeshBasicMaterial["onBeforeCompile"]>[0],
-    undefined as unknown as Parameters<MeshBasicMaterial["onBeforeCompile"]>[1],
-  );
-  return shader;
-}
-
 describe("canvas box entity shadows", () => {
-  it("bias each face by its own world normal, capped at its body's bounds", () => {
+  it("shade every face material of a shadowed layer, merged or not", () => {
     for (const mergeFaces of [false, true]) {
       const layer = new CanvasBox({ receiveShadows: true, mergeFaces })
         .boxLayers[0];
-      const material = layer.atlas?.material ?? layer.materials.get("back");
-      if (!material) throw new Error("missing material");
-      const { vertexShader, fragmentShader } = compiled(material);
+      expect(layer.shadowBody).not.toBeNull();
+      const materials = layer.atlas
+        ? [layer.atlas.material]
+        : [...layer.materials.values()];
+      for (const material of materials) {
+        // The shadowed body colour (shading/entity-shadow.ts), biased by
+        // the face's own world normal and capped at the body's bounds.
+        expect(material.colorNode).not.toBeNull();
+        // Its body's values reach it as data the graph reads per draw.
+        expect(material.userData.shadowBody).toBe(layer.shadowBody);
+      }
+    }
+  });
 
-      expect(vertexShader).toContain(
-        "vCanvasBoxShadowNormal = normalize(\n  mat3(uShadowWorldMatrix) * mat3(modelMatrix) * normal\n);",
-      );
-      expect(vertexShader).toContain(
-        "vCanvasBoxShadowPosition = shadowWorldPos.xyz;",
-      );
-      expect(fragmentShader).toContain(
-        "getEntityShadowAt(\n  normalize(vCanvasBoxShadowNormal),\n  vCanvasBoxShadowPosition\n)",
-      );
-      // An up vector here gives every face the top face's bias, and a body
-      // shadows its own sun-averted side.
-      expect(fragmentShader).not.toContain("getEntityShadow(vec3(");
+  it("shares one colour graph across every face of every box", () => {
+    const a = new CanvasBox({ receiveShadows: true }).boxLayers[0];
+    const b = new CanvasBox({ receiveShadows: true, width: 2 }).boxLayers[0];
+    const nodes = new Set(
+      [...a.materials.values(), ...b.materials.values()].map((m) => m.colorNode),
+    );
+    expect(nodes.size).toBe(1);
+    // Each box still keeps its own body.
+    expect(a.shadowBody).not.toBe(b.shadowBody);
+  });
+
+  it("points every face at the body it is handed", () => {
+    const box = new CanvasBox({ receiveShadows: true });
+    const body = createEntityShadowBody();
+    box.setShadowBody(body);
+    expect(box.shadowBody).toBe(body);
+    for (const material of box.boxLayers[0].materials.values()) {
+      expect(material.userData.shadowBody).toBe(body);
     }
   });
 
   it("leaves a box that receives no shadows without the hook", () => {
-    const layer = new CanvasBox({ underwaterFog: true }).boxLayers[0];
-    const material = layer.materials.get("back");
-    if (!material) throw new Error("missing material");
-    const { vertexShader, fragmentShader } = compiled(material);
-    expect(vertexShader).not.toContain("vCanvasBoxShadowNormal");
-    expect(fragmentShader).not.toContain("getEntityShadow");
+    const box = new CanvasBox();
+    const layer = box.boxLayers[0];
+    expect(layer.shadowBody).toBeNull();
+    // Handing it a body changes nothing.
+    box.setShadowBody(createEntityShadowBody());
+    expect(layer.shadowBody).toBeNull();
+    for (const material of layer.materials.values()) {
+      expect(material.colorNode).toBeNull();
+      expect(material.userData.shadowBody).toBeUndefined();
+    }
   });
 });
 
 describe("shadow depth per block", () => {
   it("is the reciprocal of an orthographic light's depth range", () => {
     const light = new Vector3(-0.64, 0.71, 0.29).normalize();
-    const camera = new OrthographicCamera(-20, 20, 20, -20, 0.1, 252.5);
-    camera.position.copy(light).multiplyScalar(52);
-    camera.lookAt(0, 0, 0);
-    camera.updateMatrixWorld();
-    const matrix = new Matrix4().multiplyMatrices(
-      camera.projectionMatrix,
-      camera.matrixWorldInverse,
-    );
-    expect(shadowDepthPerBlock(matrix, light)).toBeCloseTo(1 / 252.4, 6);
+    // WebGPU stores clip depth as is; WebGL maps its -1..1 to 0..1.
+    for (const [system, clipToStored] of [
+      [WebGPUCoordinateSystem, 1],
+      [WebGLCoordinateSystem, 0.5],
+    ] as const) {
+      const camera = new OrthographicCamera(-20, 20, 20, -20, 0.1, 252.5);
+      camera.coordinateSystem = system;
+      camera.updateProjectionMatrix();
+      camera.position.copy(light).multiplyScalar(52);
+      camera.lookAt(0, 0, 0);
+      camera.updateMatrixWorld();
+      const matrix = new Matrix4().multiplyMatrices(
+        camera.projectionMatrix,
+        camera.matrixWorldInverse,
+      );
+      expect(shadowDepthPerBlock(matrix, light, clipToStored)).toBeCloseTo(
+        1 / 252.4,
+        6,
+      );
+    }
   });
 });
 
@@ -142,10 +156,12 @@ describe("character shadow self bounds", () => {
 
   it("binds every part to one sphere that holds the body in any pose", () => {
     const character = new Character({ receiveShadows: true });
+    expect(character.shadowBody.selfBounds).toBe(character.shadowSelfBounds);
     for (const part of [character.head, character.body, character.leftLeg]) {
-      expect(part.shadowUniforms?.uShadowSelfBounds.value).toBe(
-        character.shadowSelfBounds,
-      );
+      expect(part.shadowBody).toBe(character.shadowBody);
+      for (const material of part.boxLayers[0].materials.values()) {
+        expect(material.userData.shadowBody).toBe(character.shadowBody);
+      }
     }
 
     character.position.set(-156, 88.6, 98.5);
@@ -179,8 +195,9 @@ describe("character shadow self bounds", () => {
     expect(sphere.center.y + sphere.radius).toBeLessThan(89);
   });
 
-  it("leaves a fresh uniform set unbounded", () => {
-    expect(createEntityShadowUniforms().uShadowSelfBounds.value.w).toBe(0);
+  // Radius 0: no bounds (a bare Vector4 would be a unit sphere at the origin).
+  it("leaves a fresh body unbounded", () => {
+    expect(createEntityShadowBody().selfBounds.w).toBe(0);
   });
 
   it("fits an attachment that reaches past the anatomical boxes", () => {
@@ -217,20 +234,5 @@ describe("character shadow self bounds", () => {
     character.scale.setScalar(1.7);
     character.refreshShadowSelfBounds();
     expect(reaches()).toBe(true);
-  });
-});
-
-describe("entity shadow bounds in GLSL", () => {
-  it("lets a caller pass bounds of its own, per draw or per instance", () => {
-    expect(ENTITY_SHADOW_FRAGMENT_PARS).toMatch(
-      /float getEntityShadowWithin\(\s*vec3 worldNormal,\s*vec3 worldPosition,\s*vec4 selfBounds\s*\)/,
-    );
-    // The uniform-bound form is the same rule over the body's uniform.
-    expect(ENTITY_SHADOW_FRAGMENT_PARS).toContain(
-      "return getEntityShadowWithin(worldNormal, worldPosition, uShadowSelfBounds);",
-    );
-    expect(ENTITY_SHADOW_BOUNDS_VERTEX_FUNCTIONS).toContain(
-      "vec4 entityShadowBoundsToWorld(mat4 toWorld, vec4 localSphere)",
-    );
   });
 });

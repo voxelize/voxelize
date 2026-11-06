@@ -5,26 +5,28 @@ import {
   DoubleSide,
   Mesh,
   PerspectiveCamera,
+  type Renderer,
+  type Texture,
   Scene,
-  ShaderMaterial,
   Vector2,
-  type WebGLRenderer,
-} from "three";
+} from "three/webgpu";
 import { describe, expect, it } from "vitest";
 
 import { TRANSPARENT_OVER_FLUID_RENDER_ORDER } from "../../common";
 
 import {
-  SHADER_LIGHTING_CHUNK_SHADERS,
-  SHADER_LIGHTING_FLUID_CHUNK_SHADERS,
-  SHADER_LIGHTING_SEE_THROUGH_CHUNK_SHADERS,
+  ChunkMaterial,
+  type ChunkMaterialKind,
+  type ChunkShadingInputs,
+} from "./shading/chunk-material";
+import {
   WATER_DEPTH_DRAWN,
   WATER_DEPTH_DRY,
   WATER_DEPTH_SIDE_BEHIND,
   WATER_DEPTH_SIDE_FRONT,
   WATER_DEPTH_SIDE_OFF,
   WATER_DEPTH_UNKNOWN,
-} from "./shaders";
+} from "./water-depth-constants";
 import {
   holdsPaneFaces,
   paneDrawCounts,
@@ -36,25 +38,19 @@ import {
 const SECTION = { width: 32, height: 64 };
 
 const uniforms = (): WaterDepthUniforms => ({
-  waterDepth: { value: null },
+  waterDepth: { value: null as unknown as Texture },
   waterDepthState: { value: WATER_DEPTH_UNKNOWN },
   waterDepthViewport: { value: new Vector2(1, 1) },
   waterDepthClip: { value: new Vector2(0.1, 1000) },
-  waterExitDepth: { value: null },
+  waterExitDepth: { value: null as unknown as Texture },
   waterExitReady: { value: 0 },
 });
 
-const chunkMaterial = (vertexShader = "void main() {}") => {
-  const material = new ShaderMaterial({
-    vertexShader,
-    uniforms: {
-      uWaterDepthSide: { value: WATER_DEPTH_SIDE_OFF },
-      uTime: { value: 0 },
-    },
-  });
-  (material as unknown as { map: null }).map = null;
-  return material;
-};
+// The world's shading inputs are only read when a program builds.
+const shading = { id: 1 } as unknown as ChunkShadingInputs;
+
+const chunkMaterial = (kind: ChunkMaterialKind = "seeThrough") =>
+  new ChunkMaterial(shading, { kind });
 
 /** A section mesh the way chunk meshes stand: at its section's corner. */
 const sectionMesh = (scene: Scene, cx: number, level: number, cz: number) => {
@@ -100,19 +96,18 @@ const fakeRenderer = () => {
     renders: 0,
     sides: [] as number[][],
     autoClear: true,
-    info: { render: { frame: 0 } },
-    state: { buffers: { depth: { setMask: () => {} } } },
+    info: { frame: 0 },
     getRenderTarget: () => null,
     setRenderTarget: () => {},
     clear: () => {},
     getDrawingBufferSize: (target: Vector2) => target.set(64, 32),
     render: (scene: Scene) => {
       renderer.renders++;
-      renderer.info.render.frame++;
+      renderer.info.frame++;
       renderer.sides.push(
         scene.children
           .filter((child) => child.visible)
-          .map((child) => ((child as Mesh).material as ShaderMaterial).side),
+          .map((child) => ((child as Mesh).material as ChunkMaterial).side),
       );
     },
   };
@@ -127,19 +122,9 @@ const cameraOver = (x: number, y: number, z: number) => {
   return camera;
 };
 
-describe("the see-through shader's side of the water", () => {
-  it("drops the other side's fragments before any shading, in see-through materials only", () => {
-    const seeThrough = SHADER_LIGHTING_SEE_THROUGH_CHUNK_SHADERS.fragment;
-    const sideTest = seeThrough.indexOf("if (uWaterDepthSide >");
-    expect(sideTest).toBeGreaterThan(-1);
-    expect(sideTest).toBeLessThan(seeThrough.indexOf("if (uFarSeam > 0.0"));
-    expect(seeThrough).toContain("uniform sampler2D uWaterDepth;");
-    for (const fragment of [
-      SHADER_LIGHTING_CHUNK_SHADERS.fragment,
-      SHADER_LIGHTING_FLUID_CHUNK_SHADERS.fragment,
-    ]) {
-      expect(fragment).not.toContain("uWaterDepthSide");
-    }
+describe("the see-through material's side of the water", () => {
+  it("starts on neither side", () => {
+    expect(chunkMaterial().waterDepthSide).toBe(WATER_DEPTH_SIDE_OFF);
   });
 });
 
@@ -148,18 +133,21 @@ describe("WaterDepthPass", () => {
     const scene = new Scene();
     const pass = passOver();
     const pane = sectionMesh(scene, 0, 1, 0);
-    const original = pane.material as ShaderMaterial;
+    const original = pane.material as ChunkMaterial;
     const lifted = pass.addPane(pane);
 
-    const behind = pane.material as ShaderMaterial;
-    const front = lifted.material as ShaderMaterial;
+    const behind = pane.material as ChunkMaterial;
+    const front = lifted.material as ChunkMaterial;
     expect(behind).not.toBe(original);
-    expect(behind.uniforms.uWaterDepthSide.value).toBe(WATER_DEPTH_SIDE_BEHIND);
-    expect(front.uniforms.uWaterDepthSide.value).toBe(WATER_DEPTH_SIDE_FRONT);
-    expect(original.uniforms.uWaterDepthSide.value).toBe(WATER_DEPTH_SIDE_OFF);
-    // Everything else stays the original's, uniform object for object.
-    expect(behind.uniforms.uTime).toBe(original.uniforms.uTime);
-    expect(front.uniforms.uTime).toBe(original.uniforms.uTime);
+    expect(behind.waterDepthSide).toBe(WATER_DEPTH_SIDE_BEHIND);
+    expect(front.waterDepthSide).toBe(WATER_DEPTH_SIDE_FRONT);
+    expect(original.waterDepthSide).toBe(WATER_DEPTH_SIDE_OFF);
+    // Everything else stays the original's: the same world inputs, the
+    // same program.
+    expect(behind.shading).toBe(original.shading);
+    expect(front.shading).toBe(original.shading);
+    expect(behind.variantKey).toBe(original.variantKey);
+    expect(front.variantKey).toBe(original.variantKey);
     expect(lifted.parent).toBe(pane);
     expect(lifted.renderOrder).toBe(TRANSPARENT_OVER_FLUID_RENDER_ORDER);
     expect(lifted.geometry.index).toBe(pane.geometry.index);
@@ -182,12 +170,12 @@ describe("WaterDepthPass", () => {
     const renderer = fakeRenderer();
     const camera = cameraOver(16, 100, -20);
 
-    pass.render(renderer as unknown as WebGLRenderer, camera);
+    pass.render(renderer as unknown as Renderer, camera);
     expect(state.waterDepthState.value).toBe(WATER_DEPTH_DRY);
     expect(renderer.renders).toBe(0);
 
     pass.prepareDraw(
-      renderer as unknown as WebGLRenderer,
+      renderer as unknown as Renderer,
       camera,
       pane,
       lifted,
@@ -206,14 +194,14 @@ describe("WaterDepthPass", () => {
     const renderer = fakeRenderer();
     const camera = cameraOver(16, 100, -20);
 
-    pass.render(renderer as unknown as WebGLRenderer, camera);
+    pass.render(renderer as unknown as Renderer, camera);
     expect(state.waterDepthState.value).toBe(WATER_DEPTH_DRAWN);
     expect(renderer.renders).toBe(1);
     expect(state.waterDepth.value).not.toBeNull();
     expect(state.waterDepthClip.value.toArray()).toEqual([0.1, 500]);
 
     pass.prepareDraw(
-      renderer as unknown as WebGLRenderer,
+      renderer as unknown as Renderer,
       camera,
       pane,
       lifted,
@@ -232,20 +220,20 @@ describe("WaterDepthPass", () => {
     pass.addWater(sectionMesh(scene, 0, 1, 1));
     const renderer = fakeRenderer();
     const camera = cameraOver(16, 100, -20);
-    pass.render(renderer as unknown as WebGLRenderer, camera);
+    pass.render(renderer as unknown as Renderer, camera);
 
     const other = cameraOver(16, 100, -20);
-    pass.prepareDraw(renderer as unknown as WebGLRenderer, other, pane, lifted);
+    pass.prepareDraw(renderer as unknown as Renderer, other, pane, lifted);
     expect(state.waterDepthState.value).toBe(WATER_DEPTH_UNKNOWN);
     expect(pane.geometry.drawRange.count).toBe(Infinity);
     expect(lifted.geometry.drawRange.count).toBe(0);
   });
 
-  it("links a fluid's depth programs before its water loads, the ones its stand-ins then draw with", () => {
+  it("links a fluid's depth programs before its water loads, the ones its stand-ins then draw with", async () => {
     const scene = new Scene();
     const pass = passOver();
-    const water = chunkMaterial();
-    const compiled: { sides: number[]; materials: ShaderMaterial[] } = {
+    const water = chunkMaterial("fluid");
+    const compiled: { sides: number[]; materials: ChunkMaterial[] } = {
       sides: [],
       materials: [],
     };
@@ -257,28 +245,35 @@ describe("WaterDepthPass", () => {
       setRenderTarget: (target: unknown) => {
         bound = target;
       },
-      compile: (warm: Scene, _camera: unknown, lightsFrom: Scene) => {
+      compileAsync: async (warm: Scene, _camera: unknown, lightsFrom: Scene) => {
         // Bound like the pass's own draws, lit like its own scene: none.
         expect(bound).not.toBeNull();
         lightsSeen = lightsFrom.children.filter(
           (child) => (child as { isLight?: boolean }).isLight,
         ).length;
         for (const child of warm.children) {
-          const material = (child as Mesh).material as ShaderMaterial;
+          const material = (child as Mesh).material as ChunkMaterial;
           compiled.materials.push(material);
           compiled.sides.push(material.side);
         }
       },
     };
 
-    pass.compileFor(
-      renderer as unknown as WebGLRenderer,
+    await pass.compileFor(
+      renderer as unknown as Renderer,
       cameraOver(16, 100, -20),
       [water],
     );
     expect(bound).toBeNull();
     expect(lightsSeen).toBe(0);
     expect(compiled.sides).toEqual([DoubleSide, BackSide]);
+    // The water's own vertex stage over a depth-only fragment.
+    for (const material of compiled.materials) {
+      expect(material.chunkOptions.depthOnly).toBe(true);
+      expect(material.kind).toBe("fluid");
+      expect(material.colorWrite).toBe(false);
+    }
+    expect(water.chunkOptions.depthOnly).toBe(false);
 
     // The fluid's first water, later: its stand-in draws what was linked.
     const mesh = sectionMesh(scene, 1, 1, 0);
@@ -286,12 +281,12 @@ describe("WaterDepthPass", () => {
     pass.addPane(sectionMesh(scene, 0, 1, 0));
     pass.addWater(mesh);
     const drawn = fakeRenderer();
-    const drew: ShaderMaterial[] = [];
+    const drew: ChunkMaterial[] = [];
     drawn.render = (depthScene: Scene) => {
       for (const child of depthScene.children)
-        if (child.visible) drew.push((child as Mesh).material as ShaderMaterial);
+        if (child.visible) drew.push((child as Mesh).material as ChunkMaterial);
     };
-    pass.render(drawn as unknown as WebGLRenderer, cameraOver(16, 100, -20));
+    pass.render(drawn as unknown as Renderer, cameraOver(16, 100, -20));
     expect(drew).toEqual([compiled.materials[0]]);
   });
 
@@ -305,11 +300,11 @@ describe("WaterDepthPass", () => {
     pass.addWater(water);
     water.geometry.dispose();
     const renderer = fakeRenderer();
-    pass.render(renderer as unknown as WebGLRenderer, cameraOver(16, 100, -20));
+    pass.render(renderer as unknown as Renderer, cameraOver(16, 100, -20));
     expect(state.waterDepthState.value).toBe(WATER_DEPTH_DRY);
 
     pane.geometry.dispose();
-    pass.render(renderer as unknown as WebGLRenderer, cameraOver(16, 100, -20));
+    pass.render(renderer as unknown as Renderer, cameraOver(16, 100, -20));
     expect(state.waterDepthState.value).toBe(WATER_DEPTH_DRY);
     expect(renderer.renders).toBe(0);
   });
@@ -343,7 +338,7 @@ describe("where the water held by a window ends", () => {
     pass.addWater(lit(sectionMesh(scene, 2, 1, 0), FLUID_BIT));
     const renderer = fakeRenderer();
 
-    pass.render(renderer as unknown as WebGLRenderer, cameraOver(16, 100, -20));
+    pass.render(renderer as unknown as Renderer, cameraOver(16, 100, -20));
     expect(renderer.renders).toBe(2);
     // The nearest water is the water by the glass pane; the exit is every
     // section around the window's water, the surface next door included.
@@ -354,7 +349,7 @@ describe("where the water held by a window ends", () => {
     expect(state.waterExitDepth.value).not.toBe(state.waterDepth.value);
 
     // The stand-ins are back to the nearest-water draw for the next frame.
-    pass.render(renderer as unknown as WebGLRenderer, cameraOver(16, 100, -20));
+    pass.render(renderer as unknown as Renderer, cameraOver(16, 100, -20));
     expect(renderer.sides[2]).toEqual([DoubleSide]);
   });
 
@@ -371,12 +366,12 @@ describe("where the water held by a window ends", () => {
     pass.addWater(windowed);
     const renderer = fakeRenderer();
     const camera = cameraOver(16, 100, -20);
-    pass.render(renderer as unknown as WebGLRenderer, camera);
+    pass.render(renderer as unknown as Renderer, camera);
     expect(state.waterExitReady.value).toBe(1);
 
     windowed.geometry.dispose();
     renderer.renders = 0;
-    pass.render(renderer as unknown as WebGLRenderer, camera);
+    pass.render(renderer as unknown as Renderer, camera);
     expect(renderer.renders).toBe(1);
     expect(state.waterDepthState.value).toBe(WATER_DEPTH_DRAWN);
     expect(state.waterExitReady.value).toBe(0);
@@ -390,11 +385,11 @@ describe("where the water held by a window ends", () => {
     const lifted = pass.addPane(pane);
     pass.addWater(lit(sectionMesh(scene, 1, 1, 0), FLUID_BIT | FLUID_PANE_BIT));
     const renderer = fakeRenderer();
-    pass.render(renderer as unknown as WebGLRenderer, cameraOver(16, 100, -20));
+    pass.render(renderer as unknown as Renderer, cameraOver(16, 100, -20));
     expect(state.waterExitReady.value).toBe(1);
 
     pass.prepareDraw(
-      renderer as unknown as WebGLRenderer,
+      renderer as unknown as Renderer,
       cameraOver(16, 100, -20),
       pane,
       lifted,

@@ -15,19 +15,13 @@ import {
   type BufferAttribute,
   type Box3,
   type BufferGeometry,
-  type Camera,
-  DataTexture,
   Group,
   type Material,
   type Matrix4,
-  RedIntegerFormat,
-  type Scene,
   type Sphere,
-  UnsignedIntType,
-  type WebGLRenderer,
-} from "three";
+} from "three/webgpu";
 
-/** The slice of a `BatchedMesh` geometry entry `setGeometryAt` writes (three 0.183). */
+/** The slice of a `BatchedMesh` geometry entry `setGeometryAt` writes (three 0.187). */
 type GeometryInfo = {
   vertexStart: number;
   vertexCount: number;
@@ -41,8 +35,19 @@ type GeometryInfo = {
   boundingSphere: Sphere | null;
 };
 
-/** Draw lists a page cycles through: four passes a frame, two frames in flight. */
-const DRAW_LIST_RING = 8;
+/**
+ * Whether a section's array can be copied into a page's: the same type, or
+ * the 32-bit type the WebGPU renderer widened the page's to on its first
+ * upload (WGSL has no 8- or 16-bit vertex integers).
+ */
+function isSameStorage(source: ArrayLike<number>, target: ArrayLike<number>) {
+  const from = source.constructor;
+  const to = target.constructor;
+  if (from === to) return true;
+  if (to === Int32Array) return from === Int8Array || from === Int16Array;
+  if (to === Uint32Array) return from === Uint8Array || from === Uint16Array;
+  return false;
+}
 
 /**
  * A `BatchedMesh` tuned for a pool:
@@ -53,62 +58,8 @@ const DRAW_LIST_RING = 8;
  *   calls for a chunk: in a power-of-two slot that was most of a pan's
  *   main-thread time. The tail it skips is never drawn (a draw covers the
  *   section's own indices).
- * - Each pass (the main view and every shadow cascade culls the page for
- *   its own camera) writes its draw list into the next texture of a ring.
- *   With one texture, every pass rewrote the list the pass before had just
- *   drawn with, and the driver waited for that draw: 10-35 ms a frame.
  */
 export class PoolPage extends BatchedMesh {
-  private drawLists: DataTexture[] = [];
-
-  private nextDrawList = 0;
-
-  override onBeforeRender(
-    renderer: WebGLRenderer,
-    scene: Scene,
-    camera: Camera,
-    geometry: BufferGeometry,
-    material: Material,
-    group: unknown,
-  ) {
-    const self = this as unknown as { _indirectTexture: DataTexture };
-    if (this.drawLists.length === 0) {
-      const first = self._indirectTexture;
-      const size = first.image.width;
-      this.drawLists.push(first);
-      while (this.drawLists.length < DRAW_LIST_RING) {
-        this.drawLists.push(
-          new DataTexture(
-            new Uint32Array(size * size),
-            size,
-            size,
-            RedIntegerFormat,
-            UnsignedIntType,
-          ),
-        );
-      }
-    }
-    self._indirectTexture = this.drawLists[this.nextDrawList];
-    this.nextDrawList = (this.nextDrawList + 1) % this.drawLists.length;
-    super.onBeforeRender(
-      renderer,
-      scene,
-      camera,
-      geometry,
-      material,
-      group as never,
-    );
-  }
-
-  override dispose() {
-    const self = this as unknown as { _indirectTexture: DataTexture | null };
-    for (const list of this.drawLists) {
-      if (list !== self._indirectTexture) list.dispose();
-    }
-    this.drawLists = [];
-    return super.dispose();
-  }
-
   override setGeometryAt(geometryId: number, geometry: BufferGeometry) {
     const self = this as unknown as {
       _geometryInfo: GeometryInfo[];
@@ -135,7 +86,7 @@ export class PoolPage extends BatchedMesh {
     for (const name in this.geometry.attributes) {
       const target = this.geometry.getAttribute(name) as BufferAttribute;
       const source = geometry.getAttribute(name) as BufferAttribute;
-      if (source.array.constructor !== target.array.constructor) {
+      if (!isSameStorage(source.array, target.array)) {
         throw new Error(
           `${name} is ${source.array.constructor.name} here and ${target.array.constructor.name} in the page`,
         );

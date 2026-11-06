@@ -1,9 +1,8 @@
-import { Color } from "three";
+import { Color } from "three/webgpu";
 
 import {
   acesFit,
   BLOCK_LIGHT_TRANSFER,
-  BLOCK_LIGHT_TUNING,
   blockLightCurveRGB,
   blockLightAdapt,
   blockLightToneMap,
@@ -67,12 +66,12 @@ export type EntityLightSample = {
 };
 
 // ── the chunk fragment's constants ───────────────────────────────────────
-// Each mirrors a literal in the block after `#include <envmap_fragment>` in
-// shaders.ts. The shader is the source of truth; change neither side alone.
+// Each mirrors a literal in the chunk shading's lighting
+// (shading/chunk-material.ts, `setupLighting`). The shader is the source of
+// truth; change neither side alone.
 
-/** Legacy `vec3 torchLight = smoothTorch * 1.2`; the live gain follows
- * {@link BLOCK_LIGHT_TUNING} (block-light-transfer.ts). */
-export const TORCH_GAIN = BLOCK_LIGHT_TRANSFER.legacyGain;
+/** `vec3 torchLight = smoothTorch * gain` (block-light-transfer.ts). */
+export const TORCH_GAIN = BLOCK_LIGHT_TRANSFER.gain;
 /** `vec3(0.025, 0.03, 0.04) * sunVisibility` */
 const GLOBAL_AMBIENT_SUN: readonly [number, number, number] = [
   0.025, 0.03, 0.04,
@@ -222,7 +221,7 @@ export function composeEntityLight(s: EntityLightSample, out: Color): Color {
   const clusterB = Math.max(s.clusterB, 0) * clusterLambert * sunWash;
 
   // `vec3 torchLight = smoothTorch * (uBlockLightGain * llFloodRemainder);`
-  const gain = BLOCK_LIGHT_TUNING.gain.value;
+  const gain = BLOCK_LIGHT_TRANSFER.gain;
   const torchR = smoothR * gain * floodRemainder;
   const torchG = smoothG * gain * floodRemainder;
   const torchB = smoothB * gain * floodRemainder;
@@ -248,7 +247,7 @@ export function composeEntityLight(s: EntityLightSample, out: Color): Color {
   const sunLuma = (sunR + sunG + sunB) * SUN_LUMA_WEIGHT;
   const torchDominance =
     torchBrightness /
-    (torchBrightness + sunLuma + BLOCK_LIGHT_TUNING.dominanceKnee.value);
+    (torchBrightness + sunLuma + BLOCK_LIGHT_TRANSFER.dominanceKnee);
   // `totalLight = blockLightAdapt(totalLight, torchDominance);`
   [r, g, b] = blockLightAdapt(r, g, b, torchDominance, adaptScratch);
   const warm = blockLightWarmTint(torchR, torchG, torchB, warmScratch);
@@ -273,10 +272,8 @@ export function composeEntityLight(s: EntityLightSample, out: Color): Color {
     dtB;
 
   // The floor warms with the lamp: `darknessFloor = mix(darknessFloor,
-  // ambientFloor * warmTint * downTransmit, torchDominance * warmFloor)`.
-  const warmth =
-    Math.min(Math.max(torchDominance * 3, 0), 1) *
-    BLOCK_LIGHT_TUNING.warmFloor.value;
+  // ambientFloor * warmTint * downTransmit, torchDominance * 3)`.
+  const warmth = Math.min(Math.max(torchDominance * 3, 0), 1);
   return out.setRGB(
     Math.max(r, floorR + (ambientFloor * warm[0] * dtR - floorR) * warmth),
     Math.max(g, floorG + (ambientFloor * warm[1] * dtG - floorG) * warmth),

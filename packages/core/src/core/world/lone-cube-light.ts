@@ -1,4 +1,4 @@
-import { BufferAttribute, Mesh, Object3D, Vector3 } from "three";
+import { BufferAttribute, Mesh, Object3D, Vector3 } from "three/webgpu";
 
 import { computeQuadLightTwist } from "./quad-light";
 

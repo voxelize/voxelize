@@ -1,8 +1,8 @@
-import { afterEach, describe, expect, it } from "vitest";
+import { describe, expect, it } from "vitest";
 
 import {
   analyticColorFromLevels,
-  BLOCK_LIGHT_TUNING,
+  BLOCK_LIGHT_TRANSFER,
   blockLightCurve,
   blockLightCurveRGB,
 } from "./block-light-transfer";
@@ -11,10 +11,6 @@ const out: [number, number, number] = [0, 0, 0];
 const curveRGB = (r: number, g: number, b: number) => [
   ...blockLightCurveRGB(r / 15, g / 15, b / 15, out),
 ];
-
-afterEach(() => {
-  BLOCK_LIGHT_TUNING.hueRamp.value = 1;
-});
 
 describe("flood hue ramp", () => {
   it("fades a weaker channel in from zero instead of snapping it on", () => {
@@ -35,20 +31,28 @@ describe("flood hue ramp", () => {
     expect(curveRGB(6, 1e-3, 0)[1]).toBeLessThan(0.01 * lit);
   });
 
-  it("snapped on at any trace of the channel with the ramp off (legacy)", () => {
-    BLOCK_LIGHT_TUNING.hueRamp.value = 0;
-    const lit = curveRGB(6, 1, 1)[1];
-    expect(curveRGB(6, 1e-3, 0)[1]).toBeGreaterThan(0.8 * lit);
-  });
-
   it("changes nothing at whole levels or for the peak channel", () => {
     for (let r = 0; r <= 15; r++) {
       for (let g = 0; g <= 15; g += 3) {
         for (let b = 0; b <= 15; b += 5) {
-          BLOCK_LIGHT_TUNING.hueRamp.value = 0;
-          const legacy = curveRGB(r, g, b);
-          BLOCK_LIGHT_TUNING.hueRamp.value = 1;
-          expect(curveRGB(r, g, b)).toEqual(legacy);
+          // At whole levels the ramp is complete: each channel keeps
+          // exactly its gap's share of the peak's brightness.
+          const peak = Math.max(r, g, b);
+          const bright = blockLightCurve(peak / 15);
+          const share = (level: number) =>
+            level > 0
+              ? Math.min(
+                  Math.max(
+                    1 - (peak - level) / BLOCK_LIGHT_TRANSFER.hueLevels,
+                    0,
+                  ),
+                  1,
+                )
+              : 0;
+          const [cr, cg, cb] = curveRGB(r, g, b);
+          expect(cr).toBeCloseTo(bright * share(r), 12);
+          expect(cg).toBeCloseTo(bright * share(g), 12);
+          expect(cb).toBeCloseTo(bright * share(b), 12);
         }
       }
     }
@@ -119,23 +123,6 @@ describe("flood hue fill from the claiming lights", () => {
     expect(g).toBe(0);
     expect(b).toBe(0);
     const [r5, g5] = blockLightCurveRGB(5 / 15, 0, 0, out, [1, 1, 1]);
-    expect(g5 / r5).toBeCloseTo(1 - 5 / BLOCK_LIGHT_TUNING.hueLevels.value, 6);
-  });
-});
-
-describe("flood hue fill switch", () => {
-  afterEach(() => {
-    BLOCK_LIGHT_TUNING.hueFill.value = 1;
-  });
-
-  it("is the legacy curve with the fill switched off", () => {
-    const lampColor = analyticColorFromLevels(15, 12, 8);
-    BLOCK_LIGHT_TUNING.hueFill.value = 0;
-    for (let distance = 0; distance < 15; distance++) {
-      const [r, g, b] = [15, 12, 8].map((l) => Math.max(l - distance, 0));
-      expect([
-        ...blockLightCurveRGB(r / 15, g / 15, b / 15, out, lampColor),
-      ]).toEqual(curveRGB(r, g, b));
-    }
+    expect(g5 / r5).toBeCloseTo(1 - 5 / BLOCK_LIGHT_TRANSFER.hueLevels, 6);
   });
 });

@@ -123,8 +123,8 @@ const setup = (lights: [number, number, number, number?][]) => {
   const redOf = (x: number) => {
     const u = airlight.uniforms;
     for (let k = 0; k < u.count.value; k++) {
-      if (Math.abs(u.positions.value[k].x - x) < 1e-3) {
-        return u.colors.value[k].x;
+      if (Math.abs(u.members.value[k * 2].x - x) < 1e-3) {
+        return u.members.value[k * 2 + 1].x;
       }
     }
     return 0;
@@ -133,8 +133,8 @@ const setup = (lights: [number, number, number, number?][]) => {
   const airOf = (x: number) => {
     const u = airlight.uniforms;
     for (let k = 0; k < u.count.value; k++) {
-      if (Math.abs(u.positions.value[k].x - x) < 1e-3) {
-        return u.colors.value[k].x * u.seen.value[k];
+      if (Math.abs(u.members.value[k * 2].x - x) < 1e-3) {
+        return u.members.value[k * 2 + 1].x * u.seen.value[k].x;
       }
     }
     return 0;
@@ -170,7 +170,8 @@ describe("LocalLightAirlight", () => {
     for (let n = 0; n < 80; n++) frame([0, 4, 0]);
     // high: 6 steady lights; the nearest six (x = 0..15).
     expect(airlight.uniforms.count.value).toBe(6);
-    const xs = airlight.uniforms.positions.value
+    const xs = airlight.uniforms.members.value
+      .filter((_, i) => i % 2 === 0)
       .slice(0, 6)
       .map((p) => Math.round(p.x) || 0)
       .sort((a, b) => a - b);

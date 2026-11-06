@@ -5,7 +5,6 @@ import { fileURLToPath } from "url";
 import { defineConfig } from "vite";
 import { copy } from "vite-plugin-copy";
 import { externalizeDeps } from "vite-plugin-externalize-deps";
-import glsl from "vite-plugin-glsl";
 import stringReplace from "vite-plugin-string-replace";
 import topLevelAwait from "vite-plugin-top-level-await";
 import wasm from "vite-plugin-wasm";
@@ -44,9 +43,8 @@ export default defineConfig({
     },
     wasm(),
     topLevelAwait(),
-    glsl(),
     externalizeDeps({
-      except: [/three\/examples\//, /@voxelize\/wasm-mesher/],
+      except: [/@voxelize\/wasm-mesher/],
     }),
     stringReplace([
       {

@@ -5,7 +5,7 @@
  * that game's day; the default here is a plain, neutral day so a world with
  * no game of its own still reads.
  */
-import { Color } from "three";
+import { Color } from "three/webgpu";
 
 import type { ViewerMaterials } from "./materials";
 

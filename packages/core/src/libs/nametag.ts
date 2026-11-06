@@ -1,4 +1,4 @@
-import { Camera, NearestFilter, Scene, WebGLRenderer } from "three";
+import { Camera, NearestFilter, Scene } from "three/webgpu";
 
 import { SpriteText } from "./sprite-text";
 
@@ -185,7 +185,7 @@ export class NameTag extends SpriteText {
    * Three calls this only for tags it draws, so the per-frame cost follows
    * the tags on screen, and it allocates nothing.
    */
-  onBeforeRender(_renderer: WebGLRenderer, _scene: Scene, camera: Camera) {
+  onBeforeRender(_renderer: unknown, _scene: Scene, camera: Camera) {
     this.viewer = camera;
     const material = this.material;
 

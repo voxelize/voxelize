@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 
-import * as THREE from "three";
+import * as THREE from "three/webgpu";
 import { describe, it } from "vitest";
 
 import { BoneTextureManager } from "./bone-texture-manager";
@@ -67,5 +67,31 @@ describe("BoneTextureManager", () => {
     assert.ok(Buffer.from(data.buffer).equals(Buffer.from(pristine.buffer)));
     manager.allocate();
     assert.ok(Buffer.from(data.buffer).equals(Buffer.from(pristine.buffer)));
+  });
+  it("writes a bone as the half floats three would, natively", () => {
+    const manager = new BoneTextureManager(2, 3);
+    const data = manager.getTexture().image.data as Uint16Array;
+    const slot = manager.allocate();
+    const matrix = new THREE.Matrix4().compose(
+      new THREE.Vector3(1.37, -0.002, 2049.5),
+      new THREE.Quaternion().setFromEuler(new THREE.Euler(0.3, -1.1, 2.4)),
+      new THREE.Vector3(0.75, 1.25, 1e-5),
+    );
+    manager.setBoneMatrix(slot, 2, matrix);
+    const offset = (slot * 3 + 2) * 16;
+    for (let i = 0; i < 16; i++) {
+      const written = THREE.DataUtils.fromHalfFloat(data[offset + i]);
+      const reference = THREE.DataUtils.fromHalfFloat(
+        THREE.DataUtils.toHalfFloat(matrix.elements[i]),
+      );
+      // Native conversion rounds to nearest; three's truncates. Either is
+      // within one half-float step of the value.
+      const step = Math.max(Math.abs(reference) * 2 ** -10, 2 ** -24);
+      assert.ok(
+        Math.abs(written - matrix.elements[i]) <= step,
+        `element ${i}: ${written} vs ${matrix.elements[i]}`,
+      );
+      assert.ok(Math.abs(written - reference) <= step);
+    }
   });
 });

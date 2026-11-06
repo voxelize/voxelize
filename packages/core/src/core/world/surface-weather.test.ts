@@ -5,43 +5,25 @@ import {
   LinearFilter,
   RGBAFormat,
   Texture,
-  Uniform,
   UnsignedByteType,
-  Vector3,
-  Vector4,
-} from "three";
-import { describe, expect, it, vi } from "vitest";
+} from "three/webgpu";
+import { describe, expect, it } from "vitest";
 
 import {
-  forkChunkMaterial,
-  makeChunkShaderMaterial,
-  setOwnFaceTexture,
   type ChunkMaterialHost,
+  forkChunkMaterial,
+  makeChunkMaterial,
+  setOwnFaceTexture,
 } from "./chunk-materials";
 import { ChunkRenderer } from "./chunk-renderer";
-import { FarTerrain, type FarTerrainSharedUniforms } from "./far-terrain";
-import {
-  CHUNK_TEXTURE_SAMPLE_GLSL,
-  createSwayTableShader,
-  SHADER_LIGHTING_CHUNK_SHADERS,
-  SHADER_LIGHTING_CROSS_CHUNK_SHADERS,
-  SHADER_LIGHTING_FLUID_CHUNK_SHADERS,
-  SHADER_LIGHTING_SEE_THROUGH_CHUNK_SHADERS,
-} from "./shaders";
+import type { ChunkShadingInputs } from "./shading/chunk-material";
 import {
   applySurfaceCoatFace,
   createSurfaceWeatherUniforms,
-  stripSurfaceWeatherFromFragment,
   SURFACE_OPEN_LIGHT,
   SURFACE_POCK_MEAN,
   SURFACE_RESPONSE,
   SURFACE_WEATHER,
-  SURFACE_WEATHER_ALBEDO_FRAGMENT,
-  SURFACE_WEATHER_FAR_ALBEDO_FRAGMENT,
-  SURFACE_WEATHER_LIGHT_FRAGMENT,
-  SURFACE_WEATHER_TERRAIN_OPEN,
-  SURFACE_WEATHER_WATER_CREST_FRAGMENT,
-  SURFACE_WEATHER_WATER_RINGS_FRAGMENT,
   surfaceCoatDensity,
   surfaceCoatDrift,
   surfaceCoatMean,
@@ -50,31 +32,6 @@ import {
   surfaceWeatherPock,
 } from "./surface-weather";
 import { AtlasTexture } from "./textures";
-
-vi.mock("./workers/far-terrain-worker.ts?worker&inline", () => ({
-  default: class {},
-}));
-
-const swayTable = createSwayTableShader(SHADER_LIGHTING_CHUNK_SHADERS, 4);
-
-const VARIANTS: Record<string, string> = {
-  opaque: SHADER_LIGHTING_CHUNK_SHADERS.fragment,
-  fluid: SHADER_LIGHTING_FLUID_CHUNK_SHADERS.fragment,
-  seeThrough: SHADER_LIGHTING_SEE_THROUGH_CHUNK_SHADERS.fragment,
-  cross: SHADER_LIGHTING_CROSS_CHUNK_SHADERS.fragment,
-  swayTable: swayTable.fragmentShader,
-};
-
-const count = (source: string, needle: string) =>
-  source.split(needle).length - 1;
-
-/** Every statement of a pass ahead of its switch: plain constant declarations. */
-const leadingStatements = (pass: string) =>
-  pass
-    .slice(0, pass.indexOf(SURFACE_WEATHER_TERRAIN_OPEN))
-    .split("\n")
-    .map((line) => line.trim())
-    .filter((line) => line && !line.startsWith("//"));
 
 describe("surface weather is inert at its defaults", () => {
   it("defaults every shared uniform to off", () => {
@@ -108,98 +65,15 @@ describe("surface weather is inert at its defaults", () => {
     expect(a.surfaceWeather).not.toBe(b.surfaceWeather);
     expect(a.surfaceWeatherMap.value).not.toBe(b.surfaceWeatherMap.value);
   });
-
-  it("keeps each pass behind a uniform switch, with nothing ahead of it but zeroed declarations", () => {
-    for (const pass of [
-      SURFACE_WEATHER_ALBEDO_FRAGMENT,
-      SURFACE_WEATHER_LIGHT_FRAGMENT,
-    ]) {
-      expect(pass).toContain(SURFACE_WEATHER_TERRAIN_OPEN);
-      for (const statement of leadingStatements(pass)) {
-        expect(statement).toMatch(/^float surfaceWeather\w+ = [0-9.]+;$/);
-      }
-    }
-    // Uniforms alone, so the branch is uniform: no varying in its test.
-    expect(SURFACE_WEATHER_TERRAIN_OPEN).toMatch(
-      /^if \(uSurfaceWeather != vec3\(0\.0\) && uSurfaceResponse > 0\.0\) \{$/,
-    );
-    expect(SURFACE_WEATHER_WATER_RINGS_FRAGMENT.trim()).toMatch(
-      /^if \(uSurfaceWeather\.x > 0\.0\) \{/,
-    );
-    // The crest only ever comes from the rings.
-    expect(SURFACE_WEATHER_WATER_CREST_FRAGMENT.trim()).toMatch(
-      /^if \(surfaceWeatherRingCrest > 0\.0\) \{/,
-    );
-    expect(SURFACE_WEATHER_FAR_ALBEDO_FRAGMENT).toContain(
-      "if (uSurfaceWeather != vec3(0.0)) {",
-    );
-  });
-
-  it("strips out of every chunk variant whole, leaving no trace", () => {
-    for (const [name, fragment] of Object.entries(VARIANTS)) {
-      const stripped = stripSurfaceWeatherFromFragment(fragment);
-      expect(stripped, name).not.toMatch(
-        /uSurface(Weather|Coat|Response|Wind)|surfaceWeather|surfaceCoat|\bsw[A-Z]/,
-      );
-    }
-  });
-
-  it("compiles the ground's passes out of the fluid variant, and keeps its rings", () => {
-    expect(count(VARIANTS.opaque, SURFACE_WEATHER_TERRAIN_OPEN)).toBe(2);
-    expect(count(VARIANTS.seeThrough, SURFACE_WEATHER_TERRAIN_OPEN)).toBe(2);
-    expect(count(VARIANTS.fluid, SURFACE_WEATHER_TERRAIN_OPEN)).toBe(0);
-    expect(VARIANTS.fluid).toContain(SURFACE_WEATHER_WATER_RINGS_FRAGMENT);
-    expect(VARIANTS.fluid).toContain(SURFACE_WEATHER_WATER_CREST_FRAGMENT);
-  });
-
-  it("leaves the anchors other shaders patch where they were, once each", () => {
-    for (const [name, fragment] of Object.entries(VARIANTS)) {
-      expect(count(fragment, "outgoingLight.rgb *= totalLight;"), name).toBe(1);
-      expect(count(fragment, CHUNK_TEXTURE_SAMPLE_GLSL), name).toBe(1);
-      expect(count(fragment, "void main() {"), name).toBe(1);
-      // The lighting anchor comes before the weather's light pass, so a
-      // patched lighting line is still lit weather.
-      const lightPass = fragment.indexOf("float swNdotV");
-      if (lightPass >= 0) {
-        expect(
-          fragment.indexOf("outgoingLight.rgb *= totalLight;"),
-          name,
-        ).toBeLessThan(lightPass);
-      }
-    }
-    // Only the water's own branch opens on the fluid flag.
-    expect(count(VARIANTS.fluid, "if (vIsFluid > 0.5) {")).toBe(1);
-    expect(count(VARIANTS.opaque, "if (vIsFluid > 0.5) {")).toBe(0);
-    expect(
-      count(
-        SURFACE_WEATHER_ALBEDO_FRAGMENT + SURFACE_WEATHER_LIGHT_FRAGMENT,
-        "vIsFluid > 0.5",
-      ),
-    ).toBe(0);
-  });
-
-  it("paints no snow on the chunks: near the player it is blocks", () => {
-    for (const pass of [
-      SURFACE_WEATHER_ALBEDO_FRAGMENT,
-      SURFACE_WEATHER_LIGHT_FRAGMENT,
-    ]) {
-      expect(pass).not.toMatch(/coat/i);
-    }
-    for (const variant of [VARIANTS.opaque, VARIANTS.swayTable]) {
-      expect(variant).not.toContain("uSurfaceCoatColor");
-    }
-  });
 });
 
 const host = (renderer = new ChunkRenderer()): ChunkMaterialHost =>
   ({
     chunkRenderer: renderer,
-    lightCones: { uniformBindings: {} },
-    localLights: { uniformBindings: {} },
-    swayProfileTable: new Uniform([]),
+    // Only read when a program builds, but by identity: the very nodes.
+    shadingInputs: { id: 1, chunk: renderer.uniforms } as ChunkShadingInputs,
     hasCustomBlockMaterial: () => false,
     options: {
-      chunkUniformsOverwrite: {},
       textureUnitDimension: 16,
       chunkSize: 16,
       maxHeight: 256,
@@ -209,14 +83,14 @@ const host = (renderer = new ChunkRenderer()): ChunkMaterialHost =>
     },
   }) as unknown as ChunkMaterialHost;
 
-const SHARED_NAMES = {
-  uSurfaceWeather: "surfaceWeather",
-  uSurfaceWeatherMap: "surfaceWeatherMap",
-  uSurfaceWeatherWindow: "surfaceWeatherWindow",
-  uSurfaceWeatherLine: "surfaceWeatherLine",
-  uSurfaceCoatColor: "surfaceCoatColor",
-  uSurfaceWind: "surfaceWind",
-} as const;
+const SHARED_NAMES = [
+  "surfaceWeather",
+  "surfaceWeatherMap",
+  "surfaceWeatherWindow",
+  "surfaceWeatherLine",
+  "surfaceCoatColor",
+  "surfaceWind",
+] as const;
 
 describe("surface weather reaches every chunk material", () => {
   // The unknown checker paints on a canvas, which the test runs without.
@@ -226,30 +100,19 @@ describe("surface weather reaches every chunk material", () => {
 
   it("binds the renderer's uniforms by reference, and a response of its own", () => {
     const world = host();
-    const a = makeChunkShaderMaterial(world);
-    const b = makeChunkShaderMaterial(world);
-    for (const [shaderName, name] of Object.entries(SHARED_NAMES)) {
-      expect(a.uniforms[shaderName], shaderName).toBe(
+    const a = makeChunkMaterial(world);
+    const b = makeChunkMaterial(world);
+    for (const name of SHARED_NAMES) {
+      expect(a.shading.chunk[name], name).toBe(
         world.chunkRenderer.uniforms[name],
       );
-      expect(b.uniforms[shaderName], shaderName).toBe(
+      expect(b.shading.chunk[name], name).toBe(
         world.chunkRenderer.uniforms[name],
       );
     }
-    expect(a.uniforms.uSurfaceResponse.value).toBe(SURFACE_RESPONSE.solid);
-    expect(a.uniforms.uSurfaceOpenLight.value.toArray()).toEqual([
-      ...SURFACE_OPEN_LIGHT.solid,
-    ]);
-    expect(a.uniforms.uSurfaceResponse).not.toBe(b.uniforms.uSurfaceResponse);
-    expect(a.uniforms.uSurfaceOpenLight).not.toBe(b.uniforms.uSurfaceOpenLight);
-  });
-
-  it("takes the host's overwrites", () => {
-    const world = host();
-    const surfaceWeather = { value: new Vector3(1, 0, 0) };
-    world.options.chunkUniformsOverwrite = { surfaceWeather };
-    const material = makeChunkShaderMaterial(world);
-    expect(material.uniforms.uSurfaceWeather).toBe(surfaceWeather);
+    expect(a.surfaceResponse).toBe(SURFACE_RESPONSE.solid);
+    expect(a.surfaceOpenLight.toArray()).toEqual([...SURFACE_OPEN_LIGHT.solid]);
+    expect(a.surfaceOpenLight).not.toBe(b.surfaceOpenLight);
   });
 
   it("opens a see-through block's faces at its own voxel's light", () => {
@@ -266,111 +129,28 @@ describe("surface weather reaches every chunk material", () => {
 
   it("keeps them on a fork, response included", () => {
     const world = host();
-    const material = makeChunkShaderMaterial(world);
+    const material = makeChunkMaterial(world);
+    material.surfaceResponse = SURFACE_RESPONSE.cutout;
+    material.surfaceOpenLight.set(...SURFACE_OPEN_LIGHT.seeThrough);
     const fork = forkChunkMaterial(material);
-    for (const shaderName of Object.keys(SHARED_NAMES)) {
-      expect(fork.uniforms[shaderName], shaderName).toBe(
-        material.uniforms[shaderName],
-      );
+    for (const name of SHARED_NAMES) {
+      expect(fork.shading.chunk[name], name).toBe(material.shading.chunk[name]);
     }
-    expect(fork.uniforms.uSurfaceResponse).toBe(
-      material.uniforms.uSurfaceResponse,
-    );
-    expect(fork.uniforms.uSurfaceOpenLight).toBe(
-      material.uniforms.uSurfaceOpenLight,
+    expect(fork.surfaceResponse).toBe(material.surfaceResponse);
+    expect(fork.surfaceOpenLight.toArray()).toEqual(
+      material.surfaceOpenLight.toArray(),
     );
   });
 
   it("keeps the weather on a face with its own texture", () => {
     const world = host();
-    const material = makeChunkShaderMaterial(world);
+    const material = makeChunkMaterial(world);
     const fork = forkChunkMaterial(material);
     setOwnFaceTexture(fork, new Texture());
-    expect(fork.uniforms.uSurfaceResponse).toBe(
-      material.uniforms.uSurfaceResponse,
-    );
-    expect(fork.uniforms.uSurfaceWeather).toBe(
+    expect(fork.surfaceResponse).toBe(material.surfaceResponse);
+    expect(fork.shading.chunk.surfaceWeather).toBe(
       world.chunkRenderer.uniforms.surfaceWeather,
     );
-  });
-});
-
-const farShared = (
-  weather?: ReturnType<typeof createSurfaceWeatherUniforms>,
-): FarTerrainSharedUniforms => ({
-  fogColor: { value: new Color() },
-  fogNear: { value: 0 },
-  fogFar: { value: 1 },
-  fogHeightOrigin: { value: 0 },
-  fogHeightDensity: { value: 0 },
-  fogVerticalBlend: { value: 0 },
-  skyFogTopColor: { value: new Color() },
-  skyFogMiddleColor: { value: new Color() },
-  skyFogBottomColor: { value: new Color() },
-  skyFogOffset: { value: 0 },
-  skyFogVoidOffset: { value: 0 },
-  skyFogExponent: { value: 1 },
-  skyFogExponent2: { value: 1 },
-  skyFogDimension: { value: 1 },
-  skyFogStrength: { value: 0 },
-  sunlightIntensity: { value: 1 },
-  minLightLevel: { value: 0 },
-  baseAmbient: { value: 0 },
-  faceShades: { value: { x: 1, y: 1, z: 1, w: 1 } },
-  cameraSubmersion: { value: 0 },
-  cameraWaterPlaneY: { value: 0 },
-  underwaterAmbient: { value: new Color() },
-  underwaterViewScale: { value: 1 },
-  sunDirection: { value: new Vector3(0, 1, 0) },
-  sunColor: { value: new Color(1, 1, 1) },
-  ambientColor: { value: new Color(1, 1, 1) },
-  farCoverMask: { value: null },
-  farCover: { value: new Vector4() },
-  farSeam: { value: 0 },
-  ...(weather
-    ? {
-        surfaceWeather: weather.surfaceWeather,
-        surfaceWeatherMap: weather.surfaceWeatherMap,
-        surfaceWeatherWindow: weather.surfaceWeatherWindow,
-        surfaceWeatherLine: weather.surfaceWeatherLine,
-        surfaceCoatColor: weather.surfaceCoatColor,
-        surfaceWind: weather.surfaceWind,
-      }
-    : {}),
-});
-
-const landOf = (far: FarTerrain) =>
-  (
-    far as unknown as {
-      landMaterial: {
-        uniforms: Record<string, unknown>;
-        fragmentShader: string;
-      };
-    }
-  ).landMaterial;
-
-describe("surface weather on the far land", () => {
-  it("shares the chunks' weather by reference", () => {
-    const weather = createSurfaceWeatherUniforms();
-    const land = landOf(new FarTerrain(farShared(weather), { distance: 0 }));
-    expect(land.uniforms.uSurfaceWeather).toBe(weather.surfaceWeather);
-    expect(land.uniforms.uSurfaceWeatherMap).toBe(weather.surfaceWeatherMap);
-    expect(land.uniforms.uSurfaceWeatherWindow).toBe(
-      weather.surfaceWeatherWindow,
-    );
-    expect(land.uniforms.uSurfaceWeatherLine).toBe(weather.surfaceWeatherLine);
-    expect(land.uniforms.uSurfaceCoatColor).toBe(weather.surfaceCoatColor);
-    expect(land.uniforms.uSurfaceWind).toBe(weather.surfaceWind);
-    expect(land.fragmentShader).toContain(SURFACE_WEATHER_FAR_ALBEDO_FRAGMENT);
-  });
-
-  it("wears none without them", () => {
-    const land = landOf(new FarTerrain(farShared(), { distance: 0 }));
-    const weather = land.uniforms.uSurfaceWeather as { value: Vector3 };
-    expect(weather.value.toArray()).toEqual([0, 0, 0]);
-    expect(
-      (land.uniforms.uSurfaceWeatherMap as { value: Texture }).value,
-    ).toBeInstanceOf(Texture);
   });
 });
 

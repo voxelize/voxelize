@@ -1,4 +1,4 @@
-import * as THREE from "three";
+import * as THREE from "three/webgpu";
 
 export interface GaitProfile {
   stepTriggerDistance: number;
