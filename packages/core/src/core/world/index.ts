@@ -762,6 +762,28 @@ export class World<T = any> extends Scene implements NetIntercept {
     return this.gpuTerrainCulls.countDrawnTriangles(camera);
   }
 
+  /**
+   * Whether every chunk within `radius` chunks of (`cx`, `cz`) is loaded
+   * and every one of its sections has had a mesh applied (an empty one
+   * counts once its empty mesh landed). What a game waits on before it
+   * shows the world, so the land around the camera does not build itself
+   * in view: chunk data arrives well before the meshes made from it.
+   */
+  isAreaMeshed(cx: number, cz: number, radius: number): boolean {
+    const { subChunks } = this.options;
+    for (let dx = -radius; dx <= radius; dx++) {
+      for (let dz = -radius; dz <= radius; dz++) {
+        const chunk = this.getChunkByCoords(cx + dx, cz + dz);
+        if (!chunk?.isReady) return false;
+        for (let level = 0; level < subChunks; level++) {
+          const key = MeshPipeline.makeKey(cx + dx, cz + dz, level);
+          if (!this.meshPipeline.hasDisplayed(key)) return false;
+        }
+      }
+    }
+    return true;
+  }
+
   /** The materials the region arenas draw with, one per batched bucket. */
   get regionArenaMaterials(): ChunkMaterial[] {
     if (!this.options.regionArenas) return [];
@@ -1238,12 +1260,6 @@ export class World<T = any> extends Scene implements NetIntercept {
   }
 
   /**
-   * Links the water depth pass's programs for every fluid chunk material,
-   * so a fluid whose water first loads in play does not link them in a
-   * frame (see `WaterDepthPass.compileFor`). Call it in the load, once the
-   * chunk materials are made.
-   */
-  /**
    * Builds the local-light shadow frame's own pipelines (the atlas cell
    * clear) during a load warmup, so the first torch to cast a shadow builds
    * nothing in its frame.
@@ -1252,6 +1268,12 @@ export class World<T = any> extends Scene implements NetIntercept {
     return this.localLights.compileShadowPrograms(renderer);
   }
 
+  /**
+   * Links the water depth pass's programs for every fluid chunk material,
+   * so a fluid whose water first loads in play does not link them in a
+   * frame (see `WaterDepthPass.compileFor`). Call it in the load, once the
+   * chunk materials are made.
+   */
   compileWaterDepthPrograms(renderer: Renderer, camera: Camera) {
     const fluids: ChunkMaterial[] = [];
     for (const material of this.chunkRenderer.materials.values()) {
