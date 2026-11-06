@@ -49,7 +49,10 @@ export function arrayUniform<
  * water (`World.captureWaterRefraction`). Linear filtered so the refracted
  * floor bends smoothly between texels.
  */
-export function makeSceneColorTexture(width = 1, height = 1): FramebufferTexture {
+export function makeSceneColorTexture(
+  width = 1,
+  height = 1,
+): FramebufferTexture {
   const texture = new FramebufferTexture(width, height);
   texture.minFilter = LinearFilter;
   texture.magFilter = LinearFilter;
@@ -133,7 +136,9 @@ export function createChunkUniforms() {
      * order-independent transparency the scene target's own colour, read
      * while the blended layers draw elsewhere.
      */
-    sceneColor: textureSlot("color", makeSceneColorTexture()),
+    // A placeholder until the first refraction copy lands
+    // (`World.captureWaterRefraction`): a capture is never bound uncopied.
+    sceneColor: textureSlot("color"),
     sceneTextureSize: worldUniform(new Vector2(1, 1)),
     waterRefractionReady: worldUniform(0),
     /**

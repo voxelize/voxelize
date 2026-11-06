@@ -231,6 +231,7 @@ import {
   type ChunkUniforms,
 } from "./shading/chunk-uniforms";
 import { type SkyFogInputs, worldFogNode } from "./shading/sky-fog";
+import { placeholderTexture } from "./shading/uniforms";
 import { singlePassWhenOneFacing } from "./single-pass-sides";
 import { getSunDiscDirection, getVisibleDiscDirection, Sky } from "./sky";
 import { applySurfaceCoatFace } from "./surface-weather";
@@ -971,6 +972,8 @@ export class World<T = any> extends Scene implements NetIntercept {
   private waterRefractionFrame = -1;
   /** The copy the water refracts when the frame drawn before it is copied. */
   private refractionCapture!: FramebufferTexture;
+  /** The format of the target {@link refractionCapture} was copied from. */
+  private refractionSourceKey = "";
   private waterDepth!: WaterDepthPass;
   private sceneDepthCopy!: SceneDepthCopy;
 
@@ -1054,8 +1057,6 @@ export class World<T = any> extends Scene implements NetIntercept {
       waterRefractionReady.value = 0;
       return;
     }
-    sceneColor.value = this.refractionCapture;
-
     const size = target
       ? scratchSize.set(target.width, target.height)
       : renderer.getDrawingBufferSize(scratchSize);
@@ -1068,22 +1069,39 @@ export class World<T = any> extends Scene implements NetIntercept {
       return;
     }
 
-    const capture = this.refractionCapture;
-    if (capture.image.width !== width || capture.image.height !== height) {
+    // three fixes a framebuffer texture's format when it first creates it:
+    // from the bound target on a copy, from the canvas on a draw that
+    // samples it. A capture bound before its first copy (a compile right
+    // after a resize) took the canvas format, and every copy from an sRGB
+    // scene target then failed ("formats do not match"). So the water binds
+    // a capture only once a copy has made it, and a new source format makes
+    // a new capture.
+    const source = target?.texture;
+    const sourceKey = source
+      ? `${source.format}|${source.type}|${source.colorSpace}`
+      : "frame";
+    let capture = this.refractionCapture;
+    if (
+      capture.image.width !== width ||
+      capture.image.height !== height ||
+      this.refractionSourceKey !== sourceKey
+    ) {
+      if (sceneColor.value === capture) {
+        sceneColor.value = placeholderTexture("color");
+      }
       capture.dispose();
-      this.refractionCapture = makeSceneColorTexture(width, height);
-      sceneColor.value = this.refractionCapture;
-      waterRefractionReady.value = 0;
+      capture = this.refractionCapture = makeSceneColorTexture(width, height);
+      this.refractionSourceKey = sourceKey;
       this.waterRefractionFrame = -1;
-      return;
     }
 
     const frame = renderer.info.frame;
-    if (this.waterRefractionFrame === frame) return;
-
-    renderer.copyFramebufferToTexture(capture);
+    if (this.waterRefractionFrame !== frame) {
+      renderer.copyFramebufferToTexture(capture);
+      this.waterRefractionFrame = frame;
+    }
+    sceneColor.value = capture;
     waterRefractionReady.value = 1;
-    this.waterRefractionFrame = frame;
   }
 
   private configureTransparentChunkMesh(
@@ -8770,8 +8788,7 @@ export class World<T = any> extends Scene implements NetIntercept {
     this.chunkPipeline = new ChunkPipeline();
     this.meshPipeline = new MeshPipeline();
     this.chunkRenderer = new ChunkRenderer();
-    this.refractionCapture = this.chunkRenderer.uniforms.sceneColor
-      .value as FramebufferTexture;
+    this.refractionCapture = makeSceneColorTexture();
     const orderIndependent = this.options.orderIndependentTransparency;
     if (orderIndependent) {
       const defaults = defaultOrderIndependentTransparencyOptions;
