@@ -1184,9 +1184,17 @@ export class GpuTerrainBucket {
     );
     geometry.setAttribute("sectionId", this.sectionIds);
     if (prepared) {
-      (prepared.sourceIndex.array as Uint32Array).set(
-        this.sourceIndex.array as Uint32Array,
-      );
+      // The size made ahead already has its GPU buffer (its culls bound it
+      // to compile), so an upload is no longer whole by default: three
+      // writes only the update ranges when there are any, and the section
+      // that set off this grow adds one before the frame uploads. Without a
+      // range over the copy, every section held before the grow read zeros
+      // on the GPU and drew as degenerate triangles (water vanished as an
+      // ocean's bucket grew).
+      const held = this.sourceIndex.array as Uint32Array;
+      (prepared.sourceIndex.array as Uint32Array).set(held);
+      prepared.sourceIndex.clearUpdateRanges();
+      prepared.sourceIndex.addUpdateRange(0, held.length);
       prepared.sourceIndex.needsUpdate = true;
       this.sourceIndex = prepared.sourceIndex;
     } else {

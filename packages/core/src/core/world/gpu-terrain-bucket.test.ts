@@ -222,6 +222,20 @@ describe("GpuTerrainBucket", () => {
       const slot = state.slots.get(`s${i}`)!;
       expect(state.sourceIndex.array[slot.indexStart]).toBe(slot.vertexStart);
     }
+    // The ahead buffer is already on the GPU, so three uploads only its
+    // update ranges: they must cover every section held before the grow,
+    // not just the one written after it.
+    const ranges = (
+      state.sourceIndex as BufferAttribute & {
+        updateRanges: { start: number; count: number }[];
+      }
+    ).updateRanges;
+    const covered = (index: number) =>
+      ranges.some((r) => index >= r.start && index < r.start + r.count);
+    for (let i = 0; i < 5; i++) {
+      const slot = state.slots.get(`s${i}`)!;
+      expect(covered(slot.indexStart)).toBe(true);
+    }
   });
 
   it("lays out a bucket with no sections as another's, for its pipelines", () => {

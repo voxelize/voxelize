@@ -8716,6 +8716,18 @@ export class World<T = any> extends Scene implements NetIntercept {
       (mesh, isAdded) => this.registerArenaRegionMesh(bucket, mesh, isAdded),
       this,
     );
+    // Laid out as its sections will be before anything compiles it: three
+    // builds a program from the attributes the geometry holds then, and a
+    // bucket compiled empty (the shared leaves and tufts, warmed with the
+    // scene before any of their sections landed) read only `sectionId`
+    // forever after: every leaf at uv 0, discarded, the trees bare.
+    if (!gpu.bucket.hasLayout) {
+      const layout = makeChunkStandInGeometry({
+        isQuantized: base.userData.isQuantized === true,
+      });
+      gpu.bucket.adoptLayout(layout);
+      layout.dispose();
+    }
     if (compilesAhead && this.gpuTerrainRenderer) {
       const shadowRenderer = this.localShadowProgramRenderer;
       void gpu.bucket.compileBeforeShowing(
