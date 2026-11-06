@@ -63,10 +63,13 @@ describe("chunk caster displacement", () => {
     expect(slow._swayMotion.x).toBe(1);
   });
 
-  it("hands a GPU-drawn material one node, the same on every read", () => {
+  it("hands each GPU-drawn material a node of its own, the same on every read", () => {
     // Its `positionNode` is read into the program key whenever three keys
     // the material: a node made per read gave every GPU-drawn material a
-    // program of its own, rebuilt on every rekeying.
+    // program rebuilt on every rekeying. And the node reads its own bucket's
+    // section records: a node shared between buckets shared one program and
+    // its bindings, and every bucket of a kind drew its sections at the
+    // first one's origins.
     const gpu = (material: ChunkMaterial) => {
       material.drawsGpuSections = true;
       return quantized(material);
@@ -75,9 +78,12 @@ describe("chunk caster displacement", () => {
     const b = gpu(new ChunkMaterial(world, { kind: "cutout" }));
     expect(a.positionNode).toBeTruthy();
     expect(a.positionNode).toBe(a.positionNode);
-    expect(b.positionNode).toBe(a.positionNode);
     expect(a.customProgramCacheKey()).toBe(a.customProgramCacheKey());
-    expect(b.customProgramCacheKey()).toBe(a.customProgramCacheKey());
+    expect(b.positionNode).not.toBe(a.positionNode);
+    expect(b.customProgramCacheKey()).not.toBe(a.customProgramCacheKey());
+    // A fork (a bucket's material) makes its own, not its source's.
+    const fork = gpu(a.fork());
+    expect(fork.positionNode).not.toBe(a.positionNode);
     // Still apart from a material drawn by a region arena.
     const arena = quantized(new ChunkMaterial(world, { kind: "cutout" }));
     expect(arena.positionNode).not.toBe(a.positionNode);

@@ -376,38 +376,17 @@ function gpuSectionOf(object: Object3D | undefined) {
   return { origin: record.xyz, reveal: record.w };
 }
 
-const gpuSectionCasterPositions = new WeakMap<object, Map<string, Vec3Node>>();
-
 /**
  * What a depth pass that overrides a GPU-drawn material moves its vertices
  * with: the section's origin, then the sway, as the material's own vertex
  * stage (`casterPositionNode` for a section drawn by a region arena). One
- * node per world, kind, sway and position format, as there: the material
- * hands it out from its `positionNode`, which three reads into the
- * material's program key every time it keys the material, and a node made
- * afresh on each read gave every GPU-drawn material a key of its own (a
- * program built for each, never shared) and a new one on every rekeying.
+ * per material (`ChunkMaterial.gpuCasterPosition`), never shared: the node
+ * reads the drawn bucket's own section records, and the material's program
+ * (keyed by this node, with its bindings) would otherwise be shared by every
+ * bucket of a kind, each drawing its sections at the first one's origins
+ * (torch sticks gone, plants and leaves floating where another bucket's
+ * sections sit). Made once, so rekeying the material keeps its program.
  */
-function gpuSectionCasterPosition(
-  shading: ChunkShadingInputs,
-  kind: ChunkMaterialKind,
-  hasSway: boolean,
-  positionUnits: number,
-): Vec3Node {
-  let nodes = gpuSectionCasterPositions.get(shading);
-  if (!nodes) {
-    nodes = new Map();
-    gpuSectionCasterPositions.set(shading, nodes);
-  }
-  const key = `${kind}|${hasSway ? "sway" : "-"}|${positionUnits}`;
-  let node = nodes.get(key);
-  if (!node) {
-    node = makeGpuSectionCasterPosition(shading, kind, hasSway, positionUnits);
-    nodes.set(key, node);
-  }
-  return node;
-}
-
 function makeGpuSectionCasterPosition(
   shading: ChunkShadingInputs,
   kind: ChunkMaterialKind,
@@ -505,6 +484,9 @@ export class ChunkMaterial extends NodeMaterial {
    *  on/off). */
   _swayMotion = new Vector4();
   _swayCrossShading = 0;
+  /** This material's own caster position when GPU-drawn (see
+   *  `makeGpuSectionCasterPosition`); never copied to another material. */
+  private _gpuCasterPosition: { key: string; node: Vec3Node } | null = null;
 
   constructor(shading: ChunkShadingInputs, options: ChunkMaterialOptions) {
     super();
@@ -538,12 +520,21 @@ export class ChunkMaterial extends NodeMaterial {
     if (this.drawsGpuSections) {
       // A hooked material casts its rest shape (its hook reads the material,
       // which an override build cannot reach), as a section drawn otherwise.
-      return gpuSectionCasterPosition(
-        this.shading,
-        hooks?.displace ? "opaque" : kind,
-        !hooks?.displace && sway !== null,
-        this.positionUnits,
-      );
+      const casterKind = hooks?.displace ? "opaque" : kind;
+      const hasSway = !hooks?.displace && sway !== null;
+      const key = `${casterKind}|${hasSway ? "sway" : "-"}|${this.positionUnits}`;
+      if (this._gpuCasterPosition?.key !== key) {
+        this._gpuCasterPosition = {
+          key,
+          node: makeGpuSectionCasterPosition(
+            this.shading,
+            casterKind,
+            hasSway,
+            this.positionUnits,
+          ),
+        };
+      }
+      return this._gpuCasterPosition.node;
     }
     if (depthOnly || hooks?.displace) return null;
     if (kind !== "cutout" && !sway) return null;
@@ -687,6 +678,9 @@ export class ChunkMaterial extends NodeMaterial {
     this.hookValues = { ...source.hookValues };
     this._swayMotion = source._swayMotion.clone();
     this._swayCrossShading = source._swayCrossShading;
+    // Its own node, made on first read: the source's reads the source's
+    // bucket.
+    this._gpuCasterPosition = null;
     this.cutsSolidTexels = source.cutsSolidTexels;
     this.solidTexelCut = source.solidTexelCut;
     // A GPU bucket's forks (its water's depth draws) read its sections too.
