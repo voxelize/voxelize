@@ -841,6 +841,47 @@ export class ItemSlots<T = number> {
     }
   };
 
+  /**
+   * Builds this view's draw pipelines (the present pass, and the output
+   * transform into its canvas) with one 1x1 draw, while it is still
+   * hidden behind the loading screen. Built by the first draw instead, on
+   * the click into play, they were a dropped frame there on a cold shader
+   * cache. The next real draw sizes the canvas again.
+   */
+  warm = () => {
+    const renderer = this.renderer;
+    if (!renderer) return;
+    const target = this.canvasTarget;
+    if (this.canvas.width === 0 || this.canvas.height === 0) {
+      target.setSize(1 / target.getPixelRatio(), 1 / target.getPixelRatio(), false);
+    }
+    const previousCanvas = renderer.getCanvasTarget();
+    const previousTarget = renderer.getRenderTarget();
+    const previousToneMapping = renderer.toneMapping;
+    const previousClearAlpha = renderer.getClearAlpha();
+    renderer.getClearColor(scratchClearColor);
+    const slots = this.slotsTargetFor(
+      Math.max(1, this.canvas.width),
+      Math.max(1, this.canvas.height),
+    );
+    renderer.setCanvasTarget(target);
+    renderer.toneMapping = NoToneMapping;
+    renderer.setClearColor(0x000000, 0);
+    try {
+      renderer.setRenderTarget(slots);
+      renderer.clear();
+      renderer.setRenderTarget(null);
+      this.presentInput.value = slots.texture;
+      this.present ??= this.makePresent();
+      this.present.render(renderer);
+    } finally {
+      renderer.setClearColor(scratchClearColor, previousClearAlpha);
+      renderer.toneMapping = previousToneMapping;
+      renderer.setRenderTarget(previousTarget);
+      renderer.setCanvasTarget(previousCanvas);
+    }
+  };
+
   private slotsTargetFor(width: number, height: number) {
     const current = this.slotsTarget;
     if (current && current.width === width && current.height === height) {

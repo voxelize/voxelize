@@ -634,7 +634,11 @@ export class OrderIndependentTransparency {
           ),
         );
         const keepsBehind = u.phase.lessThan(OIT_PHASE_BEHIND + 0.5);
-        Discard(isBehind.xor(keepsBehind).not());
+        // A fragment on the side this phase does not keep goes. Inverted,
+        // each phase kept the other's: the layers in front of the water
+        // composited first, and a portal before the sea vanished from the
+        // layers the cloud deck splits on, so the clouds painted over it.
+        Discard(isBehind.xor(keepsBehind));
       });
       const alpha = clamp(output.a, 0, 1).toVar("oitAlpha");
       Discard(alpha.lessThanEqual(0));
