@@ -188,15 +188,15 @@ importers:
       '@voxelize/core':
         specifier: workspace:*
         version: link:../../packages/core
+      '@voxelize/postprocessing':
+        specifier: workspace:*
+        version: link:../../packages/postprocessing
       lil-gui:
         specifier: ^0.17.0
         version: 0.17.0
       p5:
         specifier: ^1.11.3
         version: 1.11.12
-      postprocessing:
-        specifier: ^6.39.0
-        version: 6.39.0(three@0.187.0)
       three:
         specifier: ^0.187.0
         version: 0.187.0
@@ -205,8 +205,8 @@ importers:
         specifier: ^1.7.6
         version: 1.7.7
       typescript:
-        specifier: ^4.9.5
-        version: 4.9.5
+        specifier: ^5.4.5
+        version: 5.9.3
       vite:
         specifier: ^4.5.9
         version: 4.5.14(@types/node@25.5.2)(terser@5.46.1)
@@ -338,9 +338,6 @@ importers:
       omggif:
         specifier: ^1.0.10
         version: 1.0.10
-      postprocessing:
-        specifier: ^6.35.0
-        version: 6.39.0(three@0.187.0)
       regenerator-runtime:
         specifier: ^0.13.11
         version: 0.13.11
@@ -470,6 +467,24 @@ importers:
       webpack-dev-server:
         specifier: ^4.15.2
         version: 4.15.2(bufferutil@4.0.9)(utf-8-validate@5.0.10)(webpack-cli@4.10.0)(webpack@5.105.4)
+
+  packages/postprocessing:
+    devDependencies:
+      '@types/three':
+        specifier: ^0.187.0
+        version: 0.187.0
+      cross-env:
+        specifier: ^7.0.3
+        version: 7.0.3
+      three:
+        specifier: ^0.187.0
+        version: 0.187.0
+      tsup:
+        specifier: ^5.12.9
+        version: 5.12.9(@swc/core@1.15.24)(postcss@8.5.8)(typescript@5.9.3)
+      typescript:
+        specifier: ^5.4.5
+        version: 5.9.3
 
   packages/protocol:
     dependencies:
