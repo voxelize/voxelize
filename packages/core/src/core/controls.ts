@@ -17,6 +17,7 @@ import { Coords3 } from "../types";
 import { ChunkUtils } from "../utils";
 
 import { findLedgeTop, planAutoJump } from "./auto-jump";
+import { installAutomationPointerLock } from "./automation-pointer-lock";
 import { Inputs } from "./inputs";
 import { NetIntercept } from "./network";
 import { StepEyeSmoother } from "./step-smoothing";
@@ -768,6 +769,8 @@ export class RigidControls extends EventEmitter implements NetIntercept {
     if (!world) {
       throw new Error("RigidControls: World is required.");
     }
+
+    installAutomationPointerLock(domElement.ownerDocument);
 
     this.camera = camera;
     this.world = world;
