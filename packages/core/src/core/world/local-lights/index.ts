@@ -638,8 +638,11 @@ export class LocalLights {
    * Builds the shadow frame's own pipelines ahead of the first shadowed
    * light (`LocalShadowScheduler.compilePrograms`), for a load warmup.
    */
-  compileShadowPrograms(renderer: Renderer): Promise<void> {
-    return this.shadows.compilePrograms(renderer);
+  compileShadowPrograms(
+    renderer: Renderer,
+    casters?: Parameters<LocalShadowScheduler["compilePrograms"]>[1],
+  ): Promise<void> {
+    return this.shadows.compilePrograms(renderer, casters);
   }
 
   /** Start a fresh peak-cost measurement window (benchmark harnesses). */

@@ -203,6 +203,8 @@ export class LocalShadowScheduler {
    */
   private readonly worldCellCasters = new BorrowedCasterScene();
   private readonly worldCellRoots: Object3D[] = [];
+  /** What a load warmup compiles the casters' depth draws through. */
+  private readonly warmupCasters = new BorrowedCasterScene();
 
   /** Per-slot pool subset scratch; rebuilt for each slot that renders. */
   private readonly slotPoolsScratch: Group[] = [];
@@ -900,16 +902,49 @@ export class LocalShadowScheduler {
   }
 
   /**
-   * Builds the pipelines the shadow frame draws with on its own (the cell
-   * clear) before the first shadowed light needs them; the casters' depth
-   * graphs are the warmup's. Resolves once they are built.
+   * Builds the pipelines the shadow frame draws with before the first
+   * shadowed light needs them: the cell clear, and the depth draws of the
+   * static casters within `reach` blocks of `around` (the chunk groups, the
+   * region arena pages and GPU terrain buckets there) and of `entities`, each
+   * with the override material and into a target of the atlas's formats,
+   * as a face render draws them. Built the first time a torch shadowed
+   * them, they were skipped for the frames their pipelines took, and the
+   * torch's shadows had no terrain in them. Resolves once they are built.
    */
-  compilePrograms(renderer: Renderer): Promise<void> {
+  compilePrograms(
+    renderer: Renderer,
+    casters: {
+      around?: { x: number; y: number; z: number };
+      reach?: number;
+      entities?: Object3D[];
+      /** Casters drawn wherever a light is, hidden or not (GPU buckets). */
+      always?: Object3D[];
+    } = {},
+  ): Promise<void> {
     const twin = this.atlas.makeFormatTwin();
-    return this.cellClear.prepare(renderer, twin).finally(() => {
-      twin.depthTexture?.dispose();
-      twin.dispose();
-    });
+    const roots: Object3D[] = [];
+    if (casters.around && this.getStaticCasterRoots) {
+      const { x, y, z } = casters.around;
+      this.getStaticCasterRoots(x, y, z, casters.reach ?? 32, roots);
+    }
+    if (casters.entities) roots.push(...casters.entities);
+    if (casters.always) roots.push(...casters.always);
+    const previousTarget = renderer.getRenderTarget();
+    renderer.setRenderTarget(twin);
+    // compileAsync reads the target when it is called.
+    const compiling = this.warmupCasters.compile(
+      renderer,
+      this.faceCamera,
+      roots,
+      this.depthMaterial,
+    );
+    renderer.setRenderTarget(previousTarget);
+    return Promise.all([this.cellClear.prepare(renderer, twin), compiling])
+      .then(() => undefined)
+      .finally(() => {
+        twin.depthTexture?.dispose();
+        twin.dispose();
+      });
   }
 
   /**

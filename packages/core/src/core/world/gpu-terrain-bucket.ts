@@ -1251,6 +1251,11 @@ export class GpuTerrainBucket {
  */
 export class GpuTerrainCulls {
   private readonly buckets = new Set<GpuTerrainBucket>();
+
+  /** The buckets culled together. */
+  get members(): ReadonlySet<GpuTerrainBucket> {
+    return this.buckets;
+  }
   private readonly kernels: CullKernel[] = [];
 
   add(bucket: GpuTerrainBucket) {

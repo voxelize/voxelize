@@ -1,4 +1,13 @@
-import { Camera, Material, Object3D, Scene, Renderer } from "three/webgpu";
+import {
+  type BufferGeometry,
+  Camera,
+  InstancedMesh,
+  Material,
+  Mesh,
+  Object3D,
+  Scene,
+  Renderer,
+} from "three/webgpu";
 
 /**
  * Draws a list of casters that live elsewhere in the scene graph, without
@@ -84,6 +93,34 @@ export class BorrowedCasterScene {
       this.scene.overrideMaterial = null;
     }
   }
+
+  /**
+   * Build what {@link render} would draw `casters` with into the current
+   * render target, for a load warmup. Not through the override itself:
+   * three copies each caster's values (its position node, alpha test,
+   * transparency) onto the one override material as it walks a pass, and a
+   * compile builds the draws after the walk, when the override holds the
+   * last caster's values, so every draw was keyed as that one. Each kind of
+   * caster draws instead with a clone of the override carrying its values,
+   * on a stand-in that shares its geometry and has no draw hook (a GPU
+   * terrain bucket's culls its sections). Resolves once they are built.
+   */
+  async compile(
+    renderer: Renderer,
+    camera: Camera,
+    casters: Object3D[],
+    overrideMaterial: Material,
+  ): Promise<void> {
+    const standIns = overrideStandIns(casters, overrideMaterial);
+    if (standIns.objects.length === 0) return;
+    this.scene.children = standIns.objects;
+    try {
+      await renderer.compileAsync(this.scene, camera);
+    } finally {
+      this.scene.children = this.ownChildren;
+      standIns.dispose();
+    }
+  }
 }
 
 /**
@@ -136,4 +173,126 @@ export function isNonCasterEffect(object: Object3D): boolean {
     return material.length > 0 && material.every(isNonCasterMaterial);
   }
   return isNonCasterMaterial(material);
+}
+
+type OverrideSource = Material & {
+  positionNode?: { isNode?: boolean } | null;
+  alphaMap?: unknown;
+  displacementMap?: unknown;
+  displacementScale?: number;
+  displacementBias?: number;
+  transmission?: number;
+  transmissionNode?: { isNode?: boolean } | null;
+  backdropNode?: { isNode?: boolean } | null;
+};
+
+/** What three's `renderObject` writes onto an override before keying a draw. */
+function overrideValues(source: OverrideSource) {
+  return {
+    ...(source.positionNode?.isNode
+      ? { positionNode: source.positionNode }
+      : {}),
+    _alphaTest: source.alphaTest,
+    alphaMap: source.alphaMap,
+    displacementMap: source.displacementMap,
+    displacementScale: source.displacementScale,
+    displacementBias: source.displacementBias,
+    transparent:
+      source.transparent ||
+      (source.transmission ?? 0) > 0 ||
+      (source.transmissionNode && source.transmissionNode.isNode) ||
+      (source.backdropNode && source.backdropNode.isNode),
+  };
+}
+
+/** A geometry's vertex layout, which a draw's pipeline is keyed by. */
+function layoutOf(geometry: BufferGeometry) {
+  const attributes = Object.entries(geometry.attributes)
+    .map(
+      ([name, a]) =>
+        `${name}:${a.itemSize}:${(a as { array?: object }).array?.constructor.name}:${a.normalized}`,
+    )
+    .join(",");
+  return `${geometry.index ? "i" : "-"}|${attributes}`;
+}
+
+/**
+ * One stand-in per kind of caster under `casters` (a vertex layout, an
+ * object kind, the override values its material gives), each drawing with
+ * a clone of `overrideMaterial` carrying those values: what a pass drawing
+ * `casters` with that override builds pipelines for.
+ */
+export function overrideStandIns(
+  casters: Object3D[],
+  overrideMaterial: Material,
+): { objects: Object3D[]; dispose(): void } {
+  const objects: Object3D[] = [];
+  const clones = new Map<string, Material>();
+  const seen = new Set<string>();
+  // A caster named here draws even while hidden: a GPU terrain bucket
+  // stays hidden until its culls are built, and draws in every pass after.
+  const visit = (object: Object3D, isNamed: boolean) => {
+    if ((!object.visible && !isNamed) || isMarkedNeverCaster(object)) return;
+    const mesh = object as Mesh;
+    const source = mesh.material as OverrideSource | OverrideSource[] | undefined;
+    if (mesh.isMesh && mesh.geometry && source && !Array.isArray(source)) {
+      const isCaster =
+        source.allowOverride === true && source.userData?.skipShadow !== true;
+      // A batched page draws its own instance list, and a skinned mesh its
+      // own bones (neither is a caster here): left to their first draw.
+      const other = mesh as { isBatchedMesh?: boolean; isSkinnedMesh?: boolean };
+      const kind =
+        other.isBatchedMesh || other.isSkinnedMesh
+          ? null
+          : (mesh as InstancedMesh).isInstancedMesh
+            ? "instanced"
+            : "mesh";
+      if (isCaster && kind) {
+        const values = overrideValues(source);
+        const valuesKey = [
+          (values.positionNode as { id?: number } | undefined)?.id ?? "-",
+          values._alphaTest > 0,
+          !!values.alphaMap,
+          !!values.displacementMap,
+          String(values.transparent),
+        ].join("|");
+        const key = `${kind}|${layoutOf(mesh.geometry)}|${valuesKey}|${mesh.receiveShadow}`;
+        if (!seen.has(key)) {
+          seen.add(key);
+          let clone = clones.get(valuesKey);
+          if (!clone) {
+            clone = Object.assign(overrideMaterial.clone(), values);
+            clones.set(valuesKey, clone);
+          }
+          const standIn =
+            kind === "instanced"
+              ? new InstancedMesh(mesh.geometry, clone, 1)
+              : new Mesh(mesh.geometry, clone);
+          const colors = (mesh as InstancedMesh).instanceColor;
+          // A per-instance colour is a vertex stream of its own, in the key.
+          if (kind === "instanced" && colors) {
+            (standIn as InstancedMesh).instanceColor = colors;
+          }
+          standIn.name = mesh.name;
+          standIn.frustumCulled = false;
+          standIn.receiveShadow = mesh.receiveShadow;
+          standIn.userData = mesh.userData;
+          objects.push(standIn);
+        }
+      }
+    }
+    for (const child of object.children) visit(child, false);
+  };
+  for (const caster of casters) visit(caster, true);
+  return {
+    objects,
+    dispose() {
+      for (const clone of clones.values()) clone.dispose();
+      for (const standIn of objects) {
+        if ((standIn as InstancedMesh).isInstancedMesh) {
+          (standIn as InstancedMesh).dispose();
+        }
+      }
+    },
+  };
 }

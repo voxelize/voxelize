@@ -1262,12 +1262,22 @@ export class World<T = any> extends Scene implements NetIntercept {
   }
 
   /**
-   * Builds the local-light shadow frame's own pipelines (the atlas cell
-   * clear) during a load warmup, so the first torch to cast a shadow builds
-   * nothing in its frame.
+   * Builds the local-light shadow frame's pipelines during a load warmup:
+   * the atlas cell clear, and the depth draws of the world's static casters
+   * around `casters.around` and of `casters.entities`, so the first torch to
+   * cast a shadow builds nothing in its frame.
    */
-  compileLocalShadowPrograms(renderer: Renderer) {
-    return this.localLights.compileShadowPrograms(renderer);
+  compileLocalShadowPrograms(
+    renderer: Renderer,
+    casters: Parameters<LocalLights["compileShadowPrograms"]>[1] = {},
+  ) {
+    // Every shared GPU terrain bucket draws in a torch's cells wherever the
+    // torch is, whether or not its sections near the player have landed.
+    const always = [...this.gpuTerrainCulls.members].map((b) => b.mesh);
+    return this.localLights.compileShadowPrograms(renderer, {
+      ...casters,
+      always: [...(casters?.always ?? []), ...always],
+    });
   }
 
   /**
