@@ -1,5 +1,7 @@
 import {
+  BoxGeometry,
   Group,
+  Mesh,
   Object3D,
   PerspectiveCamera,
   Scene,
@@ -960,6 +962,41 @@ describe("moving-light shadow scheduling", () => {
     expect(scheduler.estimateDynamicDemand([besideLight])).toBe(0);
   });
 
+  it("drops a caster whose body holds the light (standing on a torch)", () => {
+    const registry = new LightSourceRegistry(16);
+    const scheduler = makeScheduler(registry);
+    const stats = makeStats();
+
+    const torch = registry.add(shadowLight({ isStatic: false }), 4, 60, 4);
+    scheduler.update(selectionOf(registry, [torch]), 1, 0, 60, 0, stats);
+    const anyScheduler = scheduler as unknown as {
+      slots: { staticPending: number }[];
+    };
+    anyScheduler.slots[0].staticPending = 0; // idle: only overlay demand left
+
+    // A player-sized body: origin at the eye, feet 1.6 below.
+    const body = () => {
+      const root = new Group();
+      const torso = new Mesh(new BoxGeometry(0.6, 1.8, 0.4));
+      torso.position.y = -0.7;
+      root.add(torso);
+      return root;
+    };
+
+    // Feet on the torch's block: the flame is inside the legs. Seen from
+    // there the body fills whole faces, so it casts nothing in this light.
+    const standingOn = body();
+    standingOn.position.set(4, 61.4, 4);
+    standingOn.updateMatrixWorld(true);
+    expect(scheduler.estimateDynamicDemand([standingOn])).toBe(0);
+
+    // Two blocks away the same body casts as before.
+    const beside = body();
+    beside.position.set(6, 61.4, 4);
+    beside.updateMatrixWorld(true);
+    expect(scheduler.estimateDynamicDemand([beside])).toBeGreaterThan(0);
+  });
+
   it("requeues cached spot faces when the cone rotates or widens", () => {
     const registry = new LightSourceRegistry(16);
     const scheduler = makeScheduler(registry);
@@ -1150,13 +1187,26 @@ describe("world-cell caster exclusion (stamped-silhouette regression)", () => {
       out.push(chunkGroup, arenaPage);
     };
 
-    const { renderer, renders } = makeVisibilityRenderer([chunkGroup, arenaPage]);
+    const { renderer, renders } = makeVisibilityRenderer([
+      chunkGroup,
+      arenaPage,
+    ]);
     const ledger = new ShadowFrameLedger();
     ledger.beginFrame(100);
-    scheduler.render(renderer, new Scene(), ledger, undefined, undefined, [], stats);
+    scheduler.render(
+      renderer,
+      new Scene(),
+      ledger,
+      undefined,
+      undefined,
+      [],
+      stats,
+    );
 
     expect(asked.length).toBeGreaterThan(0);
-    const worldDraws = renders.filter((r) => r.childrenAtRender.includes(arenaPage));
+    const worldDraws = renders.filter((r) =>
+      r.childrenAtRender.includes(arenaPage),
+    );
     expect(worldDraws.length).toBeGreaterThan(0);
     for (const draw of worldDraws) {
       expect(draw.childrenAtRender).toEqual([chunkGroup, arenaPage]);

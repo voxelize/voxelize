@@ -9,13 +9,13 @@ import {
   Vector4,
 } from "three/webgpu";
 
-import { textureSlot, worldUniform } from "../shading/uniforms";
-
 import {
   localLightFalloff,
   maskedWindowDistance,
 } from "../block-light-transfer";
+import { textureSlot, worldUniform } from "../shading/uniforms";
 
+import { sampleFlicker } from "./flicker";
 import {
   LIGHT_FLAG_FLICKER,
   LIGHT_FLAG_MASKED,
@@ -216,6 +216,8 @@ export class LightClusterGrid {
   private readonly isEntering: Uint8Array;
   private readonly enteringLights: Int32Array;
   private enteringCount = 0;
+  /** sampleFlicker's [scale, dx, dy, dz], reused per sample. */
+  private readonly flickerScratch = new Float32Array(4);
   private nowMs = 0;
   /** Cells the last pass offered lights to (`touchedCells[0..n)`). */
   private lastTouchedCount = 0;
@@ -728,6 +730,34 @@ export class LightClusterGrid {
       if (windowDist >= range) continue;
       const falloff = localLightFalloff(windowDist, range, d2);
 
+      // The shader's flame: brightness, and a shiver of the point its lit
+      // colour leaves from (the claim keeps the real origin).
+      let flicker = 1;
+      let litFalloff = falloff;
+      if (flags[i] & LIGHT_FLAG_FLICKER) {
+        const f = this.flickerScratch;
+        sampleFlicker(
+          flickers[i * 4],
+          flickers[i * 4 + 1],
+          flickers[i * 4 + 2],
+          timeMs * 0.001,
+          f,
+        );
+        flicker = f[0];
+        const mx = dx + f[1];
+        const my = dy + f[2];
+        const mz = dz + f[3];
+        const movedD2 = mx * mx + my * my + mz * mz;
+        const movedDist = Math.sqrt(Math.max(movedD2, 1e-6));
+        litFalloff = localLightFalloff(
+          flags[i] & LIGHT_FLAG_MASKED
+            ? maskedWindowDistance(movedDist, mx, my, mz)
+            : movedDist,
+          range,
+          movedD2,
+        );
+      }
+
       let angular = 1;
       if (shapes[i] === LIGHT_SHAPE_SPOT) {
         // -L · spotDir against the cone edges, matching the shader.
@@ -757,15 +787,6 @@ export class LightClusterGrid {
           colors[i * 3 + 1] * LUMA_G +
           colors[i * 3 + 2] * LUMA_B);
 
-      let flicker = 1;
-      if (flags[i] & LIGHT_FLAG_FLICKER) {
-        const t = timeMs * 0.001 * flickers[i * 4] * 6.28318;
-        const phase = flickers[i * 4 + 2];
-        const wobble =
-          Math.sin(t + phase) * Math.sin(t * 0.531 + phase * 1.7) * 0.5 + 0.5;
-        flicker = 1 - flickers[i * 4 + 1] * wobble;
-      }
-
       // Masked lights (and shadow-requesting statics, whose atlas map the
       // CPU cannot read) use the flood mask as their occlusion term.
       let occlusion = 1;
@@ -781,7 +802,7 @@ export class LightClusterGrid {
         slotWeight *
         intensities[i] *
         shares[i] *
-        falloff *
+        litFalloff *
         angular *
         flicker *
         occlusion;

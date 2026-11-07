@@ -42,6 +42,7 @@ import {
 } from "./types";
 
 export * from "./types";
+export { sampleFlicker } from "./flicker";
 export {
   LightSourceRegistry,
   LIGHT_FLAG_STATIC,

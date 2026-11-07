@@ -29,6 +29,7 @@ import {
   sqrt,
   vec2,
   vec3,
+  vec4,
 } from "three/tsl";
 
 import type { LocalLightAirlight } from "../local-lights/airlight";
@@ -41,6 +42,16 @@ import {
   SLOT_ROW_MASK,
   SLOT_WEIGHT_SHIFT,
 } from "../local-lights/clustering";
+import {
+  FLICKER_GUTTER_DEPTH,
+  FLICKER_GUTTER_EDGES,
+  FLICKER_GUTTER_ENVELOPES,
+  FLICKER_PARTIALS,
+  FLICKER_SHIVER_PER_AMPLITUDE,
+  FLICKER_SHIVER_SINK,
+  FLICKER_SHIVER_X,
+  FLICKER_SHIVER_Z,
+} from "../local-lights/flicker";
 import {
   BLOCK_LIGHT_OWNERSHIP_GAIN,
   FLUID_SPECULAR_LIGHTS_PER_CELL,
@@ -236,7 +247,12 @@ export function localLightShading(
           for (let layer = 0; layer < 2; layer++) {
             const bit = int(1).shiftLeft(face.add(layer * 6));
             If(masks.bitAnd(bit).notEqual(0), () => {
-              const cell = float(slot.mul(12).add(layer * 6).add(face));
+              const cell = float(
+                slot
+                  .mul(12)
+                  .add(layer * 6)
+                  .add(face),
+              );
               const baseUv = vec2(mod(cell, perRow), floor(cell.div(perRow)))
                 .mul(cellPx)
                 .add(clamped.mul(cellPx))
@@ -247,9 +263,7 @@ export function localLightShading(
                   glUvToTargetUv(baseUv.add(vec2(tx, ty).mul(texel))),
                 ).r;
                 const stored = perspectiveDepthToViewZ(depth, near, far);
-                hits = hits.add(
-                  select(w.sub(bias).greaterThan(stored), 0, 1),
-                );
+                hits = hits.add(select(w.sub(bias).greaterThan(stored), 0, 1));
               }
               occlusion.assign(min(occlusion, hits.mul(0.25)));
             });
@@ -287,7 +301,8 @@ export function localLightShading(
       cell.mod(GRID_CELLS_PER_ROW).mul(perCell).add(s),
       cell.div(GRID_CELLS_PER_ROW),
     );
-    const texture = perCell === MAX_LIGHTS_PER_CELL ? g.lightGrid : g.lightOverflow;
+    const texture =
+      perCell === MAX_LIGHTS_PER_CELL ? g.lightGrid : g.lightOverflow;
     const value = texture.load(coord).r.toUint();
     return {
       row: int(value.bitAnd(SLOT_ROW_MASK)),
@@ -295,15 +310,43 @@ export function localLightShading(
     };
   };
 
-  const flicker = (t3: Vec4Node): FloatNode => {
-    const t = world.time.mul(0.001).mul(t3.x).mul(Math.PI * 2);
-    const wobble = t
-      .add(t3.z)
-      .sin()
-      .mul(t.mul(0.531).add(t3.z.mul(1.7)).sin())
-      .mul(0.5)
-      .add(0.5);
-    return t3.y.mul(wobble).oneMinus();
+  /**
+   * A flickering light's [intensity scale, origin offset xyz]: the curve of
+   * `sampleFlicker` (local-lights/flicker.ts), term for term.
+   */
+  const flicker = (t3: Vec4Node): Vec4Node => {
+    // Radians per unit ratio: 2π × cycles, cycles = seconds × speed.
+    const t = world.time
+      .mul(0.001)
+      .mul(t3.x)
+      .mul(Math.PI * 2);
+    const phase = t3.z;
+    const amplitude = t3.y;
+    const wave = (ratio: number, phaseMul: number): FloatNode =>
+      t.mul(ratio).add(phase.mul(phaseMul)).sin();
+
+    let sum: FloatNode = float(0);
+    for (const [ratio, phaseMul, weight] of FLICKER_PARTIALS) {
+      sum = sum.add(wave(ratio, phaseMul).mul(weight));
+    }
+    const breath = sum.mul(0.5).add(0.5);
+    let envelope: FloatNode = float(1);
+    for (const [ratio, phaseMul] of FLICKER_GUTTER_ENVELOPES) {
+      envelope = envelope.mul(wave(ratio, phaseMul));
+    }
+    const gutter = smoothstep(
+      FLICKER_GUTTER_EDGES[0],
+      FLICKER_GUTTER_EDGES[1],
+      envelope,
+    );
+    const dim = amplitude.mul(breath.add(gutter.mul(FLICKER_GUTTER_DEPTH)));
+    const radius = amplitude.mul(FLICKER_SHIVER_PER_AMPLITUDE);
+    return vec4(
+      max(dim.oneMinus(), 0),
+      radius.mul(wave(FLICKER_SHIVER_X[0], FLICKER_SHIVER_X[1])),
+      radius.mul(-FLICKER_SHIVER_SINK).mul(breath.sub(0.5)),
+      radius.mul(wave(FLICKER_SHIVER_Z[0], FLICKER_SHIVER_Z[1])),
+    ) as unknown as Vec4Node;
   };
 
   /**
@@ -347,6 +390,18 @@ export function localLightShading(
       const len2 = max(dot(axis, axis), 1e-6);
       const t = clamp(dot(pos.sub(t0.xyz), axis).div(len2), 0, 1);
       origin.assign(t0.xyz.add(axis.mul(t)));
+    });
+    // A flame breathes and shivers: its brightness and, by a few
+    // centimetres, the point its light leaves from. Only the lit colour
+    // moves: the claim (and so the flood it hands back) and the shadow map
+    // keep the real origin, so the shimmer is never cancelled or cut.
+    const isFlickering = flags.bitAnd(FLAG_FLICKER).notEqual(0);
+    const flickerScale = float(1).toVar();
+    const shiver = vec3(0).toVar();
+    If(isFlickering, () => {
+      const f = flicker(record(rec, 3));
+      flickerScale.assign(f.x);
+      shiver.assign(f.yzw);
     });
 
     const toLight = origin.sub(pos);
@@ -394,14 +449,31 @@ export function localLightShading(
         claim.addAssign(
           fall.mul(angular).mul(slotWeight).mul(luminance709(t1.xyz)),
         );
-        const lambert = max(dot(normal, l), 0)
+        const litFall = fall.toVar();
+        const litDir = l.toVar();
+        If(isFlickering, () => {
+          const moved = toLight.add(shiver);
+          const movedD2 = dot(moved, moved);
+          const movedDist = sqrt(max(movedD2, 1e-6));
+          litDir.assign(moved.div(movedDist));
+          litFall.assign(
+            blockLightKernelFalloff(
+              select(
+                isMasked,
+                max(
+                  movedDist,
+                  abs(moved.x).add(abs(moved.y)).add(abs(moved.z)),
+                ),
+                movedDist,
+              ),
+              max(movedD2, mountCore.mul(mountCore)),
+              range,
+            ),
+          );
+        });
+        const lambert = max(dot(normal, litDir), 0)
           .mul(1 - LAMBERT_WRAP)
           .add(LAMBERT_WRAP);
-        const flickerScale = select(
-          flags.bitAnd(FLAG_FLICKER).notEqual(0),
-          flicker(record(rec, 3)),
-          1,
-        );
         // Occlusion ladder, first rung: a masked light takes the shared
         // flood mask; a shadow holder composes its atlas on top of it.
         const occlusion = select(isMasked, mask, 1);
@@ -420,7 +492,7 @@ export function localLightShading(
         lit.assign(
           t1.xyz
             .mul(
-              fall
+              litFall
                 .mul(angular)
                 .mul(lambert)
                 .mul(flickerScale)
@@ -505,31 +577,30 @@ export function localLightShading(
       if (slotLimit >= MAX_LIGHTS_PER_CELL) {
         // The cell's overflow: every light reaching it past its slots, lit
         // the same way minus the shadow map, so a full cell draws no line.
-        Loop(
-          { start: int(0), end: int(OVERFLOW_SLOTS_PER_CELL) },
-          ({ i }) => {
-            const slot = slotOf(cell, i, OVERFLOW_SLOTS_PER_CELL);
-            If(slot.row.equal(0), () => {
-              Break();
-            });
-            total.addAssign(
-              response(
-                slot.row.sub(1),
-                pos,
-                normal,
-                mask,
-                slot.weight,
-                claim,
-                lightHue,
-              ),
-            );
-          },
-        );
+        Loop({ start: int(0), end: int(OVERFLOW_SLOTS_PER_CELL) }, ({ i }) => {
+          const slot = slotOf(cell, i, OVERFLOW_SLOTS_PER_CELL);
+          If(slot.row.equal(0), () => {
+            Break();
+          });
+          total.addAssign(
+            response(
+              slot.row.sub(1),
+              pos,
+              normal,
+              mask,
+              slot.weight,
+              claim,
+              lightHue,
+            ),
+          );
+        });
       }
       // A true crossfade between the owned frame (analytic + its unfaded
       // remainder's flood) and the plain flood frame, by the same rim fade
       // the analytic light rides, so block light stays continuous.
-      const floodSmooth = blockLightCurve1Node(max(max(flood.x, flood.y), flood.z));
+      const floodSmooth = blockLightCurve1Node(
+        max(max(flood.x, flood.y), flood.z),
+      );
       const owned = clamp(
         claim
           .mul(g.ownership)
@@ -615,7 +686,12 @@ export function localLightShading(
    * through a wall, faded by the window rim like the diffuse response.
    */
   const specular = Fn(
-    ([pos, normal, viewDir, flood]: [Vec3Node, Vec3Node, Vec3Node, Vec3Node]) => {
+    ([pos, normal, viewDir, flood]: [
+      Vec3Node,
+      Vec3Node,
+      Vec3Node,
+      Vec3Node,
+    ]) => {
       const total = vec3(0).toVar();
       const cell = cellOf(pos);
       If(
@@ -634,7 +710,16 @@ export function localLightShading(
               });
               const rec = slot.row.sub(1);
               const t0 = record(rec, 0);
-              const toLight = t0.xyz.sub(pos);
+              const t1 = record(rec, 1);
+              // The glint breathes and shivers with the flame's diffuse.
+              const origin = vec3(t0.xyz).toVar();
+              const flickerScale = float(1).toVar();
+              If(flagsOf(t1).bitAnd(FLAG_FLICKER).notEqual(0), () => {
+                const f = flicker(record(rec, 3));
+                flickerScale.assign(f.x);
+                origin.addAssign(f.yzw);
+              });
+              const toLight = origin.sub(pos);
               const d2 = dot(toLight, toLight);
               const range = t0.w;
               If(d2.greaterThanEqual(range.mul(range)), () => {
@@ -645,14 +730,19 @@ export function localLightShading(
               const half = normalize(toLight.div(dist).add(viewDir));
               let spec: FloatNode = max(dot(normal, half), 0);
               for (let k = 0; k < 5; k++) spec = spec.mul(spec);
-              const t1 = record(rec, 1);
               const occlusion = select(
                 flagsOf(t1).bitAnd(FLAG_MASKED).notEqual(0),
                 mask,
                 1,
               );
               total.addAssign(
-                t1.xyz.mul(spec.mul(fall).mul(occlusion).mul(slot.weight)),
+                t1.xyz.mul(
+                  spec
+                    .mul(fall)
+                    .mul(occlusion)
+                    .mul(flickerScale)
+                    .mul(slot.weight),
+                ),
               );
             },
           );
@@ -689,15 +779,12 @@ export function localLightShading(
             color.assign(base.mul(0.2));
           }).Else(() => {
             const count = int(0).toVar();
-            Loop(
-              { start: int(0), end: int(MAX_LIGHTS_PER_CELL) },
-              ({ i }) => {
-                If(slotOf(cell, i, MAX_LIGHTS_PER_CELL).row.equal(0), () => {
-                  Break();
-                });
-                count.addAssign(1);
-              },
-            );
+            Loop({ start: int(0), end: int(MAX_LIGHTS_PER_CELL) }, ({ i }) => {
+              If(slotOf(cell, i, MAX_LIGHTS_PER_CELL).row.equal(0), () => {
+                Break();
+              });
+              count.addAssign(1);
+            });
             const ramp = select(
               count.equal(0),
               vec3(0.05),
@@ -727,52 +814,49 @@ export function localLightShading(
           }).Else(() => {
             const tint = base.mul(0.15).toVar();
             const visAll = float(1).toVar();
-            Loop(
-              { start: int(0), end: int(MAX_LIGHTS_PER_CELL) },
-              ({ i }) => {
-                const slot = slotOf(cell, i, MAX_LIGHTS_PER_CELL);
-                If(slot.row.equal(0), () => {
-                  Break();
-                });
-                const rec = slot.row.sub(1);
-                const t1 = record(rec, 1);
-                const flags = flagsOf(t1);
-                const t0 = record(rec, 0);
-                const toLight = t0.xyz.sub(pos);
-                If(
-                  flags
-                    .bitAnd(FLAG_SHADOWED)
-                    .equal(0)
-                    .or(dot(toLight, toLight).greaterThanEqual(t0.w.mul(t0.w))),
-                  () => {
-                    Continue();
-                  },
-                );
-                const shape = flags.shiftRight(SHAPE_SHIFT);
-                const spotDir = select(
-                  shape.equal(SHAPE_SPOT),
-                  record(rec, 2).xyz,
-                  vec3(0),
-                );
-                const vis = shadow(rec, pos, normal, shape, t0.xyz, spotDir);
-                visAll.mulAssign(vis);
-                const slotIndex = int(floor(record(rec, 4).x.add(0.5)));
-                const slotColor = select(
-                  slotIndex.equal(0),
-                  vec3(1, 0.3, 0.2),
+            Loop({ start: int(0), end: int(MAX_LIGHTS_PER_CELL) }, ({ i }) => {
+              const slot = slotOf(cell, i, MAX_LIGHTS_PER_CELL);
+              If(slot.row.equal(0), () => {
+                Break();
+              });
+              const rec = slot.row.sub(1);
+              const t1 = record(rec, 1);
+              const flags = flagsOf(t1);
+              const t0 = record(rec, 0);
+              const toLight = t0.xyz.sub(pos);
+              If(
+                flags
+                  .bitAnd(FLAG_SHADOWED)
+                  .equal(0)
+                  .or(dot(toLight, toLight).greaterThanEqual(t0.w.mul(t0.w))),
+                () => {
+                  Continue();
+                },
+              );
+              const shape = flags.shiftRight(SHAPE_SHIFT);
+              const spotDir = select(
+                shape.equal(SHAPE_SPOT),
+                record(rec, 2).xyz,
+                vec3(0),
+              );
+              const vis = shadow(rec, pos, normal, shape, t0.xyz, spotDir);
+              visAll.mulAssign(vis);
+              const slotIndex = int(floor(record(rec, 4).x.add(0.5)));
+              const slotColor = select(
+                slotIndex.equal(0),
+                vec3(1, 0.3, 0.2),
+                select(
+                  slotIndex.equal(1),
+                  vec3(0.2, 1, 0.3),
                   select(
-                    slotIndex.equal(1),
-                    vec3(0.2, 1, 0.3),
-                    select(
-                      slotIndex.equal(2),
-                      vec3(0.25, 0.4, 1),
-                      vec3(1, 0.9, 0.2),
-                    ),
+                    slotIndex.equal(2),
+                    vec3(0.25, 0.4, 1),
+                    vec3(1, 0.9, 0.2),
                   ),
-                );
-                tint.addAssign(slotColor.mul(vis.mul(0.8).add(0.2)).mul(0.6));
-              },
-            );
+                ),
+              );
+              tint.addAssign(slotColor.mul(vis.mul(0.8).add(0.2)).mul(0.6));
+            });
             color.assign(select(mode.lessThan(4.5), tint, vec3(visAll)));
           });
         });

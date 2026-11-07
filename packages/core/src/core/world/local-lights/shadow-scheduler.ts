@@ -41,6 +41,17 @@ const FULL_FACE_MASK = 0b111111;
 /** Conservative world-space radius of an entity caster, in blocks. */
 const ENTITY_CASTER_RADIUS = 1.6;
 
+/**
+ * A caster whose body holds its light casts nothing in that light: seen from
+ * inside a player's legs (standing on a torch), the body fills whole cube
+ * faces and throws giant blown-up shadows across the walls and ceiling. The
+ * body's bounds count with this margin (blocks), so a light brushing a hip
+ * or a shoulder lets go too; at that range a shadow is all smear anyway.
+ */
+const LIGHT_INSIDE_CASTER_MARGIN = 0.25;
+/** Only entities whose origin is this close (blocks) get their bounds read. */
+const LIGHT_INSIDE_CASTER_REACH = 3;
+
 /** Anchor movement (blocks) beyond which a moving light's maps are stale. */
 const MOVE_EPSILON = 0.01;
 
@@ -186,6 +197,15 @@ export class LocalShadowScheduler {
   /** Clears one atlas cell: a WebGPU clear would wipe the whole atlas. */
   private readonly cellClear = new ScissoredDepthClear();
   private readonly borrowedCasters: Object3D[] = [];
+  /**
+   * Each entity's world bounds, read at most once per shadow frame (and only
+   * for an entity right beside a light), for {@link bodyHoldsLight}.
+   */
+  private readonly bodyBounds = new WeakMap<
+    Object3D,
+    { frame: number; box: Box3 }
+  >();
+  private bodyFrame = 0;
   private readonly hiddenObjects: { object: Object3D; visible: boolean }[] = [];
   private readonly poolMaterialSwaps: {
     mesh: Mesh;
@@ -875,6 +895,7 @@ export class LocalShadowScheduler {
    * the CSM far cascades or the static FIFO.
    */
   estimateDynamicDemand(entities?: Object3D[]): number {
+    this.bodyFrame++;
     let faces = 0;
     for (const slot of this.slots) {
       if (slot.index < 0) continue;
@@ -966,6 +987,7 @@ export class LocalShadowScheduler {
     poolBounds?: readonly (Box3 | null)[],
   ): void {
     if (this.activeSlotCount === 0) return;
+    this.bodyFrame++;
 
     const start = performance.now();
     const isNewAtlas = !this.atlas.isAllocated;
@@ -1227,7 +1249,12 @@ export class LocalShadowScheduler {
         const roots = this.worldCellRoots;
         roots.length = 0;
         this.getStaticCasterRoots(slot.x, slot.y, slot.z, slot.far, roots);
-        this.worldCellCasters.render(renderer, camera, roots, this.depthMaterial);
+        this.worldCellCasters.render(
+          renderer,
+          camera,
+          roots,
+          this.depthMaterial,
+        );
         roots.length = 0;
       } else {
         // Entity casters live exclusively in the per-frame dynamic overlay.
@@ -1274,8 +1301,7 @@ export class LocalShadowScheduler {
       const near = this.borrowedCasters;
       near.length = 0;
       for (const entity of casters.entities) {
-        if (entity.userData.castsShadow === false) continue;
-        if (!this.isEntityNearSlot(slot, entity)) continue;
+        if (!this.castsInSlot(slot, entity)) continue;
         near.push(entity);
       }
       this.casterBatch.render(
@@ -1328,6 +1354,46 @@ export class LocalShadowScheduler {
     swaps.length = 0;
   }
 
+  /**
+   * Whether an entity draws into this light's overlay: a caster, in reach,
+   * and not wrapped around the light itself. The fingerprint and the draw
+   * share this, so a face holding only such a body renders nothing.
+   */
+  private castsInSlot(slot: ShadowSlot, entity: Object3D): boolean {
+    if (entity.userData.castsShadow === false) return false;
+    if (!this.isEntityNearSlot(slot, entity)) return false;
+    return !this.bodyHoldsLight(slot, entity);
+  }
+
+  /** The light sits inside the entity's bounds (plus the margin). */
+  private bodyHoldsLight(slot: ShadowSlot, entity: Object3D): boolean {
+    const dx = entity.position.x - slot.x;
+    const dy = entity.position.y - slot.y;
+    const dz = entity.position.z - slot.z;
+    const reach = LIGHT_INSIDE_CASTER_REACH;
+    if (dx * dx + dy * dy + dz * dz > reach * reach) return false;
+    let cached = this.bodyBounds.get(entity);
+    if (cached === undefined) {
+      cached = { frame: -1, box: new Box3() };
+      this.bodyBounds.set(entity, cached);
+    }
+    if (cached.frame !== this.bodyFrame) {
+      cached.box.setFromObject(entity);
+      cached.frame = this.bodyFrame;
+    }
+    const box = cached.box;
+    const m = LIGHT_INSIDE_CASTER_MARGIN;
+    return (
+      !box.isEmpty() &&
+      slot.x >= box.min.x - m &&
+      slot.x <= box.max.x + m &&
+      slot.y >= box.min.y - m &&
+      slot.y <= box.max.y + m &&
+      slot.z >= box.min.z - m &&
+      slot.z <= box.max.z + m
+    );
+  }
+
   private isEntityNearSlot(slot: ShadowSlot, entity: Object3D): boolean {
     const dx = entity.position.x - slot.x;
     const dy = entity.position.y - slot.y;
@@ -1366,8 +1432,7 @@ export class LocalShadowScheduler {
     const fz = slot.isSpot ? slot.dirZ : fwd[2];
     let hash = 0;
     for (const entity of entities) {
-      if (entity.userData.castsShadow === false) continue;
-      if (!this.isEntityNearSlot(slot, entity)) continue;
+      if (!this.castsInSlot(slot, entity)) continue;
       const rx = entity.position.x - slot.x;
       const ry = entity.position.y - slot.y;
       const rz = entity.position.z - slot.z;
