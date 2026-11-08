@@ -20,7 +20,11 @@ import {
   createEntityShadowBody,
   type EntityShadowBody,
 } from "../core/world/entity-shadow-uniforms";
-import { AnimationUtils, MathUtils as VoxMathUtils } from "../utils";
+import {
+  AnimationUtils,
+  MathUtils as VoxMathUtils,
+  releaseObject,
+} from "../utils";
 
 import { BoxLayer, CanvasBox, CanvasBoxOptions } from "./canvas-box";
 import { HeadLedBody, HeadLedBodyOptions } from "./head-led-body";
@@ -1466,13 +1470,18 @@ export class Character extends Group {
    * Free the GPU resources this character owns: every canvas box layer
    * under it (its six body parts and any hat, cape or extra hung on them)
    * and every sprite label (the nametag, a speech bubble). Objects held in
-   * the hands are left alone: they are usually clones of cached block
-   * meshes that share geometry and materials with the rest of the world.
+   * the hands keep their resources: they are usually clones of cached block
+   * meshes that share geometry and materials with the rest of the world
+   * (only the renderer's state for them is released).
    * Call once, after the character has left the scene for good.
    */
   dispose() {
     const visit = (object: Object3D) => {
-      if (object.name === HELD_OBJECT_NAME) return;
+      if (object.name === HELD_OBJECT_NAME) {
+        // Not its to free, but the renderer must let it go.
+        releaseObject(object);
+        return;
+      }
       if (object instanceof BoxLayer || object instanceof SpriteText) {
         object.dispose();
       }
@@ -1500,6 +1509,9 @@ export class Character extends Group {
     const existingObject = armGroup.getObjectByName(objectName);
     if (existingObject) {
       armGroup.remove(existingObject);
+      // It shares cached materials, so nothing else would free the
+      // renderer's state for it.
+      releaseObject(existingObject);
     }
 
     if (object) {

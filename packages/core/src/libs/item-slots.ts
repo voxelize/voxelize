@@ -27,7 +27,7 @@ import {
 import { CameraPerspective, noop } from "../common";
 import { Inputs } from "../core/inputs";
 import { textureSlot } from "../core/world/shading/uniforms";
-import { DOMUtils, ThreeUtils } from "../utils";
+import { DOMUtils, releaseObject, ThreeUtils } from "../utils";
 
 const scratchClearColor = new Color();
 
@@ -207,6 +207,10 @@ export class ItemSlot<T = number> {
       this.scene.remove(this.object);
       if (this.ownsObjectResources) {
         disposeObjectResources(this.object);
+      } else if (ThreeUtils.isObject3D(this.object)) {
+        // The caller's object (often on shared or cached materials): free
+        // the renderer's state for it, nothing it shares.
+        releaseObject(this.object);
       }
       this.ownsObjectResources = false;
     }
@@ -245,6 +249,8 @@ export class ItemSlot<T = number> {
   disposeObject = () => {
     if (this.ownsObjectResources) {
       disposeObjectResources(this.object);
+    } else if (this.object) {
+      releaseObject(this.object);
     }
     this.object = undefined;
     this.ownsObjectResources = false;
@@ -861,7 +867,11 @@ export class ItemSlots<T = number> {
     if (!renderer) return;
     const target = this.canvasTarget;
     if (this.canvas.width === 0 || this.canvas.height === 0) {
-      target.setSize(1 / target.getPixelRatio(), 1 / target.getPixelRatio(), false);
+      target.setSize(
+        1 / target.getPixelRatio(),
+        1 / target.getPixelRatio(),
+        false,
+      );
     }
     const previousCanvas = renderer.getCanvasTarget();
     const previousTarget = renderer.getRenderTarget();

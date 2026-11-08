@@ -4,7 +4,17 @@ import {
   EntityProtocol,
   MessageProtocol,
 } from "@voxelize/protocol";
-import { type Camera, Frustum, Group, Matrix4, Sphere, Vector3 } from "three/webgpu";
+import {
+  type Camera,
+  Frustum,
+  Group,
+  Matrix4,
+  Sphere,
+  Vector3,
+} from "three/webgpu";
+
+import { SpriteText } from "../libs/sprite-text";
+import { releaseObject } from "../utils/three-utils";
 
 import { EntityLivenessTracker } from "./entity-liveness";
 import { NetIntercept } from "./network";
@@ -689,6 +699,15 @@ export class Entities extends Group implements NetIntercept {
 
     object.parent?.remove(object);
     object.onDelete?.(metadata);
+    // Whatever the entity's own cleanup did, nothing under it is drawn
+    // again: its labels are freed, and the renderer is told to let go of
+    // every drawable (meshes on shared materials no one disposes, a name
+    // tag drawn once): otherwise each entity that ever walked out of range
+    // stayed alive behind its render objects.
+    object.traverse((child) => {
+      if (child instanceof SpriteText) child.dispose();
+    });
+    releaseObject(object);
   };
 
   /**

@@ -1,6 +1,17 @@
 import { EntityMotionProtocol, MessageProtocol } from "@voxelize/protocol";
-import { Group, PerspectiveCamera, Vector3 } from "three/webgpu";
+import {
+  BoxGeometry,
+  Group,
+  Mesh,
+  MeshBasicNodeMaterial,
+  PerspectiveCamera,
+  Sprite,
+  SpriteNodeMaterial,
+  Vector3,
+} from "three/webgpu";
 import { describe, expect, it, vi } from "vitest";
+
+import { SpriteText } from "../libs/sprite-text";
 
 import { Entities, Entity, ON_REQUEST_METADATA_METHOD } from "./entities";
 
@@ -81,6 +92,42 @@ describe("Entities interest lifecycle", () => {
     entities.onMessage(entityMessage("OUT_OF_RANGE", "a", null));
     expect(entities.getEntityById("a")).toBeUndefined();
     expect(probe.deleteCount).toBe(1);
+  });
+
+  it("lets the renderer go of everything under a released entity", () => {
+    // three's WebGPU renderer frees a drawable's render state only on the
+    // drawable's (or its material's) dispose event; an entity's meshes
+    // often wear shared materials no one disposes, and a drawn name tag
+    // kept the entity alive. Release fires it for the whole tree and frees
+    // the labels, whatever the entity's own onDelete did.
+    const entities = makeEntities();
+    entities.onMessage(entityMessage("CREATE", "a"));
+    const probe = entities.getEntityById("a") as ProbeEntity;
+    const shared = new MeshBasicNodeMaterial();
+    let sharedFreed = false;
+    shared.addEventListener("dispose", () => {
+      sharedFreed = true;
+    });
+    const body = new Mesh(new BoxGeometry(), shared);
+    probe.add(body);
+    // A label without a canvas (no DOM here): a sprite of SpriteText's kind.
+    const tag = new Sprite(new SpriteNodeMaterial()) as SpriteText;
+    Object.setPrototypeOf(tag, SpriteText.prototype);
+    probe.add(tag);
+    let bodyReleased = false;
+    (body as unknown as Group).addEventListener("dispose" as never, () => {
+      bodyReleased = true;
+    });
+    let tagFreed = false;
+    tag.material.addEventListener("dispose", () => {
+      tagFreed = true;
+    });
+
+    entities.onMessage(entityMessage("OUT_OF_RANGE", "a", null));
+
+    expect(bodyReleased).toBe(true);
+    expect(tagFreed).toBe(true);
+    expect(sharedFreed).toBe(false);
   });
 
   it("resyncs an existing entity when the server re-creates it", () => {

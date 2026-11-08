@@ -1,4 +1,3 @@
-import * as THREE from "three/webgpu";
 import {
   dot,
   mat3,
@@ -11,6 +10,7 @@ import {
   vec3,
   vec4,
 } from "three/tsl";
+import * as THREE from "three/webgpu";
 
 import { Inputs } from "../core/inputs";
 import {
@@ -23,7 +23,7 @@ import { entityLightOriginalOf } from "../core/world/shading/entity-light";
 import { entityShadow } from "../core/world/shading/entity-shadow";
 import type { Vec4Node } from "../core/world/shading/types";
 import { ownUniform } from "../core/world/shading/uniforms";
-import { AnimationUtils } from "../utils";
+import { AnimationUtils, releaseObject } from "../utils";
 
 import { CanvasBox } from "./canvas-box";
 import { defaultArmsOptions } from "./character";
@@ -374,7 +374,11 @@ export class Arm extends THREE.Group {
 
     if (receiveArmShadows) {
       this.traverse((child) => {
-        if (child instanceof CanvasBox && child.shadowBody && child.shadowBody !== body) {
+        if (
+          child instanceof CanvasBox &&
+          child.shadowBody &&
+          child.shadowBody !== body
+        ) {
           child.setShadowBody(body);
         }
       });
@@ -440,7 +444,7 @@ export class Arm extends THREE.Group {
     this.restartBlendLeft = 0;
 
     if (!animate) {
-      this.clear();
+      this.dropCurrent();
 
       if (customType) {
         this.setCustomObject(customType, object);
@@ -474,6 +478,22 @@ export class Arm extends THREE.Group {
       }
     }
   };
+
+  /**
+   * Let the object in hand go. The bare arm is the arm's own, so its
+   * canvases and materials go with it. A held object wears the arm's cached
+   * copies of shared materials (kept for the next equip) and often shares
+   * its geometry with the world's block meshes, so only the renderer's state
+   * for it is released (`releaseObject`): dropped without that, every swap
+   * left the outgoing object alive behind its render objects.
+   */
+  private dropCurrent() {
+    for (const child of [...this.children]) {
+      if (child instanceof CanvasBox) child.dispose();
+      releaseObject(child);
+    }
+    this.clear();
+  }
 
   private setArm = () => {
     const arm = new CanvasBox({
@@ -728,7 +748,7 @@ export class Arm extends THREE.Group {
 
         // When reaching the bottom, switch to the new object
         if (progress >= 1) {
-          this.clear();
+          this.dropCurrent();
 
           // Set up the new object
           if (this.pendingCustomType) {

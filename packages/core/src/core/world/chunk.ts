@@ -1,8 +1,9 @@
 import { ChunkProtocol } from "@voxelize/protocol";
-import { EventDispatcher, Group, Mesh } from "three/webgpu";
+import { Group, Mesh } from "three/webgpu";
 
 import { ChunkSharedPool } from "../../libs/chunk-shared-pool";
 import { Coords2 } from "../../types";
+import { releaseObject } from "../../utils/three-utils";
 
 import { RawChunk, RawChunkOptions } from "./raw-chunk";
 
@@ -25,11 +26,7 @@ export function releaseChunkMesh(mesh: Mesh): void {
   mesh.removeFromParent();
   // Its children too: the layers drawn off it (a window's lifted pane, a
   // see-through layer) share its buffers and go with it.
-  mesh.traverse((object) =>
-    (object as unknown as EventDispatcher<{ dispose: object }>).dispatchEvent({
-      type: "dispose",
-    }),
-  );
+  releaseObject(mesh);
 }
 
 /**
