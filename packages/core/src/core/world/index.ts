@@ -110,7 +110,7 @@ import { BlockAnimations } from "./block-animations";
 import { BlockEntityLedger } from "./block-entity-ledger";
 import { BorderSwapHold } from "./border-swap-hold";
 import { branchAABBsAt, branchHoldsWater } from "./branch";
-import { Chunk } from "./chunk";
+import { Chunk, releaseChunkMesh } from "./chunk";
 import {
   mergeSectionGeometries,
   ownMergeStorage,
@@ -8006,8 +8006,7 @@ export class World<T = any> extends Scene implements NetIntercept {
         const mesh = oldMeshes[i];
         if (mesh) {
           this.csmRenderer?.removeSkipShadowObject(mesh);
-          mesh.geometry.dispose();
-          chunk.group.remove(mesh);
+          releaseChunkMesh(mesh);
         }
       }
     }

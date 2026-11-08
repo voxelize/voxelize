@@ -1,10 +1,36 @@
 import { ChunkProtocol } from "@voxelize/protocol";
-import { Group, Mesh } from "three/webgpu";
+import { EventDispatcher, Group, Mesh } from "three/webgpu";
 
 import { ChunkSharedPool } from "../../libs/chunk-shared-pool";
 import { Coords2 } from "../../types";
 
 import { RawChunk, RawChunkOptions } from "./raw-chunk";
+
+/**
+ * Let a chunk mesh go for good: its geometry freed, it taken out of the
+ * scene, and the renderer told the mesh itself is gone.
+ *
+ * three's WebGPU renderer keeps a render object (bindings, pipeline state,
+ * node uniforms, a listener on the material) for every mesh it has drawn,
+ * in a set it only empties when the mesh, its material or its lights fire
+ * `dispose`. Disposing the geometry alone leaves the render object, and
+ * through it the mesh and its geometry, alive for as long as the page.
+ * Chunk materials are the world's shared block materials and must not be
+ * disposed (see {@link Chunk.dispose}), so the mesh's own `dispose` event is
+ * what frees it. Without it every chunk mesh ever built stayed in memory:
+ * walking leaked about 10 MB a minute, a long teleport tour 75 MB a lap.
+ */
+export function releaseChunkMesh(mesh: Mesh): void {
+  mesh.geometry?.dispose();
+  mesh.removeFromParent();
+  // Its children too: the layers drawn off it (a window's lifted pane, a
+  // see-through layer) share its buffers and go with it.
+  mesh.traverse((object) =>
+    (object as unknown as EventDispatcher<{ dispose: object }>).dispatchEvent({
+      type: "dispose",
+    }),
+  );
+}
 
 /**
  * A container whose contents never move once they are in it. It skips the
@@ -100,11 +126,7 @@ export class Chunk extends RawChunk {
         // fluid shader while only water was on screen — recompiled and
         // relinked it from source: a hitch on every chunk unload, paid
         // most often exactly where chunks churn fastest, out at sea.
-        subMesh.geometry?.dispose();
-
-        if (subMesh.parent) {
-          subMesh.parent.remove(subMesh);
-        }
+        releaseChunkMesh(subMesh);
       });
     });
     this.meshes.clear();
