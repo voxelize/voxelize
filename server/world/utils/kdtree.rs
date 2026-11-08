@@ -7,10 +7,39 @@ use crate::Vec3;
 
 type EntityId = u32;
 
+/// Where an entity sits in the tree: its position nudged by a few float
+/// steps per axis, picked from its id.
+///
+/// kiddo cannot split a full leaf whose points share one value on the
+/// split axis: past the bucket size it panics ("Too many items with the
+/// same position on one axis"), and the panic takes the whole world's
+/// actor down with it. A world full of things set on one floor, or lined up
+/// along one wall, has hundreds of entities at exactly the same y or x. The
+/// nudge (at most 15 steps of a few ulps, under a hundredth of a block
+/// within a thousand blocks of the origin) makes ties vanish while keeping
+/// every query's answer to well inside a voxel; `positions` keeps the exact
+/// value for callers.
+fn tree_key(ent_id: EntityId, pos: [f32; 3]) -> [f32; 3] {
+    let mut h = ent_id.wrapping_mul(0x9E37_79B1) ^ 0x85EB_CA6B;
+    let mut out = pos;
+    for v in out.iter_mut() {
+        h ^= h >> 15;
+        h = h.wrapping_mul(0x2C1B_3C6D);
+        h ^= h >> 12;
+        let level = (h & 15) as f32;
+        // Four ulps of the value's own magnitude: never rounds away.
+        let step = v.abs().max(1.0) * f32::EPSILON * 4.0;
+        *v += level * step;
+    }
+    out
+}
+
 #[derive(Debug)]
 struct EntityTree {
     tree: KiddoTree<f32, EntityId, 3, 256, u16>,
     positions: HashMap<EntityId, [f32; 3]>,
+    /// The nudged point each entity was filed under (`tree_key`).
+    keys: HashMap<EntityId, [f32; 3]>,
 }
 
 impl EntityTree {
@@ -18,31 +47,35 @@ impl EntityTree {
         Self {
             tree: KiddoTree::new(),
             positions: HashMap::new(),
+            keys: HashMap::new(),
         }
     }
 
     fn add(&mut self, ent_id: EntityId, pos: [f32; 3]) {
-        self.tree.add(&pos, ent_id);
+        if let Some(old) = self.keys.remove(&ent_id) {
+            self.tree.remove(&old, ent_id);
+        }
+        let key = tree_key(ent_id, pos);
+        self.tree.add(&key, ent_id);
+        self.keys.insert(ent_id, key);
         self.positions.insert(ent_id, pos);
     }
 
     fn remove(&mut self, ent_id: EntityId) {
-        if let Some(pos) = self.positions.remove(&ent_id) {
-            self.tree.remove(&pos, ent_id);
+        self.positions.remove(&ent_id);
+        if let Some(key) = self.keys.remove(&ent_id) {
+            self.tree.remove(&key, ent_id);
         }
     }
 
     fn update(&mut self, ent_id: EntityId, new_pos: [f32; 3]) {
-        if let Some(old_pos) = self.positions.get(&ent_id) {
-            self.tree.remove(old_pos, ent_id);
-        }
-        self.tree.add(&new_pos, ent_id);
-        self.positions.insert(ent_id, new_pos);
+        self.add(ent_id, new_pos);
     }
 
     fn clear(&mut self) {
         self.tree = KiddoTree::new();
         self.positions.clear();
+        self.keys.clear();
     }
 
     fn contains(&self, ent_id: EntityId) -> bool {
@@ -296,5 +329,46 @@ impl KdTree {
             .into_iter()
             .filter_map(|(dist_sq, ent_id)| self.entity_map.get(&ent_id).map(|e| (dist_sq, e)))
             .collect()
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// Thousands of things standing on one floor, many along one wall:
+    /// filing them all, moving some and finding them again must not panic
+    /// (kiddo's "Too many items with the same position on one axis").
+    #[test]
+    fn many_entities_on_one_plane_do_not_panic() {
+        let mut tree = EntityTree::new();
+        let mut id = 0u32;
+        for x in 0..40 {
+            for z in 0..120 {
+                let wall_x = if z % 3 == 0 { 512.38 } else { 512.0 + x as f32 };
+                tree.add(id, [wall_x, 25.0, 300.0 + z as f32 * 0.5]);
+                id += 1;
+            }
+        }
+        for i in (0..id).step_by(7) {
+            tree.update(i, [512.38, 25.0, 1.0]);
+        }
+        let near = tree.within(&[512.38, 25.0, 1.0], 0.01);
+        assert_eq!(near.len(), (0..id).step_by(7).count());
+        for i in 0..id {
+            tree.remove(i);
+        }
+        assert_eq!(tree.tree.size(), 0);
+    }
+
+    #[test]
+    fn exact_positions_are_kept_for_callers() {
+        let mut tree = EntityTree::new();
+        tree.add(9, [1000.5, 40.0, -2000.25]);
+        assert_eq!(tree.positions.get(&9), Some(&[1000.5, 40.0, -2000.25]));
+        let key = tree.keys[&9];
+        for a in 0..3 {
+            assert!((key[a] - [1000.5f32, 40.0, -2000.25][a]).abs() < 0.02);
+        }
     }
 }
