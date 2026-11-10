@@ -1,6 +1,5 @@
 import * as THREE from "three/webgpu";
 
-
 import { BoneTextureManager } from "./bone-texture-manager";
 import { atlasSurface, EntitySurfaceOptions } from "./entity-surface";
 import {
@@ -17,13 +16,13 @@ import {
 } from "./instanced-skinned-material";
 import { measureLegLength } from "./leg-length";
 import { measureMeshTop } from "./mesh-top";
-import { packVertexBuffers } from "./vertex-buffers";
 import {
   noteLazyBake,
   peekNextRosterEntry,
   warmableRosterCount,
   warmNextRosterEntry,
 } from "./pool-warmup";
+import { packVertexBuffers } from "./vertex-buffers";
 
 /// Where a pool gets each variant's texture. The default builds it and the
 /// pool owns it; a game with a persistent atlas cache (painted once, restored
@@ -195,7 +194,7 @@ export class SkinnedInstancePool<
 
   constructor(
     config: SkinnedFamilyConfig<TVariant>,
-    maxInstancesPerVariant: number = 100,
+    maxInstancesPerVariant = 100,
   ) {
     super();
     this.config = config;
@@ -399,7 +398,7 @@ export class SkinnedInstancePool<
 
   /// A slot for one instance of `variant`, or -1 when the variant is unknown
   /// or its pool is full.
-  allocate(variant: TVariant, isBaby: boolean = false): number {
+  allocate(variant: TVariant, isBaby = false): number {
     const pool = this.getOrCreateVariantPool(variant, isBaby);
     if (!pool) return -1;
     if (pool.freeIndices.length === 0) {
@@ -496,6 +495,26 @@ export class SkinnedInstancePool<
     return { pool, slot };
   }
 
+  /// The body `globalSlot` draws: its variant's bind-pose bounds in model
+  /// space and the root transform last written by `setInstanceMatrix`
+  /// (position, heading, scale). For effects that wrap a body without knowing
+  /// its family, such as flames on a burning creature. False when the slot
+  /// is not allocated.
+  getInstanceFrame(
+    globalSlot: number,
+    matrix: THREE.Matrix4,
+    bounds: THREE.Box3,
+  ): boolean {
+    const resolved = this.resolve(globalSlot);
+    if (!resolved) return false;
+    const geometry = resolved.pool.mesh.geometry;
+    if (!geometry.boundingBox) geometry.computeBoundingBox();
+    if (!geometry.boundingBox || geometry.boundingBox.isEmpty()) return false;
+    bounds.copy(geometry.boundingBox);
+    resolved.pool.mesh.getMatrixAt(resolved.slot.localIndex, matrix);
+    return true;
+  }
+
   setInstanceMatrix(globalSlot: number, matrix: THREE.Matrix4): void {
     const resolved = this.resolve(globalSlot);
     if (!resolved) return;
@@ -584,7 +603,7 @@ export class SkinnedInstancePool<
   }
 
   /// What the family's `rigInfo` adds, over the measured facts.
-  getRigInfo(variant: TVariant, isBaby: boolean = false): TInfo | undefined {
+  getRigInfo(variant: TVariant, isBaby = false): TInfo | undefined {
     return this.getOrCreateVariantPool(variant, isBaby)?.rigInfo as
       | TInfo
       | undefined;
