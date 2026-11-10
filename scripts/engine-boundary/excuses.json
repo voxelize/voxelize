@@ -3,12 +3,12 @@
   "excuses": [
     {
       "path": "README.md",
-      "terms": ["town", "create town", "hub2", "axolotl", "dragon", "capybara", "golem", "mars"],
+      "terms": ["town", "create town", "mars", "orca", "dolphin", "villager"],
       "reason": "the showcase section credits the production world built on the engine and captions its screenshots; attribution, not engine behaviour"
     },
     {
       "path": "assets/",
-      "terms": ["town", "hub2", "zoo", "axolotl", "dragon", "capybara", "golem", "mars", "ashvulture"],
+      "terms": ["town", "hub2", "zoo", "axolotl", "dragon", "capybara", "golem", "mars", "ashvulture", "orca", "dolphin", "villager"],
       "reason": "file names of the README showcase screenshots, which depict the production world"
     },
     {

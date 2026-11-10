@@ -26,7 +26,7 @@
 
 </div>
 
-![Town, a production world built on Voxelize](assets/town-hub2-massif-4k.webp)
+![A forest of karst spires at golden hour in Town, a production world built on Voxelize](assets/town-karst-spires-golden-hour.webp)
 
 <p align="center"><i><a href="https://create.town">Town</a>, a live multiplayer world running on Voxelize in production.</i></p>
 
@@ -40,10 +40,10 @@ Voxelize powers persistent, multiplayer voxel worlds that run in any modern brow
 - **Any world generation**: define your own world generation and generate infinitely large worlds.
 
 <p align="center">
-  <img src="assets/creature-axolotl-greenhouse-pond.webp" alt="Axolotl on the bank of a terraced pond inside a glass greenhouse" />
+  <img src="assets/town-village-morning.webp" alt="A village in the morning: red-roofed houses around a green where deer graze, a villager tending garden beds, forest behind" />
 </p>
 
-<p align="center"><i>Custom blocks, instanced creatures, water, and voxel lighting in the browser.</i></p>
+<p align="center"><i>Custom blocks, instanced creatures, and voxel lighting in the browser.</i></p>
 
 ## Architecture
 
@@ -69,51 +69,106 @@ Both the server and the client are extremely optimized for performance and scala
 
 [**Town**](https://create.town) is a live, persistent multiplayer building world built on Voxelize, with custom textures, entities, and more.
 
-<p align="center">
-  <img src="assets/creature-ashen-dragon-volcano.webp" alt="Ashen dragon breathing fire on the flank of a volcano at night" />
-</p>
+<table>
+  <tr>
+    <td width="50%">
+      <img src="assets/town-skyfall-mountain.webp" alt="A waterfall dropping from a floating shelf of land onto a snow-capped mountain" /><br />
+      <sub><i>A waterfall drops from a floating shelf onto a snow peak</i></sub>
+    </td>
+    <td width="50%">
+      <img src="assets/town-sky-islands-river.webp" alt="Floating islands trailing long vines above a river plain" /><br />
+      <sub><i>Sky islands trailing vines over a river plain</i></sub>
+    </td>
+  </tr>
+  <tr>
+    <td width="50%">
+      <img src="assets/town-hoodoo-arches-sunset.webp" alt="Sandstone hoodoos and a natural arch in dry badlands at sunset" /><br />
+      <sub><i>Sandstone hoodoos and arches at sunset</i></sub>
+    </td>
+    <td width="50%">
+      <img src="assets/town-jagged-peaks-sunset.webp" alt="Jagged snow peaks above a forested valley with the sun setting behind them" /><br />
+      <sub><i>Jagged snow peaks with the sun behind them</i></sub>
+    </td>
+  </tr>
+  <tr>
+    <td width="50%">
+      <img src="assets/town-orca-dolphin-pod.webp" alt="An orca swimming under a pod of dolphins in open ocean, light shafts coming down from the surface" /><br />
+      <sub><i>An orca under a dolphin pod in open ocean</i></sub>
+    </td>
+    <td width="50%">
+      <img src="assets/town-village-lake.webp" alt="A clear shallow lake with reeds, lily pads and willows below a village" /><br />
+      <sub><i>Clear shallows, reeds, and willows below the village</i></sub>
+    </td>
+  </tr>
+</table>
 
-<p align="center"><i>Server-driven creature behavior and particle VFX over emissive volcanic terrain</i></p>
+One server hosts several worlds, each with its own generator.
 
 <table>
   <tr>
     <td width="50%">
-      <img src="assets/creature-capybara-lounge.webp" alt="Capybara lounging on open ground" /><br />
-      <sub><i>Instanced creatures with server-driven behavior (capybaras)</i></sub>
+      <img src="assets/mars-base-dusk.webp" alt="A base in a red canyon at dusk with rockets, a landing pad and domes" /><br />
+      <sub><i>Mars: rockets, a landing pad, and domes in a canyon at dusk</i></sub>
     </td>
     <td width="50%">
-      <img src="assets/mars-basalt-golem-ridge.webp" alt="Basalt golem standing on a Mars ridge" /><br />
-      <sub><i>A basalt golem on Mars</i></sub>
-    </td>
-  </tr>
-  <tr>
-    <td width="50%">
-      <img src="assets/creature-obsidian-golem.webp" alt="Obsidian golem with an emissive core under a dusk sky" /><br />
-      <sub><i>Obsidian golem with an emissive core</i></sub>
-    </td>
-    <td width="50%">
-      <img src="assets/interior-chapel-stained-glass.webp" alt="Chapel interior lit through stained-glass windows" /><br />
-      <sub><i>Colored glass, voxel lighting, and custom block geometry</i></sub>
+      <img src="assets/town-lobby-aurora.webp" alt="A treehouse on a floating island at night under a green aurora" /><br />
+      <sub><i>The floating lobby under an aurora</i></sub>
     </td>
   </tr>
   <tr>
     <td width="50%">
-      <img src="assets/underwater-tangs.webp" alt="School of tangs in an underwater exhibit" /><br />
-      <sub><i>Tropical fish and clams in my coral garden</i></sub>
+      <img src="assets/town-liminal-yellow-halls.webp" alt="An empty hall of yellow walls and pillars under ceiling light panels" /><br />
+      <sub><i>A liminal world of endless yellow halls</i></sub>
     </td>
     <td width="50%">
-      <img src="assets/vfx-hologram-row-night.webp" alt="Row of emissive creature holograms at night" /><br />
-      <sub><i>Hologram block using custom block entities</i></sub>
+      <img src="assets/town-liminal-pool-atrium.webp" alt="A multi-storey atrium with hanging chains above a dark pool, lit by skylights" /><br />
+      <sub><i>The same world: a pool atrium under skylights</i></sub>
+    </td>
+  </tr>
+</table>
+
+The game layer on top of the engine:
+
+<table>
+  <tr>
+    <td width="50%">
+      <img src="assets/town-ui-hud.webp" alt="First-person view of a village with a hotbar, health bar, minimap and a quest hint" /><br />
+      <sub><i>Hotbar, health, minimap, and a quest hint</i></sub>
+    </td>
+    <td width="50%">
+      <img src="assets/town-ui-bag.webp" alt="The bag screen: a character preview with equipment and wearable slots above a grid of items" /><br />
+      <sub><i>The bag: equipment, wearables, and 36 slots</i></sub>
     </td>
   </tr>
   <tr>
     <td width="50%">
-      <img src="assets/circuits-copper-adder-console.webp" alt="Block-built hex display reading 1F, driven by copper circuitry" /><br />
-      <sub><i>A 4-bit copper adder driving a block-built hex display</i></sub>
+      <img src="assets/town-ui-villager-trade.webp" alt="A trade panel for a storekeeper villager offering seeds" /><br />
+      <sub><i>Every villager has a job: the storekeeper trades seeds</i></sub>
     </td>
     <td width="50%">
-      <img src="assets/underwater-lantern-garden.webp" alt="Sunken lantern garden with kelp and glowing plants under water fog" /><br />
-      <sub><i>Under the sea, kelp</i></sub>
+      <img src="assets/town-ui-world-map.webp" alt="A world map showing only the explored area around a village" /><br />
+      <sub><i>The map fills in as you explore</i></sub>
+    </td>
+  </tr>
+</table>
+
+The tooling comes with the engine: [`@voxelize/viewer`](packages/viewer) flies over a world without joining it, and [`@voxelize/agent`](packages/agent) drives headless clients for tests, captures, and bots.
+
+<table>
+  <tr>
+    <td colspan="2">
+      <img src="assets/viewer-page-village.webp" alt="The world viewer page: an aerial view of a village with a control panel for camera rigs, time of day, overlays and sources" /><br />
+      <sub><i>The viewer page: camera rigs, time of day, overlays, A/B sources</i></sub>
+    </td>
+  </tr>
+  <tr>
+    <td width="50%">
+      <img src="assets/viewer-iso-karst-basin.webp" alt="An isometric render of a basin full of karst spires between forest, sand and sea" /><br />
+      <sub><i>An isometric capture of a karst basin from the viewer CLI</i></sub>
+    </td>
+    <td width="50%">
+      <img src="assets/viewer-top-contours.webp" alt="A top-down map render of a sandy basin with contour lines over the terrain" /><br />
+      <sub><i>A top-down capture with height contours</i></sub>
     </td>
   </tr>
 </table>
