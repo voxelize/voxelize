@@ -236,13 +236,59 @@ function markIndexed(renderer: Renderer, packed: StorageBufferAttribute) {
   )._attributes.update(packed, INDEX_ATTRIBUTE);
 }
 
-/** Builds `kernels`' compute pipelines without dispatching them. */
-function compileKernels(renderer: Renderer, kernels: CullKernel[]) {
-  return (
-    renderer as unknown as {
-      compileComputeAsync(nodes: unknown[]): Promise<void>;
+/**
+ * Where a cull stands with the pipelines built for it off the frame; a cull
+ * with no entry builds on its first dispatch, as three does by default.
+ *
+ * `compiling`: three keeps a pipeline it is still building as the kernel's
+ * own, so a dispatch before it lands binds no pipeline. The backend throws
+ * inside the frame's draw, and a draw abandoned there leaves the renderer's
+ * pass state as it was mid-frame: the canvas stays blank from then on. A
+ * slow GPU process (a cold shader cache, a second world loading in another
+ * frame of the page) is all it takes, so nothing dispatches such a cull.
+ *
+ * `failed`: its compile threw part way, with pipelines maybe still on their
+ * way. It is dropped for one built on first use.
+ */
+const aheadOf = new WeakMap<CullKernels, "compiling" | "failed">();
+/** Culls a frame has dispatched: their pipelines exist. */
+const dispatched = new WeakSet<CullKernels>();
+
+/** Builds `culls`' compute pipelines without dispatching them. */
+function compileAhead(renderer: Renderer, culls: CullKernels[]): Promise<void> {
+  const kernels: CullKernel[] = [];
+  const held: CullKernels[] = [];
+  for (const cull of culls) {
+    kernels.push(cull.cull, cull.decide, cull.pack, cull.finish);
+    // One a frame already dispatched has its pipelines: it keeps culling.
+    if (dispatched.has(cull)) continue;
+    aheadOf.set(cull, "compiling");
+    held.push(cull);
+  }
+  const settle = (state?: "failed") => {
+    for (const cull of held) {
+      if (state) aheadOf.set(cull, state);
+      else aheadOf.delete(cull);
     }
-  ).compileComputeAsync(kernels);
+  };
+  let compile: Promise<void>;
+  try {
+    compile = (
+      renderer as unknown as {
+        compileComputeAsync(nodes: unknown[]): Promise<void>;
+      }
+    ).compileComputeAsync(kernels);
+  } catch (error) {
+    settle("failed");
+    return Promise.reject(error);
+  }
+  return compile.then(
+    () => settle(),
+    (error: unknown) => {
+      settle("failed");
+      throw error;
+    },
+  );
 }
 
 const _frustum = new Frustum();
@@ -604,6 +650,12 @@ export class GpuTerrainBucket {
     this.renderer = renderer;
     if (this.nextId === 0) return null;
     const view = this.viewFor(camera);
+    // A cull still compiling ahead is not dispatched (see `aheadOf`): the
+    // view keeps the list it has, none yet for a bucket made in a load or in
+    // play, and is culled on the first frame after its pipelines land.
+    const ahead = view.kernels ? aheadOf.get(view.kernels) : undefined;
+    if (ahead === "compiling") return null;
+    if (ahead === "failed") view.kernels = null;
     const culled = view.culled;
     if (
       culled.camera === camera &&
@@ -639,6 +691,7 @@ export class GpuTerrainBucket {
     // One thread a section slot made so far, none past them.
     const { cull, decide, pack, finish } = view.kernels;
     cull.dispatchSize = this.nextId;
+    dispatched.add(view.kernels);
     return [cull, decide, pack, finish];
   }
 
@@ -649,17 +702,15 @@ export class GpuTerrainBucket {
    */
   compileCulls(renderer: Renderer): Promise<void> {
     this.renderer = renderer;
-    const kernels: CullKernel[] = [];
+    const culls: CullKernels[] = [];
     for (const view of [
       this.views.main,
       (this.views.shadow ??= this.makeView()),
     ]) {
       this.makePackedIndexed(renderer, view);
-      const { cull, decide, pack, finish } = (view.kernels ??=
-        this.buildCull(view));
-      kernels.push(cull, decide, pack, finish);
+      culls.push((view.kernels ??= this.buildCull(view)));
     }
-    return compileKernels(renderer, kernels);
+    return compileAhead(renderer, culls);
   }
 
   /**
@@ -689,7 +740,7 @@ export class GpuTerrainBucket {
       CullView,
       { packed: StorageBufferAttribute; kernels: CullKernels }
     >();
-    const kernels: CullKernel[] = [];
+    const culls: CullKernels[] = [];
     for (const view of [this.views.main, this.views.shadow]) {
       if (!view) continue;
       const packed = new StorageBufferAttribute(
@@ -699,10 +750,10 @@ export class GpuTerrainBucket {
       markIndexed(renderer, packed);
       const built = this.buildCull(view, sourceIndex, packed);
       views.set(view, { packed, kernels: built });
-      kernels.push(built.cull, built.decide, built.pack, built.finish);
+      culls.push(built);
     }
     this.nextGrowth = { vertexCapacity, sourceIndex, views };
-    compileKernels(renderer, kernels).catch((error: unknown) => {
+    compileAhead(renderer, culls).catch((error: unknown) => {
       console.error(
         `[gpu-terrain] ${this.mesh.name}: the next size's culls failed to compile ahead; they build on first use.`,
         error,
@@ -1212,7 +1263,12 @@ export class GpuTerrainBucket {
       const ready = prepared?.views.get(view);
       if (ready) {
         view.packed = ready.packed;
-        view.kernels = ready.kernels;
+        // Its cull with it, unless the grow came before its pipelines (a
+        // bucket filling faster than the GPU process compiles, as in a
+        // load): the sections on screen must be culled this frame, so the
+        // view builds a cull over the same buffers on first use, as a grow
+        // with nothing made ahead does.
+        view.kernels = aheadOf.has(ready.kernels) ? null : ready.kernels;
         view.isPackedIndexed = true;
         continue;
       }

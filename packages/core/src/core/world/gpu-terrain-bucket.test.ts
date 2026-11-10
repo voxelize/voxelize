@@ -212,6 +212,8 @@ describe("GpuTerrainBucket", () => {
     expect(state.nextGrowth).not.toBeNull();
     expect(compiled).toHaveLength(2);
     const ahead = state.nextGrowth!.views.get(state.views.main)!;
+    // Its pipelines land.
+    await new Promise((resolve) => setTimeout(resolve));
     // The grow takes it: no cull is built on the frame that dispatches it.
     bucket.setSectionGeometry("s3", section(128), 48, 0, 0);
     bucket.setSectionGeometry("s4", section(128), 64, 0, 0);
@@ -336,6 +338,150 @@ describe("GpuTerrainBucket", () => {
       finish();
       await showing;
       expect(bucket.mesh.visible).toBe(true);
+    });
+
+    /**
+     * Three's own contract, kept by a stand-in: a kernel whose pipeline
+     * `compileComputeAsync` is still building has none to bind, and the
+     * backend throws on its dispatch (inside a frame's draw, which the
+     * renderer does not recover from).
+     */
+    const compilingRenderer = () => {
+      const building = new Set<unknown>();
+      const landings: (() => void)[] = [];
+      const submissions: unknown[][] = [];
+      const renderer = {
+        compute: (kernels: unknown) => {
+          const list = Array.isArray(kernels) ? [...kernels] : [kernels];
+          for (const kernel of list) {
+            if (building.has(kernel)) {
+              throw new TypeError("setPipeline: not a GPUComputePipeline");
+            }
+          }
+          submissions.push(list);
+        },
+        compileComputeAsync: (kernels: unknown[]) => {
+          for (const kernel of kernels) building.add(kernel);
+          return new Promise<void>((resolve) => {
+            landings.push(() => {
+              for (const kernel of kernels) building.delete(kernel);
+              resolve();
+            });
+          });
+        },
+        _attributes: { update: () => {} },
+      };
+      /** Every compile asked for so far lands. */
+      const land = async () => {
+        for (const landing of landings.splice(0)) landing();
+        await new Promise((resolve) => setTimeout(resolve));
+      };
+      return { renderer: renderer as never, submissions, land };
+    };
+
+    it("dispatches no cull whose pipelines are still compiling ahead", async () => {
+      const culls = new GpuTerrainCulls();
+      const bucket = new GpuTerrainBucket(new MeshBasicNodeMaterial(), {
+        vertexCapacity: 1 << 12,
+        sectionCapacity: 8,
+        positionUnits: UNITS,
+        culls,
+      });
+      const { renderer, submissions, land } = compilingRenderer();
+      const camera = new PerspectiveCamera();
+      camera.updateMatrixWorld();
+      // A load: the bucket's culls compile while its first sections land
+      // and frames draw it under the overlay.
+      const compiling = bucket.compileCulls(renderer);
+      bucket.setSectionGeometry("a", section(8), 0, 0, 0);
+      bucket.cullFor(renderer, camera);
+      // A stand-in asks for a hidden bucket's cull the same way.
+      bucket.mesh.visible = false;
+      bucket.cullFor(renderer, camera);
+      bucket.mesh.visible = true;
+      expect(submissions).toHaveLength(0);
+      await land();
+      await compiling;
+      // The first frame after they land culls the view it skipped.
+      bucket.cullFor(renderer, camera);
+      expect(submissions).toHaveLength(1);
+      expect(submissions[0]).toHaveLength(4);
+    });
+
+    it("keeps culling a view a frame built while it compiles ahead again", async () => {
+      const bucket = make();
+      bucket.setSectionGeometry("a", section(8), 0, 0, 0);
+      const { renderer, submissions, land } = compilingRenderer();
+      const camera = new PerspectiveCamera();
+      camera.updateMatrixWorld();
+      // Built by its first dispatch: its pipelines exist.
+      bucket.cullFor(renderer, camera);
+      expect(submissions).toHaveLength(1);
+      const compiling = bucket.compileCulls(renderer);
+      // A real renderer finds the main view's pipelines made; only the
+      // stand-in's bookkeeping says otherwise, so settle it for that view.
+      bucket.setSectionVisible("a", false);
+      expect(
+        bucket.prepareCull(renderer, camera, viewOf(camera)),
+      ).not.toBeNull();
+      await land();
+      await compiling;
+    });
+
+    it("builds a grown view's cull afresh when the grow outruns its compile", async () => {
+      const bucket = new GpuTerrainBucket(new MeshBasicNodeMaterial(), {
+        vertexCapacity: 1024,
+        sectionCapacity: 64,
+        positionUnits: UNITS,
+      });
+      const { renderer, submissions, land } = compilingRenderer();
+      const camera = new PerspectiveCamera();
+      camera.updateMatrixWorld();
+      const state = bucket as unknown as {
+        views: { main: { kernels: unknown; packed: unknown } };
+        nextGrowth: {
+          views: Map<unknown, { kernels: unknown; packed: unknown }>;
+        } | null;
+      };
+      bucket.setSectionGeometry("s0", section(128), 0, 0, 0);
+      bucket.cullFor(renderer, camera);
+      // Three quarters full: the next size is made, its culls compiling.
+      bucket.setSectionGeometry("s1", section(128), 16, 0, 0);
+      bucket.setSectionGeometry("s2", section(128), 32, 0, 0);
+      const ahead = state.nextGrowth?.views.get(state.views.main);
+      expect(ahead).toBeDefined();
+      // Chunks keep streaming in: the bucket fills before they land.
+      bucket.setSectionGeometry("s3", section(128), 48, 0, 0);
+      bucket.setSectionGeometry("s4", section(128), 64, 0, 0);
+      expect(bucket.stats.vertexCapacity).toBe(2048);
+      // The buffers made ahead are taken; the cull still compiling is not.
+      expect(state.views.main.packed).toBe(ahead?.packed);
+      bucket.cullFor(renderer, camera);
+      expect(state.views.main.kernels).not.toBe(ahead?.kernels);
+      expect(submissions).toHaveLength(2);
+      expect(submissions[1]).toHaveLength(4);
+      await land();
+    });
+
+    it("drops a cull whose compile ahead failed for one built on first use", async () => {
+      const bucket = make();
+      bucket.setSectionGeometry("a", section(8), 0, 0, 0);
+      const submissions: unknown[][] = [];
+      const renderer = {
+        compute: (kernels: unknown[]) => submissions.push([...kernels]),
+        compileComputeAsync: () => Promise.reject(new Error("no device")),
+        _attributes: { update: () => {} },
+      } as never;
+      const state = bucket as unknown as {
+        views: { main: { kernels: unknown } };
+      };
+      await expect(bucket.compileCulls(renderer)).rejects.toThrow("no device");
+      const failed = state.views.main.kernels;
+      const camera = new PerspectiveCamera();
+      camera.updateMatrixWorld();
+      bucket.cullFor(renderer, camera);
+      expect(state.views.main.kernels).not.toBe(failed);
+      expect(submissions).toHaveLength(1);
     });
 
     it("also waits for the host's own draws before it shows", async () => {
