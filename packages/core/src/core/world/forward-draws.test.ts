@@ -5,6 +5,7 @@ import {
   MeshBasicNodeMaterial,
   type Object3D,
   type Scene,
+  Texture,
 } from "three/webgpu";
 import { describe, expect, it } from "vitest";
 
@@ -48,5 +49,45 @@ describe("forwardDraws", () => {
     expect(copy).not.toBe(display);
     expect(copy.color.getHex()).toBe(0x336699);
     expect(copy).toBeInstanceOf(MeshBasicNodeMaterial);
+  });
+});
+
+describe("forwardDraws followMap", () => {
+  it("takes up the image the source is painted with after the copy was built", () => {
+    const placeholder = new Texture();
+    const source = new MeshBasicNodeMaterial({ map: placeholder });
+    const display = new MeshBasicNodeMaterial({ map: placeholder });
+    forwardDraws(display, source, { followMap: true });
+    // A caller windows its own copy of the texture (a flame strip's frame).
+    const copy = display.clone();
+    copy.map = placeholder.clone();
+    copy.map.repeat.y = 1 / 16;
+    const before = copy.map.version;
+
+    const painted = new Texture();
+    source.map = painted;
+    draw(copy);
+
+    expect(copy.map.source).toBe(painted.source);
+    expect(copy.map.repeat.y).toBe(1 / 16);
+    expect(copy.map.version).toBeGreaterThan(before);
+  });
+
+  it("leaves a map the caller replaced on purpose, and is off by default", () => {
+    const placeholder = new Texture();
+    const source = new MeshBasicNodeMaterial({ map: placeholder });
+    const tinted = new MeshBasicNodeMaterial({ map: placeholder });
+    forwardDraws(tinted, source, { followMap: true });
+    const own = new Texture();
+    tinted.map = own;
+    const plain = new MeshBasicNodeMaterial({ map: placeholder });
+    forwardDraws(plain, source);
+
+    source.map = new Texture();
+    draw(tinted);
+    draw(plain);
+
+    expect(tinted.map.source).toBe(own.source);
+    expect(plain.map?.source).toBe(placeholder.source);
   });
 });

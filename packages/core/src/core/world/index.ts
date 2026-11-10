@@ -191,6 +191,7 @@ import {
 import type { BoundingBox } from "./lighting";
 import { Loader } from "./loader";
 import { LocalLights } from "./local-lights";
+import { installMaterialRenderHooks } from "./material-render-hooks";
 import { MemoryPressureMonitor, MemoryPressureStatus } from "./memory-pressure";
 import {
   defaultOrderIndependentTransparencyOptions,
@@ -1849,6 +1850,10 @@ export class World<T = any> extends Scene implements NetIntercept {
    */
   constructor(options: Partial<WorldOptions> = {}) {
     super();
+
+    // Material hooks (lazy face animation, display copies following their
+    // face material) only fire under WebGPU once this is installed.
+    installMaterialRenderHooks();
 
     // The world scene sits at the origin and never moves, and leaving its
     // matrix on auto is not free: `Object3D.updateMatrix` unconditionally
@@ -5401,12 +5406,13 @@ export class World<T = any> extends Scene implements NetIntercept {
             : new MeshStandardNodeMaterial(matOptions);
 
         // An own-texture face may animate lazily off its face material's
-        // draws; a display copy of the block on screen counts as one.
+        // draws; a display copy of the block on screen counts as one, and
+        // takes up the face's art once it is painted over its placeholder.
         if (
           chunkMat &&
           (block.independentFaces.has(name) || block.isolatedFaces.has(name))
         ) {
-          forwardDraws(mat, chunkMat);
+          forwardDraws(mat, chunkMat, { followMap: true });
         }
 
         geometry = {

@@ -997,6 +997,40 @@ describe("moving-light shadow scheduling", () => {
     expect(scheduler.estimateDynamicDemand([beside])).toBeGreaterThan(0);
   });
 
+  it("keeps a held light's holder out of it, and lets a body beside it cast", () => {
+    const registry = new LightSourceRegistry(16);
+    const scheduler = makeScheduler(registry);
+    const stats = makeStats();
+
+    // The torch's flame rides the hand: half a block out front, at the hip.
+    const flame = [4.45, 60.6, 4.6] as const;
+    const held = registry.add(shadowLight({ isStatic: false }), ...flame);
+    scheduler.update(selectionOf(registry, [held]), 1, 0, 60, 0, stats);
+    const anyScheduler = scheduler as unknown as {
+      slots: { staticPending: number }[];
+    };
+    anyScheduler.slots[0].staticPending = 0;
+
+    // The holder: a torso, and the torch itself in hand (its stick under
+    // the flame), both children of the character like a held object is.
+    const holder = new Group();
+    const torso = new Mesh(new BoxGeometry(0.6, 1.8, 0.4));
+    torso.position.y = -0.7;
+    const stick = new Mesh(new BoxGeometry(0.06, 0.4, 0.06));
+    stick.position.set(0.45, -0.95, 0.6);
+    holder.add(torso, stick);
+    holder.position.set(4, 61.4, 4);
+    holder.updateMatrixWorld(true);
+    expect(scheduler.estimateDynamicDemand([holder])).toBe(0);
+
+    // A bear-sized body a block and a half away blocks the same light.
+    const bear = new Group();
+    bear.add(new Mesh(new BoxGeometry(1.4, 1.2, 0.9)));
+    bear.position.set(6, 60.6, 4.6);
+    bear.updateMatrixWorld(true);
+    expect(scheduler.estimateDynamicDemand([holder, bear])).toBeGreaterThan(0);
+  });
+
   it("requeues cached spot faces when the cone rotates or widens", () => {
     const registry = new LightSourceRegistry(16);
     const scheduler = makeScheduler(registry);
