@@ -54,7 +54,9 @@ import {
 } from "../local-lights/flicker";
 import {
   BLOCK_LIGHT_OWNERSHIP_GAIN,
+  BLOCK_LIGHT_OWNERSHIP_TAIL,
   FLUID_SPECULAR_LIGHTS_PER_CELL,
+  LAMBERT_REACH,
   LAMBERT_WRAP,
 } from "../local-lights/shader";
 import { WATER_VIEW_EXTINCTION } from "../water-optics";
@@ -445,9 +447,15 @@ export function localLightShading(
           angular.assign(spot.mul(spot));
         });
         // t1.rgb is colour x intensity x share: this is the light's
-        // unoccluded luminance claim at the fragment.
+        // luminance claim at the fragment, before its shadow map. A masked
+        // light claims only what its flood mask lets it deliver: where the
+        // mask fades it out the flood is fading too, and takes over.
         claim.addAssign(
-          fall.mul(angular).mul(slotWeight).mul(luminance709(t1.xyz)),
+          fall
+            .mul(angular)
+            .mul(slotWeight)
+            .mul(luminance709(t1.xyz))
+            .mul(select(isMasked, mask, 1)),
         );
         const litFall = fall.toVar();
         const litDir = l.toVar();
@@ -471,9 +479,16 @@ export function localLightShading(
             ),
           );
         });
+        // The wrap rises with distance: past its core a lamp's light has
+        // lost its direction (`LAMBERT_REACH`).
+        const wrap = mix(
+          LAMBERT_WRAP,
+          LAMBERT_REACH.farWrap,
+          smoothstep(LAMBERT_REACH.start, LAMBERT_REACH.end, dist.div(range)),
+        );
         const lambert = max(dot(normal, litDir), 0)
-          .mul(1 - LAMBERT_WRAP)
-          .add(LAMBERT_WRAP);
+          .mul(wrap.oneMinus())
+          .add(wrap);
         // Occlusion ladder, first rung: a masked light takes the shared
         // flood mask; a shadow holder composes its atlas on top of it.
         const occlusion = select(isMasked, mask, 1);
@@ -601,11 +616,20 @@ export function localLightShading(
       const floodSmooth = blockLightCurve1Node(
         max(max(flood.x, flood.y), flood.z),
       );
+      // A faint claim (a lamp's tail) takes the tail gain, a strong one the
+      // near gain (`blockLightOwnershipGain`).
+      const scaledClaim = claim.mul(g.ownership).toVar();
+      const ownershipGain = mix(
+        BLOCK_LIGHT_OWNERSHIP_TAIL.gain,
+        BLOCK_LIGHT_OWNERSHIP_GAIN,
+        smoothstep(
+          BLOCK_LIGHT_OWNERSHIP_TAIL.from,
+          BLOCK_LIGHT_OWNERSHIP_TAIL.to,
+          scaledClaim,
+        ),
+      );
       const owned = clamp(
-        claim
-          .mul(g.ownership)
-          .mul(BLOCK_LIGHT_OWNERSHIP_GAIN)
-          .div(max(floodSmooth, 1e-3)),
+        scaledClaim.mul(ownershipGain).div(max(floodSmooth, 1e-3)),
         0,
         1,
       ).oneMinus();

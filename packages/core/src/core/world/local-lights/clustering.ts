@@ -26,6 +26,7 @@ import {
   LightSourceRegistry,
   lightHandleIndex,
 } from "./registry";
+import { lambertReachGain } from "./shader";
 import type { ShadowTexelRecord } from "./shadow-scheduler";
 import {
   defaultLocalLightsOptions,
@@ -773,16 +774,19 @@ export class LightClusterGrid {
         if (angular <= 0) continue;
       }
 
-      // Unoccluded claim: falloff, cone shaping and the slot's fade — no
-      // flicker, no occlusion. Accumulated before the occlusion continue,
-      // because a wall-blocked light still owns its coverage: the baked
-      // flood term must not refill the side the analytic model keeps dark.
+      // The claim: falloff, cone shaping and the slot's fade — no flicker,
+      // no shadow map. Accumulated before the occlusion continue, because
+      // a wall-blocked light still owns its coverage: the baked flood term
+      // must not refill the side the analytic model keeps dark. A masked
+      // light claims only what its flood mask lets it deliver, like the
+      // shader: where the mask fades it out, the flood takes over.
       claim +=
         slotWeight *
         intensities[i] *
         shares[i] *
         falloff *
         angular *
+        (flags[i] & LIGHT_FLAG_MASKED ? floodMask : 1) *
         (colors[i * 3] * LUMA_R +
           colors[i * 3 + 1] * LUMA_G +
           colors[i * 3 + 2] * LUMA_B);
@@ -798,6 +802,8 @@ export class LightClusterGrid {
       }
       if (occlusion <= 0) continue;
 
+      // The shader's wrap rises with distance; the consumer applies the
+      // near wrap to the whole sum, so each light carries the difference.
       const energy =
         slotWeight *
         intensities[i] *
@@ -805,7 +811,8 @@ export class LightClusterGrid {
         litFalloff *
         angular *
         flicker *
-        occlusion;
+        occlusion *
+        lambertReachGain(dist / range);
       outColor[0] += colors[i * 3] * energy;
       outColor[1] += colors[i * 3 + 1] * energy;
       outColor[2] += colors[i * 3 + 2] * energy;

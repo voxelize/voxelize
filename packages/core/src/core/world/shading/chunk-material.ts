@@ -48,7 +48,10 @@ import {
   Vector4,
 } from "three/webgpu";
 
-import { BLOCK_LIGHT_TRANSFER } from "../block-light-transfer";
+import {
+  BLOCK_LIGHT_TRANSFER,
+  BLOCK_LIGHT_WARM_TINT,
+} from "../block-light-transfer";
 import type { GpuTerrainSections } from "../gpu-terrain-bucket";
 import { type LightConeUniforms, markLightConesCovered } from "../light-cones";
 import { WATER_DEPTH_BIAS_BLOCKS } from "../water-depth-constants";
@@ -351,10 +354,10 @@ function casterPositionNode(
         },
       );
       vertex.displace({
-      sway: hasSway ? FIXED_SWAY : null,
-      waveScale: null,
-      hook: null,
-    });
+        sway: hasSway ? FIXED_SWAY : null,
+        waveScale: null,
+        hook: null,
+      });
       return positionLocal;
     })() as unknown as Vec3Node;
     nodes.set(key, node);
@@ -1113,7 +1116,9 @@ export class ChunkMaterial extends NodeMaterial {
 
     const sunTotal = skyAmbient
       .mul(ambientOcclusion)
-      .mul(shadeSkyTint(l.skyTopColor, c.sunlightIntensity, shadow, sunExposure))
+      .mul(
+        shadeSkyTint(l.skyTopColor, c.sunlightIntensity, shadow, sunExposure),
+      )
       .mul(tunnelDarkening)
       .mul(downTransmit)
       .add(sunContribution.mul(mix(1, 0.7, isBrightTex)).mul(downTransmit))
@@ -1157,14 +1162,18 @@ export class ChunkMaterial extends NodeMaterial {
         .oneMinus(),
       0,
     );
-    const warmTint = mix(vec3(1.05, 0.92, 0.75), vec3(1), torchSaturation);
+    const warmTint = mix(
+      vec3(...BLOCK_LIGHT_WARM_TINT),
+      vec3(1),
+      torchSaturation,
+    );
     totalLight.mulAssign(mix(vec3(1), warmTint, torchDominance));
     totalLight.mulAssign(enhancedAO);
     totalLight.mulAssign(faceShade);
 
     // Block-lit fragments keep their light's hue through the tone map,
-    // rescaled to the per-channel fit's luminance; daylight keeps the
-    // per-channel fit exactly.
+    // rescaled to the per-channel fit's luminance and lifted to the lamp's
+    // white point; daylight keeps the per-channel fit exactly.
     const toneMapPeak = max(max(totalLight.x, totalLight.y), totalLight.z);
     const toneMapHue = totalLight.mul(
       acesFitNode(toneMapPeak).div(max(toneMapPeak, 1e-4)),
@@ -1173,7 +1182,13 @@ export class ChunkMaterial extends NodeMaterial {
     const hueMatched = toneMapHue.mul(
       luminance709(fitted).div(max(luminance709(toneMapHue), 1e-4)),
     );
-    totalLight.assign(mix(fitted, hueMatched, torchDominance));
+    totalLight.assign(
+      mix(
+        fitted,
+        hueMatched.mul(BLOCK_LIGHT_TRANSFER.lampWhite),
+        torchDominance,
+      ),
+    );
 
     // The darkness floor: no light at all, only a minimum to see by. It
     // warms with the lamp that takes the fragment over, and out of the sky

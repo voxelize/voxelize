@@ -20,7 +20,13 @@ import {
 import { BlockProfileTable, EmitterBlock, SectionTracker } from "./scan";
 import {
   BLOCK_LIGHT_OWNERSHIP_GAIN,
+  BLOCK_LIGHT_OWNERSHIP_TAIL,
   blockLightFloodRemainder,
+  blockLightOwnershipGain,
+  LAMBERT_REACH,
+  LAMBERT_WRAP,
+  lambertReachGain,
+  lambertWrapAt,
 } from "./shader";
 import {
   BlockLightProfile,
@@ -398,12 +404,89 @@ describe("block-light ownership", () => {
     windowFade: 1,
   });
 
-  it("claims coverage even where the light itself is occluded", () => {
-    // A masked static torch behind a wall: the flood mask kills its visible
-    // contribution, but its *claim* must survive — the shader suppresses
-    // the baked flood by the claim, so the analytic layer's dark side stays
-    // dark instead of being refilled by flood. Covered points never render
-    // both models.
+  it("claims coverage even where a shadow-mapped light is occluded", () => {
+    // A static torch with a shadow map, behind a wall: its visible
+    // contribution is gone, but its *claim* must survive — the shader
+    // suppresses the baked flood by the claim, so the analytic layer's dark
+    // side stays dark instead of being refilled by flood. Covered points
+    // never render both models.
+    const registry = new LightSourceRegistry(8);
+    registry.add(
+      pointLight({ isStatic: true, shadowPolicy: "shadowMap" }),
+      4,
+      4,
+      4,
+    );
+    const grid = makeGrid(registry);
+    grid.update(0, 0, 0, makeStats());
+
+    const sample = makeSample();
+    grid.sampleIrradiance([5, 4, 4], sample, { floodMask: 0 });
+    expect(sample.color[0]).toBe(0); // fully occluded
+    expect(sample.claim).toBeGreaterThan(0); // still owns its coverage
+  });
+
+  it("widens a light's wrap with distance, and never past the far wrap", () => {
+    expect(lambertWrapAt(0)).toBe(LAMBERT_WRAP);
+    expect(lambertWrapAt(LAMBERT_REACH.start)).toBe(LAMBERT_WRAP);
+    expect(lambertWrapAt(LAMBERT_REACH.end)).toBeCloseTo(
+      LAMBERT_REACH.farWrap,
+      9,
+    );
+    expect(lambertWrapAt(1)).toBeCloseTo(LAMBERT_REACH.farWrap, 9);
+    let previous = 0;
+    for (let n = 0; n <= 1; n += 0.05) {
+      const wrap = lambertWrapAt(n);
+      expect(wrap).toBeGreaterThanOrEqual(previous);
+      previous = wrap;
+    }
+    // The CPU mirror's gain turns its fixed near wrap into this one.
+    const average = 0.5;
+    const near = average * (1 - LAMBERT_WRAP) + LAMBERT_WRAP;
+    const far = average * (1 - LAMBERT_REACH.farWrap) + LAMBERT_REACH.farWrap;
+    expect(lambertReachGain(0, average)).toBe(1);
+    expect(near * lambertReachGain(1, average)).toBeCloseTo(far, 9);
+  });
+
+  it("owns decisively near a lamp and lets go in its tail", () => {
+    // A strong claim keeps the near gain: beside a lamp nothing of its
+    // flood stacks on it. A faint one (the last blocks of its reach) takes
+    // the tail gain, so the flood's soft tail shows through.
+    expect(blockLightOwnershipGain(1)).toBe(BLOCK_LIGHT_OWNERSHIP_GAIN);
+    expect(blockLightOwnershipGain(BLOCK_LIGHT_OWNERSHIP_TAIL.to)).toBe(
+      BLOCK_LIGHT_OWNERSHIP_GAIN,
+    );
+    expect(blockLightOwnershipGain(0)).toBe(BLOCK_LIGHT_OWNERSHIP_TAIL.gain);
+    expect(blockLightOwnershipGain(BLOCK_LIGHT_OWNERSHIP_TAIL.from)).toBe(
+      BLOCK_LIGHT_OWNERSHIP_TAIL.gain,
+    );
+    let previous = 0;
+    for (let claim = 0; claim <= 1; claim += 0.02) {
+      // claim x gain never falls as the claim grows: no fold in ownership.
+      const owned = claim * blockLightOwnershipGain(claim);
+      expect(owned).toBeGreaterThanOrEqual(previous);
+      previous = owned;
+    }
+    // On the lamp, under a maxed flood: fully owned, as before.
+    expect(
+      blockLightFloodRemainder({ scaledClaim: 0.7, floodLevel: 1, windowFade: 1 }),
+    ).toBe(0);
+    // Out in the tail the same flood level keeps most of itself.
+    expect(
+      blockLightFloodRemainder({
+        scaledClaim: 0.01,
+        floodLevel: 3 / 15,
+        windowFade: 1,
+      }),
+    ).toBeGreaterThan(0.7);
+  });
+
+  it("lets a masked light claim only what its flood mask delivers", () => {
+    // A masked light is occluded by the flood mask and by nothing else, and
+    // the mask fades with the flood itself: where it fades the light out,
+    // the flood is the light that is left, so the claim lets go of it by
+    // the same share. Kept whole, the claim held the flood's long tail off
+    // the last blocks of a lamp's pool, which ended on an edge.
     const registry = new LightSourceRegistry(8);
     registry.add(
       pointLight({ isStatic: true, shadowPolicy: "voxelMask" }),
@@ -414,10 +497,18 @@ describe("block-light ownership", () => {
     const grid = makeGrid(registry);
     grid.update(0, 0, 0, makeStats());
 
-    const sample = makeSample();
-    grid.sampleIrradiance([5, 4, 4], sample, { floodMask: 0 });
-    expect(sample.color[0]).toBe(0); // fully occluded by the mask
-    expect(sample.claim).toBeGreaterThan(0); // still owns its coverage
+    const open = makeSample();
+    grid.sampleIrradiance([5, 4, 4], open, { floodMask: 1 });
+    const half = makeSample();
+    grid.sampleIrradiance([5, 4, 4], half, { floodMask: 0.5 });
+    const closed = makeSample();
+    grid.sampleIrradiance([5, 4, 4], closed, { floodMask: 0 });
+
+    expect(open.claim).toBeGreaterThan(0);
+    expect(half.claim).toBeCloseTo(open.claim * 0.5, 9);
+    expect(half.color[0]).toBeCloseTo(open.color[0] * 0.5, 9);
+    expect(closed.claim).toBe(0);
+    expect(closed.color[0]).toBe(0);
   });
 
   it("keeps the claim steady while flicker modulates the lit color", () => {
@@ -506,8 +597,10 @@ describe("block-light ownership", () => {
     const falloff = localLightFalloff(20, 32) / localLightFalloff(0, 32);
     expect(deep.windowFade).toBe(1);
     expect(rim.windowFade).toBeCloseTo(0.5, 6);
-    // Color rides the fade; the claim is the raw unfaded coverage.
-    expect(rim.color[0]).toBeCloseTo(deep.color[0] * falloff * 0.5, 6);
+    // Color rides the fade, and the wider wrap a light has at a distance;
+    // the claim is the raw unfaded coverage.
+    const reach = lambertReachGain(20 / 32) / lambertReachGain(0);
+    expect(rim.color[0]).toBeCloseTo(deep.color[0] * falloff * reach * 0.5, 6);
     expect(rim.claim).toBeCloseTo(deep.claim * falloff, 6);
   });
 
@@ -653,8 +746,8 @@ describe("block-light ownership", () => {
         windowFade: 1,
       }),
     ).toBe(0);
-    // ratio = claim × gain / curve(flood), remainder 1 - ratio.
-    const ratio = (0.05 * BLOCK_LIGHT_OWNERSHIP_GAIN) / blockLightCurve(0.5);
+    // ratio = claim × gain(claim) / curve(flood), remainder 1 - ratio.
+    const ratio = (0.05 * blockLightOwnershipGain(0.05)) / blockLightCurve(0.5);
     expect(ratio).toBeGreaterThan(0.1);
     expect(ratio).toBeLessThan(0.9);
     expect(
@@ -1123,10 +1216,13 @@ describe("block-light transfer (new model)", () => {
     const legacyWalk =
       smooth(3 / 15) / smooth(8 / 15) / (smooth(7 / 15) / smooth(12 / 15));
     expect(ratioAt(4) / ratioAt(0)).toBeGreaterThan(legacyWalk * 1.6);
-    // Even steps: no plateau then cliff. Each level loses a similar share.
+    // Even steps: no plateau then cliff. Each pair of levels keeps a
+    // similar share (0.64 at the top, 0.54 where the tail comes off).
     const levels = [15, 13, 11, 9, 7, 5].map((l) => blockLightCurve(l / 15));
-    for (let n = 1; n < levels.length; n++)
-      expect(levels[n] / levels[n - 1]).toBeGreaterThan(0.55);
+    for (let n = 1; n < levels.length; n++) {
+      expect(levels[n] / levels[n - 1]).toBeGreaterThan(0.5);
+      expect(levels[n] / levels[n - 1]).toBeLessThan(0.7);
+    }
     expect(blockLightCurve(0)).toBe(0);
     expect(blockLightCurve(1)).toBeCloseTo(1, 9);
   });

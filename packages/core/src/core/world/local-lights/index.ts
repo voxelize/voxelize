@@ -59,9 +59,14 @@ export { BlockProfileTable, SectionTracker } from "./scan";
 export type { EmitterBlock, ScannableChunk } from "./scan";
 export {
   BLOCK_LIGHT_OWNERSHIP_GAIN,
+  BLOCK_LIGHT_OWNERSHIP_TAIL,
   blockLightFloodRemainder,
+  blockLightOwnershipGain,
   EMISSIVE_LEVELS,
+  LAMBERT_REACH,
   LAMBERT_WRAP,
+  lambertReachGain,
+  lambertWrapAt,
 } from "./shader";
 export { ShadowFrameLedger } from "./shadow-ledger";
 export { LocalShadowScheduler } from "./shadow-scheduler";

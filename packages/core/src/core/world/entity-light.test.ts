@@ -1,6 +1,8 @@
 import { Color } from "three/webgpu";
 import { describe, expect, it } from "vitest";
 
+import { BLOCK_LIGHT_TRANSFER } from "./block-light-transfer";
+
 import {
   acesToneMap,
   composeEntityLight,
@@ -61,9 +63,14 @@ describe("composeEntityLight", () => {
         clusterB: 4,
       }),
     );
-    const ceiling = acesToneMap(Number.MAX_SAFE_INTEGER);
+    // Where block light dominates, the ceiling is the fit's own times the
+    // lamp's white point.
+    const ceiling =
+      acesToneMap(Number.MAX_SAFE_INTEGER) * BLOCK_LIGHT_TRANSFER.lampWhite;
     expect(maxChannel(onLanternFloor)).toBeLessThanOrEqual(ceiling);
-    expect(maxChannel(onLanternFloor)).toBeLessThanOrEqual(1.04);
+    expect(maxChannel(onLanternFloor)).toBeLessThanOrEqual(
+      1.04 * BLOCK_LIGHT_TRANSFER.lampWhite,
+    );
 
     // Additive composition put this at 1.2 in open noon sun; the terrain
     // lands its top faces around 0.85–0.9 through the same curve.
@@ -74,12 +81,13 @@ describe("composeEntityLight", () => {
 
   it("lands a lit object within the terrain's own range, not far above it", () => {
     // The object on a level-15 floor at night should read about as bright as
-    // a lit floor does through the shader: bright, warm, and under 1.
+    // a lit floor does through the shader: bright, warm, and no brighter
+    // than the lamp's white point.
     const onEmitter = compose(
       dry({ ...MIDNIGHT, floodR: 1, floodG: 1, floodB: 1 }),
     );
     expect(maxChannel(onEmitter)).toBeGreaterThan(0.75);
-    expect(maxChannel(onEmitter)).toBeLessThan(1);
+    expect(maxChannel(onEmitter)).toBeLessThan(BLOCK_LIGHT_TRANSFER.lampWhite);
     // Block light tints warm: red above blue, as the shader's warm tint does.
     expect(onEmitter.r).toBeGreaterThan(onEmitter.b);
   });
@@ -158,7 +166,9 @@ describe("composeEntityLight", () => {
       }),
     );
     expect(maxChannel(submergedLit)).toBeGreaterThan(maxChannel(submergedDark));
-    expect(maxChannel(submergedLit)).toBeLessThanOrEqual(1.04);
+    expect(maxChannel(submergedLit)).toBeLessThanOrEqual(
+      1.04 * BLOCK_LIGHT_TRANSFER.lampWhite,
+    );
   });
 
   it("holds the darkness floor in a sealed cave", () => {

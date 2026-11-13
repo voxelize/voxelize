@@ -19,10 +19,23 @@
  */
 
 export const BLOCK_LIGHT_TRANSFER = Object.freeze({
-  /** Each flood level keeps this fraction of the one above it. */
-  ratio: 0.84,
+  /**
+   * Each flood level keeps this fraction of the one above it. The light is
+   * linear and the screen is not: 0.84 a level reads as 0.92 a level once
+   * displayed, so a torch's pool lay nearly flat from its foot to its edge
+   * and a field of torches lit as one even wash. 0.8 with the higher gain
+   * keeps the pool's reach and gives it a slope the eye can see.
+   */
+  ratio: 0.8,
   /** Torch-light gain on the geometric curve. */
-  gain: 1.6,
+  gain: 2.2,
+  /**
+   * White point of the tone map where block light dominates: what stands
+   * at a lamp's foot is lit a little past its own colour, so a lamp reads
+   * as a source and not as one more evenly lit patch. Daylight (dominance
+   * 0) keeps the fit's own white.
+   */
+  lampWhite: 1.2,
   /**
    * Knee in `torchBrightness / (torchBrightness + sunLuma + knee)`: the warm
    * tint and hue-preserving tone map fade in over the outer levels of a
@@ -161,9 +174,14 @@ export function blockLightCurveRGB(
 export const acesFit = (x: number) =>
   (x * (2.51 * x + 0.03)) / (x * (2.43 * x + 0.59) + 0.14);
 
-/** Warm tint for flood light; saturated emitters keep their own hue. */
+/**
+ * Warm tint for flood light; saturated emitters keep their own hue. Gold
+ * rather than orange: under (1.05, 0.92, 0.75) on top of a torch's own
+ * amber, green crops went olive and soil went rust, and a lit field lost
+ * the colours that tell its plants apart.
+ */
 export const BLOCK_LIGHT_WARM_TINT: readonly [number, number, number] = [
-  1.05, 0.92, 0.75,
+  1.04, 0.95, 0.8,
 ];
 
 /**
@@ -208,8 +226,9 @@ export function blockLightAdapt(
 /**
  * The tone map: per-channel ACES in daylight, blending toward a
  * hue-preserving ACES (every channel scaled by the peak's mapping, then
- * rescaled to the per-channel result's luminance) as block light dominates:
- * the light keeps its colour, the room keeps its brightness. Writes `out`.
+ * rescaled to the per-channel result's luminance, times `lampWhite`) as
+ * block light dominates: the light keeps its colour, the room keeps its
+ * brightness. Writes `out`.
  */
 export function blockLightToneMap(
   r: number,
@@ -228,9 +247,10 @@ export function blockLightToneMap(
   const hueLuma = (0.2126 * r + 0.7152 * g + 0.0722 * b) * scale;
   const channelLuma = 0.2126 * cr + 0.7152 * cg + 0.0722 * cb;
   const match = (scale * channelLuma) / Math.max(hueLuma, 1e-4);
-  out[0] = cr + (r * match - cr) * t;
-  out[1] = cg + (g * match - cg) * t;
-  out[2] = cb + (b * match - cb) * t;
+  const white = match * BLOCK_LIGHT_TRANSFER.lampWhite;
+  out[0] = cr + (r * white - cr) * t;
+  out[1] = cg + (g * white - cg) * t;
+  out[2] = cb + (b * white - cb) * t;
   return out;
 }
 
