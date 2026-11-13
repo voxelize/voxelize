@@ -30,6 +30,7 @@ import { BoxLayer, CanvasBox, CanvasBoxOptions } from "./canvas-box";
 import { HeadLedBody, HeadLedBodyOptions } from "./head-led-body";
 import { NameTag, NameTagOptions } from "./nametag";
 import { SpriteText } from "./sprite-text";
+import { WalkSway } from "./walk-sway";
 
 const CHARACTER_SCALE = 0.9;
 
@@ -42,6 +43,16 @@ const HELD_OBJECT_NAME = "armObject";
 const LERP_REFERENCE_FPS = 60;
 
 const identityQuaternion = new Quaternion();
+// Forward is the character's local -z; a positive roll about +z leans the
+// top of the body toward its left (-x).
+const walkSwayAxis = new Vector3(0, 0, 1);
+/**
+ * The tip of the hips toward the planted foot at full stride, in radians.
+ * About a degree: at a walk's step rate anything larger reads as a hobble.
+ */
+const WALK_SWAY_ROLL = 0.02;
+/** The dip at the widest point of a stride, as a share of leg height. */
+const WALK_SWAY_DIP = 0.035;
 const headBodyInverse = new Quaternion();
 const ridePivotScratch = new Vector3();
 const shadowBoundsCenter = new Vector3();
@@ -210,6 +221,14 @@ export type CharacterOptions = {
   walkingSpeed?: number;
 
   /**
+   * How much the body shifts its weight from foot to foot as it walks: a
+   * small roll over the planted foot and a dip as the feet pass their
+   * widest, read off the legs so it follows any gait. `1` is a natural walk,
+   * `0` turns it off. Defaults to `1`.
+   */
+  walkSway?: number;
+
+  /**
    * The speed at which the arms stroke when the character is swimming. Defaults to `1.8`.
    */
   swimmingSpeed?: number;
@@ -305,6 +324,7 @@ export type CharacterOptions = {
 export const defaultCharacterOptions: CharacterOptions = {
   swingLerp: 0.8,
   walkingSpeed: 1.4,
+  walkSway: 1,
   swimmingSpeed: 1.8,
   positionLerp: 0.7,
   rotationLerp: 0.2,
@@ -508,6 +528,12 @@ export class Character extends Group {
 
   private _swimBlend = 0;
 
+  private _walkSway = new WalkSway();
+  private _walkSwayRoll = new Quaternion();
+  private _walkSwayBodyShift = new Vector3();
+  private _walkSwayHeadShift = new Vector3();
+  private _isWalkSwayApplied = false;
+
   private _swimCycle = 0;
 
   private _headLocalQuat = new Quaternion();
@@ -667,6 +693,7 @@ export class Character extends Group {
 
     this.mixer.update(delta);
     this.calculateDelta();
+    this.liftWalkSway(delta);
 
     // A mounted rider stays seated even when the water would put their own
     // body into the prone swim pose; the mount owns the attitude.
@@ -688,10 +715,13 @@ export class Character extends Group {
 
     this.leadBodyWithHead(delta);
     this.lerpAll(delta);
+    this.layWalkSway();
     this.refreshShadowSelfBounds();
   }
 
   snapToTarget() {
+    this.liftWalkSway(0);
+    this._walkSway.reset();
     this.position.copy(this.newPosition);
     this.rideOffset.set(0, 0, 0);
     this._rideSeatDisplacement.set(0, 0, 0);
@@ -1327,6 +1357,56 @@ export class Character extends Group {
       .negate()
       .add(this._rideSeatDisplacement);
     this.position.add(this.rideOffset);
+  };
+
+  /**
+   * Take last frame's weight shift back off the body, so the lerps below run
+   * on the engine's own state, and read the stride the legs ended that frame
+   * in (whoever posed them).
+   */
+  private liftWalkSway = (delta: number) => {
+    if (this._isWalkSwayApplied) {
+      this.bodyGroup.quaternion.multiply(this._walkSwayRoll.invert());
+      this.bodyGroup.position.sub(this._walkSwayBodyShift);
+      this.headGroup.position.sub(this._walkSwayHeadShift);
+      this._isWalkSwayApplied = false;
+    }
+
+    const isUpright =
+      !this._isSitting &&
+      !this._isRideAttitudeActive &&
+      this._swimBlend < 0.001;
+    const stride = isUpright
+      ? (this.rightLegGroup.rotation.x - this.leftLegGroup.rotation.x) / 2
+      : 0;
+    this._walkSway.update(stride, delta);
+  };
+
+  /**
+   * Lay this frame's weight shift over the settled pose: the body tips a
+   * touch at the hips and dips with the stride, staying over its feet, and
+   * the head goes along level.
+   */
+  private layWalkSway = () => {
+    const strength = this.options.walkSway ?? 0;
+    const roll = this._walkSway.roll * WALK_SWAY_ROLL * strength;
+    const dip = this._walkSway.dip * WALK_SWAY_DIP * strength;
+    if (Math.abs(roll) < 1e-4 && dip < 1e-4) return;
+
+    const legHeight = this.leftLeg.height;
+    const lean = Math.sin(roll);
+    const drop = -dip * legHeight;
+
+    this._walkSwayBodyShift.set(0, drop, 0);
+    this._walkSwayHeadShift
+      .set(-this.body.height * lean, drop, 0)
+      .applyQuaternion(this.bodyGroup.quaternion);
+    this._walkSwayRoll.setFromAxisAngle(walkSwayAxis, roll);
+
+    this.bodyGroup.quaternion.multiply(this._walkSwayRoll);
+    this.bodyGroup.position.add(this._walkSwayBodyShift);
+    this.headGroup.position.add(this._walkSwayHeadShift);
+    this._isWalkSwayApplied = true;
   };
 
   /**
