@@ -34,38 +34,60 @@ pub fn compute_section_connectivity<S: VoxelAccess>(
     space: &S,
     registry: &Registry,
 ) -> u32 {
-    let size_x = (max[0] - min[0]) as usize;
-    let size_y = (max[1] - min[1]) as usize;
-    let size_z = (max[2] - min[2]) as usize;
+    let built;
+    let tables = match registry.tables() {
+        Some(tables) => tables,
+        None => {
+            built = BlockTables::build(registry);
+            &built
+        }
+    };
+    window_connectivity(min, max, &Window::new(space, min, max, tables))
+}
+
+/// [`compute_section_connectivity`] over a window already read.
+pub(super) fn window_connectivity<S: VoxelAccess>(
+    min: &[i32; 3],
+    max: &[i32; 3],
+    window: &Window<S>,
+) -> u32 {
+    let size_x = (max[0] - min[0]).max(0) as usize;
+    let size_y = (max[1] - min[1]).max(0) as usize;
+    let size_z = (max[2] - min[2]).max(0) as usize;
     if size_x == 0 || size_y == 0 || size_z == 0 {
         return CONNECTIVITY_FULL;
     }
 
     let cell_count = size_x * size_y * size_z;
+    // Opaque cells start out visited: the fill never enters them, and
+    // nothing else is asked of a cell.
     let mut visited = vec![false; cell_count];
+    let mut is_all_passable = true;
+    for x in 0..size_x {
+        for y in 0..size_y {
+            let row = window.index_inside(min[0] + x as i32, min[1] + y as i32, min[2]);
+            let out = (x * size_y + y) * size_z;
+            for z in 0..size_z {
+                let is_opaque = window.flags[row + z] & F_OPAQUE != 0;
+                visited[out + z] = is_opaque;
+                is_all_passable &= !is_opaque;
+            }
+        }
+    }
+    // One component touching all six faces: every pair sees every other.
+    if is_all_passable {
+        return CONNECTIVITY_FULL;
+    }
+
     let mut queue: Vec<usize> = Vec::new();
     let mut connectivity = CONNECTIVITY_SEALED;
 
     let index_of = |x: usize, y: usize, z: usize| (x * size_y + y) * size_z + z;
-    let is_passable = |x: usize, y: usize, z: usize| {
-        let id = space.get_voxel(min[0] + x as i32, min[1] + y as i32, min[2] + z as i32);
-        registry
-            .get_block_by_id(id)
-            .is_none_or(|block| !block.is_opaque)
-    };
 
     for start in 0..cell_count {
         if visited[start] {
             continue;
         }
-        let sx = start / (size_y * size_z);
-        let sy = (start / size_z) % size_y;
-        let sz = start % size_z;
-        if !is_passable(sx, sy, sz) {
-            visited[start] = true;
-            continue;
-        }
-
         let mut faces_touched = 0u8;
         visited[start] = true;
         queue.clear();
@@ -99,9 +121,7 @@ pub fn compute_section_connectivity<S: VoxelAccess>(
                 let neighbor = index_of(nx, ny, nz);
                 if !visited[neighbor] {
                     visited[neighbor] = true;
-                    if is_passable(nx, ny, nz) {
-                        queue.push(neighbor);
-                    }
+                    queue.push(neighbor);
                 }
             };
 

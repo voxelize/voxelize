@@ -206,6 +206,72 @@ impl<'a> VoxelAccess for VoxelSpace<'a> {
     fn contains(&self, vx: i32, vy: i32, vz: i32) -> bool {
         VoxelSpace::contains(self, vx, vy, vz)
     }
+
+    fn decodes_raw_voxels(&self) -> bool {
+        true
+    }
+
+    /// A chunk keeps a row along z together, so a row is at most three
+    /// copies (the chunk before, the one it starts in, the one after)
+    /// instead of a chunk lookup per cell.
+    fn read_row(
+        &self,
+        vx: i32,
+        vy: i32,
+        vz: i32,
+        voxels: &mut [u32],
+        lights: &mut [u16],
+        present: &mut [bool],
+    ) {
+        let len = voxels.len();
+        let mut done = 0;
+        while done < len {
+            let z = vz + done as i32;
+            let lz = z.rem_euclid(self.chunk_size) as usize;
+            let run = ((self.chunk_size as usize) - lz).min(len - done);
+            let coords = self.map_voxel_to_chunk(vx, z);
+            let (voxel_run, light_run, present_run) = (
+                &mut voxels[done..done + run],
+                &mut lights[done..done + run],
+                &mut present[done..done + run],
+            );
+            match self.get_chunk(coords) {
+                Some(chunk) => {
+                    present_run.fill(vy >= 0);
+                    // `get_index` of the row's first cell; the rest follow it.
+                    let start = self.get_index(chunk, vx, vy, z);
+                    match start.and_then(|start| chunk.voxels.get(start..start + run)) {
+                        Some(source) => voxel_run.copy_from_slice(source),
+                        None => {
+                            for (i, out) in voxel_run.iter_mut().enumerate() {
+                                *out = self.get_raw_voxel(vx, vy, z + i as i32);
+                            }
+                        }
+                    }
+                    match start.and_then(|start| chunk.lights.get(start..start + run)) {
+                        Some(source) => {
+                            for (out, light) in light_run.iter_mut().zip(source) {
+                                *out = (*light & 0xFFFF) as u16;
+                            }
+                        }
+                        None => {
+                            for (i, out) in light_run.iter_mut().enumerate() {
+                                let (sun, red, green, blue) =
+                                    self.get_all_lights(vx, vy, z + i as i32);
+                                *out = ((sun << 12) | (red << 8) | (green << 4) | blue) as u16;
+                            }
+                        }
+                    }
+                }
+                None => {
+                    voxel_run.fill(0);
+                    light_run.fill(0);
+                    present_run.fill(false);
+                }
+            }
+            done += run;
+        }
+    }
 }
 
 pub(super) fn chunk_range_has_non_empty_voxel(
@@ -273,11 +339,13 @@ pub(super) enum ScanBounds {
     Dense,
 }
 
+/// The box round every non-empty voxel of the range, unless more than an
+/// eighth of it is filled: a dense section is swept whole, a sparse one only
+/// where it has something.
 pub(super) fn find_sparse_non_empty_bounds<S: VoxelAccess>(
     min: &[i32; 3],
     max: &[i32; 3],
-    space: &S,
-    registry: &Registry,
+    window: &Window<S>,
 ) -> ScanBounds {
     let [min_x, min_y, min_z] = *min;
     let [max_x, max_y, max_z] = *max;
@@ -288,15 +356,11 @@ pub(super) fn find_sparse_non_empty_bounds<S: VoxelAccess>(
     let mut non_empty_count = 0usize;
 
     for vx in min_x..max_x {
-        for vz in min_z..max_z {
-            for vy in min_y..max_y {
-                let voxel_id = space.get_voxel(vx, vy, vz);
-                let is_non_empty = registry
-                    .get_block_by_id(voxel_id)
-                    .map(|block| !block.is_empty)
-                    .unwrap_or(false);
-
-                if is_non_empty {
+        for vy in min_y..max_y {
+            let row = window.index_inside(vx, vy, min_z);
+            for (i, vz) in (row..).zip(min_z..max_z) {
+                let bits = window.flags[i];
+                if bits & F_KNOWN != 0 && bits & F_EMPTY == 0 {
                     non_empty_count += 1;
                     if non_empty_count > dense_threshold {
                         return ScanBounds::Dense;

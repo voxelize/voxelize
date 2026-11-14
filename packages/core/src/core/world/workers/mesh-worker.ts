@@ -1,18 +1,17 @@
-import init, { mesh_chunk_fast, set_registry } from "@voxelize/wasm-mesher";
+import init, {
+  mesh_chunk_packed,
+  set_float_blocks,
+  set_registry,
+} from "@voxelize/wasm-mesher";
 
 import { Coords3 } from "../../../types";
 import { type BranchShape, type BranchSocket } from "../branch";
 import { type WorldOptions } from "../index";
-import { computeQuadLightTwist } from "../quad-light";
 import { type SerializedChunkPayload } from "../raw-chunk";
 import { Registry } from "../registry";
 import {
   isMainThreadSortedBlock,
-  POSITION_BLOCK_BIAS,
   positionUnitsPerBlock,
-  quantizeNormals,
-  quantizePositions,
-  quantizeUvs,
 } from "../vertex-quantization";
 
 import { WORKER_READY_MESSAGE_TYPE } from "./worker-ready";
@@ -208,83 +207,28 @@ type RawWasmBlock = {
   } | null;
 };
 
-type GeometryProtocol = {
+/**
+ * A geometry as the mesher hands it back (`mesh_chunk_packed`): already in
+ * the typed arrays the main thread uploads, each on a buffer of its own.
+ */
+type PackedGeometry = {
   voxel: number;
-  at: Coords3 | null;
-  faceName: string | null;
-  positions: number[];
-  indices: number[];
-  uvs: number[];
-  lights: number[];
+  at?: Coords3;
+  faceName?: string;
+  positions: Uint16Array | Float32Array;
+  uvs: Uint16Array | Float32Array;
+  normals: Int8Array | Float32Array;
+  indices: Uint16Array | Uint32Array;
+  lights: Int32Array;
+  lightTwist: Uint8Array;
+  bsCenter: [number, number, number];
+  bsRadius: number;
 };
 
-function workerComputeNormals(
-  positions: Float32Array,
-  indices: Uint16Array | Uint32Array,
-): Float32Array {
-  const normals = new Float32Array(positions.length);
-  for (let i = 0; i < indices.length; i += 3) {
-    const ia = indices[i] * 3;
-    const ib = indices[i + 1] * 3;
-    const ic = indices[i + 2] * 3;
-    const e1x = positions[ib] - positions[ia];
-    const e1y = positions[ib + 1] - positions[ia + 1];
-    const e1z = positions[ib + 2] - positions[ia + 2];
-    const e2x = positions[ic] - positions[ia];
-    const e2y = positions[ic + 1] - positions[ia + 1];
-    const e2z = positions[ic + 2] - positions[ia + 2];
-    let nx = e1y * e2z - e1z * e2y;
-    let ny = e1z * e2x - e1x * e2z;
-    let nz = e1x * e2y - e1y * e2x;
-    const len = Math.sqrt(nx * nx + ny * ny + nz * nz);
-    if (len > 0) {
-      nx /= len;
-      ny /= len;
-      nz /= len;
-    }
-    normals[ia] = nx;
-    normals[ia + 1] = ny;
-    normals[ia + 2] = nz;
-    normals[ib] = nx;
-    normals[ib + 1] = ny;
-    normals[ib + 2] = nz;
-    normals[ic] = nx;
-    normals[ic + 1] = ny;
-    normals[ic + 2] = nz;
-  }
-  return normals;
-}
-
-function workerComputeBoundingSphere(positions: Float32Array): {
-  center: [number, number, number];
-  radius: number;
-} {
-  const count = positions.length / 3;
-  if (count === 0) return { center: [0, 0, 0], radius: 0 };
-  let cx = 0,
-    cy = 0,
-    cz = 0;
-  for (let i = 0; i < positions.length; i += 3) {
-    cx += positions[i];
-    cy += positions[i + 1];
-    cz += positions[i + 2];
-  }
-  cx /= count;
-  cy /= count;
-  cz /= count;
-  let maxR2 = 0;
-  for (let i = 0; i < positions.length; i += 3) {
-    const dx = positions[i] - cx;
-    const dy = positions[i + 1] - cy;
-    const dz = positions[i + 2] - cz;
-    const r2 = dx * dx + dy * dy + dz * dz;
-    if (r2 > maxR2) maxR2 = r2;
-  }
-  return { center: [cx, cy, cz], radius: Math.sqrt(maxR2) };
-}
+/** Where a mesh call's time went inside the mesher, in milliseconds. */
+type MeshTimings = { readMs: number; meshMs: number; packMs: number };
 
 let wasmInitialized = false;
-let sortedBlockIds = new Set<number>();
 
 const minArray = new Int32Array(3);
 const maxArray = new Int32Array(3);
@@ -318,18 +262,21 @@ onmessage = async function (e) {
     const rawRegistry = Registry.parseSerialized(e.data.registryData);
     const wasmRegistry = convertRegistryToWasm(rawRegistry);
     set_registry(wasmRegistry);
-
-    sortedBlockIds = new Set(
-      rawRegistry.blocksById
-        .filter(([, block]: [number, RawWasmBlock]) =>
-          isMainThreadSortedBlock({
-            isFluid: block.isFluid,
-            isSeeThrough: block.isSeeThrough,
-            transparentStandalone: block.transparentStandalone,
-            lightAttenuation: block.lightAttenuation ?? 0,
-          }),
-        )
-        .map(([id]: [number, RawWasmBlock]) => id),
+    // The blocks the main thread sorts keep float attributes; every other
+    // block's geometry comes back packed compact (vertex-quantization.ts).
+    set_float_blocks(
+      Uint32Array.from(
+        rawRegistry.blocksById
+          .filter(([, block]: [number, RawWasmBlock]) =>
+            isMainThreadSortedBlock({
+              isFluid: block.isFluid,
+              isSeeThrough: block.isSeeThrough,
+              transparentStandalone: block.transparentStandalone,
+              lightAttenuation: block.lightAttenuation ?? 0,
+            }),
+          )
+          .map(([id]: [number, RawWasmBlock]) => id),
+      ),
     );
     // The pool hands this worker no job until it hears this.
     // @ts-expect-error postMessage typing
@@ -384,12 +331,23 @@ onmessage = async function (e) {
   maxArray[1] = max[1];
   maxArray[2] = max[2];
 
-  let result: { geometries: GeometryProtocol[]; connectivity: number };
+  // The mesher reads the part of each chunk a section's mesh can touch
+  // straight out of these arrays, and returns every geometry packed: normals,
+  // bounding sphere, light twist and quantization are done in the same call
+  // that meshed it, so nothing here walks a vertex.
+  let result: {
+    geometries: PackedGeometry[];
+    connectivity: number;
+    timings: MeshTimings;
+  };
   try {
-    result = mesh_chunk_fast(chunks, minArray, maxArray, chunkSize) as {
-      geometries: GeometryProtocol[];
-      connectivity: number;
-    };
+    result = mesh_chunk_packed(
+      chunks,
+      minArray,
+      maxArray,
+      chunkSize,
+      positionUnits,
+    ) as typeof result;
   } catch (error) {
     // A wasm trap (panic) aborts mid-mutation: thread-local state inside the
     // module (e.g. a borrowed RefCell) stays locked, so every later call on
@@ -404,65 +362,23 @@ onmessage = async function (e) {
     postMessage({ geometries: null, isWorkerPoisoned: true }, []);
     return;
   }
-  const geometries = result.geometries;
 
   const arrayBuffers: ArrayBuffer[] = [];
-  const geometriesPacked = geometries
-    .map((geometry) => {
-      const positions = new Float32Array(geometry.positions);
-      // Dense geometries (e.g. hand-authored canopies) exceed 65535 vertices
-      // per chunk; Uint16 silently wraps those indices and tears wedge-shaped
-      // holes through the mesh.
-      const vertexCount = positions.length / 3;
-      const indices =
-        vertexCount > 65535
-          ? new Uint32Array(geometry.indices.length)
-          : new Uint16Array(geometry.indices.length);
-      for (let i = 0; i < geometry.indices.length; i++) {
-        indices[i] = geometry.indices[i];
-      }
-
-      const normals = workerComputeNormals(positions, indices);
-      const bs = workerComputeBoundingSphere(positions);
-
-      const isQuantized = !sortedBlockIds.has(geometry.voxel);
-      const lights = new Int32Array(geometry.lights);
-      const packedGeometry = {
-        indices,
-        lights,
-        lightTwist: computeQuadLightTwist(lights, indices),
-        positions: isQuantized
-          ? quantizePositions(positions, positionUnits)
-          : positions,
-        uvs: isQuantized
-          ? quantizeUvs(geometry.uvs)
-          : new Float32Array(geometry.uvs),
-        normals: isQuantized ? quantizeNormals(normals) : normals,
-        bsCenter: isQuantized
-          ? (bs.center.map(
-              (c) => (c + POSITION_BLOCK_BIAS) * positionUnits,
-            ) as [number, number, number])
-          : bs.center,
-        bsRadius: isQuantized ? bs.radius * positionUnits : bs.radius,
-        voxel: geometry.voxel,
-        faceName: geometry.faceName,
-        at: geometry.at,
-      };
-
-      arrayBuffers.push(packedGeometry.indices.buffer);
-      arrayBuffers.push(packedGeometry.lights.buffer);
-      arrayBuffers.push(packedGeometry.lightTwist.buffer as ArrayBuffer);
-      arrayBuffers.push(packedGeometry.positions.buffer as ArrayBuffer);
-      arrayBuffers.push(packedGeometry.uvs.buffer as ArrayBuffer);
-      arrayBuffers.push(packedGeometry.normals.buffer as ArrayBuffer);
-
-      return packedGeometry;
-    })
-    .filter((geometry) => geometry.positions.length > 0);
+  for (const geometry of result.geometries) {
+    arrayBuffers.push(
+      geometry.indices.buffer as ArrayBuffer,
+      geometry.lights.buffer as ArrayBuffer,
+      geometry.lightTwist.buffer as ArrayBuffer,
+      geometry.positions.buffer as ArrayBuffer,
+      geometry.uvs.buffer as ArrayBuffer,
+      geometry.normals.buffer as ArrayBuffer,
+    );
+  }
 
   const payload = {
-    geometries: geometriesPacked,
+    geometries: result.geometries,
     connectivity: result.connectivity,
+    timings: result.timings,
   };
   // @ts-expect-error postMessage typing
   postMessage(payload, arrayBuffers);

@@ -28,6 +28,10 @@ pub struct Mesher {
     sender: Arc<Sender<(Chunk, MessageType)>>,
     receiver: Arc<Receiver<(Chunk, MessageType)>>,
     pool: Arc<ThreadPool>,
+    /// The registry the meshing threads read, copied from the world's once
+    /// and kept while the world's holds the same blocks. `process` used to
+    /// copy the whole registry for every batch it started.
+    registry_snapshot: Option<Arc<Registry>>,
 }
 
 impl Mesher {
@@ -42,6 +46,7 @@ impl Mesher {
             sender: Arc::new(sender),
             receiver: Arc::new(receiver),
             pool: crate::world::shared_pools::meshing_pool(),
+            registry_snapshot: None,
         }
     }
 
@@ -158,7 +163,14 @@ impl Mesher {
         let sender = Arc::clone(&self.sender);
         let r#type = r#type.clone();
         let is_load = r#type == MessageType::Load;
-        let registry = Arc::new(registry.clone());
+        let registry = match &self.registry_snapshot {
+            Some(snapshot) if snapshot.has_same_blocks_as(registry) => Arc::clone(snapshot),
+            _ => {
+                let snapshot = Arc::new(registry.clone());
+                self.registry_snapshot = Some(Arc::clone(&snapshot));
+                snapshot
+            }
+        };
         let config = Arc::new(config.clone());
 
         InflightJob::queue(&MESHING_INFLIGHT, processes.len());
@@ -186,8 +198,7 @@ impl Mesher {
                     if config.client_only_meshing {
                         chunk.meshes = None;
                     } else {
-                        let mut mesher_registry = registry.to_mesher_registry();
-                        mesher_registry.build_cache();
+                        let mesher_registry = registry.mesher_registry();
 
                         for level in sub_chunks {
                             let level = level as i32;
@@ -199,13 +210,9 @@ impl Mesher {
                             let min_arr = [min.0, min.1, min.2];
                             let max_arr = [max.0, max.1, max.2];
 
-                            let mesher_geometries = voxelize_mesher::mesh_space_greedy(
-                                &min_arr,
-                                &max_arr,
-                                &space,
-                                &mesher_registry,
-                            );
-                            let connectivity = voxelize_mesher::compute_section_connectivity(
+                            // The mesh and the section's connectivity off
+                            // one read of the voxels.
+                            let (mesher_geometries, connectivity) = voxelize_mesher::mesh_section(
                                 &min_arr,
                                 &max_arr,
                                 &space,

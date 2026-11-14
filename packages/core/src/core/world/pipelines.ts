@@ -560,7 +560,8 @@ const REBUILD_QUOTA = 2;
 export class MeshPipeline {
   private states = new Map<string, MeshState>();
   private dirty = new Set<string>();
-  private urgentDirty = new Set<string>();
+  /** Urgent keys, each with when it went urgent. */
+  private urgentDirty = new Map<string, number>();
 
   private getOrCreate(key: string): MeshState {
     let state = this.states.get(key);
@@ -590,14 +591,32 @@ export class MeshPipeline {
     return { cx, cz, level: parseInt(levelStr) };
   }
 
-  onVoxelChange(cx: number, cz: number, level: number, isUrgent = false): void {
+  onVoxelChange(
+    cx: number,
+    cz: number,
+    level: number,
+    isUrgent = false,
+    nowMs: number = performance.now(),
+  ): void {
     const key = MeshPipeline.makeKey(cx, cz, level);
     const state = this.getOrCreate(key);
     state.generation++;
     this.dirty.add(key);
-    if (isUrgent) {
-      this.urgentDirty.add(key);
+    if (isUrgent && !this.urgentDirty.has(key)) {
+      this.urgentDirty.set(key, nowMs);
     }
+  }
+
+  /**
+   * How long the urgent key that has waited longest for a dispatch has
+   * waited; 0 with none waiting.
+   */
+  urgentWaitMs(nowMs: number = performance.now()): number {
+    let oldest = nowMs;
+    for (const [key, since] of this.urgentDirty) {
+      if (since < oldest && this.shouldStartJob(key)) oldest = since;
+    }
+    return nowMs - oldest;
   }
 
   shouldStartJob(key: string): boolean {
@@ -731,7 +750,7 @@ export class MeshPipeline {
    * Without a center the regular lane keeps insertion order.
    */
   getDirtyKeys(center?: Coords2): string[] {
-    const urgentKeys = [...this.urgentDirty].filter((key) =>
+    const urgentKeys = [...this.urgentDirty.keys()].filter((key) =>
       this.shouldStartJob(key),
     );
     const regularKeys = [...this.dirty].filter(
@@ -756,7 +775,9 @@ export class MeshPipeline {
 
   /** Urgent keys a dispatch can start now, in the order they went dirty. */
   urgentDirtyKeys(): string[] {
-    return [...this.urgentDirty].filter((key) => this.shouldStartJob(key));
+    return [...this.urgentDirty.keys()].filter((key) =>
+      this.shouldStartJob(key),
+    );
   }
 
   /**
@@ -837,7 +858,7 @@ export class MeshPipeline {
   }
 
   hasDirtyChunks(): boolean {
-    for (const key of this.urgentDirty) {
+    for (const key of this.urgentDirty.keys()) {
       if (this.shouldStartJob(key)) return true;
     }
     for (const key of this.dirty) {

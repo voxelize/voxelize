@@ -170,11 +170,26 @@ export function mergeSectionGeometries(
         ? part.normals
         : computeNormalsFromBuffers(part.positions, part.indices);
     const isFlat = !(part.normals && part.normals.length > 0);
-    for (let v = 0; v < count; v++) {
-      for (let c = 0; c < 3; c++) {
-        const value = source3[v * 3 + c];
-        normals[(vertex + v) * normalStride + c] =
-          isQuantized && isFlat ? Math.round(value * 127) : value;
+    if (isQuantized && isFlat) {
+      for (let v = 0; v < count; v++) {
+        for (let c = 0; c < 3; c++) {
+          normals[(vertex + v) * normalStride + c] = Math.round(
+            source3[v * 3 + c] * 127,
+          );
+        }
+      }
+    } else if (normalStride === 3) {
+      // Three-wide in, three-wide out: one copy.
+      normals.set(source3.subarray(0, count * 3), vertex * 3);
+    } else {
+      // The usual case, a worker's byte normals widened to four: straight
+      // stores, where the general loop above cost a branch and two index
+      // products per component of every vertex of a section.
+      let out = vertex * normalStride;
+      for (let i = 0, end = count * 3; i < end; i += 3, out += normalStride) {
+        normals[out] = source3[i];
+        normals[out + 1] = source3[i + 1];
+        normals[out + 2] = source3[i + 2];
       }
     }
     if (tints) {
@@ -190,8 +205,13 @@ export function mergeSectionGeometries(
       );
     }
     const source = part.indices;
-    for (let i = 0; i < source.length; i++) {
-      indices[index + i] = source[i] + vertex;
+    if (vertex === 0) {
+      // The first part's indices are already the merged ones.
+      indices.set(source, index);
+    } else {
+      for (let i = 0; i < source.length; i++) {
+        indices[index + i] = source[i] + vertex;
+      }
     }
     index += source.length;
     vertex += count;

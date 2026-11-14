@@ -89,6 +89,12 @@ pub struct Registry {
     /// intake can skip the coupled-unit pass entirely for registries that
     /// have none.
     has_coupled_blocks: bool,
+
+    /// The registry as the mesher reads it (`mesher_registry`), made on
+    /// first use and shared by every clone. Anything that changes a block
+    /// takes a fresh cell (`forget_mesher_registry`), so two registries that
+    /// hold the same cell hold the same blocks.
+    mesher_registry: Arc<std::sync::OnceLock<Arc<voxelize_mesher::Registry>>>,
 }
 
 impl Registry {
@@ -126,6 +132,18 @@ impl Registry {
         self.record_block(&air);
     }
 
+    /// Drops the mesher's copy of the blocks; the next mesh builds one from
+    /// the blocks as they now are.
+    fn forget_mesher_registry(&mut self) {
+        self.mesher_registry = Arc::default();
+    }
+
+    /// Whether `other` holds the same blocks as this registry: it is a clone
+    /// of it (or it of this), with no block recorded on either since.
+    pub fn has_same_blocks_as(&self, other: &Registry) -> bool {
+        Arc::ptr_eq(&self.mesher_registry, &other.mesher_registry)
+    }
+
     /// Generate the UV coordinates of the blocks. Call this before the server starts!
     ///
     /// Also the registry's last chance to refuse a mis-declared block set:
@@ -133,6 +151,8 @@ impl Registry {
     /// fails the server at startup rather than a player in the world.
     pub fn generate(&mut self) {
         assert_coupled_blocks_consistent(self);
+        // The face ranges written below are what the mesher reads.
+        self.forget_mesher_registry();
 
         // Slots are handed out in block-id order, faces in declared order and
         // groups by first use, so every process lays out the same atlas. The
@@ -525,6 +545,7 @@ impl Registry {
 
         let lower_name = name.to_lowercase();
 
+        self.forget_mesher_registry();
         self.blocks_by_name.remove(&lower_name);
         self.blocks_by_id.remove(id);
 
@@ -591,6 +612,21 @@ impl Registry {
             lut.resize(block.id as usize + 1, LightPassInfo::default());
         }
         lut[block.id as usize] = info;
+    }
+
+    /// The blocks as the mesher reads them, with its lookup tables built.
+    ///
+    /// Converting the registry copies every block, face and pattern, a few
+    /// milliseconds for a game's worth of blocks, and the chunk mesher used
+    /// to do it once per chunk: for an ordinary chunk that was as much work
+    /// as meshing it. A registry does not change once its world runs, so the
+    /// conversion is kept and handed out.
+    pub fn mesher_registry(&self) -> Arc<voxelize_mesher::Registry> {
+        Arc::clone(self.mesher_registry.get_or_init(|| {
+            let mut registry = self.to_mesher_registry();
+            registry.build_cache();
+            Arc::new(registry)
+        }))
     }
 
     pub fn to_mesher_registry(&self) -> voxelize_mesher::Registry {

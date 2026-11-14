@@ -102,22 +102,144 @@ pub(super) fn compute_self_ao(
     (s011, s101, s110, s111)
 }
 
+/// Whether the cached cell at an offset holds an opaque block, by the mask
+/// `NeighborCache::opaque_mask` made.
+#[inline(always)]
+pub(super) fn opaque_at(opaque: u32, ox: i32, oy: i32, oz: i32) -> bool {
+    (opaque >> NeighborCache::offset_to_index(ox, oy, oz)) & 1 != 0
+}
+
+/// [`NeighborCache::offset_to_index`] for an offset already within one cell
+/// of the centre on every axis.
+#[inline(always)]
+fn near_index(ox: i32, oy: i32, oz: i32) -> usize {
+    debug_assert!(ox.abs() <= 1 && oy.abs() <= 1 && oz.abs() <= 1);
+    (13 + ox + oy * 3 + oz * 9) as usize
+}
+
+/// The light at a face's corner: the mean of the lit cells among the eight
+/// that meet at it (the corner sits toward `(dx, dy, dz)` of the voxel),
+/// leaving out the ones the face cannot see. An opaque cell at or behind the
+/// face's plane, a cell in the plane while the cell the face looks from is
+/// itself opaque, and the far diagonal when opaque blocks close every way
+/// round to it, all stay out. With nothing left, the cell the face looks
+/// into lights the corner.
+///
+/// One rule for every face: the greedy mesher and `process_face` both come
+/// here, so a block lit one way as a merged quad is lit the same drawn alone.
+#[inline]
+pub(super) fn corner_light(
+    dir: [i32; 3],
+    dx: i32,
+    dy: i32,
+    dz: i32,
+    neighbors: &NeighborCache,
+    opaque: u32,
+) -> (u32, u32, u32, u32) {
+    let mut sum_sunlight = 0;
+    let mut sum_red_light = 0;
+    let mut sum_green_light = 0;
+    let mut sum_blue_light = 0;
+    let mut light_count = 0;
+
+    // The eight cells are all within one of the centre, so they are read by
+    // plain index; only the cell a sample is faced from can lie further out
+    // (a custom face's `dir`), and that one goes through the clamp.
+    let near = |ox: i32, oy: i32, oz: i32| (opaque >> near_index(ox, oy, oz)) & 1 != 0;
+
+    for x in 0..=1 {
+        for y in 0..=1 {
+            for z in 0..=1 {
+                let ddx = x * dx;
+                let ddy = y * dy;
+                let ddz = z * dz;
+
+                let local = neighbors.data[near_index(ddx, ddy, ddz)][1];
+                let (local_sunlight, local_red_light, local_green_light, local_blue_light) =
+                    LightUtils::extract_all(local);
+                if local_sunlight == 0
+                    && local_red_light == 0
+                    && local_green_light == 0
+                    && local_blue_light == 0
+                {
+                    continue;
+                }
+
+                if should_skip_opaque_light_sample(dir, ddx, ddy, ddz, near(ddx, ddy, ddz)) {
+                    continue;
+                }
+
+                if dir[0] * ddx + dir[1] * ddy + dir[2] * ddz == 0
+                    && opaque_at(opaque, ddx * dir[0], ddy * dir[1], ddz * dir[2])
+                {
+                    continue;
+                }
+
+                if ddx.abs() + ddy.abs() + ddz.abs() == 3 {
+                    let diagonal_yz_opaque = near(0, ddy, ddz);
+                    let diagonal_xz_opaque = near(ddx, 0, ddz);
+                    let diagonal_xy_opaque = near(ddx, ddy, 0);
+
+                    if diagonal_yz_opaque && diagonal_xz_opaque && diagonal_xy_opaque {
+                        continue;
+                    }
+
+                    if diagonal_xy_opaque && diagonal_xz_opaque && near(0, ddy, 0) && near(0, 0, ddz)
+                    {
+                        continue;
+                    }
+
+                    if diagonal_xy_opaque && diagonal_yz_opaque && near(ddx, 0, 0) && near(0, 0, ddz)
+                    {
+                        continue;
+                    }
+
+                    if diagonal_xz_opaque && diagonal_yz_opaque && near(ddx, 0, 0) && near(0, ddy, 0)
+                    {
+                        continue;
+                    }
+                }
+
+                sum_sunlight += local_sunlight;
+                sum_red_light += local_red_light;
+                sum_green_light += local_green_light;
+                sum_blue_light += local_blue_light;
+                light_count += 1;
+            }
+        }
+    }
+
+    if light_count > 0 {
+        let light_count_f32 = light_count as f32;
+        (
+            (sum_sunlight as f32 / light_count_f32) as u32,
+            (sum_red_light as f32 / light_count_f32) as u32,
+            (sum_green_light as f32 / light_count_f32) as u32,
+            (sum_blue_light as f32 / light_count_f32) as u32,
+        )
+    } else {
+        fallback_face_light(neighbors, dir)
+    }
+}
+
+#[cfg(test)]
 pub(super) fn compute_face_ao_and_light(
     dir: [i32; 3],
     block: &Block,
     neighbors: &NeighborCache,
     registry: &Registry,
 ) -> ([i32; 4], [i32; 4]) {
-    let block_aabb = AABB::union_all(&block.aabbs);
+    face_ao_and_light(dir, block, neighbors, neighbors.opaque_mask(registry))
+}
 
-    let is_see_through = block.is_see_through;
-    let is_all_transparent = block.is_transparent[0]
-        && block.is_transparent[1]
-        && block.is_transparent[2]
-        && block.is_transparent[3]
-        && block.is_transparent[4]
-        && block.is_transparent[5];
-
+/// [`compute_face_ao_and_light`] for a caller that already knows which of
+/// the neighbourhood's cells are opaque.
+pub(super) fn face_ao_and_light(
+    dir: [i32; 3],
+    block: &Block,
+    neighbors: &NeighborCache,
+    opaque: u32,
+) -> ([i32; 4], [i32; 4]) {
     let corner_positions: [[f32; 3]; 4] = match dir {
         [1, 0, 0] => [
             [1.0, 1.0, 1.0],
@@ -158,6 +280,11 @@ pub(super) fn compute_face_ao_and_light(
         _ => return ([3, 3, 3, 3], [0, 0, 0, 0]),
     };
 
+    let block_aabb = AABB::union_all(&block.aabbs);
+    let is_all_transparent = block.is_transparent.iter().all(|&face| face);
+    let is_unshaded = block.is_see_through || is_all_transparent;
+    let is_lit_from_center = uses_center_voxel_light(block);
+
     let mut aos = [0i32; 4];
     let mut lights = [0i32; 4];
 
@@ -178,163 +305,28 @@ pub(super) fn compute_face_ao_and_light(
             1
         };
 
-        let get_block_opaque = |ox: i32, oy: i32, oz: i32| -> bool {
-            let id = neighbors.get_voxel(ox, oy, oz);
-            registry
-                .get_block_by_id(id)
-                .map(|b| b.is_opaque)
-                .unwrap_or(false)
-        };
-
-        let b011 = !get_block_opaque(0, dy, dz);
-        let b101 = !get_block_opaque(dx, 0, dz);
-        let b110 = !get_block_opaque(dx, dy, 0);
-        let b111 = !get_block_opaque(dx, dy, dz);
-
-        let ao = if is_see_through || is_all_transparent {
+        aos[i] = if is_unshaded {
             3
-        } else if dir[0].abs() == 1 {
-            vertex_ao(b110, b101, b111)
-        } else if dir[1].abs() == 1 {
-            vertex_ao(b110, b011, b111)
         } else {
-            vertex_ao(b011, b101, b111)
+            let b011 = !opaque_at(opaque, 0, dy, dz);
+            let b101 = !opaque_at(opaque, dx, 0, dz);
+            let b110 = !opaque_at(opaque, dx, dy, 0);
+            let b111 = !opaque_at(opaque, dx, dy, dz);
+            if dir[0].abs() == 1 {
+                vertex_ao(b110, b101, b111)
+            } else if dir[1].abs() == 1 {
+                vertex_ao(b110, b011, b111)
+            } else {
+                vertex_ao(b011, b101, b111)
+            }
         };
 
-        let (sunlight, red_light, green_light, blue_light) = if uses_center_voxel_light(block) {
+        let (sunlight, red_light, green_light, blue_light) = if is_lit_from_center {
             neighbors.get_all_lights(0, 0, 0)
         } else {
-            let mut sum_sunlight = 0;
-            let mut sum_red_light = 0;
-            let mut sum_green_light = 0;
-            let mut sum_blue_light = 0;
-            let mut light_count = 0;
-
-            for x in 0..=1 {
-                for y in 0..=1 {
-                    for z in 0..=1 {
-                        let ddx = x * dx;
-                        let ddy = y * dy;
-                        let ddz = z * dz;
-
-                        let (local_sunlight, local_red_light, local_green_light, local_blue_light) =
-                            neighbors.get_all_lights(ddx, ddy, ddz);
-
-                        if local_sunlight == 0
-                            && local_red_light == 0
-                            && local_green_light == 0
-                            && local_blue_light == 0
-                        {
-                            continue;
-                        }
-
-                        let diagonal4_id = neighbors.get_voxel(ddx, ddy, ddz);
-                        let diagonal4_opaque = registry
-                            .get_block_by_id(diagonal4_id)
-                            .map(|b| b.is_opaque)
-                            .unwrap_or(false);
-
-                        if should_skip_opaque_light_sample(dir, ddx, ddy, ddz, diagonal4_opaque) {
-                            continue;
-                        }
-
-                        if dir[0] * ddx + dir[1] * ddy + dir[2] * ddz == 0 {
-                            let facing_id =
-                                neighbors.get_voxel(ddx * dir[0], ddy * dir[1], ddz * dir[2]);
-                            let facing_opaque = registry
-                                .get_block_by_id(facing_id)
-                                .map(|b| b.is_opaque)
-                                .unwrap_or(false);
-
-                            if facing_opaque {
-                                continue;
-                            }
-                        }
-
-                        if ddx.abs() + ddy.abs() + ddz.abs() == 3 {
-                            let diagonal_yz_opaque = registry
-                                .get_block_by_id(neighbors.get_voxel(0, ddy, ddz))
-                                .map(|b| b.is_opaque)
-                                .unwrap_or(false);
-                            let diagonal_xz_opaque = registry
-                                .get_block_by_id(neighbors.get_voxel(ddx, 0, ddz))
-                                .map(|b| b.is_opaque)
-                                .unwrap_or(false);
-                            let diagonal_xy_opaque = registry
-                                .get_block_by_id(neighbors.get_voxel(ddx, ddy, 0))
-                                .map(|b| b.is_opaque)
-                                .unwrap_or(false);
-
-                            if diagonal_yz_opaque && diagonal_xz_opaque && diagonal_xy_opaque {
-                                continue;
-                            }
-
-                            if diagonal_xy_opaque && diagonal_xz_opaque {
-                                let neighbor_y_opaque = registry
-                                    .get_block_by_id(neighbors.get_voxel(0, ddy, 0))
-                                    .map(|b| b.is_opaque)
-                                    .unwrap_or(false);
-                                let neighbor_z_opaque = registry
-                                    .get_block_by_id(neighbors.get_voxel(0, 0, ddz))
-                                    .map(|b| b.is_opaque)
-                                    .unwrap_or(false);
-                                if neighbor_y_opaque && neighbor_z_opaque {
-                                    continue;
-                                }
-                            }
-
-                            if diagonal_xy_opaque && diagonal_yz_opaque {
-                                let neighbor_x_opaque = registry
-                                    .get_block_by_id(neighbors.get_voxel(ddx, 0, 0))
-                                    .map(|b| b.is_opaque)
-                                    .unwrap_or(false);
-                                let neighbor_z_opaque = registry
-                                    .get_block_by_id(neighbors.get_voxel(0, 0, ddz))
-                                    .map(|b| b.is_opaque)
-                                    .unwrap_or(false);
-                                if neighbor_x_opaque && neighbor_z_opaque {
-                                    continue;
-                                }
-                            }
-
-                            if diagonal_xz_opaque && diagonal_yz_opaque {
-                                let neighbor_x_opaque = registry
-                                    .get_block_by_id(neighbors.get_voxel(ddx, 0, 0))
-                                    .map(|b| b.is_opaque)
-                                    .unwrap_or(false);
-                                let neighbor_y_opaque = registry
-                                    .get_block_by_id(neighbors.get_voxel(0, ddy, 0))
-                                    .map(|b| b.is_opaque)
-                                    .unwrap_or(false);
-                                if neighbor_x_opaque && neighbor_y_opaque {
-                                    continue;
-                                }
-                            }
-                        }
-
-                        sum_sunlight += local_sunlight;
-                        sum_red_light += local_red_light;
-                        sum_green_light += local_green_light;
-                        sum_blue_light += local_blue_light;
-                        light_count += 1;
-                    }
-                }
-            }
-
-            if light_count > 0 {
-                let light_count_f32 = light_count as f32;
-                (
-                    (sum_sunlight as f32 / light_count_f32) as u32,
-                    (sum_red_light as f32 / light_count_f32) as u32,
-                    (sum_green_light as f32 / light_count_f32) as u32,
-                    (sum_blue_light as f32 / light_count_f32) as u32,
-                )
-            } else {
-                fallback_face_light(neighbors, dir)
-            }
+            corner_light(dir, dx, dy, dz, neighbors, opaque)
         };
 
-        aos[i] = ao;
         let mut light = 0u32;
         light = LightUtils::insert_red_light(light, red_light);
         light = LightUtils::insert_green_light(light, green_light);

@@ -1,92 +1,223 @@
-use hashbrown::{HashMap, HashSet};
+use std::borrow::Cow;
+
+use hashbrown::HashMap;
 
 use voxelize_core::{BlockFace, BlockRotation, LightUtils, VoxelAccess, UV};
 
 use super::*;
 
-pub(super) fn extract_greedy_quads(
-    mask: &mut HashMap<(i32, i32), FaceData>,
-    min_u: i32,
-    max_u: i32,
-    min_v: i32,
-    max_v: i32,
-) -> Vec<GreedyQuad> {
-    let mut quads = Vec::new();
+/// One cell of a sweep's face mask: everything two faces must share to merge
+/// into one quad, in plain words that compare as words. `block` is the
+/// block's place in the registry plus one, zero for no face; `class` stands
+/// for the face's name, `independent` and texture range (`BlockTables`).
+#[derive(Clone, Copy, Default)]
+struct MaskCell {
+    /// The four corners' light, sixteen bits each.
+    light: u64,
+    block: u32,
+    tint_bits: i32,
+    class: u8,
+    /// The four corners' occlusion, two bits each.
+    ao: u8,
+    is_water_exposed: bool,
+    /// Which of the block's faces (its own, then its stage faces) this is.
+    /// Not compared: equal classes draw alike, and a quad is drawn with the
+    /// face of the cell it starts at.
+    face_slot: u8,
+}
 
-    for v in min_v..max_v {
-        for u in min_u..max_u {
-            if let Some(data) = mask.remove(&(u, v)) {
-                let mut width = 1;
-                while u + width < max_u {
-                    if let Some(neighbor) = mask.get(&(u + width, v)) {
-                        if neighbor.key == data.key {
-                            mask.remove(&(u + width, v));
-                            width += 1;
-                        } else {
-                            break;
-                        }
-                    } else {
-                        break;
-                    }
-                }
+impl MaskCell {
+    #[inline(always)]
+    fn merges_with(&self, other: &MaskCell) -> bool {
+        self.block == other.block
+            && self.light == other.light
+            && self.tint_bits == other.tint_bits
+            && self.class == other.class
+            && self.ao == other.ao
+            && self.is_water_exposed == other.is_water_exposed
+    }
 
-                let mut height = 1;
-                'height: while v + height < max_v {
-                    for du in 0..width {
-                        if let Some(neighbor) = mask.get(&(u + du, v + height)) {
-                            if neighbor.key != data.key {
-                                break 'height;
-                            }
-                        } else {
-                            break 'height;
-                        }
-                    }
-                    for du in 0..width {
-                        mask.remove(&(u + du, v + height));
-                    }
-                    height += 1;
-                }
+    #[inline(always)]
+    fn ao(&self) -> [i32; 4] {
+        [0, 2, 4, 6].map(|shift| ((self.ao >> shift) & 0x3) as i32)
+    }
 
-                quads.push(GreedyQuad {
-                    x: u,
-                    y: v,
-                    w: width,
-                    h: height,
-                    data,
-                });
-            }
+    #[inline(always)]
+    fn light(&self) -> [i32; 4] {
+        [0, 16, 32, 48].map(|shift| ((self.light >> shift) & 0xFFFF) as i32)
+    }
+}
+
+/// The faces of one slice that may merge, as a `width` x `height` grid, with
+/// the box of cells written since it was last emptied so an empty or nearly
+/// empty slice costs nothing to read back.
+struct FaceMask {
+    cells: Vec<MaskCell>,
+    width: usize,
+    height: usize,
+    lo: [usize; 2],
+    hi: [usize; 2],
+}
+
+struct MaskQuad {
+    u: usize,
+    v: usize,
+    w: usize,
+    h: usize,
+    cell: MaskCell,
+}
+
+impl FaceMask {
+    fn new() -> Self {
+        Self {
+            cells: Vec::new(),
+            width: 0,
+            height: 0,
+            lo: [usize::MAX; 2],
+            hi: [0; 2],
         }
     }
 
-    quads
+    fn resize(&mut self, width: usize, height: usize) {
+        self.cells.clear();
+        self.cells.resize(width * height, MaskCell::default());
+        self.width = width;
+        self.height = height;
+        self.lo = [usize::MAX; 2];
+        self.hi = [0; 2];
+    }
+
+    #[inline(always)]
+    fn set(&mut self, u: usize, v: usize, cell: MaskCell) {
+        self.cells[v * self.width + u] = cell;
+        self.lo = [self.lo[0].min(u), self.lo[1].min(v)];
+        self.hi = [self.hi[0].max(u + 1), self.hi[1].max(v + 1)];
+    }
+
+    /// Takes every face out as the largest quads that grow first along u,
+    /// then along v, rows first: the order a client's buffers are laid in.
+    fn drain_quads(&mut self, quads: &mut Vec<MaskQuad>) {
+        if self.lo[0] == usize::MAX {
+            return;
+        }
+        let [u_lo, v_lo] = self.lo;
+        let [u_hi, v_hi] = self.hi;
+        for v in v_lo..v_hi {
+            let row = v * self.width;
+            let mut u = u_lo;
+            while u < u_hi {
+                let cell = self.cells[row + u];
+                if cell.block == 0 {
+                    u += 1;
+                    continue;
+                }
+
+                let mut w = 1;
+                while u + w < u_hi && self.cells[row + u + w].merges_with(&cell) {
+                    w += 1;
+                }
+
+                let mut h = 1;
+                'grow: while v + h < v_hi {
+                    let above = (v + h) * self.width + u;
+                    for du in 0..w {
+                        if !self.cells[above + du].merges_with(&cell) {
+                            break 'grow;
+                        }
+                    }
+                    h += 1;
+                }
+
+                for dv in 0..h {
+                    let start = (v + dv) * self.width + u;
+                    for taken in &mut self.cells[start..start + w] {
+                        taken.block = 0;
+                    }
+                }
+
+                quads.push(MaskQuad { u, v, w, h, cell });
+                u += w;
+            }
+        }
+        self.lo = [usize::MAX; 2];
+        self.hi = [0; 2];
+    }
 }
 
-pub(super) fn process_greedy_quad(
-    quad: &GreedyQuad,
+/// The geometries a mesh is built into, in the order they were first written
+/// to, found again by the same key a client finds their material by.
+#[derive(Default)]
+pub(super) struct Buckets {
+    geometries: Vec<GeometryProtocol>,
+    by_key: HashMap<String, usize>,
+}
+
+impl Buckets {
+    /// The place of the geometry keyed `key`, made by `init` the first time.
+    pub(super) fn slot(&mut self, key: &str, init: impl FnOnce() -> GeometryProtocol) -> usize {
+        if let Some(&slot) = self.by_key.get(key) {
+            return slot;
+        }
+        let slot = self.geometries.len();
+        self.geometries.push(init());
+        self.by_key.insert(key.to_string(), slot);
+        slot
+    }
+
+    #[inline(always)]
+    pub(super) fn at(&mut self, slot: usize) -> &mut GeometryProtocol {
+        &mut self.geometries[slot]
+    }
+
+    fn finish(self) -> Vec<GeometryProtocol> {
+        self.geometries
+            .into_iter()
+            .filter(|geometry| !geometry.indices.is_empty())
+            .collect()
+    }
+}
+
+/// A face drawn on its own instead of through the mask.
+struct LooseFace<'a> {
+    voxel: [i32; 3],
+    voxel_id: u32,
+    block_index: usize,
+    rotation: BlockRotation,
+    block: &'a Block,
+    face: Cow<'a, BlockFace>,
+    is_see_through: bool,
+    is_fluid: bool,
+    world_space: bool,
+}
+
+fn emit_greedy_quad(
+    quad: &MaskQuad,
+    origin: [i32; 2],
     axis: usize,
     slice: i32,
     dir: [i32; 3],
     min: &[i32; 3],
     block: &Block,
+    face: &BlockFace,
     geometry: &mut GeometryProtocol,
 ) {
     let [min_x, min_y, min_z] = *min;
     let is_opaque = block.is_opaque;
-    let is_fluid = quad.data.is_fluid;
+    let is_fluid = block.is_fluid;
 
     let UV {
         start_u,
         end_u,
         start_v,
         end_v,
-    } = quad.data.uv_range.clone();
+    } = face.range.clone();
 
     let scale = if is_opaque { 0.0 } else { 0.0001 };
 
-    let u_min = quad.x as f32;
-    let u_max = (quad.x + quad.w) as f32;
-    let v_min = quad.y as f32;
-    let v_max = (quad.y + quad.h) as f32;
+    let u_min = (origin[0] + quad.u as i32) as f32;
+    let u_max = (origin[0] + (quad.u + quad.w) as i32) as f32;
+    let v_min = (origin[1] + quad.v as i32) as f32;
+    let v_max = (origin[1] + (quad.v + quad.h) as i32) as f32;
 
     let slice_pos = slice as f32 + if dir[axis] > 0 { 1.0 } else { 0.0 };
 
@@ -149,57 +280,52 @@ pub(super) fn process_greedy_quad(
     };
 
     let ndx = (geometry.positions.len() / 3) as i32;
+    let aos = quad.cell.ao();
+    let lights = quad.cell.light();
+    let emissive_bits = ao_or_emissive_bits(0, face.emissive);
+    let fluid_bit = if is_fluid { FLUID_BIT } else { 0 };
+    let water_exposed_bit = if quad.cell.is_water_exposed {
+        WATER_EXPOSED_BIT
+    } else {
+        0
+    };
 
+    let mut positions = [0.0f32; 12];
+    let mut uvs = [0.0f32; 8];
+    let mut packed = [0i32; 4];
     for i in 0..4 {
         let pos = corners[i];
-        geometry
-            .positions
-            .push(pos[0] - min_x as f32 - dir[0] as f32 * scale);
-        geometry
-            .positions
-            .push(pos[1] - min_y as f32 - dir[1] as f32 * scale);
-        geometry
-            .positions
-            .push(pos[2] - min_z as f32 - dir[2] as f32 * scale);
+        positions[i * 3] = pos[0] - min_x as f32 - dir[0] as f32 * scale;
+        positions[i * 3 + 1] = pos[1] - min_y as f32 - dir[1] as f32 * scale;
+        positions[i * 3 + 2] = pos[2] - min_z as f32 - dir[2] as f32 * scale;
 
-        let u = uv_corners[i][0] * (end_u - start_u) + start_u;
-        let v = uv_corners[i][1] * (end_v - start_v) + start_v;
-        geometry.uvs.push(u);
-        geometry.uvs.push(v);
+        uvs[i * 2] = uv_corners[i][0] * (end_u - start_u) + start_u;
+        uvs[i * 2 + 1] = uv_corners[i][1] * (end_v - start_v) + start_v;
 
-        let ao = quad.data.key.ao[i];
-        let light = quad.data.key.light[i];
-        let fluid_bit = if is_fluid { FLUID_BIT } else { 0 };
-        let greedy_bit = GREEDY_BIT;
-        let water_exposed_bit = if quad.data.key.is_water_exposed {
-            WATER_EXPOSED_BIT
+        let ao_bits = if emissive_bits != 0 {
+            emissive_bits
         } else {
-            0
+            aos[i] << AO_SHIFT
         };
-        let ao_bits = if quad.data.emissive_bits != 0 {
-            quad.data.emissive_bits
-        } else {
-            ao << AO_SHIFT
-        };
-        geometry.lights.push(
-            light | ao_bits | fluid_bit | greedy_bit | water_exposed_bit | quad.data.key.tint_bits,
-        );
+        packed[i] = lights[i]
+            | ao_bits
+            | fluid_bit
+            | GREEDY_BIT
+            | water_exposed_bit
+            | quad.cell.tint_bits;
     }
+    geometry.positions.extend_from_slice(&positions);
+    geometry.uvs.extend_from_slice(&uvs);
+    geometry.lights.extend_from_slice(&packed);
 
-    if quad_flips(&quad.data.key.ao, &quad.data.key.light) {
-        geometry.indices.push(ndx);
-        geometry.indices.push(ndx + 1);
-        geometry.indices.push(ndx + 3);
-        geometry.indices.push(ndx + 3);
-        geometry.indices.push(ndx + 2);
-        geometry.indices.push(ndx);
+    if quad_flips(&aos, &lights) {
+        geometry
+            .indices
+            .extend_from_slice(&[ndx, ndx + 1, ndx + 3, ndx + 3, ndx + 2, ndx]);
     } else {
-        geometry.indices.push(ndx);
-        geometry.indices.push(ndx + 1);
-        geometry.indices.push(ndx + 2);
-        geometry.indices.push(ndx + 2);
-        geometry.indices.push(ndx + 1);
-        geometry.indices.push(ndx + 3);
+        geometry
+            .indices
+            .extend_from_slice(&[ndx, ndx + 1, ndx + 2, ndx + 2, ndx + 1, ndx + 3]);
     }
 }
 
@@ -262,63 +388,191 @@ fn voxel_stage_for_faces<S: VoxelAccess>(block: &Block, [x, y, z]: [i32; 3], spa
     }
 }
 
-/// The greedy-mask entry for `block`'s face toward `dir` from `center`: lit
-/// and occluded from the voxel in front of it, exposed to water on either
-/// side, tinted by the stage of `stage_voxel`.
-#[allow(clippy::too_many_arguments)]
-fn greedy_face_data<S: VoxelAccess>(
-    center: [i32; 3],
-    stage_voxel: [i32; 3],
-    dir: [i32; 3],
-    block: &Block,
-    face: &BlockFace,
-    space: &S,
-    registry: &Registry,
-    is_see_through: bool,
-    is_fluid: bool,
-) -> FaceData {
-    let [cx, cy, cz] = center;
-    let [sx, sy, sz] = stage_voxel;
-    let uv_range = face.range.clone();
-    let neighbors = NeighborCache::populate(cx, cy, cz, space);
-    let (aos, lights) = compute_face_ao_and_light(dir, block, &neighbors, registry);
-    let is_water_exposed = space.get_voxel_waterlogged(cx, cy, cz)
-        || space.get_voxel_waterlogged(cx + dir[0], cy + dir[1], cz + dir[2])
-        || registry
-            .get_block_by_id(space.get_voxel(cx + dir[0], cy + dir[1], cz + dir[2]))
-            .map(|b| b.is_fluid)
-            .unwrap_or(false);
-    let stage = space.get_voxel_stage(sx, sy, sz);
+/// `block`'s face toward `dir` on a voxel at `stage`, and which of the
+/// block's faces it is, its own counted before its stage faces.
+#[inline]
+fn face_toward(block: &Block, stage: u32, dir: [i32; 3]) -> Option<(&BlockFace, usize)> {
+    let (faces, first) = match &block.stage_faces {
+        Some(alternate) if stage & alternate.mask != 0 => (&alternate.faces, block.faces.len()),
+        _ => (&block.faces, 0),
+    };
+    faces
+        .iter()
+        .position(|face| face.dir == dir)
+        .map(|at| (&faces[at], first + at))
+}
 
-    let key = FaceKey {
-        block_id: block.id,
-        face_name: face.name.clone(),
-        independent: face.independent,
-        is_water_exposed,
-        tint_bits: match face_pigment(stage, face.pigment_mask) {
-            Some(pigment) if !is_fluid => pigment_bits(pigment),
-            _ if face.stage_tint_mask != 0 && !is_fluid && block.stack_group == 0 => {
-                stage_tint_bits(stage & face.stage_tint_mask)
+/// Which way each corner of a cube's face lies from the voxel's centre, per
+/// sweep direction, in the order the corners are emitted: the signs
+/// `face_ao_and_light` reads off a full cube's corner positions.
+const CORNER_SIGNS: [[[isize; 3]; 4]; 6] = [
+    [[1, 1, 1], [1, -1, 1], [1, 1, -1], [1, -1, -1]],
+    [[-1, 1, -1], [-1, -1, -1], [-1, 1, 1], [-1, -1, 1]],
+    [[-1, 1, 1], [1, 1, 1], [-1, 1, -1], [1, 1, -1]],
+    [[1, -1, 1], [-1, -1, 1], [1, -1, -1], [-1, -1, -1]],
+    [[-1, -1, 1], [1, -1, 1], [-1, 1, 1], [1, 1, 1]],
+    [[1, -1, -1], [-1, -1, -1], [1, 1, -1], [-1, 1, -1]],
+];
+
+/// [`face_ao_and_light`] for an opaque full cube, read straight off the
+/// window: the same rule with what an opaque cube makes of it worked out
+/// ahead. The cube hides its own cell and every cell level with it from the
+/// face (`corner_light`'s first two exclusions), so a corner is lit by the
+/// four cells that meet at it one step out along the face's normal, and
+/// shaded by the three of those that are not straight ahead. That is nine
+/// lights and eighteen opaque bits a face instead of the whole
+/// neighbourhood, and no walk through the eight samples per corner.
+#[inline]
+fn opaque_cube_ao_and_light<S: VoxelAccess>(
+    center: usize,
+    sweep: usize,
+    window: &Window<S>,
+) -> ([i32; 4], [i32; 4]) {
+    let axis = sweep / 2;
+    let steps = [window.step_x as isize, window.step_y as isize, 1isize];
+    let (p_axis, q_axis) = match axis {
+        0 => (1, 2),
+        1 => (0, 2),
+        _ => (0, 1),
+    };
+    let is_opaque = |delta: isize| window.flags[(center as isize + delta) as usize] & F_OPAQUE != 0;
+    let light_at = |delta: isize| window.light[(center as isize + delta) as usize] as u32;
+
+    let mut aos = [0i32; 4];
+    let mut lights = [0i32; 4];
+    for (corner, signs) in CORNER_SIGNS[sweep].iter().enumerate() {
+        let a = signs[axis] * steps[axis];
+        let p = signs[p_axis] * steps[p_axis];
+        let q = signs[q_axis] * steps[q_axis];
+
+        let ahead_p = is_opaque(a + p);
+        let ahead_q = is_opaque(a + q);
+        aos[corner] = if ahead_p && ahead_q {
+            0
+        } else {
+            3 - (ahead_p as i32 + ahead_q as i32 + is_opaque(a + p + q) as i32)
+        };
+
+        let mut sums = [0u32; 4];
+        let mut count = 0u32;
+        let mut add = |word: u32| {
+            sums[0] += (word >> 12) & 0xF;
+            sums[1] += (word >> 8) & 0xF;
+            sums[2] += (word >> 4) & 0xF;
+            sums[3] += word & 0xF;
+            count += 1;
+        };
+        for delta in [a, a + p, a + q] {
+            let word = light_at(delta);
+            if word != 0 {
+                add(word);
             }
-            _ if face.regional_tint && !is_fluid && block.stack_group == 0 => stage_tint_bits(0),
-            _ => 0,
-        },
-        ao: aos,
-        light: lights,
-        uv_start_u: (uv_range.start_u * 1000000.0) as u32,
-        uv_end_u: (uv_range.end_u * 1000000.0) as u32,
-        uv_start_v: (uv_range.start_v * 1000000.0) as u32,
-        uv_end_v: (uv_range.end_v * 1000000.0) as u32,
+        }
+        let far = light_at(a + p + q);
+        if far != 0 {
+            // The far diagonal lights the corner unless opaque blocks close
+            // every way round to it.
+            let level = is_opaque(p + q);
+            let is_shut = (level && ahead_q && ahead_p)
+                || (ahead_p && ahead_q && is_opaque(p) && is_opaque(q))
+                || (ahead_p && level && is_opaque(a) && is_opaque(q))
+                || (ahead_q && level && is_opaque(a) && is_opaque(p));
+            if !is_shut {
+                add(far);
+            }
+        }
+
+        lights[corner] = if count > 0 {
+            let count = count as f32;
+            let [sun, red, green, blue] = sums.map(|sum| ((sum as f32 / count) as u32) & 0xF);
+            ((sun << 12) | (red << 8) | (green << 4) | blue) as i32
+        } else {
+            // Nothing lit meets the corner, the cell ahead included.
+            light_at(a) as i32
+        };
+    }
+
+    (aos, lights)
+}
+
+/// The mask entry for `block`'s face toward `dir` from the window cell
+/// `center`: lit and occluded from the cells round it, exposed to water on
+/// either side, tinted by the stage of `stage_voxel`.
+#[allow(clippy::too_many_arguments)]
+#[inline]
+fn face_cell<S: VoxelAccess>(
+    center: usize,
+    toward: isize,
+    stage_voxel: [i32; 3],
+    sweep: usize,
+    block: &Block,
+    block_bits: u16,
+    block_index: usize,
+    face: &BlockFace,
+    face_slot: usize,
+    window: &Window<S>,
+    tables: &BlockTables,
+) -> MaskCell {
+    let dir = DIRECTIONS[sweep];
+    let (aos, lights) = if block_bits & F_FLAT_LIT != 0 {
+        ([3; 4], [window.light[center] as i32; 4])
+    } else if block_bits & F_OPAQUE != 0 && window.flags[center] & F_OPAQUE != 0 {
+        opaque_cube_ao_and_light(center, sweep, window)
+    } else {
+        let (neighbors, opaque) = window.neighborhood(center);
+        face_ao_and_light(dir, block, &neighbors, opaque)
+    };
+    let ahead = window.flags[(center as isize + toward) as usize];
+    let is_water_exposed =
+        window.flags[center] & F_WATERLOGGED != 0 || ahead & (F_WATERLOGGED | F_FLUID) != 0;
+
+    let is_fluid = block.is_fluid;
+    // Only a tinted face reads its voxel's stage.
+    let stage = if face.pigment_mask != 0 || face.stage_tint_mask != 0 {
+        window.get_voxel_stage(stage_voxel[0], stage_voxel[1], stage_voxel[2])
+    } else {
+        0
+    };
+    let tint_bits = match face_pigment(stage, face.pigment_mask) {
+        Some(pigment) if !is_fluid => pigment_bits(pigment),
+        _ if face.stage_tint_mask != 0 && !is_fluid && block.stack_group == 0 => {
+            stage_tint_bits(stage & face.stage_tint_mask)
+        }
+        _ if face.regional_tint && !is_fluid && block.stack_group == 0 => stage_tint_bits(0),
+        _ => 0,
     };
 
-    FaceData {
-        key,
-        uv_range,
-        is_see_through,
-        is_fluid,
-        emissive_bits: ao_or_emissive_bits(0, face.emissive),
+    MaskCell {
+        light: (lights[0] as u16 as u64)
+            | (lights[1] as u16 as u64) << 16
+            | (lights[2] as u16 as u64) << 32
+            | (lights[3] as u16 as u64) << 48,
+        block: block_index as u32 + 1,
+        tint_bits,
+        class: tables.face_class(block_index, face_slot),
+        ao: (aos[0] | aos[1] << 2 | aos[2] << 4 | aos[3] << 6) as u8,
+        is_water_exposed,
+        face_slot: face_slot as u8,
     }
 }
+
+/// What a sweep does with a cell, decided once for all six: nothing, a face
+/// in the mask, or (on the first sweep) all its faces drawn on their own.
+const CELL_SKIP: u8 = 0;
+const CELL_GREEDY: u8 = 1;
+const CELL_LOOSE: u8 = 2;
+const CELL_KIND: u8 = 3;
+/// The voxel is waterlogged, and draws the fluid it holds beside its block.
+const CELL_HOLDS_FLUID: u8 = 4;
+
+const DIRECTIONS: [[i32; 3]; 6] = [
+    [1, 0, 0],
+    [-1, 0, 0],
+    [0, 1, 0],
+    [0, -1, 0],
+    [0, 0, 1],
+    [0, 0, -1],
+];
 
 pub fn mesh_space_greedy<S: VoxelAccess>(
     min: &[i32; 3],
@@ -326,235 +580,315 @@ pub fn mesh_space_greedy<S: VoxelAccess>(
     space: &S,
     registry: &Registry,
 ) -> Vec<GeometryProtocol> {
-    let mut map: HashMap<String, GeometryProtocol> = HashMap::new();
-    let mut processed_non_greedy: HashSet<(i32, i32, i32)> = HashSet::new();
-    let mut processed_waterlogged: HashSet<(i32, i32, i32)> = HashSet::new();
-    let waterlogging_fluid = registry.waterlogging_fluid();
+    let built;
+    let tables = match registry.tables() {
+        Some(tables) => tables,
+        None => {
+            built = BlockTables::build(registry);
+            &built
+        }
+    };
+    let window = Window::new(space, min, max, tables);
+    mesh_window(min, max, &window, registry, tables)
+}
 
-    let [min_x, min_y, min_z] = *min;
-    let [max_x, max_y, max_z] = *max;
-    let (scan_min, scan_max) = match find_sparse_non_empty_bounds(min, max, space, registry) {
+/// A section's mesh and its connectivity (`compute_section_connectivity`)
+/// off one read of the voxels: what a caller that wants both should ask for.
+pub fn mesh_section<S: VoxelAccess>(
+    min: &[i32; 3],
+    max: &[i32; 3],
+    space: &S,
+    registry: &Registry,
+) -> (Vec<GeometryProtocol>, u32) {
+    let built;
+    let tables = match registry.tables() {
+        Some(tables) => tables,
+        None => {
+            built = BlockTables::build(registry);
+            &built
+        }
+    };
+    let window = Window::new(space, min, max, tables);
+    (
+        mesh_window(min, max, &window, registry, tables),
+        window_connectivity(min, max, &window),
+    )
+}
+
+pub(super) fn mesh_window<S: VoxelAccess>(
+    min: &[i32; 3],
+    max: &[i32; 3],
+    window: &Window<S>,
+    registry: &Registry,
+    tables: &BlockTables,
+) -> Vec<GeometryProtocol> {
+    let waterlogging_fluid = registry
+        .waterlogging_fluid()
+        .filter(|(_, fluid_block)| has_standard_six_faces(&fluid_block.faces))
+        .and_then(|(id, fluid_block)| Some((id, fluid_block, tables.index_of(id)?)));
+
+    let (scan_min, scan_max) = match find_sparse_non_empty_bounds(min, max, window) {
         ScanBounds::Empty => return Vec::new(),
         ScanBounds::Sparse { min, max } => (min, max),
         ScanBounds::Dense => (*min, *max),
     };
-    let [scan_min_x, scan_min_y, scan_min_z] = scan_min;
-    let [scan_max_x, scan_max_y, scan_max_z] = scan_max;
 
-    let directions: [(i32, i32, i32); 6] = [
-        (1, 0, 0),
-        (-1, 0, 0),
-        (0, 1, 0),
-        (0, -1, 0),
-        (0, 0, 1),
-        (0, 0, -1),
-    ];
+    // What each cell in the scanned box is to the sweeps. Not a property of
+    // the direction, so it is settled once: six sweeps then pass over air,
+    // buried stone and loose blocks on one byte each.
+    let mut kinds = vec![CELL_SKIP; window.flags.len()];
+    let steps = [window.step_x as isize, window.step_y as isize, 1isize];
+    for vx in scan_min[0]..scan_max[0] {
+        for vy in scan_min[1]..scan_max[1] {
+            let row = window.index_inside(vx, vy, scan_min[2]);
+            for (i, vz) in (row..).zip(scan_min[2]..scan_max[2]) {
+                let bits = window.flags[i];
+                if bits & F_KNOWN == 0 || bits & F_EMPTY != 0 {
+                    continue;
+                }
+                let mut kind = CELL_SKIP;
+                if waterlogging_fluid.is_some() && bits & F_WATERLOGGED != 0 {
+                    kind |= CELL_HOLDS_FLUID;
+                }
+                // An opaque voxel shut in by six that cover it draws nothing.
+                let is_buried = bits & F_OPAQUE != 0
+                    && VOXEL_NEIGHBORS.iter().all(|&[nx, ny, nz]| {
+                        let at = (i as isize + nx as isize * steps[0] + ny as isize * steps[1] + nz as isize)
+                            as usize;
+                        let beside = window.flags[at];
+                        beside & F_OPAQUE != 0
+                            && beside & F_FLUID == 0
+                            && (beside & F_SHELL == 0
+                                || !registry
+                                    .get_block_by_id(window.get_voxel(vx + nx, vy + ny, vz + nz))
+                                    .is_some_and(|b| {
+                                        is_hollow_shell(b, [vx + nx, vy + ny, vz + nz], window, registry)
+                                    }))
+                    });
+                if !is_buried {
+                    kind |= if bits & F_GREEDY != 0 && window.is_upright(i, vx, vy, vz) {
+                        CELL_GREEDY
+                    } else {
+                        CELL_LOOSE
+                    };
+                }
+                kinds[i] = kind;
+            }
+        }
+    }
 
-    let slice_size = (max_x - min_x).max(max_y - min_y).max(max_z - min_z) as usize;
-    let mut greedy_mask: HashMap<(i32, i32), FaceData> =
-        HashMap::with_capacity(slice_size * slice_size);
+    let mut buckets = Buckets::default();
+    // Where each block's own geometry is, by its place in the registry (plus
+    // one; zero for not yet): the bucket nearly every quad goes to.
+    let mut plain_slots = vec![0u32; registry.blocks_by_id.len()];
+    // The other buckets a face can be found by without spelling its key: a
+    // block's tufts, an independent face by its class, a face by where the
+    // registry keeps it.
+    let mut keyed_slots: HashMap<(u32, usize), usize> = HashMap::new();
+    const KEY_TUFTS: usize = usize::MAX;
+
+    let mut mask = FaceMask::new();
     // Inward copies of cutout-mass surface faces (see `is_cutout_mass`),
     // gathered while their voxels are visited; each lies on the next plane
     // back along the sweep.
-    let mut inward_mask: HashMap<(i32, i32), FaceData> = HashMap::new();
+    let mut inward_mask = FaceMask::new();
+    let mut quads: Vec<MaskQuad> = Vec::new();
+    let mut inward_quads: Vec<MaskQuad> = Vec::new();
     // The block is borrowed from the registry, not cloned: a `Block` owns
     // several strings and vectors, and cloning one per face put tens of heap
     // allocations behind every water voxel.
-    let mut non_greedy_faces: Vec<(
-        i32,
-        i32,
-        i32,
-        u32,
-        BlockRotation,
-        &Block,
-        BlockFace,
-        UV,
-        bool,
-        bool,
-        bool,
-    )> = Vec::new();
+    let mut loose_faces: Vec<LooseFace> = Vec::new();
     // Branch faces wait here for the faces beside them on their plane, so
     // runs of them are drawn as single quads once every voxel has drawn.
     let mut coplanar = CoplanarQuads::default();
     let mut scratch = GeometryProtocol::default();
 
-    for (dx, dy, dz) in directions {
-        let dir = [dx, dy, dz];
-
-        let (axis, u_axis, v_axis) = if dx != 0 {
+    for (sweep, dir) in DIRECTIONS.into_iter().enumerate() {
+        let (axis, u_axis, v_axis) = if dir[0] != 0 {
             (0, 2, 1)
-        } else if dy != 0 {
+        } else if dir[1] != 0 {
             (1, 0, 2)
         } else {
             (2, 0, 1)
         };
+        let is_first_sweep = sweep == 0;
+        let toward = dir[axis] as isize * steps[axis];
+        let (u_min, u_max) = (scan_min[u_axis], scan_max[u_axis]);
+        let (v_min, v_max) = (scan_min[v_axis], scan_max[v_axis]);
+        let (u_len, v_len) = ((u_max - u_min) as usize, (v_max - v_min) as usize);
+        mask.resize(u_len, v_len);
+        inward_mask.resize(u_len, v_len);
 
-        let slice_range = match axis {
-            0 => scan_min_x..scan_max_x,
-            1 => scan_min_y..scan_max_y,
-            _ => scan_min_z..scan_max_z,
-        };
+        for slice in scan_min[axis]..scan_max[axis] {
+            loose_faces.clear();
 
-        let u_range = match u_axis {
-            0 => (scan_min_x, scan_max_x),
-            1 => (scan_min_y, scan_max_y),
-            _ => (scan_min_z, scan_max_z),
-        };
+            for u in u_min..u_max {
+                let mut voxel = [0i32; 3];
+                voxel[axis] = slice;
+                voxel[u_axis] = u;
+                voxel[v_axis] = v_min;
+                let column = window.index_inside(voxel[0], voxel[1], voxel[2]);
 
-        let v_range = match v_axis {
-            0 => (scan_min_x, scan_max_x),
-            1 => (scan_min_y, scan_max_y),
-            _ => (scan_min_z, scan_max_z),
-        };
-
-        for slice in slice_range {
-            greedy_mask.clear();
-            inward_mask.clear();
-            non_greedy_faces.clear();
-
-            for u in u_range.0..u_range.1 {
-                for v in v_range.0..v_range.1 {
-                    let (vx, vy, vz) = match (axis, u_axis, v_axis) {
-                        (0, 2, 1) => (slice, v, u),
-                        (1, 0, 2) => (u, slice, v),
-                        (2, 0, 1) => (u, v, slice),
-                        _ => continue,
-                    };
-
-                    let voxel_id = space.get_voxel(vx, vy, vz);
-                    if !registry.has_type(voxel_id) {
+                for v in v_min..v_max {
+                    let i = (column as isize + (v - v_min) as isize * steps[v_axis]) as usize;
+                    let kind = kinds[i];
+                    if kind == CELL_SKIP || (!is_first_sweep && kind & CELL_KIND != CELL_GREEDY) {
                         continue;
                     }
-
-                    let rotation = space.get_voxel_rotation(vx, vy, vz);
-                    let block = match registry.get_block_by_id(voxel_id) {
-                        Some(b) => b,
-                        None => continue,
-                    };
-
-                    if block.is_empty {
-                        continue;
-                    }
+                    voxel[v_axis] = v;
+                    let [vx, vy, vz] = voxel;
+                    let bits = window.flags[i];
 
                     // A waterlogged voxel draws its block *and* the fluid it
                     // holds. Without the fluid pass the surrounding water,
                     // which culls its faces against this voxel, would leave a
                     // block-shaped hole in the tank.
-                    if let Some((fluid_id, fluid_block)) = waterlogging_fluid {
-                        if space.get_voxel_waterlogged(vx, vy, vz)
-                            && has_standard_six_faces(&fluid_block.faces)
-                            && processed_waterlogged.insert((vx, vy, vz))
-                        {
+                    if is_first_sweep && kind & CELL_HOLDS_FLUID != 0 {
+                        if let Some((fluid_id, fluid_block, fluid_index)) = waterlogging_fluid {
                             for face in create_fluid_faces(
                                 vx,
                                 vy,
                                 vz,
                                 fluid_id,
-                                space,
+                                window,
                                 &fluid_block.faces,
                                 registry,
                             ) {
-                                let uv_range = face.range.clone();
-                                non_greedy_faces.push((
-                                    vx,
-                                    vy,
-                                    vz,
-                                    fluid_id,
-                                    BlockRotation::PY(0.0),
-                                    fluid_block,
-                                    face,
-                                    uv_range,
-                                    fluid_block.is_see_through,
-                                    true,
-                                    false,
-                                ));
+                                loose_faces.push(LooseFace {
+                                    voxel,
+                                    voxel_id: fluid_id,
+                                    block_index: fluid_index,
+                                    rotation: BlockRotation::PY(0.0),
+                                    block: fluid_block,
+                                    face: Cow::Owned(face),
+                                    is_see_through: fluid_block.is_see_through,
+                                    is_fluid: true,
+                                    world_space: false,
+                                });
                             }
                         }
                     }
 
-                    if block.is_opaque {
-                        let all_neighbors_opaque = VOXEL_NEIGHBORS.iter().all(|&[nx, ny, nz]| {
-                            let at = [vx + nx, vy + ny, vz + nz];
-                            let id = space.get_voxel(at[0], at[1], at[2]);
-                            registry
-                                .get_block_by_id(id)
-                                .map(|b| {
-                                    b.is_opaque
-                                        && !b.is_fluid
-                                        && !is_hollow_shell(b, at, space, registry)
-                                })
-                                .unwrap_or(false)
-                        });
-                        if all_neighbors_opaque {
-                            continue;
-                        }
-                    }
-
+                    let voxel_id = extract_id(window.raw[i]);
+                    let Some(block_index) = tables.index_of(voxel_id) else {
+                        continue;
+                    };
+                    let block = &registry.blocks_by_id[block_index].1;
                     let is_fluid = block.is_fluid;
                     let is_see_through = block.is_see_through;
-                    let is_non_greedy_block = !can_greedy_mesh_block(block, &rotation);
 
-                    if !is_non_greedy_block {
+                    if kind & CELL_KIND == CELL_GREEDY {
                         // Tufts are not faces of the cube: each voxel lays
                         // its own once, on the first of the six sweeps, into a
                         // geometry of their own (`TUFTS_FACE_NAME`) that the
                         // client draws double-sided and can hide.
-                        if block.tufts.is_some() && dir == [1, 0, 0] {
-                            let geometry = map
-                                .entry(format!("{}::{}", block.get_name_lower(), TUFTS_FACE_NAME))
-                                .or_insert_with(|| GeometryProtocol {
-                                    voxel: voxel_id,
-                                    face_name: Some(TUFTS_FACE_NAME.to_string()),
-                                    ..Default::default()
+                        if is_first_sweep && block.tufts.is_some() {
+                            let slot = *keyed_slots
+                                .entry((block_index as u32, KEY_TUFTS))
+                                .or_insert_with(|| {
+                                    buckets.slot(
+                                        &format!("{}::{}", block.get_name_lower(), TUFTS_FACE_NAME),
+                                        || GeometryProtocol {
+                                            voxel: voxel_id,
+                                            face_name: Some(TUFTS_FACE_NAME.to_string()),
+                                            ..Default::default()
+                                        },
+                                    )
                                 });
-                            emit_tufts([vx, vy, vz], block, space, registry, min, geometry);
+                            emit_tufts(voxel, block, window, registry, min, buckets.at(slot));
                         }
 
-                        let Some(face) = block
-                            .faces_at(voxel_stage_for_faces(block, [vx, vy, vz], space))
-                            .iter()
-                            .find(|face| face.dir == dir)
-                        else {
+                        let stage = voxel_stage_for_faces(block, voxel, window);
+                        let Some((face, face_slot)) = face_toward(block, stage, dir) else {
                             continue;
                         };
+                        let (mu, mv) = ((u - u_min) as usize, (v - v_min) as usize);
 
                         // A cutout mass's face toward the empty voxel behind
                         // it, seen from inside: on that face's plane, turned
                         // back toward this voxel and lit by it.
-                        let behind = [vx - dir[0], vy - dir[1], vz - dir[2]];
-                        if is_cutout_mass(block)
-                            && registry
-                                .get_block_by_id(space.get_voxel(behind[0], behind[1], behind[2]))
-                                .is_some_and(|b| b.is_empty)
-                        {
-                            inward_mask.insert(
-                                (u, v),
-                                greedy_face_data(
-                                    behind,
-                                    [vx, vy, vz],
-                                    dir,
-                                    block,
-                                    face,
-                                    space,
-                                    registry,
-                                    is_see_through,
-                                    is_fluid,
-                                ),
-                            );
+                        if bits & F_CUTOUT_MASS != 0 {
+                            let behind = (i as isize - toward) as usize;
+                            let behind_bits = window.flags[behind];
+                            if behind_bits & F_KNOWN != 0 && behind_bits & F_EMPTY != 0 {
+                                inward_mask.set(
+                                    mu,
+                                    mv,
+                                    face_cell(
+                                        behind,
+                                        toward,
+                                        voxel,
+                                        sweep,
+                                        block,
+                                        bits,
+                                        block_index,
+                                        face,
+                                        face_slot,
+                                        window,
+                                        tables,
+                                    ),
+                                );
+                            }
                         }
 
-                        let should_render = should_render_face(
-                            vx,
-                            vy,
-                            vz,
-                            voxel_id,
-                            dir,
-                            block,
-                            space,
-                            registry,
-                            is_see_through,
-                            is_fluid,
-                        );
+                        // An opaque cube against a neighbour that is not a
+                        // branch shell is the whole of `should_render_face`
+                        // in four bits; anything else asks it.
+                        let ahead_at = (i as isize + toward) as usize;
+                        let ahead = window.flags[ahead_at];
+                        let shape = bits & (F_OPAQUE | F_SEE_THROUGH | F_FLUID);
+                        let should_render = if ahead & F_SHELL != 0 {
+                            should_render_face(
+                                vx,
+                                vy,
+                                vz,
+                                voxel_id,
+                                dir,
+                                block,
+                                window,
+                                registry,
+                                is_see_through,
+                                is_fluid,
+                            )
+                        } else if ahead & F_PRESENT == 0
+                            || ahead & F_KNOWN == 0
+                            || ahead & (F_EMPTY | F_FLUID) != 0
+                        {
+                            // Open space, a block nobody can vouch for, or a
+                            // fluid's lowered surface: every cube shows here.
+                            true
+                        } else if shape == F_OPAQUE {
+                            ahead & F_OPAQUE == 0
+                        } else if shape == F_SEE_THROUGH {
+                            // A see-through cube shows against anything that
+                            // is not opaque and not itself; against itself
+                            // only near the surface of a standalone mass.
+                            ahead & F_OPAQUE == 0
+                                && (extract_id(window.raw[ahead_at]) != voxel_id
+                                    || (block.transparent_standalone
+                                        && is_standalone_face_within_depth(
+                                            vx,
+                                            vy,
+                                            vz,
+                                            dir,
+                                            voxel_id,
+                                            block.standalone_face_depth,
+                                            window,
+                                        )))
+                        } else {
+                            should_render_face(
+                                vx,
+                                vy,
+                                vz,
+                                voxel_id,
+                                dir,
+                                block,
+                                window,
+                                registry,
+                                is_see_through,
+                                is_fluid,
+                            )
+                        };
 
                         if !should_render {
                             continue;
@@ -563,14 +897,14 @@ pub fn mesh_space_greedy<S: VoxelAccess>(
                         // Pressed to a face its neighbour draws back across
                         // the boundary: wholly covered it goes, partly
                         // covered it is drawn on its own, less the cover.
-                        let pressed = if is_see_through {
+                        let pressed = if is_see_through && bits & (F_FLUID | F_CUTOUT_MASS) == 0 {
                             uncovered_by_neighbor_faces(
-                                [vx, vy, vz],
+                                voxel,
                                 voxel_id,
                                 block,
                                 dir,
                                 [0.0, 0.0, 1.0, 1.0],
-                                space,
+                                window,
                                 registry,
                             )
                         } else {
@@ -578,48 +912,48 @@ pub fn mesh_space_greedy<S: VoxelAccess>(
                         };
                         if let Some(open) = pressed {
                             if !open.is_empty() {
-                                non_greedy_faces.push((
-                                    vx,
-                                    vy,
-                                    vz,
+                                loose_faces.push(LooseFace {
+                                    voxel,
                                     voxel_id,
-                                    rotation.clone(),
+                                    block_index,
+                                    rotation: window.get_voxel_rotation(vx, vy, vz),
                                     block,
-                                    face.clone(),
-                                    face.range.clone(),
+                                    face: Cow::Borrowed(face),
                                     is_see_through,
                                     is_fluid,
-                                    false,
-                                ));
+                                    world_space: false,
+                                });
                             }
                             continue;
                         }
 
-                        greedy_mask.insert(
-                            (u, v),
-                            greedy_face_data(
-                                [vx, vy, vz],
-                                [vx, vy, vz],
-                                dir,
+                        mask.set(
+                            mu,
+                            mv,
+                            face_cell(
+                                i,
+                                toward,
+                                voxel,
+                                sweep,
                                 block,
+                                bits,
+                                block_index,
                                 face,
-                                space,
-                                registry,
-                                is_see_through,
-                                is_fluid,
+                                face_slot,
+                                window,
+                                tables,
                             ),
                         );
                         continue;
                     }
 
-                    // A non-greedy voxel emits all its faces on the first of
-                    // the six sweeps that reaches it; the other five have
-                    // nothing to add, and must say so before building
-                    // anything — a fluid voxel's faces cost corner walks.
-                    if processed_non_greedy.contains(&(vx, vy, vz)) {
+                    // A voxel that does not greedy-mesh emits all its faces
+                    // here, on the first of the six sweeps; the other five
+                    // pass over it.
+                    if kind & CELL_KIND != CELL_LOOSE {
                         continue;
                     }
-                    processed_non_greedy.insert((vx, vy, vz));
+                    let rotation = window.get_voxel_rotation(vx, vy, vz);
 
                     // Fluids never rotate and always carry the six axis
                     // faces, so their culling can run before a face is
@@ -630,21 +964,20 @@ pub fn mesh_space_greedy<S: VoxelAccess>(
                     // was most of what an ocean chunk cost to mesh.
                     let is_standard_fluid = is_fluid && has_standard_six_faces(&block.faces);
                     let fluid_face_renders: Option<[bool; 6]> = if is_standard_fluid {
-                        let mut renders = [false; 6];
-                        for (i, (fx, fy, fz)) in directions.iter().enumerate() {
-                            renders[i] = should_render_face(
+                        let renders = DIRECTIONS.map(|toward| {
+                            should_render_face(
                                 vx,
                                 vy,
                                 vz,
                                 voxel_id,
-                                [*fx, *fy, *fz],
+                                toward,
                                 block,
-                                space,
+                                window,
                                 registry,
                                 is_see_through,
                                 is_fluid,
-                            );
-                        }
+                            )
+                        });
                         if !renders.iter().any(|r| *r) {
                             continue;
                         }
@@ -653,107 +986,158 @@ pub fn mesh_space_greedy<S: VoxelAccess>(
                         None
                     };
 
+                    let is_plain = !is_standard_fluid
+                        && block.branch.is_none()
+                        && !block.branch_shell
+                        && block.dynamic_patterns.is_none()
+                        && block.connected.is_none();
+                    if is_plain {
+                        // The block's own faces as they stand in the
+                        // registry: nothing to build, so nothing to copy.
+                        let stage = voxel_stage_for_faces(block, voxel, window);
+                        for face in block.faces_at(stage) {
+                            loose_faces.push(LooseFace {
+                                voxel,
+                                voxel_id,
+                                block_index,
+                                rotation: rotation.clone(),
+                                block,
+                                face: Cow::Borrowed(face),
+                                is_see_through,
+                                is_fluid,
+                                world_space: false,
+                            });
+                        }
+                        continue;
+                    }
+
                     let faces: Vec<(BlockFace, bool)> = if is_standard_fluid {
-                        create_fluid_faces(vx, vy, vz, block.id, space, &block.faces, registry)
+                        create_fluid_faces(vx, vy, vz, block.id, window, &block.faces, registry)
                             .into_iter()
                             .filter(|face| {
                                 fluid_face_renders.is_none_or(|renders| {
-                                    directions
+                                    DIRECTIONS
                                         .iter()
-                                        .position(|(fx, fy, fz)| face.dir == [*fx, *fy, *fz])
+                                        .position(|toward| face.dir == *toward)
                                         .is_none_or(|i| renders[i])
                                 })
                             })
                             .map(|f| (f, false))
                             .collect()
                     } else if block.branch.is_some() || block.branch_shell {
-                        branch_faces([vx, vy, vz], space, registry)
+                        branch_faces(voxel, window, registry)
                     } else if block.dynamic_patterns.is_some() {
-                        get_dynamic_faces(block, [vx, vy, vz], space, &rotation)
+                        get_dynamic_faces(block, voxel, window, &rotation)
                     } else {
                         block
-                            .faces_at(voxel_stage_for_faces(block, [vx, vy, vz], space))
+                            .faces_at(voxel_stage_for_faces(block, voxel, window))
                             .iter()
                             .cloned()
                             .map(|f| (f, false))
                             .collect()
                     };
                     let faces = match &block.connected {
-                        Some(frame) => connect_faces(frame, [vx, vy, vz], faces, space, registry),
+                        Some(frame) => connect_faces(frame, voxel, faces, window, registry),
                         None => faces,
                     };
 
                     for (face, world_space) in faces.into_iter() {
-                        let uv_range = face.range.clone();
-                        non_greedy_faces.push((
-                            vx,
-                            vy,
-                            vz,
+                        loose_faces.push(LooseFace {
+                            voxel,
                             voxel_id,
-                            rotation.clone(),
+                            block_index,
+                            rotation: rotation.clone(),
                             block,
-                            face,
-                            uv_range,
+                            face: Cow::Owned(face),
                             is_see_through,
                             is_fluid,
                             world_space,
-                        ));
+                        });
                     }
-                    continue;
                 }
             }
 
-            let quads =
-                extract_greedy_quads(&mut greedy_mask, u_range.0, u_range.1, v_range.0, v_range.1);
-            let inward_quads =
-                extract_greedy_quads(&mut inward_mask, u_range.0, u_range.1, v_range.0, v_range.1);
+            mask.drain_quads(&mut quads);
+            inward_mask.drain_quads(&mut inward_quads);
             let inward_slice = slice - dir[axis];
 
             for (quad, quad_slice) in quads
-                .into_iter()
+                .drain(..)
                 .map(|quad| (quad, slice))
-                .chain(inward_quads.into_iter().map(|quad| (quad, inward_slice)))
+                .chain(inward_quads.drain(..).map(|quad| (quad, inward_slice)))
             {
-                let block = match registry.get_block_by_id(quad.data.key.block_id) {
-                    Some(b) => b,
-                    None => continue,
-                };
-                let geo_key = if quad.data.key.independent {
-                    format!(
-                        "{}::{}",
-                        block.get_name_lower(),
-                        quad.data.key.face_name.to_lowercase()
-                    )
-                } else {
-                    block.get_name_lower().to_string()
-                };
-
-                let geometry = map.entry(geo_key).or_insert_with(|| {
-                    let mut g = GeometryProtocol::default();
-                    g.voxel = quad.data.key.block_id;
-                    if quad.data.key.independent {
-                        g.face_name = Some(quad.data.key.face_name.clone());
+                let block_index = quad.cell.block as usize - 1;
+                let (block_id, block) = &registry.blocks_by_id[block_index];
+                let face_slot = quad.cell.face_slot as usize;
+                let face = match &block.stage_faces {
+                    Some(alternate) if face_slot >= block.faces.len() => {
+                        &alternate.faces[face_slot - block.faces.len()]
                     }
-                    g
-                });
+                    _ => &block.faces[face_slot],
+                };
 
-                process_greedy_quad(&quad, axis, quad_slice, dir, min, block, geometry);
+                let slot = if face.independent {
+                    *keyed_slots
+                        .entry((block_index as u32, quad.cell.class as usize))
+                        .or_insert_with(|| {
+                            buckets.slot(
+                                &format!("{}::{}", block.get_name_lower(), face.name.to_lowercase()),
+                                || GeometryProtocol {
+                                    voxel: *block_id,
+                                    face_name: Some(face.name.clone()),
+                                    ..Default::default()
+                                },
+                            )
+                        })
+                } else {
+                    if plain_slots[block_index] == 0 {
+                        plain_slots[block_index] = 1 + buckets.slot(block.get_name_lower(), || {
+                            GeometryProtocol {
+                                voxel: *block_id,
+                                ..Default::default()
+                            }
+                        }) as u32;
+                    }
+                    plain_slots[block_index] as usize - 1
+                };
+
+                emit_greedy_quad(
+                    &quad,
+                    [u_min, v_min],
+                    axis,
+                    quad_slice,
+                    dir,
+                    min,
+                    block,
+                    face,
+                    buckets.at(slot),
+                );
             }
 
-            for (
-                vx,
-                vy,
-                vz,
+            // Faces of one voxel arrive together and read one neighbourhood.
+            let mut around: Option<([i32; 3], NeighborCache, u32)> = None;
+            for LooseFace {
+                voxel,
                 voxel_id,
+                block_index,
                 rotation,
                 block,
                 face,
-                uv_range,
                 is_see_through,
                 is_fluid,
                 world_space,
-            ) in non_greedy_faces.drain(..)
+            } in loose_faces.drain(..)
             {
+                let [vx, vy, vz] = voxel;
+                let uv_range = &face.range;
+                if around.as_ref().is_none_or(|(at, _, _)| *at != voxel) {
+                    let (neighbors, opaque) =
+                        window.neighborhood(window.index_inside(vx, vy, vz));
+                    around = Some((voxel, neighbors, opaque));
+                }
+                let Some((_, neighbors, opaque)) = around.as_ref() else {
+                    continue;
+                };
                 // An own-texture face (isolated per voxel, independent per
                 // block) keeps its face-keyed geometry so the client can find
                 // its material by face name. An animated block's faces are
@@ -762,22 +1146,59 @@ pub fn mesh_space_greedy<S: VoxelAccess>(
                 // what lets a door leaf swing without the rest of the chunk.
                 let is_per_voxel = face.isolated || block.is_animated;
                 let is_per_face = face.isolated || face.independent;
-                let geo_key = match (is_per_voxel, is_per_face) {
-                    (true, true) => format!(
-                        "{}::{}::{}-{}-{}",
-                        block.get_name_lower(),
-                        face.get_name_lower(),
-                        vx,
-                        vy,
-                        vz
-                    ),
-                    (true, false) => {
-                        format!("{}::{}-{}-{}", block.get_name_lower(), vx, vy, vz)
+                let slot = match (is_per_voxel, is_per_face) {
+                    (false, false) => {
+                        if plain_slots[block_index] == 0 {
+                            plain_slots[block_index] = 1 + buckets.slot(block.get_name_lower(), || {
+                                GeometryProtocol {
+                                    voxel: voxel_id,
+                                    ..Default::default()
+                                }
+                            }) as u32;
+                        }
+                        plain_slots[block_index] as usize - 1
                     }
-                    (false, true) => {
-                        format!("{}::{}", block.get_name_lower(), face.get_name_lower())
+                    _ => {
+                        let make = |buckets: &mut Buckets| {
+                            let key = match (is_per_voxel, is_per_face) {
+                                (true, true) => format!(
+                                    "{}::{}::{}-{}-{}",
+                                    block.get_name_lower(),
+                                    face.get_name_lower(),
+                                    vx,
+                                    vy,
+                                    vz
+                                ),
+                                (true, false) => {
+                                    format!("{}::{}-{}-{}", block.get_name_lower(), vx, vy, vz)
+                                }
+                                _ => format!("{}::{}", block.get_name_lower(), face.get_name_lower()),
+                            };
+                            buckets.slot(&key, || GeometryProtocol {
+                                voxel: voxel_id,
+                                face_name: is_per_face.then(|| face.name.clone()),
+                                at: is_per_voxel.then_some(voxel),
+                                ..Default::default()
+                            })
+                        };
+                        match &face {
+                            // One of the registry's own faces on a block that
+                            // shares its geometry: found again by where the
+                            // registry keeps it.
+                            Cow::Borrowed(kept) if !is_per_voxel => {
+                                let at = *kept as *const BlockFace as usize;
+                                match keyed_slots.get(&(block_index as u32, at)) {
+                                    Some(&slot) => slot,
+                                    None => {
+                                        let slot = make(&mut buckets);
+                                        keyed_slots.insert((block_index as u32, at), slot);
+                                        slot
+                                    }
+                                }
+                            }
+                            _ => make(&mut buckets),
+                        }
                     }
-                    (false, false) => block.get_name_lower().to_string(),
                 };
 
                 if world_space
@@ -790,10 +1211,7 @@ pub fn mesh_space_greedy<S: VoxelAccess>(
                     scratch.indices.clear();
                     scratch.uvs.clear();
                     scratch.lights.clear();
-                    let mut uv_map = HashMap::new();
-                    uv_map.insert(face.name.clone(), uv_range.clone());
-                    let neighbors = NeighborCache::populate(vx, vy, vz, space);
-                    process_face(
+                    process_face_in(
                         vx,
                         vy,
                         vz,
@@ -801,10 +1219,11 @@ pub fn mesh_space_greedy<S: VoxelAccess>(
                         &rotation,
                         &face,
                         block,
-                        &uv_map,
+                        uv_range,
                         registry,
-                        space,
-                        &neighbors,
+                        window,
+                        neighbors,
+                        *opaque,
                         is_see_through,
                         is_fluid,
                         &mut scratch.positions,
@@ -818,7 +1237,7 @@ pub fn mesh_space_greedy<S: VoxelAccess>(
                         || coplanar.hold(
                             voxel_id,
                             face.dir,
-                            &uv_range,
+                            uv_range,
                             &scratch.positions,
                             &scratch.uvs,
                             &scratch.lights,
@@ -827,10 +1246,7 @@ pub fn mesh_space_greedy<S: VoxelAccess>(
                     {
                         continue;
                     }
-                    let geometry = map.entry(geo_key).or_insert_with(|| GeometryProtocol {
-                        voxel: voxel_id,
-                        ..Default::default()
-                    });
+                    let geometry = buckets.at(slot);
                     let base = (geometry.positions.len() / 3) as i32;
                     geometry.positions.extend_from_slice(&scratch.positions);
                     geometry.uvs.extend_from_slice(&scratch.uvs);
@@ -841,23 +1257,8 @@ pub fn mesh_space_greedy<S: VoxelAccess>(
                     continue;
                 }
 
-                let geometry = map.entry(geo_key).or_insert_with(|| {
-                    let mut g = GeometryProtocol::default();
-                    g.voxel = voxel_id;
-                    if is_per_face {
-                        g.face_name = Some(face.name.clone());
-                    }
-                    if is_per_voxel {
-                        g.at = Some([vx, vy, vz]);
-                    }
-                    g
-                });
-
-                let mut uv_map = HashMap::new();
-                uv_map.insert(face.name.clone(), uv_range);
-
-                let neighbors = NeighborCache::populate(vx, vy, vz, space);
-                process_face(
+                let geometry = buckets.at(slot);
+                process_face_in(
                     vx,
                     vy,
                     vz,
@@ -865,10 +1266,11 @@ pub fn mesh_space_greedy<S: VoxelAccess>(
                     &rotation,
                     &face,
                     block,
-                    &uv_map,
+                    uv_range,
                     registry,
-                    space,
-                    &neighbors,
+                    window,
+                    neighbors,
+                    *opaque,
                     is_see_through,
                     is_fluid,
                     &mut geometry.positions,
@@ -882,10 +1284,7 @@ pub fn mesh_space_greedy<S: VoxelAccess>(
         }
     }
 
-    coplanar.emit(registry, &mut map);
+    coplanar.emit(registry, &mut buckets);
 
-    map.into_iter()
-        .map(|(_, geometry)| geometry)
-        .filter(|geometry| !geometry.indices.is_empty())
-        .collect()
+    buckets.finish()
 }

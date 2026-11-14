@@ -111,19 +111,18 @@ impl CoplanarQuads {
     /// Writes every held quad, joined with its neighbours where they meet,
     /// into the geometry of its voxel's block. Plane by plane in one order,
     /// so the server's mesh and the client's remesh lay out the same buffers.
-    pub(super) fn emit(self, registry: &Registry, map: &mut HashMap<String, GeometryProtocol>) {
+    pub(super) fn emit(self, registry: &Registry, buckets: &mut Buckets) {
         let mut planes: Vec<(PlaneKey, Vec<HeldQuad>)> = self.planes.into_iter().collect();
         planes.sort_by_key(|(key, _)| *key);
         for (key, quads) in planes {
             let Some(block) = registry.get_block_by_id(key.voxel) else {
                 continue;
             };
-            let geometry = map
-                .entry(block.get_name_lower().to_string())
-                .or_insert_with(|| GeometryProtocol {
-                    voxel: key.voxel,
-                    ..Default::default()
-                });
+            let slot = buckets.slot(block.get_name_lower(), || GeometryProtocol {
+                voxel: key.voxel,
+                ..Default::default()
+            });
+            let geometry = buckets.at(slot);
             let axis = (0..3).find(|&a| key.dir[a] != 0).unwrap_or(0);
             let across = match axis {
                 0 => [1, 2],

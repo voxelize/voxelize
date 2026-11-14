@@ -1,5 +1,3 @@
-use hashbrown::HashMap;
-
 use voxelize_core::{
     BlockFace, BlockRotation, BlockRule, BlockRuleLogic, LightUtils, VoxelAccess, AABB, UV,
 };
@@ -648,6 +646,8 @@ fn stack_position<S: VoxelAccess>(
     (below, below + above + 1)
 }
 
+/// [`process_face_in`] with the face's texture range looked up by its name.
+#[cfg(test)]
 pub(super) fn process_face<S: VoxelAccess>(
     vx: i32,
     vy: i32,
@@ -656,10 +656,60 @@ pub(super) fn process_face<S: VoxelAccess>(
     rotation: &BlockRotation,
     face: &BlockFace,
     block: &Block,
-    uv_map: &HashMap<String, UV>,
+    uv_map: &hashbrown::HashMap<String, UV>,
     registry: &Registry,
     space: &S,
     neighbors: &NeighborCache,
+    see_through: bool,
+    is_fluid: bool,
+    positions: &mut Vec<f32>,
+    indices: &mut Vec<i32>,
+    uvs: &mut Vec<f32>,
+    lights: &mut Vec<i32>,
+    min: &[i32; 3],
+    world_space: bool,
+) {
+    let uv_range = uv_map.get(&face.name).cloned().unwrap_or_default();
+    process_face_in(
+        vx,
+        vy,
+        vz,
+        voxel_id,
+        rotation,
+        face,
+        block,
+        &uv_range,
+        registry,
+        space,
+        neighbors,
+        neighbors.opaque_mask(registry),
+        see_through,
+        is_fluid,
+        positions,
+        indices,
+        uvs,
+        lights,
+        min,
+        world_space,
+    );
+}
+
+/// Draws one face of the voxel at `(vx, vy, vz)` into the buffers, unless
+/// its neighbour covers it: `uv_range` is the face's tile in the atlas,
+/// `opaque` the neighbourhood's `NeighborCache::opaque_mask`.
+pub(super) fn process_face_in<S: VoxelAccess>(
+    vx: i32,
+    vy: i32,
+    vz: i32,
+    voxel_id: u32,
+    rotation: &BlockRotation,
+    face: &BlockFace,
+    block: &Block,
+    uv_range: &UV,
+    registry: &Registry,
+    space: &S,
+    neighbors: &NeighborCache,
+    opaque: u32,
     see_through: bool,
     is_fluid: bool,
     positions: &mut Vec<f32>,
@@ -802,7 +852,7 @@ pub(super) fn process_face<S: VoxelAccess>(
                 // in the cell's frame already; none of it is covered again.
                 for part in open {
                     let piece = face_piece(face, dir, rotation, rotates, y_rotatable, rect, part);
-                    process_face(
+                    process_face_in(
                         vx,
                         vy,
                         vz,
@@ -810,10 +860,11 @@ pub(super) fn process_face<S: VoxelAccess>(
                         rotation,
                         &piece,
                         block,
-                        uv_map,
+                        uv_range,
                         registry,
                         space,
                         neighbors,
+                        opaque,
                         see_through,
                         is_fluid,
                         positions,
@@ -894,7 +945,7 @@ pub(super) fn process_face<S: VoxelAccess>(
         end_u,
         start_v,
         end_v,
-    } = uv_map.get(&face.name).cloned().unwrap_or_default();
+    } = uv_range.clone();
 
     let ndx = (positions.len() / 3) as i32;
     let mut face_aos = [0; 4];
@@ -903,6 +954,7 @@ pub(super) fn process_face<S: VoxelAccess>(
     let mut four_blue_lights = [0; 4];
 
     let block_aabb = AABB::union_all(&block.aabbs);
+    let is_lit_from_center = uses_center_voxel_light(block);
 
     let has_multi_aabb = block.aabbs.len() > 1;
     let mut face_bbox_min = [f32::MAX; 3];
@@ -992,18 +1044,10 @@ pub(super) fn process_face<S: VoxelAccess>(
             1
         };
 
-        let get_block_occluder = |ox: i32, oy: i32, oz: i32| -> bool {
-            let id = neighbors.get_voxel(ox, oy, oz);
-            registry
-                .get_block_by_id(id)
-                .map(|b| b.is_opaque)
-                .unwrap_or(false)
-        };
-
-        let mut b011 = !get_block_occluder(0, dy, dz);
-        let mut b101 = !get_block_occluder(dx, 0, dz);
-        let mut b110 = !get_block_occluder(dx, dy, 0);
-        let mut b111 = !get_block_occluder(dx, dy, dz);
+        let mut b011 = !opaque_at(opaque, 0, dy, dz);
+        let mut b101 = !opaque_at(opaque, dx, 0, dz);
+        let mut b110 = !opaque_at(opaque, dx, dy, 0);
+        let mut b111 = !opaque_at(opaque, dx, dy, dz);
 
         if has_multi_aabb && !is_see_through && should_apply_stair_self_ao(face.dir, corner.pos) {
             let (s011, s101, s110, s111) =
@@ -1036,149 +1080,11 @@ pub(super) fn process_face<S: VoxelAccess>(
             ao = 2;
         }
 
-        let sunlight;
-        let red_light;
-        let green_light;
-        let blue_light;
-
-        if uses_center_voxel_light(block) {
-            let (s, r, g, b) = neighbors.get_all_lights(0, 0, 0);
-            sunlight = s;
-            red_light = r;
-            green_light = g;
-            blue_light = b;
+        let (sunlight, red_light, green_light, blue_light) = if is_lit_from_center {
+            neighbors.get_all_lights(0, 0, 0)
         } else {
-            let mut sum_sunlight = 0;
-            let mut sum_red_light = 0;
-            let mut sum_green_light = 0;
-            let mut sum_blue_light = 0;
-            let mut light_count = 0;
-
-            for x in 0..=1 {
-                for y in 0..=1 {
-                    for z in 0..=1 {
-                        let ddx = x * dx;
-                        let ddy = y * dy;
-                        let ddz = z * dz;
-
-                        let (local_sunlight, local_red_light, local_green_light, local_blue_light) =
-                            neighbors.get_all_lights(ddx, ddy, ddz);
-
-                        if local_sunlight == 0
-                            && local_red_light == 0
-                            && local_green_light == 0
-                            && local_blue_light == 0
-                        {
-                            continue;
-                        }
-
-                        let diagonal4_id = neighbors.get_voxel(ddx, ddy, ddz);
-                        let diagonal4_opaque = registry
-                            .get_block_by_id(diagonal4_id)
-                            .map(|b| b.is_opaque)
-                            .unwrap_or(false);
-
-                        if should_skip_opaque_light_sample(dir, ddx, ddy, ddz, diagonal4_opaque) {
-                            continue;
-                        }
-
-                        if dir[0] * ddx + dir[1] * ddy + dir[2] * ddz == 0 {
-                            let facing_id =
-                                neighbors.get_voxel(ddx * dir[0], ddy * dir[1], ddz * dir[2]);
-                            let facing_opaque = registry
-                                .get_block_by_id(facing_id)
-                                .map(|b| b.is_opaque)
-                                .unwrap_or(false);
-
-                            if facing_opaque {
-                                continue;
-                            }
-                        }
-
-                        if ddx.abs() + ddy.abs() + ddz.abs() == 3 {
-                            let diagonal_yz_opaque = registry
-                                .get_block_by_id(neighbors.get_voxel(0, ddy, ddz))
-                                .map(|b| b.is_opaque)
-                                .unwrap_or(false);
-                            let diagonal_xz_opaque = registry
-                                .get_block_by_id(neighbors.get_voxel(ddx, 0, ddz))
-                                .map(|b| b.is_opaque)
-                                .unwrap_or(false);
-                            let diagonal_xy_opaque = registry
-                                .get_block_by_id(neighbors.get_voxel(ddx, ddy, 0))
-                                .map(|b| b.is_opaque)
-                                .unwrap_or(false);
-
-                            if diagonal_yz_opaque && diagonal_xz_opaque && diagonal_xy_opaque {
-                                continue;
-                            }
-
-                            if diagonal_xy_opaque && diagonal_xz_opaque {
-                                let neighbor_y_opaque = registry
-                                    .get_block_by_id(neighbors.get_voxel(0, ddy, 0))
-                                    .map(|b| b.is_opaque)
-                                    .unwrap_or(false);
-                                let neighbor_z_opaque = registry
-                                    .get_block_by_id(neighbors.get_voxel(0, 0, ddz))
-                                    .map(|b| b.is_opaque)
-                                    .unwrap_or(false);
-                                if neighbor_y_opaque && neighbor_z_opaque {
-                                    continue;
-                                }
-                            }
-
-                            if diagonal_xy_opaque && diagonal_yz_opaque {
-                                let neighbor_x_opaque = registry
-                                    .get_block_by_id(neighbors.get_voxel(ddx, 0, 0))
-                                    .map(|b| b.is_opaque)
-                                    .unwrap_or(false);
-                                let neighbor_z_opaque = registry
-                                    .get_block_by_id(neighbors.get_voxel(0, 0, ddz))
-                                    .map(|b| b.is_opaque)
-                                    .unwrap_or(false);
-                                if neighbor_x_opaque && neighbor_z_opaque {
-                                    continue;
-                                }
-                            }
-
-                            if diagonal_xz_opaque && diagonal_yz_opaque {
-                                let neighbor_x_opaque = registry
-                                    .get_block_by_id(neighbors.get_voxel(ddx, 0, 0))
-                                    .map(|b| b.is_opaque)
-                                    .unwrap_or(false);
-                                let neighbor_y_opaque = registry
-                                    .get_block_by_id(neighbors.get_voxel(0, ddy, 0))
-                                    .map(|b| b.is_opaque)
-                                    .unwrap_or(false);
-                                if neighbor_x_opaque && neighbor_y_opaque {
-                                    continue;
-                                }
-                            }
-                        }
-
-                        sum_sunlight += local_sunlight;
-                        sum_red_light += local_red_light;
-                        sum_green_light += local_green_light;
-                        sum_blue_light += local_blue_light;
-                        light_count += 1;
-                    }
-                }
-            }
-
-            if light_count > 0 {
-                let light_count_f32 = light_count as f32;
-                sunlight = (sum_sunlight as f32 / light_count_f32) as u32;
-                red_light = (sum_red_light as f32 / light_count_f32) as u32;
-                green_light = (sum_green_light as f32 / light_count_f32) as u32;
-                blue_light = (sum_blue_light as f32 / light_count_f32) as u32;
-            } else {
-                let fallback = fallback_face_light(neighbors, dir);
-                sunlight = fallback.0;
-                red_light = fallback.1;
-                green_light = fallback.2;
-                blue_light = fallback.3;
-            }
-        }
+            corner_light(dir, dx, dy, dz, neighbors, opaque)
+        };
 
         let mut light = 0u32;
         light = LightUtils::insert_red_light(light, red_light);

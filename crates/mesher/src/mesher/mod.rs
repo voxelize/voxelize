@@ -10,12 +10,14 @@ mod faces;
 mod fluid;
 mod greedy;
 mod lighting;
+mod pack;
 mod space;
 #[cfg(test)]
 mod tests;
 mod tufts;
 mod types;
 mod vertex_light;
+mod window;
 
 pub use branch::{
     branch_cell, branch_layout_at, BranchBeyond, BranchBlocks, BranchCell, BranchKind,
@@ -26,10 +28,15 @@ pub use connectivity::{
     compute_section_connectivity, connectivity_pair_bit, CONNECTIVITY_FACES, CONNECTIVITY_FULL,
     CONNECTIVITY_SEALED,
 };
-pub use greedy::mesh_space_greedy;
+pub use greedy::{mesh_section, mesh_space_greedy};
+pub use pack::{
+    pack_geometry, quad_light_twist, PackedGeometry, PackedIndices, PackedNormals, PackedPositions,
+    PackedUvs, POSITION_BLOCK_BIAS,
+};
 pub use tufts::TUFTS_FACE_NAME;
 pub use types::*;
 pub use vertex_light::*;
+pub use window::WINDOW_PAD;
 
 use branch::*;
 use connected::*;
@@ -37,9 +44,11 @@ use connectivity::*;
 use coplanar::*;
 use faces::*;
 use fluid::*;
+use greedy::Buckets;
 use lighting::*;
 use space::*;
 use tufts::*;
+use window::*;
 
 pub fn mesh_chunk(mut input: MeshInput) -> MeshOutput {
     input.registry.build_cache();
@@ -77,8 +86,7 @@ pub fn mesh_chunk_with_registry_chunks(
 
     let space = VoxelSpace::new(chunks, config.chunk_size, center_coords);
 
-    let geometries = mesh_space_greedy(&min, &max, &space, registry);
-    let connectivity = compute_section_connectivity(&min, &max, &space, registry);
+    let (geometries, connectivity) = mesh_section(&min, &max, &space, registry);
 
     MeshOutput {
         geometries,

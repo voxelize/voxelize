@@ -61,14 +61,36 @@ export class ChunkSharedPool {
     return this.slots.has(key);
   }
 
+  /**
+   * Puts a chunk's voxels and lights on the shared buffer, so a worker reads
+   * them where they are instead of being sent a copy. True when the chunk's
+   * arrays are views of the pool afterwards.
+   *
+   * A chunk that already holds a slot is checked, not trusted: the server
+   * sending it again (`Chunk.setData`) swaps in plain arrays, and its slot
+   * then holds what it had before. Answering "already shared" for that chunk
+   * left every dispatch after it copying the whole column on the main
+   * thread (nine columns a mesh job) for the rest of the session, with
+   * nothing to say so. Its new data is moved into the slot it has.
+   */
   ensureChunk(chunk: RawChunk): boolean {
     if (!ChunkSharedPool.isSharedArrayBufferAvailable()) {
       return false;
     }
 
     const key = chunk.name;
-    if (this.slots.has(key)) {
-      return true;
+    const held = this.slots.get(key);
+    if (held) {
+      if (
+        chunk.voxels.data.buffer === this.buffer &&
+        chunk.lights.data.buffer === this.buffer
+      ) {
+        return true;
+      }
+      if (!chunk.isReady || chunk.voxels.data.length !== held.elementCount) {
+        return false;
+      }
+      return this.moveIn(chunk, held);
     }
 
     if (!chunk.isReady) {
@@ -95,34 +117,42 @@ export class ChunkSharedPool {
     const bytesPerArray = elementCount * Uint32Array.BYTES_PER_ELEMENT;
     const voxelsByteOffset = slotIndex * bytesPerArray * 2;
     const lightsByteOffset = voxelsByteOffset + bytesPerArray;
+    const slot = { key, elementCount, voxelsByteOffset, lightsByteOffset };
 
-    if (!this.buffer) {
+    if (!this.moveIn(chunk, slot)) {
+      this.freeSlotIndices.push(slotIndex);
+      return false;
+    }
+    this.slots.set(key, slot);
+
+    return true;
+  }
+
+  /** Copies a chunk's arrays into `slot` and points the chunk at the copy. */
+  private moveIn(chunk: RawChunk, slot: SlotRecord): boolean {
+    if (!this.buffer || chunk.lights.data.length > slot.elementCount) {
       return false;
     }
 
     const voxelsView = new Uint32Array(
       this.buffer,
-      voxelsByteOffset,
-      elementCount,
+      slot.voxelsByteOffset,
+      slot.elementCount,
     );
     const lightsView = new Uint32Array(
       this.buffer,
-      lightsByteOffset,
-      elementCount,
+      slot.lightsByteOffset,
+      slot.elementCount,
     );
 
     voxelsView.set(chunk.voxels.data);
     lightsView.set(chunk.lights.data);
+    // A slot is reused: past a shorter light array, what the last chunk
+    // left there is not this one's.
+    lightsView.fill(0, chunk.lights.data.length);
 
     chunk.voxels.data = voxelsView;
     chunk.lights.data = lightsView;
-
-    this.slots.set(key, {
-      key,
-      elementCount,
-      voxelsByteOffset,
-      lightsByteOffset,
-    });
 
     return true;
   }

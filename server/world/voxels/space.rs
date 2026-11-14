@@ -461,4 +461,105 @@ impl voxelize_core::VoxelAccess for Space {
     fn contains(&self, vx: i32, vy: i32, vz: i32) -> bool {
         VoxelAccess::contains(self, vx, vy, vz)
     }
+
+    /// Every getter above is `BlockUtils`' decoding of the raw word.
+    fn decodes_raw_voxels(&self) -> bool {
+        true
+    }
+
+    /// A row along z lies together in a chunk's arrays, so it is read with
+    /// one chunk lookup per chunk it crosses instead of two per cell: the
+    /// mesher reads a whole section and its margin this way before it meshes.
+    fn read_row(
+        &self,
+        vx: i32,
+        vy: i32,
+        vz: i32,
+        voxels: &mut [u32],
+        lights: &mut [u16],
+        present: &mut [bool],
+    ) {
+        let len = voxels.len();
+        // What the getters above answer, cell by cell. A cell the space does
+        // not hold is air, as `get_voxel` has it, without asking for voxel
+        // data the space may have been built without; light is asked for
+        // wherever there is light data, and for any voxel that is not air:
+        // meshing one in a space built without lights fails as it always has.
+        let cell_by_cell =
+            |from: usize, voxels: &mut [u32], lights: &mut [u16], present: &mut [bool]| {
+                for i in from..voxels.len() {
+                    let z = vz + i as i32;
+                    present[i] = VoxelAccess::contains(self, vx, vy, z);
+                    voxels[i] = if present[i] {
+                        VoxelAccess::get_raw_voxel(self, vx, vy, z)
+                    } else {
+                        0
+                    };
+                    lights[i] = if self.lights.is_empty() && voxels[i] == 0 {
+                        0
+                    } else {
+                        (VoxelAccess::get_raw_light(self, vx, vy, z) & 0xFFFF) as u16
+                    };
+                }
+            };
+        // Outside the height the arrays cover, and for a space built
+        // without voxels or lights, ask cell by cell.
+        let size = self.options.chunk_size as i32;
+        if vy < 0
+            || vy >= self.options.max_height as i32
+            || size <= 0
+            || self.voxels.is_empty()
+            || self.lights.is_empty()
+        {
+            cell_by_cell(0, voxels, lights, present);
+            return;
+        }
+
+        let mut done = 0;
+        while done < len {
+            let z = vz + done as i32;
+            let (coords, Vec3(lx, ly, lz)) = self.to_local(vx, vy, z);
+            let run = (size as usize - lz).min(len - done);
+            let voxel_chunk = self.voxels.get(&coords);
+            let light_chunk = self.lights.get(&coords);
+            // A row is together only in an array whose last axis is z.
+            let row_of = |array: &Ndarray<u32>| -> Option<std::ops::Range<usize>> {
+                if array.stride.last() != Some(&1) || !array.contains(&[lx, ly, lz + run - 1]) {
+                    return None;
+                }
+                let start = array.index(&[lx, ly, lz]);
+                (start + run <= array.data.len()).then_some(start..start + run)
+            };
+            let voxel_row = voxel_chunk.map(|array| (array, row_of(array)));
+            let light_row = light_chunk.map(|array| (array, row_of(array)));
+            match (voxel_row, light_row) {
+                (Some((_, None)), _) | (_, Some((_, None))) => {
+                    cell_by_cell(done, &mut voxels[..done + run], lights, present);
+                }
+                (voxel_row, light_row) => {
+                    match voxel_row {
+                        Some((array, Some(row))) => {
+                            voxels[done..done + run].copy_from_slice(&array.data[row])
+                        }
+                        _ => voxels[done..done + run].fill(0),
+                    }
+                    match light_row {
+                        Some((array, Some(row))) => {
+                            for (out, light) in lights[done..done + run].iter_mut().zip(&array.data[row])
+                            {
+                                *out = (*light & 0xFFFF) as u16;
+                            }
+                        }
+                        _ => lights[done..done + run].fill(0),
+                    }
+                    present[done..done + run].fill(
+                        voxel_chunk.is_some()
+                            || light_chunk.is_some()
+                            || self.height_maps.contains_key(&coords),
+                    );
+                }
+            }
+            done += run;
+        }
+    }
 }

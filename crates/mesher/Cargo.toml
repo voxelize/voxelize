@@ -13,3 +13,8 @@ crate-type = ["lib"]
 voxelize-core = { path = "../core", version = "3.0.0" }
 hashbrown = { version = "0.14.3", features = ["serde"] }
 serde = { version = "1.0", features = ["derive"] }
+
+[dev-dependencies]
+# The stress example reads a registry dumped from a running game and writes
+# its scenes' registries for the worker bench.
+serde_json = "1.0"

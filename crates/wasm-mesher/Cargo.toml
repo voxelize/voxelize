@@ -29,8 +29,15 @@ console_error_panic_hook = "0.1"
 opt-level = 3
 lto = true
 
-# `wasm-pack build --dev` (the watch loop) compiles this profile. opt-level 1
-# keeps rebuilds fast and incremental while making the meshing hot loops
-# usable in the browser, unlike the default opt-level 0.
+# `wasm-pack build --dev` (the watch loop) compiles this profile, and what it
+# builds is the mesher a developer plays with: every local remesh in a dev
+# session runs it. At opt-level 1 it meshed a dense section in 590 ms where
+# the release build took 170 (and the same change measured 3x slower there
+# than here), so an edit that felt slow in dev said nothing about the code.
+# Fully optimized, the watch build costs a few seconds more per mesher edit
+# and stays close to release; it only skips `wasm-opt`. The mesher's own
+# assertions still run where its tests do, in the native build.
 [profile.dev]
-opt-level = 1
+opt-level = 3
+debug-assertions = false
+overflow-checks = false

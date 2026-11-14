@@ -20,6 +20,8 @@
     "test:rust:all": "cargo test --workspace --lib --tests",
     "bench": "cargo bench --bench mesher_bench --bench lights_bench",
     "bench:mesher": "cargo bench --bench mesher_bench",
+    "bench:mesher:stress": "cargo run --release -p voxelize-mesher --example stress --",
+    "bench:mesh-worker": "tsx scripts/bench-mesh-worker.mts",
     "bench:lights": "cargo bench --bench lights_bench",
     "bench:gen": "cargo bench -p voxelize-gen --bench gen_bench",
     "bench:report": "open target/criterion/report/index.html",

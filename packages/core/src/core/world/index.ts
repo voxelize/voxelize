@@ -412,6 +412,12 @@ const MESH_CANDIDATES = 64;
 const MESH_DISPATCH_WINDOW_MS = 16;
 /** Past this frame time a finished mesh job leaves its refill to the next frame. */
 const MESH_REFILL_FRAME_MS = 25;
+/**
+ * How long a player's own edit holds its remesh for the light it just
+ * changed (see `World.processDirtyChunks`). The light of one edit is back in
+ * a few milliseconds; past two frames the mesh goes without it.
+ */
+const URGENT_MESH_LIGHT_WAIT_MS = 32;
 /** How long a section waits for a neighbouring chunk already on its way. */
 const MESH_NEIGHBOUR_WAIT_MS = 1_000;
 /**
@@ -9392,6 +9398,21 @@ export class World<T = any> extends Scene implements NetIntercept {
     }
 
     const now = performance.now();
+    // An edit changes voxels and light. Its remesh used to start on the
+    // voxels alone, a few milliseconds before the light worker answered, and
+    // the answer then dirtied the same section again: every break and place
+    // meshed, uploaded and drew its section twice, the first time with the
+    // old light. The light batch's completion comes back through here, so
+    // the urgent lane holds for it and one remesh carries both. Bounded: a
+    // flood that takes longer than the wait is meshed without, as before.
+    if (
+      urgentKeys.length > 0 &&
+      this.isLightWorkPending() &&
+      this.meshPipeline.urgentWaitMs(now) < URGENT_MESH_LIGHT_WAIT_MS
+    ) {
+      this.scheduleDirtyChunkProcessing();
+      return;
+    }
     if (now - this.meshDispatchWindowAt > MESH_DISPATCH_WINDOW_MS) {
       this.meshDispatchWindowAt = now;
       this.meshDispatchesInWindow = 0;
@@ -9481,6 +9502,15 @@ export class World<T = any> extends Scene implements NetIntercept {
       this.scheduleDirtyChunkProcessing();
     }
   };
+
+  /** Whether light the mesher has not seen yet is queued or being computed. */
+  private isLightWorkPending(): boolean {
+    return (
+      this.activeLightBatch !== null ||
+      this.lightJobQueue.length > 0 ||
+      this.accumulatedLightOps?.hasOperations === true
+    );
+  }
 
   /**
    * Whether a dirty column's sections should be meshed now: not while a

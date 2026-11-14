@@ -1,8 +1,13 @@
 pub mod mesher;
 
 pub use mesher::{
+    pack_geometry, quad_light_twist, PackedGeometry, PackedIndices, PackedNormals, PackedPositions,
+    PackedUvs, POSITION_BLOCK_BIAS, WINDOW_PAD,
+};
+pub use mesher::{
     branch_cell, branch_layout_at, compute_section_connectivity, connectivity_pair_bit, mesh_chunk,
-    mesh_chunk_with_registry, mesh_chunk_with_registry_chunks, mesh_space_greedy, Block,
+    mesh_chunk_with_registry, mesh_chunk_with_registry_chunks, mesh_section, mesh_space_greedy,
+    Block,
     BranchBeyond, BranchBlocks, BranchCell, BranchKind, BranchLayout, BranchPart, BranchPartKind,
     BranchQuad, BranchSeat, BranchShape, BranchSide, BranchSocket, BranchTexture, ChunkData,
     ConnectedFrame, GeometryProtocol, MeshConfig, MeshInput, MeshInputNoRegistry, MeshOutput,

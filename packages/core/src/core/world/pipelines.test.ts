@@ -644,6 +644,43 @@ describe("MeshPipeline voxel-change remesh", () => {
   });
 });
 
+describe("MeshPipeline.urgentWaitMs", () => {
+  it("is how long the urgent key that has waited longest has waited", () => {
+    const pipeline = new MeshPipeline();
+    expect(pipeline.urgentWaitMs(1000)).toBe(0);
+
+    pipeline.onVoxelChange(0, 0, 0, true, 1000);
+    pipeline.onVoxelChange(1, 0, 0, true, 1010);
+    expect(pipeline.urgentWaitMs(1016)).toBe(16);
+
+    // The same key going urgent again (its light landing, a second edit)
+    // does not restart its wait.
+    pipeline.onVoxelChange(0, 0, 0, true, 1012);
+    pipeline.onVoxelChange(0, 0, 0, false, 1014);
+    expect(pipeline.urgentWaitMs(1016)).toBe(16);
+  });
+
+  it("stops counting a key once its job has started", () => {
+    const pipeline = new MeshPipeline();
+    pipeline.onVoxelChange(0, 0, 0, true, 1000);
+    pipeline.onVoxelChange(1, 0, 0, true, 1010);
+
+    const key = MeshPipeline.makeKey(0, 0, 0);
+    const generation = pipeline.startJob(key, 1020);
+    expect(pipeline.urgentWaitMs(1030)).toBe(20);
+
+    // An edit while that job runs is urgent again but cannot start yet, so
+    // it holds nothing back; it counts from when it can.
+    pipeline.onVoxelChange(0, 0, 0, true, 1025);
+    expect(pipeline.urgentWaitMs(1030)).toBe(20);
+    pipeline.onJobComplete(key, generation);
+    expect(pipeline.urgentWaitMs(1030)).toBe(20);
+
+    pipeline.startJob(MeshPipeline.makeKey(1, 0, 0), 1030);
+    expect(pipeline.urgentWaitMs(1040)).toBe(15);
+  });
+});
+
 describe("ChunkPipeline.loadedGeneration", () => {
   it("bumps only when a chunk enters or leaves the loaded stage", () => {
     const pipeline = new ChunkPipeline();

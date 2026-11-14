@@ -1,6 +1,8 @@
 use serde::{Deserialize, Serialize};
 
-use voxelize_core::{BlockDynamicPattern, BlockFace, LightUtils, VoxelAccess, AABB, UV};
+use voxelize_core::{
+    BlockDynamicPattern, BlockFace, BlockRotation, LightUtils, VoxelAccess, AABB,
+};
 
 use super::*;
 
@@ -214,6 +216,156 @@ impl Block {
     }
 }
 
+/// What the mesher asks of a block for every voxel it visits, as one bit
+/// each, so the question is a table read instead of a walk into the block.
+/// A [`Window`](super::window::Window) keeps a copy per cell and adds the
+/// three bits that belong to the voxel rather than its block.
+pub(super) const F_KNOWN: u16 = 1 << 0;
+pub(super) const F_EMPTY: u16 = 1 << 1;
+pub(super) const F_OPAQUE: u16 = 1 << 2;
+pub(super) const F_FLUID: u16 = 1 << 3;
+pub(super) const F_SEE_THROUGH: u16 = 1 << 4;
+/// `branch_shell`: whether it stands in the way depends on its core.
+pub(super) const F_SHELL: u16 = 1 << 5;
+/// Greedy-meshes while its voxel stands upright (`can_greedy_mesh_block`).
+pub(super) const F_GREEDY: u16 = 1 << 6;
+pub(super) const F_CUTOUT_MASS: u16 = 1 << 7;
+/// Every corner of every face takes the voxel's own light, unshaded: a
+/// see-through block, or one transparent on all six sides with at most one
+/// box (`uses_center_voxel_light`, and the `ao = 3` rule beside it).
+pub(super) const F_FLAT_LIT: u16 = 1 << 8;
+/// The access holds this cell (`VoxelAccess::contains`).
+pub(super) const F_PRESENT: u16 = 1 << 12;
+pub(super) const F_WATERLOGGED: u16 = 1 << 13;
+/// The voxel's rotation is `PY(0.0)`; only set from a raw-decoding access.
+pub(super) const F_UPRIGHT: u16 = 1 << 14;
+
+/// Per-block answers the mesher would otherwise work out per voxel, built
+/// once with the registry's cache.
+#[derive(Clone, Default)]
+pub(super) struct BlockTables {
+    /// By block id: the block's `F_*` bits, 0 for an id the registry lacks.
+    flags: Vec<u16>,
+    /// By block id: its place in `blocks_by_id`, `u32::MAX` when absent.
+    index: Vec<u32>,
+    /// By place in `blocks_by_id`, then by face (the block's own, then its
+    /// stage faces): the first face of that block that merges with this one
+    /// in a greedy quad, i.e. shares its name, `independent` and texture
+    /// range. Two faces of one block in the same class key the same.
+    face_classes: Vec<Vec<u8>>,
+}
+
+impl BlockTables {
+    pub(super) fn build(registry: &Registry) -> Self {
+        let max_id = registry
+            .blocks_by_id
+            .iter()
+            .map(|(id, _)| *id as usize)
+            .max()
+            .unwrap_or(0);
+        let mut flags = vec![0u16; max_id + 1];
+        let mut index = vec![u32::MAX; max_id + 1];
+        let mut face_classes = Vec::with_capacity(registry.blocks_by_id.len());
+        let upright = BlockRotation::PY(0.0);
+
+        for (at, (id, block)) in registry.blocks_by_id.iter().enumerate() {
+            let mut bits = F_KNOWN;
+            if block.is_empty {
+                bits |= F_EMPTY;
+            }
+            if block.is_opaque {
+                bits |= F_OPAQUE;
+            }
+            if block.is_fluid {
+                bits |= F_FLUID;
+            }
+            if block.is_see_through {
+                bits |= F_SEE_THROUGH;
+            }
+            if block.branch_shell {
+                bits |= F_SHELL;
+            }
+            if can_greedy_mesh_block(block, &upright) {
+                bits |= F_GREEDY;
+            }
+            if is_cutout_mass(block) {
+                bits |= F_CUTOUT_MASS;
+            }
+            let is_all_transparent = block.is_transparent.iter().all(|&face| face);
+            if uses_center_voxel_light(block) && (block.is_see_through || is_all_transparent) {
+                bits |= F_FLAT_LIT;
+            }
+            // As in `build_cache`: of two entries under one id, the later.
+            flags[*id as usize] = bits;
+            index[*id as usize] = at as u32;
+
+            let faces: Vec<&BlockFace> = block
+                .faces
+                .iter()
+                .chain(block.stage_faces.iter().flat_map(|stage| stage.faces.iter()))
+                .collect();
+            fn merge_key(face: &BlockFace) -> (&str, bool, [u32; 4]) {
+                (
+                    face.name.as_str(),
+                    face.independent,
+                    [
+                        (face.range.start_u * 1000000.0) as u32,
+                        (face.range.end_u * 1000000.0) as u32,
+                        (face.range.start_v * 1000000.0) as u32,
+                        (face.range.end_v * 1000000.0) as u32,
+                    ],
+                )
+            }
+            face_classes.push(
+                faces
+                    .iter()
+                    .enumerate()
+                    .map(|(j, face)| {
+                        let first = faces[..j]
+                            .iter()
+                            .position(|other| merge_key(other) == merge_key(face))
+                            .unwrap_or(j);
+                        first.min(u8::MAX as usize) as u8
+                    })
+                    .collect(),
+            );
+        }
+
+        Self {
+            flags,
+            index,
+            face_classes,
+        }
+    }
+
+    #[inline(always)]
+    pub(super) fn flags_of(&self, id: u32) -> u16 {
+        match self.flags.get(id as usize) {
+            Some(bits) => *bits,
+            None => 0,
+        }
+    }
+
+    /// The block's place in `blocks_by_id`.
+    #[inline(always)]
+    pub(super) fn index_of(&self, id: u32) -> Option<usize> {
+        match self.index.get(id as usize) {
+            Some(&at) if at != u32::MAX => Some(at as usize),
+            _ => None,
+        }
+    }
+
+    /// The merge class of face `slot` of the block at `block_index`, counting
+    /// its own faces first and its stage faces after.
+    #[inline(always)]
+    pub(super) fn face_class(&self, block_index: usize, slot: usize) -> u8 {
+        self.face_classes[block_index]
+            .get(slot)
+            .copied()
+            .unwrap_or(slot.min(u8::MAX as usize) as u8)
+    }
+}
+
 #[derive(Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct Registry {
@@ -222,6 +374,8 @@ pub struct Registry {
     lookup_cache: Option<Vec<usize>>,
     #[serde(skip)]
     waterlogging_fluid_id: Option<u32>,
+    #[serde(skip)]
+    tables: Option<BlockTables>,
 }
 
 impl Registry {
@@ -230,6 +384,22 @@ impl Registry {
             blocks_by_id,
             lookup_cache: None,
             waterlogging_fluid_id: None,
+            tables: None,
+        }
+    }
+
+    /// The tables `build_cache` made, if it has run.
+    pub(super) fn tables(&self) -> Option<&BlockTables> {
+        self.tables.as_ref()
+    }
+
+    /// Whether `id` names an opaque block.
+    #[cfg(test)]
+    #[inline]
+    pub(super) fn is_opaque_id(&self, id: u32) -> bool {
+        match &self.tables {
+            Some(tables) => tables.flags_of(id) & F_OPAQUE != 0,
+            None => self.get_block_by_id(id).is_some_and(|b| b.is_opaque),
         }
     }
 
@@ -251,6 +421,7 @@ impl Registry {
             .iter()
             .find(|(_, block)| block.is_waterlogging_fluid)
             .map(|(id, _)| *id);
+        self.tables = Some(BlockTables::build(self));
     }
 
     /// The block waterlogged voxels are filled with, or `None` in a registry
@@ -339,6 +510,9 @@ impl NeighborCache {
         ((x + 1) + (y + 1) * 3 + (z + 1) * 9) as usize
     }
 
+    /// The neighbourhood read cell by cell from any access; the mesher takes
+    /// its own from a `Window`.
+    #[cfg(test)]
     pub(super) fn populate<S: VoxelAccess>(vx: i32, vy: i32, vz: i32, space: &S) -> Self {
         let mut data = [[0u32; 2]; 27];
 
@@ -356,12 +530,25 @@ impl NeighborCache {
         Self { data }
     }
 
+    /// One bit per cached cell, in `offset_to_index` order: whether it holds
+    /// an opaque block.
+    #[cfg(test)]
+    pub(super) fn opaque_mask(&self, registry: &Registry) -> u32 {
+        let mut mask = 0u32;
+        for (slot, cell) in self.data.iter().enumerate() {
+            mask |= (registry.is_opaque_id(extract_id(cell[0])) as u32) << slot;
+        }
+        mask
+    }
+
+    #[cfg(test)]
     #[inline]
     pub(super) fn get_raw_voxel(&self, dx: i32, dy: i32, dz: i32) -> u32 {
         let idx = Self::offset_to_index(dx, dy, dz);
         self.data[idx][0]
     }
 
+    #[cfg(test)]
     #[inline]
     pub(super) fn get_voxel(&self, dx: i32, dy: i32, dz: i32) -> u32 {
         extract_id(self.get_raw_voxel(dx, dy, dz))
@@ -378,44 +565,6 @@ impl NeighborCache {
         let light = self.get_raw_light(dx, dy, dz);
         LightUtils::extract_all(light)
     }
-}
-
-#[derive(Clone, PartialEq, Eq, Hash, Debug)]
-pub(super) struct FaceKey {
-    pub(super) block_id: u32,
-    pub(super) face_name: String,
-    pub(super) independent: bool,
-    pub(super) is_water_exposed: bool,
-    pub(super) tint_bits: i32,
-    pub(super) ao: [i32; 4],
-    pub(super) light: [i32; 4],
-    pub(super) uv_start_u: u32,
-    pub(super) uv_end_u: u32,
-    pub(super) uv_start_v: u32,
-    pub(super) uv_end_v: u32,
-}
-
-#[derive(Clone, Debug)]
-#[allow(dead_code)]
-pub(super) struct FaceData {
-    pub(super) key: FaceKey,
-    pub(super) uv_range: UV,
-    pub(super) is_see_through: bool,
-    pub(super) is_fluid: bool,
-    /// `EMISSIVE_BIT | index << AO_SHIFT` for an emissive face, `0` otherwise
-    /// (see `ao_or_emissive_bits`). Not part of the merge key: `block_id` +
-    /// `face_name` already determine a face's emissive, so equal keys imply
-    /// equal emissive bits.
-    pub(super) emissive_bits: i32,
-}
-
-#[derive(Clone, Debug)]
-pub(super) struct GreedyQuad {
-    pub(super) x: i32,
-    pub(super) y: i32,
-    pub(super) w: i32,
-    pub(super) h: i32,
-    pub(super) data: FaceData,
 }
 
 #[derive(Serialize, Deserialize)]

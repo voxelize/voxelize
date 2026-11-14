@@ -8,8 +8,20 @@ alwaysApply: false
 
 on load a client receives chunk meshes computed by the server's mesher (`crates/mesher`); after an edit it remeshes locally: mesh-worker is the client-side worker that handles remeshing (`packages/core/src/core/world/workers/mesh-worker.ts`), and on reload we load in the server-side mesh computed by the mesher. if the two disagree, a chunk changes appearance the moment it is re-meshed locally, which reads as a rendering bug rather than a parity bug.
 
-the worker meshes through the wasm build of the same crate (`@voxelize/wasm-mesher`, `mesh_chunk_fast`), so parity has two halves:
+the worker meshes through the wasm build of the same crate (`@voxelize/wasm-mesher`, `mesh_chunk_packed`), so parity has these halves:
 
 - **the wasm mesher must be rebuilt** when the Rust mesher changes (`pnpm build:wasm`, or `pnpm watch:wasm` while iterating). a stale `pkg/` meshes with last week's rules while the server uses today's.
 - **every block field the mesher reads must reach the worker.** `convertRegistryToWasm` in `mesh-worker.ts` hand-copies the registry into `WasmBlock`; a field added to the Rust block that is not copied there defaults on the client (`?? false`, `?? 0`), and the local remesh silently ignores it. add the field on both sides in the same change.
 - anything the worker does around the wasm call (packing, lights, fluid runs) mirrors the server's path. change one, change the other, and test the edge in `crates/mesher/src/mesher/tests.rs`.
+- **the mesher packs what the worker posts.** `mesh_chunk_packed` returns every geometry already in the arrays the main thread uploads (`crates/mesher/src/mesher/pack.rs`: quantized positions and uvs, byte normals, light twist, bounding sphere). a server mesh is still packed by the script on the main thread (`vertex-quantization.ts`, `quad-light.ts`), so the two must agree to the byte; change one, change the other, and `workers/mesh-packing-parity.test.ts` holds them together. `mesh_chunk_fast` (the mesher's raw arrays) stays for the fixtures.
+
+## it must stay fast, and the output must not move
+
+a section is meshed on every edit beside it and every chunk the server generates, so the mesher is on the path of both. two benches pin its speed and, with a hash, exactly what it emits:
+
+- `pnpm bench:mesher:stress [--save f.json] [--compare f.json] [--fixture <dir>] [--dump <dir>]` meshes ten worst-case scenes natively (`crates/mesher/examples/stress.rs`) and prints ms per section with a hash of the output. `--compare` against a run saved before a change says "same mesh" or "MESH DIFFERS" per scene.
+- `pnpm bench:mesh-worker --scenes <dumped dir> [--save] [--compare] [--tree <other checkout>]` runs the worker's own `onmessage` on those scenes and hashes every buffer it posts.
+
+run both before and after touching the mesher or the worker; a speedup that changes a hash changed what players see.
+
+the watch loop's wasm build (`wasm-pack build --dev`) is what a dev session plays with. its profile is fully optimized on purpose (`crates/wasm-mesher/Cargo.toml`); at opt-level 1 it meshed three times slower than release and made every edit in dev feel broken.
