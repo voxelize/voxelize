@@ -1,12 +1,16 @@
 import {
   BufferGeometry,
   type Camera,
+  Color,
   Data3DTexture,
   Float32BufferAttribute,
+  HalfFloatType,
   LinearFilter,
   Mesh,
+  NearestFilter,
   type NodeMaterial,
   type Renderer,
+  RenderTarget,
   RepeatWrapping,
   RGBAFormat,
   Scene,
@@ -18,11 +22,13 @@ import { WorkerPool } from "../../libs/worker-pool";
 import { Coords3 } from "../../types";
 import { callbackRenderer } from "../../utils/three-utils";
 
+import { renderClearing } from "./clearing-render";
 import { ORDER_INDEPENDENT_KEY } from "./order-independent-transparency";
 import { SceneDepthCopy } from "./scene-depth-copy";
 import { exemptFromLightCones } from "./light-cones";
 import { markNeverCaster } from "./shadow-casters";
 import {
+  createVolumetricCloudCoarseMaterial,
   createVolumetricCloudMaterial,
   createVolumetricCloudUniforms,
   VOLUMETRIC_CLOUD_MAX_LAYERS,
@@ -32,6 +38,8 @@ import {
 import { ownUniform } from "./shading/uniforms";
 import { driftShift } from "./volumetric-clouds-drift";
 import VolumetricCloudWorker from "./workers/volumetric-clouds-worker.ts?worker&inline";
+
+const scratchClear = new Color();
 
 /** How a volumetric deck is drawn. */
 export type VolumetricCloudStyle = "voxel" | "soft";
@@ -153,6 +161,21 @@ export class VolumetricClouds extends Mesh<BufferGeometry, NodeMaterial> {
     mesh: Mesh<BufferGeometry, NodeMaterial>;
   };
 
+  /**
+   * The deck marched at half the frame's size, before its draws into the
+   * frame: they take their even stretches from it and march only the
+   * pixels it cannot stand in for (see `createVolumetricCloudCoarseMaterial`).
+   */
+  private readonly coarse: {
+    scene: Scene;
+    mesh: Mesh<BufferGeometry, NodeMaterial>;
+    target: RenderTarget;
+  };
+
+  /** The render and the camera the half-size march was last drawn for. */
+  private coarseFrame = -1;
+  private coarseCamera: Camera | null = null;
+
   private generation = 0;
 
   private isDisposed = false;
@@ -164,6 +187,9 @@ export class VolumetricClouds extends Mesh<BufferGeometry, NodeMaterial> {
 
   /** The render whose blended layers the back half drew under. */
   private splitFrame = -1;
+
+  /** The render a depth copy was lent for ({@link borrowDepth}). */
+  private borrowedDepthFrame = -1;
 
   constructor(
     options: Partial<VolumetricCloudsOptions> = {},
@@ -192,6 +218,24 @@ export class VolumetricClouds extends Mesh<BufferGeometry, NodeMaterial> {
     const behindScene = new Scene();
     behindScene.add(behindMesh);
     this.behind = { scene: behindScene, mesh: behindMesh };
+
+    const coarseMesh = new Mesh(
+      geometry,
+      createVolumetricCloudCoarseMaterial(uniforms, shared),
+    );
+    coarseMesh.frustumCulled = false;
+    const coarseScene = new Scene();
+    coarseScene.add(coarseMesh);
+    const coarseTarget = new RenderTarget(1, 1, {
+      type: HalfFloatType,
+      format: RGBAFormat,
+      depthBuffer: false,
+      generateMipmaps: false,
+      minFilter: NearestFilter,
+      magFilter: NearestFilter,
+    });
+    coarseTarget.texture.name = "VolumetricClouds.coarse";
+    this.coarse = { scene: coarseScene, mesh: coarseMesh, target: coarseTarget };
 
     this.options = { ...defaultVolumetricCloudsOptions, ...options };
     this.frustumCulled = false;
@@ -269,16 +313,79 @@ export class VolumetricClouds extends Mesh<BufferGeometry, NodeMaterial> {
     renderer.autoClear = autoClear;
     this.uniforms.blendedSplit.value = 2;
     this.splitFrame = renderer.info.frame;
+    this.prepare(renderer, camera);
   }
 
-  onBeforeRender = (renderer: unknown) => {
+  /**
+   * Marches the deck at half the size of the bound target, for the draw
+   * into it that follows this frame. Call it between renders, with the
+   * frame's target bound and its depth final: the world does, before the
+   * deck draws ({@link drawBehindBlended} does for a frame with see-through
+   * layers). A frame that skips it marches every pixel in the deck's own
+   * draw, as does the soft style, whose grain is per pixel.
+   */
+  prepare(renderer: Renderer, camera: Camera) {
+    if (!this.visible || this.options.style !== "voxel") return;
+    const frame = renderer.info.frame;
+    if (this.coarseFrame === frame && this.coarseCamera === camera) return;
+    const target = renderer.getRenderTarget();
+    if (!target) return;
+    const u = this.uniforms;
+    if (this.splitFrame !== frame) u.blendedSplit.value = 0;
+    this.captureDepth(renderer);
+
+    const coarse = this.coarse.target;
+    const width = Math.max(1, Math.ceil(target.width / 2));
+    const height = Math.max(1, Math.ceil(target.height / 2));
+    if (coarse.width !== width || coarse.height !== height) {
+      coarse.setSize(width, height);
+    }
+    u.frameSize.value.set(target.width, target.height);
+    u.coarseSize.value.set(width, height);
+
+    const clearAlpha = renderer.getClearAlpha();
+    renderer.getClearColor(scratchClear);
+    renderer.setClearColor(0x000000, 0);
+    renderer.setRenderTarget(coarse);
+    try {
+      renderClearing(renderer, this.coarse.scene, camera, { color: true });
+    } finally {
+      renderer.setClearColor(scratchClear, clearAlpha);
+      renderer.setRenderTarget(target);
+    }
+    u.coarse.value = coarse.texture;
+    u.coarseReady.value = 1;
+    this.coarseFrame = frame;
+    this.coarseCamera = camera;
+  }
+
+  onBeforeRender = (renderer: unknown, _scene: unknown, camera: Camera) => {
     const gpu = callbackRenderer(renderer);
+    const frame = gpu.info.frame;
     // No back half this frame (no blended layers accumulated): one march.
-    if (this.splitFrame !== gpu.info.frame) this.uniforms.blendedSplit.value = 0;
+    if (this.splitFrame !== frame) this.uniforms.blendedSplit.value = 0;
+    // No half-size march for this view: every pixel marches for itself.
+    this.uniforms.coarseReady.value =
+      this.coarseFrame === frame && this.coarseCamera === camera ? 1 : 0;
     this.captureDepth(gpu);
   };
 
+  /**
+   * Hands the deck a copy of the frame's depth that already exists this
+   * render (the world's, made as its blended layers open: nothing after
+   * it writes depth), so the deck makes none of its own. Without one it
+   * copies the bound target's depth itself.
+   */
+  borrowDepth(renderer: Renderer, depth: Texture) {
+    this.uniforms.sceneDepth.value = depth;
+    this.uniforms.sceneDepthReady.value = 1;
+    this.borrowedDepthFrame = renderer.info.frame;
+    // Its own copy would sit idle at the size of the frame.
+    this.depthCopy.dispose();
+  }
+
   private captureDepth(renderer: Renderer) {
+    if (this.borrowedDepthFrame === renderer.info.frame) return;
     this.depthCopy.capture(renderer, renderer.getRenderTarget());
   }
 
@@ -290,6 +397,8 @@ export class VolumetricClouds extends Mesh<BufferGeometry, NodeMaterial> {
     this.geometry.dispose();
     this.material.dispose();
     this.behind.mesh.material.dispose();
+    this.coarse.mesh.material.dispose();
+    this.coarse.target.dispose();
   }
 
   private applyOptions() {

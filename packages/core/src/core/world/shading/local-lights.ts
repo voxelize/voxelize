@@ -43,16 +43,6 @@ import {
   SLOT_WEIGHT_SHIFT,
 } from "../local-lights/clustering";
 import {
-  FLICKER_GUTTER_DEPTH,
-  FLICKER_GUTTER_EDGES,
-  FLICKER_GUTTER_ENVELOPES,
-  FLICKER_PARTIALS,
-  FLICKER_SHIVER_PER_AMPLITUDE,
-  FLICKER_SHIVER_SINK,
-  FLICKER_SHIVER_X,
-  FLICKER_SHIVER_Z,
-} from "../local-lights/flicker";
-import {
   BLOCK_LIGHT_OWNERSHIP_GAIN,
   BLOCK_LIGHT_OWNERSHIP_TAIL,
   FLUID_SPECULAR_LIGHTS_PER_CELL,
@@ -70,7 +60,13 @@ import {
 } from "./block-light";
 import type { ChunkUniforms, TextureInput } from "./chunk-uniforms";
 import { glUvToTargetUv, perspectiveDepthToViewZ } from "./conventions";
-import type { FloatNode, IntNode, Vec3Node, Vec4Node } from "./types";
+import type {
+  BoolNode,
+  FloatNode,
+  IntNode,
+  Vec3Node,
+  Vec4Node,
+} from "./types";
 
 export type LocalLightInputs = {
   grid: LightClusterGrid["uniforms"];
@@ -113,6 +109,8 @@ const SHAPE_CAPSULE = 2;
  *   t1 = [r*i, g*i, b*i, flags]   flags: 1 masked | 2 flicker | 4 shadowed | shape << 4
  *   t2 = spot [dir.xyz, cosOuter] / capsule [end offset.xyz, 0]
  *   t3 = [flickerSpeed, flickerAmplitude, flickerPhase, spotInvCosDelta]
+ *        (the flicker terms are the CPU's; shaders read `flickerNow`, one
+ *        row a light: this frame's [intensity scale, origin offset xyz])
  *   t4 = [shadow slot (-1 none), static face mask, dynamic face mask, near]
  *   t5 = [far, guard tanHalf, shadow fade weight, 0]
  *
@@ -313,43 +311,15 @@ export function localLightShading(
   };
 
   /**
-   * A flickering light's [intensity scale, origin offset xyz]: the curve of
-   * `sampleFlicker` (local-lights/flicker.ts), term for term.
+   * A flickering light's [intensity scale, origin offset xyz] this frame:
+   * `sampleFlicker` (local-lights/flicker.ts), worked out once a light on
+   * the CPU (`LightClusterGrid.updateFlicker`). It is the same for every
+   * fragment a light reaches, and as shader maths (seven sines for each
+   * light of a fragment's cell, in reach or not) it was a third of what
+   * the clustered lights cost a frame.
    */
-  const flicker = (t3: Vec4Node): Vec4Node => {
-    // Radians per unit ratio: 2π × cycles, cycles = seconds × speed.
-    const t = world.time
-      .mul(0.001)
-      .mul(t3.x)
-      .mul(Math.PI * 2);
-    const phase = t3.z;
-    const amplitude = t3.y;
-    const wave = (ratio: number, phaseMul: number): FloatNode =>
-      t.mul(ratio).add(phase.mul(phaseMul)).sin();
-
-    let sum: FloatNode = float(0);
-    for (const [ratio, phaseMul, weight] of FLICKER_PARTIALS) {
-      sum = sum.add(wave(ratio, phaseMul).mul(weight));
-    }
-    const breath = sum.mul(0.5).add(0.5);
-    let envelope: FloatNode = float(1);
-    for (const [ratio, phaseMul] of FLICKER_GUTTER_ENVELOPES) {
-      envelope = envelope.mul(wave(ratio, phaseMul));
-    }
-    const gutter = smoothstep(
-      FLICKER_GUTTER_EDGES[0],
-      FLICKER_GUTTER_EDGES[1],
-      envelope,
-    );
-    const dim = amplitude.mul(breath.add(gutter.mul(FLICKER_GUTTER_DEPTH)));
-    const radius = amplitude.mul(FLICKER_SHIVER_PER_AMPLITUDE);
-    return vec4(
-      max(dim.oneMinus(), 0),
-      radius.mul(wave(FLICKER_SHIVER_X[0], FLICKER_SHIVER_X[1])),
-      radius.mul(-FLICKER_SHIVER_SINK).mul(breath.sub(0.5)),
-      radius.mul(wave(FLICKER_SHIVER_Z[0], FLICKER_SHIVER_Z[1])),
-    ) as unknown as Vec4Node;
-  };
+  const flicker = (rec: IntNode): Vec4Node =>
+    g.flickerNow.load(ivec2(0, rec)) as unknown as Vec4Node;
 
   /**
    * Window-rim fade shared by the analytic output and its flood claim,
@@ -401,7 +371,7 @@ export function localLightShading(
     const flickerScale = float(1).toVar();
     const shiver = vec3(0).toVar();
     If(isFlickering, () => {
-      const f = flicker(record(rec, 3));
+      const f = flicker(rec);
       flickerScale.assign(f.x);
       shiver.assign(f.yzw);
     });
@@ -526,7 +496,9 @@ export function localLightShading(
    * cell's slots (shadow-mapped where granted) and its overflow, the share
    * of the baked flood the fragment still keeps (`floodRemainder`, 1 where
    * no analytic light claims it), and the hue of the lights around it for
-   * the flood's spent channels (`lightHue`).
+   * the flood's spent channels (`lightHue`). `gate`, when given, is false
+   * for a fragment that draws nothing (a cutout's hole): it takes the
+   * answer of a cell with no lights and runs none of this.
    */
   const surface = (
     pos: Vec3Node,
@@ -534,6 +506,7 @@ export function localLightShading(
     flood: Vec3Node,
     slotLimit: number,
     useShadows: boolean,
+    gate: BoolNode | null = null,
   ) => {
     const total = vec3(0).toVar();
     const floodRemainder = float(1).toVar();
@@ -541,7 +514,10 @@ export function localLightShading(
     if (slotLimit === 0) return { total, floodRemainder, lightHue };
 
     const cell = cellOf(pos);
-    If(g.clusteredCount.greaterThan(0).and(cell.greaterThanEqual(0)), () => {
+    const hasLights = g.clusteredCount
+      .greaterThan(0)
+      .and(cell.greaterThanEqual(0));
+    If(gate ? gate.and(hasLights) : hasLights, () => {
       const mask = floodMask(flood);
       const fade = windowFade(pos);
       const claim = float(0).toVar();
@@ -739,7 +715,7 @@ export function localLightShading(
               const origin = vec3(t0.xyz).toVar();
               const flickerScale = float(1).toVar();
               If(flagsOf(t1).bitAnd(FLAG_FLICKER).notEqual(0), () => {
-                const f = flicker(record(rec, 3));
+                const f = flicker(rec);
                 flickerScale.assign(f.x);
                 origin.addAssign(f.yzw);
               });

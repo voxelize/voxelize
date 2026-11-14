@@ -144,6 +144,11 @@ export class LightClusterGrid {
   readonly uniforms = {
     lightGrid: textureSlot("uint"),
     lightData: textureSlot("float"),
+    /**
+     * Per light record row, this frame's flicker: [intensity scale, origin
+     * offset xyz] (`updateFlicker`). One texel wide.
+     */
+    flickerNow: textureSlot("float"),
     /** Per cell, the lights past its slots (`writeCellOverflow`). */
     lightOverflow: textureSlot("uint"),
     gridOrigin: worldUniform(new Vector3()),
@@ -194,6 +199,10 @@ export class LightClusterGrid {
   private readonly overflowData: Uint32Array;
   private readonly gridData: Uint32Array;
   private readonly lightData: Float32Array;
+  private readonly flickerData: Float32Array;
+  private readonly flickerTexture: DataTexture;
+  /** Whether the last `updateFlicker` wrote a flame (see there). */
+  private hasFlickerRows = false;
 
   private readonly heapScores: Float64Array;
   private readonly heapIndices: Uint32Array;
@@ -360,6 +369,23 @@ export class LightClusterGrid {
     this.dataTexture.generateMipmaps = false;
     this.dataTexture.flipY = false;
 
+    this.flickerData = new Float32Array(4 * MAX_CLUSTERED_LIGHTS);
+    for (let row = 0; row < MAX_CLUSTERED_LIGHTS; row++) {
+      this.flickerData[row * 4] = 1;
+    }
+    this.flickerTexture = new DataTexture(
+      this.flickerData,
+      1,
+      MAX_CLUSTERED_LIGHTS,
+      RGBAFormat,
+      FloatType,
+    );
+    this.flickerTexture.minFilter = NearestFilter;
+    this.flickerTexture.magFilter = NearestFilter;
+    this.flickerTexture.generateMipmaps = false;
+    this.flickerTexture.flipY = false;
+    this.flickerTexture.needsUpdate = true;
+
     const overflowWidth = GRID_CELLS_PER_ROW * OVERFLOW_SLOTS_PER_CELL;
     this.overflowData = new Uint32Array(overflowWidth * gridHeight);
     this.overflowTexture = new DataTexture(
@@ -381,6 +407,7 @@ export class LightClusterGrid {
     const cellSize = settings.gridCellSize;
     this.uniforms.lightGrid.value = this.gridTexture;
     this.uniforms.lightData.value = this.dataTexture;
+    this.uniforms.flickerNow.value = this.flickerTexture;
     this.uniforms.lightOverflow.value = this.overflowTexture;
     this.uniforms.gridCellSize.value = cellSize;
     this.uniforms.gridDims.value.set(...this.gridDims);
@@ -510,6 +537,7 @@ export class LightClusterGrid {
   dispose() {
     this.gridTexture.dispose();
     this.dataTexture.dispose();
+    this.flickerTexture.dispose();
     this.overflowTexture.dispose();
   }
 
@@ -597,6 +625,49 @@ export class LightClusterGrid {
 
     if (this.activeCount > 0) this.stepFades(fadeStepMs, stats, isDirty);
     if (this.enteringCount > 0) this.stepEntries(isDirty);
+  }
+
+  /**
+   * Writes this frame's flicker of every packed light for the shaders
+   * (`uniforms.flickerNow`): `sampleFlicker` at `timeMs`, the clock the
+   * frame's other shader motion reads, once a light instead of once a
+   * fragment. Call it every drawn frame, after {@link update}. A frame
+   * with no flickering light packed uploads nothing.
+   */
+  updateFlicker(timeMs: number): void {
+    const { flags, flickers } = this.registry;
+    const data = this.flickerData;
+    const scratch = this.flickerScratch;
+    const seconds = timeMs * 0.001;
+    let hasFlicker = false;
+    for (let row = 0; row < this.packedCount; row++) {
+      const i = this.packedIndices[row];
+      const base = row * 4;
+      if (flags[i] & LIGHT_FLAG_FLICKER) {
+        sampleFlicker(
+          flickers[i * 4],
+          flickers[i * 4 + 1],
+          flickers[i * 4 + 2],
+          seconds,
+          scratch,
+        );
+        data[base] = scratch[0];
+        data[base + 1] = scratch[1];
+        data[base + 2] = scratch[2];
+        data[base + 3] = scratch[3];
+        hasFlicker = true;
+      } else {
+        data[base] = 1;
+        data[base + 1] = 0;
+        data[base + 2] = 0;
+        data[base + 3] = 0;
+      }
+    }
+    // One more upload after the last flame leaves, for the rows it held.
+    if (hasFlicker || this.hasFlickerRows) {
+      this.flickerTexture.needsUpdate = true;
+    }
+    this.hasFlickerRows = hasFlicker;
   }
 
   /**

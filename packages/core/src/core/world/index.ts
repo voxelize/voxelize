@@ -931,6 +931,13 @@ export class World<T = any> extends Scene implements NetIntercept {
       cones: this.lightCones.uniforms,
       local: this.localLights.shadingInputs,
       swayTable: this.swayProfileTable,
+      blended: this.orderIndependent
+        ? {
+            phase: this.orderIndependent.uniforms.phase,
+            separatorDepth: this.orderIndependent.uniforms.separatorDepth,
+            separatorBias: this.orderIndependent.uniforms.separatorBias,
+          }
+        : null,
     };
     return this.shadingInputsCache;
   }
@@ -1032,6 +1039,16 @@ export class World<T = any> extends Scene implements NetIntercept {
    * (`SceneDepthCopy`). Call with the scene's target bound, before the water
    * draws.
    */
+  /**
+   * The copy of the scene's depth made as the blended layers opened, for
+   * the cloud deck's march: the same depth it would copy again for itself.
+   */
+  private lendSceneDepthToClouds(renderer: Renderer) {
+    const { sceneDepth, sceneDepthReady } = this.chunkRenderer.uniforms;
+    if (sceneDepthReady.value < 0.5) return;
+    this.volumetricClouds?.borrowDepth(renderer, sceneDepth.value);
+  }
+
   private captureSceneDepth(renderer: Renderer, target: RenderTarget | null) {
     this.sceneDepthCopy.capture(renderer, target);
   }
@@ -1432,6 +1449,11 @@ export class World<T = any> extends Scene implements NetIntercept {
    * panes in view (`WaterDepthPass`) and then the scene.
    */
   renderFrame(renderer: Renderer, camera: Camera, target: RenderTarget | null) {
+    // The GPU terrain's culls for this view, before any pass opens. A cull
+    // asked for by the first bucket to draw runs in the middle of that
+    // pass: the renderer ends it, computes, and opens it again, and a pass
+    // the size of the frame was stored and loaded back for nothing.
+    this.gpuTerrainCulls.cullFor(renderer, camera);
     if (!this.orderIndependent) {
       this.waterDepth.render(renderer, camera);
       renderer.setRenderTarget(target);
@@ -6021,6 +6043,8 @@ export class World<T = any> extends Scene implements NetIntercept {
 
     const startUpdateUniforms = performance.now();
     this.updateUniforms(delta);
+    // The flames' flicker at the clock just set, once a light.
+    this.localLights.updateFlicker(this.chunkRenderer.uniforms.time.value);
     const updateUniformsDuration = performance.now() - startUpdateUniforms;
 
     const startUpdateSkyAndClouds = performance.now();
@@ -8822,8 +8846,16 @@ export class World<T = any> extends Scene implements NetIntercept {
         // The volumetric deck draws after the composite, so it must not
         // paint over a pane or portal in front of it: what of it lies
         // behind the blended layers draws here, under them.
-        beforeComposite: (renderer, camera, layers) =>
-          this.volumetricClouds?.drawBehindBlended(renderer, camera, layers),
+        beforeComposite: (renderer, camera, layers) => {
+          this.lendSceneDepthToClouds(renderer);
+          this.volumetricClouds?.drawBehindBlended(renderer, camera, layers);
+        },
+        // The deck's half-size march, for a frame with no blended layers
+        // (with them, the draw under their composite has made it).
+        beforeAfter: (renderer, camera) => {
+          this.lendSceneDepthToClouds(renderer);
+          this.volumetricClouds?.prepare(renderer, camera);
+        },
         // Water refracts what lies beyond it: glass, particles and farther
         // water behind its nearest face join the scene it reads before it
         // draws.

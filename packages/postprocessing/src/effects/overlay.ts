@@ -26,6 +26,8 @@ export class SceneOverlayEffect extends Effect {
 
   private readonly target: RenderTarget;
   private readonly overlay = textureInput();
+  /** Whether the target holds nothing: cleared, and not drawn into since. */
+  private isClear = false;
 
   /** The scene drawn over the frame and the camera it is drawn from; null draws nothing. */
   constructor(
@@ -55,23 +57,43 @@ export class SceneOverlayEffect extends Effect {
   }
 
   update(renderer: Renderer) {
+    const isDrawn = this.isVisible && !!this.scene && !!this.camera;
+    // Nothing drawn and nothing left from a draw: the target is clear.
+    if (!isDrawn && this.isClear) {
+      this.overlay.value = this.target.texture;
+      return;
+    }
     const clearAlpha = renderer.getClearAlpha();
     renderer.getClearColor(scratchClear);
-    const autoClear = renderer.autoClear;
+    const { autoClear, autoClearColor, autoClearDepth, autoClearStencil } =
+      renderer;
     renderer.setRenderTarget(this.target);
     renderer.setClearColor(0x000000, 0);
-    renderer.clear();
-    if (this.isVisible && this.scene && this.camera) {
-      renderer.autoClear = false;
-      renderer.render(this.scene, this.camera);
+    if (isDrawn) {
+      // The clear is the pass's own load: cleared apart, the target was a
+      // pass and a store of its own, then loaded back whole for the draw.
+      renderer.autoClear = true;
+      renderer.autoClearColor = true;
+      renderer.autoClearDepth = true;
+      renderer.autoClearStencil = true;
+      renderer.render(this.scene as Object3D, this.camera as Camera);
+      this.isClear = false;
+    } else {
+      renderer.clear();
+      this.isClear = true;
     }
     renderer.autoClear = autoClear;
+    renderer.autoClearColor = autoClearColor;
+    renderer.autoClearDepth = autoClearDepth;
+    renderer.autoClearStencil = autoClearStencil;
     renderer.setClearColor(scratchClear, clearAlpha);
     this.overlay.value = this.target.texture;
   }
 
   setSize(width: number, height: number) {
     this.target.setSize(width, height);
+    // A resized target holds nothing known.
+    this.isClear = false;
   }
 
   dispose() {

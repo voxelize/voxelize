@@ -1,7 +1,9 @@
 import {
   Data3DTexture,
+  NoBlending,
   NodeMaterial,
   NormalBlending,
+  Vector2,
   Vector3,
   Vector4,
 } from "three/webgpu";
@@ -47,7 +49,15 @@ import {
 
 import { perspectiveDepthToViewZ } from "./conventions";
 import { skyFog, type SkyFogInputs } from "./sky-fog";
-import type { BoolNode, FloatNode, IntNode, Vec3Node, Vec4Node } from "./types";
+import type {
+  BoolNode,
+  FloatNode,
+  IntNode,
+  IVec2Node,
+  Vec2Node,
+  Vec3Node,
+  Vec4Node,
+} from "./types";
 import { ownUniform, textureSlot, uniformArray } from "./uniforms";
 
 export const VOLUMETRIC_CLOUD_MAX_LAYERS = 2;
@@ -99,6 +109,27 @@ export function createVolumetricCloudUniforms() {
      */
     blendedSplit: ownUniform(0),
     blendedLayers: textureSlot("float"),
+    /**
+     * The deck marched at half the frame's size this frame (premultiplied
+     * colour and alpha), and whether it was: see
+     * {@link createVolumetricCloudCoarseMaterial}.
+     */
+    coarse: textureSlot("float"),
+    coarseReady: ownUniform(0),
+    coarseSize: ownUniform(new Vector2(1, 1)),
+    /**
+     * When a pixel takes the half-size march's blend instead of marching:
+     * its four neighbours there must end within `x` of its own reach (a
+     * share of it, plus `COARSE_REACH_SLACK` blocks: the same sky, or the
+     * same slope), and their premultiplied colours must all lie within the
+     * contrast `y` of each other, their alphas within `y` (open sky, the
+     * inside of a face). Past either the pixel is on an outline, a crease
+     * or where the land cuts the deck, and marches for itself, so `y` is
+     * the most a blend is off by: at 0.04, under two levels of 255 on screen.
+     */
+    coarseTolerance: ownUniform(new Vector2(0.02, 0.04)),
+    /** The size of the frame the deck draws into, in pixels. */
+    frameSize: ownUniform(new Vector2(1, 1)),
     /** 0: voxel (each texel of the volume is a cloud cube), 1: soft. */
     style: ownUniform(0),
     maxDistance: ownUniform(2400),
@@ -126,13 +157,28 @@ export type VolumetricCloudUniforms = ReturnType<
   typeof createVolumetricCloudUniforms
 >;
 
+/** Blocks of slack on a half-size neighbour's reach (`coarseTolerance.x`). */
+const COARSE_REACH_SLACK = 0.5;
+/** The level under which two premultiplied colours count as one. */
+const COARSE_DARKEST = 0.004;
+
 /**
  * Clouds marched through a tileable noise volume, drawn as one screen
  * triangle. See `VolumetricClouds`.
+ *
+ * `"frame"` is the deck's draw into the frame. With the half-size march
+ * ready (`coarseReady`), a pixel whose four neighbours there agree takes
+ * their blend and marches nothing; a pixel on a cloud's outline, on a
+ * crease between two faces, where the land cuts the deck or under a
+ * see-through layer marches its own ray, exactly as it does with no
+ * half-size march at all. `"coarse"` is that half-size march: every texel
+ * marched as the frame pixel under its centre would be, written
+ * premultiplied.
  */
-export function createVolumetricCloudMaterial(
+function createCloudMaterial(
   u: VolumetricCloudUniforms,
   shared: VolumetricCloudsSharedInputs,
+  mode: "frame" | "coarse",
 ): NodeMaterial {
   const vec4At = (array: typeof u.layerSpan, i: IntNode) =>
     array.element(i) as unknown as Vec4Node;
@@ -303,16 +349,72 @@ export function createVolumetricCloudMaterial(
 
     const normal = vec3(0, sign(rd.y).negate(), 0).toVar();
     const hasNormal = select(t0.greaterThan(0), float(1), float(0)).toVar();
+
+    // Whether the cell `idx` holds cloud: `layerDensity(centre, stepped)`
+    // above zero, with what holds for the whole march worked out once, and
+    // the coverage map read only where the noise could reach it. A step
+    // through open air is most of a march, and this is all it does.
+    const shape = vec4At(u.layerShape, i).toVar();
+    const noiseShift = vec4At(u.layerNoiseShift, i).toVar();
+    const coverageScale = vec4At(u.layerCell, i).w.toVar();
+    const coverageAmount = span.z.toVar();
+    // Cell index to noise texel, less the half cell: the grid's drift
+    // within a cell, and the layer's own whole-texel offset.
+    const texelBias = vec3(
+      gridShift.x.negate().div(cell.x).add(shape.w).add(0.5),
+      0.5,
+      gridShift.y.negate().div(cell.z).add(floor(shape.w.mul(1.7))).add(0.5),
+    ).toVar();
+    const heightStep = cell.y.div(span.y.sub(span.x)).toVar();
+    // No coverage lifts noise at or under this into cloud: `raw` is above
+    // zero only where the noise beats one less the coverage, and coverage
+    // tops out at 1.75 of the layer's amount.
+    const noiseFloor = clamp(coverageAmount.mul(1.75), 0, 1).oneMinus().toVar();
+    const isCloudyAt = (cellIndex: Vec3Node): BoolNode => {
+      const cloudy = float(0).toVar();
+      const h = cellIndex.y.add(0.5).mul(heightStep);
+      If(h.greaterThanEqual(0).and(h.lessThanEqual(1)), () => {
+        const still = cellIndex.add(texelBias).div(u.noiseSize).toVar();
+        const noise = u.noise
+          .sample(still.add(vec3(noiseShift.x, 0, noiseShift.y)))
+          .level(float(0)).r;
+        const profile = smoothstep(0, shape.x, h).mul(
+          smoothstep(shape.y.oneMinus(), 1, h).oneMinus(),
+        );
+        const shaped = noise.mul(profile).toVar();
+        If(shaped.greaterThan(noiseFloor), () => {
+          const coverageMap = u.noise
+            .sample(
+              vec3(
+                still.x.div(coverageScale).add(noiseShift.z).add(0.31),
+                0.5,
+                still.z.div(coverageScale).add(noiseShift.w).add(0.17),
+              ),
+            )
+            .level(float(0)).b;
+          const coverage = clamp(
+            coverageAmount.mul(coverageMap.mul(1.5).add(0.25)),
+            0,
+            1,
+          );
+          const raw = clamp(
+            shaped.sub(coverage.oneMinus()).div(max(coverage, 1e-3)),
+            0,
+            1,
+          );
+          cloudy.assign(select(raw.greaterThan(0.06), float(1), float(0)));
+        });
+      });
+      return cloudy.greaterThan(0.5);
+    };
+
     // A march that picks up where the front half stopped, inside a bank,
     // goes on through its mist instead of meeting a face at the split.
-    const wasCloudy = resumed
-      .and(layerDensity(i, idx.add(0.5).mul(cell).add(origin), true).greaterThan(0))
-      .toVar();
+    const wasCloudy = resumed.and(isCloudyAt(idx)).toVar();
     const probe = min(cell.x, cell.y);
 
     Loop(VOXEL_STEPS, () => {
-      const center = idx.add(0.5).mul(cell).add(origin);
-      const cloudy = layerDensity(i, center, true).greaterThan(0).toVar();
+      const cloudy = isCloudyAt(idx).toVar();
 
       // Only where the ray comes out of open air into cloud: the walls
       // between two cloudy cells are inside it.
@@ -449,39 +551,30 @@ export function createVolumetricCloudMaterial(
 
   const fog = skyFog(shared.atmosphere);
 
-  const fragment = Fn(() => {
-    const ro = cameraPosition;
-    const rd = normalize(vRay).toVar("cloudRd");
-    const viewRay = normalize(vViewRay).toVar("cloudViewRay");
-    const alongRay = max(viewRay.z.negate(), 1e-4);
+  /** View depth along a pixel's ray, as a distance; `maxDistance` for sky. */
+  const reachAt = (uv: Vec2Node, alongRay: FloatNode): FloatNode => {
+    const z = u.sceneDepth.sample(uv).level(float(0)).r;
+    return select(
+      u.sceneDepthReady.greaterThan(0.5).and(z.lessThan(0.99999)),
+      min(
+        u.maxDistance,
+        perspectiveDepthToViewZ(z, cameraNear, cameraFar).div(alongRay),
+      ),
+      u.maxDistance,
+    );
+  };
 
-    const limit = u.maxDistance.toVar("cloudLimit");
-    If(u.sceneDepthReady.greaterThan(0.5), () => {
-      const z = u.sceneDepth.sample(screenUV).level(float(0)).r;
-      If(z.lessThan(0.99999), () => {
-        const viewZ = perspectiveDepthToViewZ(z, cameraNear, cameraFar);
-        limit.assign(min(limit, viewZ.div(alongRay)));
-      });
-    });
-
-    const start = float(0).toVar("cloudStart");
-    If(u.blendedSplit.greaterThan(0.5), () => {
-      const layers = u.blendedLayers.load(ivec2(screenCoordinate.xy)).rg;
-      // Their mean view depth, weighted as the composite weighs them, as a
-      // distance along this pixel's ray. None here: the front half is all.
-      const split = select(
-        layers.r.greaterThan(1e-6),
-        layers.g.div(layers.r).div(alongRay),
-        limit,
-      );
-      If(u.blendedSplit.lessThan(1.5), () => {
-        start.assign(split);
-      }).Else(() => {
-        limit.assign(min(limit, split));
-      });
-    });
-    Discard(start.greaterThanEqual(limit));
-
+  /**
+   * The march of one ray from `start` to `limit`: straight colour and
+   * alpha, fogged and faded as the frame takes them. Alpha 0: no cloud.
+   */
+  const marchRay = (
+    ro: Vec3Node,
+    rd: Vec3Node,
+    start: FloatNode,
+    limit: FloatNode,
+  ): Vec4Node => {
+    const out = vec4(0).toVar("cloudOut");
     // Interleaved gradient noise: steps start at a per-pixel offset so the
     // soft style's banding becomes a fine, fixed grain.
     const jitter = fract(
@@ -528,37 +621,223 @@ export function createVolumetricCloudMaterial(
     });
 
     const alpha = state.transmittance.oneMinus().toVar("cloudAlpha");
-    Discard(alpha.lessThan(0.003));
+    If(alpha.greaterThanEqual(0.003), () => {
+      const meanDistance = state.weightedDistance.div(alpha);
+      const worldPosition = ro.add(rd.mul(meanDistance)).toVar("cloudWorldPosition");
+      const flatDistance = length(worldPosition.xz.sub(cameraPosition.xz)).div(
+        max(shared.fogDistanceScale, 0.001),
+      );
+      const fogged = fog.apply(
+        state.color.div(alpha),
+        worldPosition,
+        float(1),
+        false,
+        flatDistance,
+        false,
+      );
+      const endFade = smoothstep(u.fadeStart, u.maxDistance, meanDistance);
+      out.assign(
+        vec4(
+          fog.haze(fogged, rd, endFade, false),
+          alpha.mul(endFade.oneMinus()),
+        ),
+      );
+    });
+    return out;
+  };
 
-    const meanDistance = state.weightedDistance.div(alpha);
-    const worldPosition = ro.add(rd.mul(meanDistance)).toVar("cloudWorldPosition");
-    const flatDistance = length(worldPosition.xz.sub(cameraPosition.xz)).div(
-      max(shared.fogDistanceScale, 0.001),
+  /**
+   * Where the see-through layers stand along the ray of the frame pixel
+   * `pixel`, as a distance; `fallback` where there are none.
+   */
+  const splitAt = (
+    pixel: IVec2Node,
+    alongRay: FloatNode,
+    fallback: FloatNode,
+  ) => {
+    const layers = u.blendedLayers.load(pixel).rg;
+    const hasLayers = layers.r.greaterThan(1e-6);
+    return {
+      hasLayers,
+      distance: select(hasLayers, layers.g.div(layers.r).div(alongRay), fallback),
+    };
+  };
+
+  const coarseFragment = Fn(() => {
+    const ro = cameraPosition;
+    const rd = normalize(vRay).toVar("cloudRd");
+    const viewRay = normalize(vViewRay).toVar("cloudViewRay");
+    const alongRay = max(viewRay.z.negate(), 1e-4);
+
+    // The frame pixel under this texel's centre: its depth, its layers.
+    const pixel = floor(screenCoordinate.xy.mul(u.frameSize).div(u.coarseSize)).toVar(
+      "cloudPixel",
     );
-    const fogged = fog.apply(
-      state.color.div(alpha),
-      worldPosition,
+    const limit = reachAt(pixel.add(0.5).div(u.frameSize), alongRay).toVar("cloudLimit");
+    // The front half only: the half behind the layers marches in the frame.
+    If(u.blendedSplit.greaterThan(1.5), () => {
+      limit.assign(min(limit, splitAt(ivec2(pixel), alongRay, limit).distance));
+    });
+    const marched = marchRay(ro, rd, float(0), limit);
+    return vec4(marched.rgb.mul(marched.a), marched.a);
+  });
+
+  const frameFragment = Fn(() => {
+    const ro = cameraPosition;
+    const rd = normalize(vRay).toVar("cloudRd");
+    const viewRay = normalize(vViewRay).toVar("cloudViewRay");
+    const alongRay = max(viewRay.z.negate(), 1e-4);
+
+    const limit = reachAt(screenUV, alongRay).toVar("cloudLimit");
+    const start = float(0).toVar("cloudStart");
+    const hasLayers = float(0).toVar("cloudHasLayers");
+    If(u.blendedSplit.greaterThan(0.5), () => {
+      // Their mean view depth, weighted as the composite weighs them, as a
+      // distance along this pixel's ray. None here: the front half is all.
+      const split = splitAt(ivec2(screenCoordinate.xy), alongRay, limit);
+      hasLayers.assign(select(split.hasLayers, float(1), float(0)));
+      If(u.blendedSplit.lessThan(1.5), () => {
+        start.assign(split.distance);
+      }).Else(() => {
+        limit.assign(min(limit, split.distance));
+      });
+    });
+    // How far along this ray any slab reaches: land past it is as good as
+    // sky, and a ray that ends before the first slab holds no cloud at all.
+    const reachA = select(
+      u.layerCount.greaterThan(0.5),
+      layerSegment(int(0), ro, rd, start, u.maxDistance),
+      vec2(1, 0),
+    );
+    const reachB = select(
+      u.layerCount.greaterThan(1.5),
+      layerSegment(int(1), ro, rd, start, u.maxDistance),
+      vec2(1, 0),
+    );
+    const slabNear = min(
+      select(reachA.x.lessThan(reachA.y), reachA.x, u.maxDistance),
+      select(reachB.x.lessThan(reachB.y), reachB.x, u.maxDistance),
+    ).toVar("cloudSlabNear");
+    const slabFar = max(
+      select(reachA.x.lessThan(reachA.y), reachA.y, float(0)),
+      select(reachB.x.lessThan(reachB.y), reachB.y, float(0)),
+    ).toVar("cloudSlabFar");
+
+    const result = vec4(0).toVar("cloudResult");
+    // A discard lets the rest of the shader run on (it only stops the
+    // write), so a pixel with no cloud to find is branched around instead:
+    // most of a frame is ground.
+    const isMarching = select(
+      start.lessThan(limit).and(limit.greaterThan(slabNear)),
       float(1),
-      false,
-      flatDistance,
-      false,
+      float(0),
+    ).toVar("cloudIsMarching");
+    // The half-size march holds the whole ray of the voxel style, where no
+    // see-through layer stands on the pixel.
+    If(
+      isMarching
+        .greaterThan(0.5)
+        .and(u.coarseReady.greaterThan(0.5))
+        .and(isSoft.not())
+        .and(start.lessThanEqual(0))
+        .and(hasLayers.lessThan(0.5)),
+      () => {
+        const reach = min(limit, slabFar).toVar("cloudReach");
+        const tolerance = reach.mul(u.coarseTolerance.x).add(COARSE_REACH_SLACK);
+        // This pixel's centre among the half-size march's texel centres.
+        const at = screenCoordinate.xy.mul(u.coarseSize).div(u.frameSize).sub(0.5);
+        const base = floor(at).toVar("cloudCoarseBase");
+        const weight = at.sub(base).toVar("cloudCoarseWeight");
+        const last = u.coarseSize.sub(1);
+        const isFlat = float(1).toVar("cloudIsFlat");
+        const low = vec4(1e9).toVar("cloudCoarseLow");
+        const high = vec4(-1e9).toVar("cloudCoarseHigh");
+        const blend = vec4(0).toVar("cloudCoarseBlend");
+        for (const [dx, dy] of [
+          [0, 0],
+          [1, 0],
+          [0, 1],
+          [1, 1],
+        ]) {
+          const texel = clamp(base.add(vec2(dx, dy)), vec2(0), last);
+          const pixel = floor(texel.add(0.5).mul(u.frameSize).div(u.coarseSize));
+          const theirs = reachAt(pixel.add(0.5).div(u.frameSize), alongRay).toVar();
+          If(u.blendedSplit.greaterThan(1.5), () => {
+            const split = splitAt(ivec2(pixel), alongRay, theirs);
+            If(split.hasLayers, () => {
+              isFlat.assign(0);
+            });
+          });
+          If(abs(min(theirs, slabFar).sub(reach)).greaterThan(tolerance), () => {
+            isFlat.assign(0);
+          });
+          const sample = (u.coarse.load(ivec2(texel)) as unknown as Vec4Node).toVar();
+          low.assign(min(low, sample));
+          high.assign(max(high, sample));
+          const wx = dx === 0 ? weight.x.oneMinus() : weight.x;
+          const wy = dy === 0 ? weight.y.oneMinus() : weight.y;
+          blend.addAssign(sample.mul(wx.mul(wy)));
+        }
+        // Colour by contrast, not by level: the eye tells two dark greys
+        // apart as readily as two near whites, and a night deck is dark.
+        const spread = high.sub(low);
+        const contrast = max(max(spread.r, spread.g), spread.b).div(
+          max(max(max(high.r, high.g), high.b), COARSE_DARKEST),
+        );
+        If(max(contrast, spread.a).greaterThan(u.coarseTolerance.y), () => {
+          isFlat.assign(0);
+        });
+        If(isFlat.greaterThan(0.5), () => {
+          isMarching.assign(0);
+          result.assign(vec4(blend.rgb.div(max(blend.a, 1e-4)), blend.a));
+        });
+      },
     );
-    const endFade = smoothstep(u.fadeStart, u.maxDistance, meanDistance);
-    return vec4(
-      fog.haze(fogged, rd, endFade, false),
-      alpha.mul(endFade.oneMinus()),
-    );
+    If(isMarching.greaterThan(0.5), () => {
+      result.assign(marchRay(ro, rd, start, limit));
+    });
+    Discard(result.a.lessThan(0.003));
+    return result;
   });
 
   const material = new NodeMaterial();
-  material.name = "volumetric-clouds";
   material.vertexNode = vec4(positionGeometry.xy, 0, 1);
-  material.fragmentNode = fragment() as unknown as Vec4Node;
-  material.transparent = true;
   material.depthTest = false;
   material.depthWrite = false;
-  material.blending = NormalBlending;
   material.fog = false;
   material.lights = false;
+  if (mode === "coarse") {
+    material.name = "volumetric-clouds-coarse";
+    material.fragmentNode = coarseFragment() as unknown as Vec4Node;
+    material.transparent = false;
+    material.blending = NoBlending;
+  } else {
+    material.name = "volumetric-clouds";
+    material.fragmentNode = frameFragment() as unknown as Vec4Node;
+    material.transparent = true;
+    material.blending = NormalBlending;
+  }
   return material;
+}
+
+/** The deck's draw into the frame. See {@link createCloudMaterial}. */
+export function createVolumetricCloudMaterial(
+  u: VolumetricCloudUniforms,
+  shared: VolumetricCloudsSharedInputs,
+): NodeMaterial {
+  return createCloudMaterial(u, shared, "frame");
+}
+
+/**
+ * The deck marched at half the frame's size, into a target of its own, for
+ * the frame's draw to take its even stretches from. A march costs by the
+ * pixel (a ray near the horizon steps through a couple of hundred cells),
+ * and most of a sky is open air or the inside of a face, where one ray in
+ * four says as much as all of them.
+ */
+export function createVolumetricCloudCoarseMaterial(
+  u: VolumetricCloudUniforms,
+  shared: VolumetricCloudsSharedInputs,
+): NodeMaterial {
+  return createCloudMaterial(u, shared, "coarse");
 }

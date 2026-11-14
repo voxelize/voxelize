@@ -411,6 +411,16 @@ export class LocalLights {
   }
 
   /**
+   * This frame's flicker of every clustered light, for the shaders: the
+   * world calls it once a frame with its shader clock, after {@link update}
+   * (`LightClusterGrid.updateFlicker`).
+   */
+  updateFlicker(timeMs: number): void {
+    if (this.isDisposed) return;
+    this.grid.updateFlicker(timeMs);
+  }
+
+  /**
    * Flood-ownership weight of the current tier: `1` on every tier that
    * renders clustered lights (the analytic layer owns visible block-source
    * lighting exclusively — nothing double-lights), `0` at `off`/`potato`

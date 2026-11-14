@@ -333,6 +333,13 @@ export class OrderIndependentTransparency {
         camera: Camera,
         layers: Texture,
       ) => void;
+      /**
+       * Between renders, with the scene's target bound, before the draws
+       * kept for after the blended layers (their composite is done, or
+       * there were none): a draw among them that needs a pass of its own
+       * first, into another target, makes it here.
+       */
+      beforeAfter?: (renderer: Renderer, camera: Camera) => void;
       separator?: OrderIndependentSeparator;
     } = {},
   ) {
@@ -559,6 +566,8 @@ export class OrderIndependentTransparency {
         this.compose(renderer, target, accumulation);
       }
       if (this.afterCount > 0) {
+        renderer.setRenderTarget(target);
+        this.hooks.beforeAfter?.(renderer, camera);
         renderer.setRenderTarget(target);
         this.replay(renderer, camera, this.after, this.afterCount);
       }

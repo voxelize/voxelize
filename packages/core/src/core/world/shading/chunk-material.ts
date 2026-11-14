@@ -1,4 +1,6 @@
 import {
+  cameraFar,
+  cameraNear,
   abs,
   attribute,
   batch,
@@ -26,6 +28,7 @@ import {
   positionGeometry,
   positionLocal,
   screenCoordinate,
+  screenUV,
   select,
   smoothstep,
   uniform,
@@ -207,6 +210,23 @@ export type ChunkShadingInputs = {
   readonly cones: LightConeUniforms;
   readonly local: LocalLightInputs;
   readonly swayTable: ArrayUniform<import("three/webgpu").Vector4, "vec4">;
+  /**
+   * The pass a world's blended layers are accumulating in, when it draws
+   * them order-independently (`OrderIndependentTransparency.uniforms`).
+   * With a separating surface in view every blended draw runs twice, once
+   * for each side of it, and the accumulation drops the fragments of the
+   * other side after they are shaded: a blended chunk fragment reads which
+   * side the pass keeps and lights only there (`FragmentState.isKept`).
+   */
+  readonly blended: BlendedPassInputs | null;
+};
+
+/** See {@link ChunkShadingInputs.blended}. */
+export type BlendedPassInputs = {
+  /** 0 all, 1 what lies behind the separating surface, 2 the rest. */
+  phase: FloatNode;
+  separatorDepth: { sample(uv: Vec2Node): { level(level: FloatNode): Vec4Node } };
+  separatorBias: FloatNode;
 };
 
 export type ChunkMaterialOptions = {
@@ -280,6 +300,14 @@ function greedyFaceUv(normal: Vec3Node, local: Vec3Node): Vec2Node {
 type FragmentState = {
   v: ChunkVaryings;
   sampled: Vec4Node;
+  /**
+   * Whether the fragment's texel survives the alpha tests (above 0.5), or
+   * null where the material has none. A discard only stops the write: the
+   * rest of the shader still runs, so a cutout's holes (most of a plant's
+   * quad, of a leaf block's face) would light for nothing. The lighting's
+   * heavy steps are branched on this instead.
+   */
+  isKept: FloatNode | null;
   weatherRainHere: FloatNode;
   weatherFootprint: FloatNode;
   water: ReturnType<ReturnType<typeof waterSurface>["prepare"]> | null;
@@ -646,7 +674,9 @@ export class ChunkMaterial extends NodeMaterial {
     // The sway's values are read per draw (`FIXED_SWAY`): one program for
     // every sway.
     const swayKey = sway ? "sway" : "-";
-    return `${kind}|${swayKey}|${hooks?.key ?? "-"}|${depthOnly ? "depth" : "color"}`;
+    // A blended draw reads the accumulation's pass (`setupDiffuseColor`).
+    const isBlended = this.transparent && !this.depthWrite;
+    return `${kind}|${swayKey}|${hooks?.key ?? "-"}|${depthOnly ? "depth" : "color"}|${isBlended ? "blended" : "written"}`;
   }
 
   override customProgramCacheKey(): string {
@@ -912,13 +942,40 @@ export class ChunkMaterial extends NodeMaterial {
 
     diffuseColor.assign(vec4(albedo, sampled.a));
     // The alpha test, on the texture's own alpha.
-    if (this.alphaTest > 0) {
-      diffuseColor.a.lessThan(materialAlphaTest).discard();
-    }
-    if (this.cutsSolidTexels) {
-      diffuseColor.a
-        .greaterThanEqual(materialValue("solidTexelCut", "float"))
-        .discard();
+    let isKept: FloatNode | null = null;
+    const blended =
+      this.transparent && !this.depthWrite ? this.shading.blended : null;
+    if (this.alphaTest > 0 || this.cutsSolidTexels || blended) {
+      const kept = float(1).toVar("isKeptTexel");
+      if (blended) {
+        // The accumulation's own test (it discards after the shading), made
+        // here first: the side this pass does not keep lights nothing.
+        If(blended.phase.greaterThan(0.5), () => {
+          const separator = blended.separatorDepth
+            .sample(screenUV)
+            .level(float(0)).r;
+          const isBehind = v.viewDepth.greaterThan(
+            perspectiveDepthToViewZ(separator, cameraNear, cameraFar).add(
+              blended.separatorBias,
+            ),
+          );
+          const keepsBehind = blended.phase.lessThan(1.5);
+          kept.assign(select(isBehind.xor(keepsBehind), float(0), kept));
+        });
+      }
+      if (this.alphaTest > 0) {
+        const isHole = diffuseColor.a.lessThan(materialAlphaTest);
+        isHole.discard();
+        kept.assign(select(isHole, float(0), kept));
+      }
+      if (this.cutsSolidTexels) {
+        const isSolid = diffuseColor.a.greaterThanEqual(
+          materialValue("solidTexelCut", "float"),
+        );
+        isSolid.discard();
+        kept.assign(select(isSolid, float(0), kept));
+      }
+      isKept = kept;
     }
     if ((builder as NodeBuilder & { isOpaque(): boolean }).isOpaque()) {
       diffuseColor.a.assign(1);
@@ -927,6 +984,7 @@ export class ChunkMaterial extends NodeMaterial {
     this._fragmentState = {
       v,
       sampled,
+      isKept,
       weatherRainHere: rainHere,
       weatherFootprint,
       water,
@@ -953,15 +1011,27 @@ export class ChunkMaterial extends NodeMaterial {
     const sunExposure = voxelLight.w;
     const normal = v.worldNormal;
 
+    // A texel the alpha test dropped takes none of the heavy steps: the
+    // cascade taps here, the clustered lights below (`FragmentState.isKept`).
+    const isKept = state.isKept ? state.isKept.greaterThan(0.5) : null;
     const shadowNdotL = mix(dot(normal, l.sunDirection), 0.5, crossShading);
-    const shadow = sunShadow(l)({
-      worldPosition: v.worldPosition,
-      normal,
-      viewDepth: v.viewDepth,
-      sunExposure,
-      ndotl: shadowNdotL,
-      options: { isFast: kind === "seeThrough" || kind === "fluid" },
-    }).toVar("sunShadow");
+    const sunShadowHere = () =>
+      sunShadow(l)({
+        worldPosition: v.worldPosition,
+        normal,
+        viewDepth: v.viewDepth,
+        sunExposure,
+        ndotl: shadowNdotL,
+        options: { isFast: kind === "seeThrough" || kind === "fluid" },
+      });
+    const shadow = float(1).toVar("sunShadow");
+    if (isKept) {
+      If(isKept, () => {
+        shadow.assign(sunShadowHere());
+      });
+    } else {
+      shadow.assign(sunShadowHere());
+    }
 
     const rawNdotL = dot(normal, l.sunDirection);
     const ndotl = max(rawNdotL.mul(0.85).add(0.15), 0);
@@ -992,6 +1062,7 @@ export class ChunkMaterial extends NodeMaterial {
       cpuTorch,
       kind === "fluid" ? 0 : 8,
       true,
+      isKept,
     );
     const clusterLight = vec3(cluster.total).toVar("clusterLight");
     const floodRemainder = cluster.floodRemainder;

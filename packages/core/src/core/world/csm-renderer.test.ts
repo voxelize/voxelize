@@ -116,6 +116,30 @@ describe("CSMRenderer redraw policy", () => {
     expect(counter.count).toBeGreaterThan(before);
   });
 
+  it("holds its fits through a walk, redrawing a cascade every few blocks, not every frame", () => {
+    const csm = new CSMRenderer();
+    const scene = new Scene();
+    const counter = makeRenderer();
+    drain(csm, scene, counter);
+    const before = counter.count;
+
+    // Forty blocks at a walking pace: four hundred frames. Snapped to the
+    // texel, the near cascade and a far one redrew on every one of them.
+    for (let frame = 1; frame <= 400; frame++) {
+      const position = new Vector3(0.1 * frame, 40, 0.03 * frame);
+      const camera = makeCamera(
+        position,
+        new Vector3(position.x + 10, 40, position.z),
+      );
+      csm.update(camera, SUN, position);
+      csm.render(counter.renderer, scene);
+    }
+
+    const redraws = counter.count - before;
+    expect(redraws).toBeGreaterThan(8);
+    expect(redraws).toBeLessThan(80);
+  });
+
   it("redraws every cascade after an accepted light step", () => {
     const csm = new CSMRenderer();
     const scene = new Scene();
