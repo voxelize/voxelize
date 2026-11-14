@@ -116,28 +116,28 @@ describe("CSMRenderer redraw policy", () => {
     expect(counter.count).toBeGreaterThan(before);
   });
 
-  it("holds its fits through a walk, redrawing a cascade every few blocks, not every frame", () => {
+  it("redraws the near cascade on every frame of a walk, so the walker's own shadow keeps up", () => {
+    // The player's body casts into the near cascade through the scene pass,
+    // and a shadow in a map moves only when the map is drawn again. A fit
+    // held still across a walk (to save redrawing the terrain) left the
+    // walker's shadow where it was until the next step of the fit. Anything
+    // that holds a fit must still draw what moves every frame.
     const csm = new CSMRenderer();
     const scene = new Scene();
     const counter = makeRenderer();
     drain(csm, scene, counter);
-    const before = counter.count;
+    const before = csm.getDebugState().cascadeDrawCounts[0];
 
-    // Forty blocks at a walking pace: four hundred frames. Snapped to the
-    // texel, the near cascade and a far one redrew on every one of them.
-    for (let frame = 1; frame <= 400; frame++) {
-      const position = new Vector3(0.1 * frame, 40, 0.03 * frame);
-      const camera = makeCamera(
-        position,
-        new Vector3(position.x + 10, 40, position.z),
-      );
-      csm.update(camera, SUN, position);
+    const FRAMES = 120;
+    const BLOCKS_PER_FRAME = 4.3 / 60;
+    for (let frame = 1; frame <= FRAMES; frame++) {
+      const position = new Vector3(frame * BLOCKS_PER_FRAME, 40, 0);
+      const camera = makeCamera(position, position.clone().setX(position.x + 10));
+      csm.update(camera, SUN, position, 1, 1 / 60);
       csm.render(counter.renderer, scene);
     }
 
-    const redraws = counter.count - before;
-    expect(redraws).toBeGreaterThan(8);
-    expect(redraws).toBeLessThan(80);
+    expect(csm.getDebugState().cascadeDrawCounts[0] - before).toBe(FRAMES);
   });
 
   it("redraws every cascade after an accepted light step", () => {

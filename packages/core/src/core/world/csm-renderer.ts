@@ -87,17 +87,6 @@ export interface CSMConfig {
   lightMargin: number;
   shadowCasterDistance: number;
   entityShadowFrameInterval: number;
-  /**
-   * Blocks a cascade's fit holds still for, per cascade: its centre moves
-   * in steps of this size (whole texels) along each light-space axis, and
-   * its box is that much wider, so it still covers the player anywhere in
-   * a step. Snapped to the texel alone, a fit moved with every couple of
-   * centimetres walked and its whole map was redrawn: every caster in
-   * reach, in the near cascade and a far one, on every frame of movement.
-   * A step costs the cascade its share of resolution (4 blocks on the near
-   * cascade's 41: a tenth); 0 snaps to the texel as before.
-   */
-  cascadeSnapBlocks: number[];
 }
 
 interface Cascade {
@@ -151,7 +140,6 @@ const defaultConfig: CSMConfig = {
   lightMargin: 32,
   shadowCasterDistance: 200,
   entityShadowFrameInterval: 3,
-  cascadeSnapBlocks: [4, 8, 16],
 };
 
 type VisibilitySnapshot = {
@@ -193,6 +181,13 @@ export class CSMRenderer {
   private lastMainCamera: Camera | null = null;
   private cascadeDirty: boolean[] = [];
   private cascadeNeedsRender: boolean[] = [];
+  /**
+   * Times each cascade's map has been drawn. A shadow in a map moves only
+   * when the map is drawn again, so this over frames is how often shadows
+   * update: every frame of a walk for the near cascade, where the walker's
+   * own shadow falls (see `getDebugState`).
+   */
+  private cascadeDrawCounts: number[] = [];
   private cascadeGeometryStale: boolean[] = [];
   private tempMatrix = new Matrix4();
   private tempVec3 = new Vector3();
@@ -297,6 +292,7 @@ export class CSMRenderer {
 
       this.cascadeDirty.push(true);
       this.cascadeNeedsRender.push(true);
+      this.cascadeDrawCounts.push(0);
       this.cascadeGeometryStale.push(true);
     }
   }
@@ -539,10 +535,6 @@ export class CSMRenderer {
         this.cornerPool[i].distanceTo(this.frustumCenter),
       );
     }
-    // Room for the centre to sit half a step off the player on each axis
-    // of the map (see `cascadeSnapBlocks`).
-    const snapBlocks = Math.max(0, this.config.cascadeSnapBlocks[index] ?? 0);
-    radius += snapBlocks * Math.SQRT1_2;
     radius = Math.ceil(radius * 16) / 16;
 
     this.frustumUp.set(0, 1, 0);
@@ -565,23 +557,10 @@ export class CSMRenderer {
     this.lightSpaceCenter
       .copy(this.frustumCenter)
       .applyMatrix4(this.lightViewMatrix);
-    if (snapBlocks > 0) {
-      // Whole texels to a step, so the map's texels land where they lay
-      // and a shadow's edge does not crawl when the fit does move.
-      const step = Math.max(1, Math.round(snapBlocks / texelSize)) * texelSize;
-      this.lightSpaceCenter.x =
-        Math.round(this.lightSpaceCenter.x / step) * step;
-      this.lightSpaceCenter.y =
-        Math.round(this.lightSpaceCenter.y / step) * step;
-      // Along the light too: the camera's distance is part of the matrix.
-      this.lightSpaceCenter.z =
-        Math.round(this.lightSpaceCenter.z / snapBlocks) * snapBlocks;
-    } else {
-      this.lightSpaceCenter.x =
-        Math.floor(this.lightSpaceCenter.x / texelSize) * texelSize;
-      this.lightSpaceCenter.y =
-        Math.floor(this.lightSpaceCenter.y / texelSize) * texelSize;
-    }
+    this.lightSpaceCenter.x =
+      Math.floor(this.lightSpaceCenter.x / texelSize) * texelSize;
+    this.lightSpaceCenter.y =
+      Math.floor(this.lightSpaceCenter.y / texelSize) * texelSize;
     this.lightViewMatrixInverse.copy(this.lightViewMatrix).invert();
     this.frustumCenter
       .copy(this.lightSpaceCenter)
@@ -595,10 +574,8 @@ export class CSMRenderer {
     // The receiver side needs only the cascade's own radius plus margin.
     // The total depth range is unchanged, so the depth biases keep their
     // calibration.
-    // Half a step of depth on each side, for a centre held along the light.
-    const offset = radius + lightMargin + snapBlocks / 2;
-    const casterDepth =
-      Math.max(offset, this.config.shadowCasterDistance) + snapBlocks / 2;
+    const offset = radius + lightMargin;
+    const casterDepth = Math.max(offset, this.config.shadowCasterDistance);
 
     const camera = this.fitCamera;
     camera.position
@@ -930,6 +907,7 @@ export class CSMRenderer {
         activePools,
       );
       this.cascadeNeedsRender[i] = false;
+      this.cascadeDrawCounts[i] += 1;
       if (i > 0) {
         hasRenderedFarCascade = true;
       }
@@ -1162,6 +1140,7 @@ export class CSMRenderer {
     isCameraStill: boolean;
     cascadeDirty: boolean[];
     cascadeNeedsRender: boolean[];
+    cascadeDrawCounts: number[];
     currentShadowStrength: number;
     lastFrameLightSwing: number;
     lastLightSwingPerSecond: number;
@@ -1171,6 +1150,7 @@ export class CSMRenderer {
       isCameraStill: this.isCameraStill,
       cascadeDirty: [...this.cascadeDirty],
       cascadeNeedsRender: [...this.cascadeNeedsRender],
+      cascadeDrawCounts: [...this.cascadeDrawCounts],
       currentShadowStrength: this.currentShadowStrength,
       lastFrameLightSwing: this.lastFrameLightSwing,
       lastLightSwingPerSecond: this.lastLightSwingPerSecond,
