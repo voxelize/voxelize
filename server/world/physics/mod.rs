@@ -166,11 +166,17 @@ impl Physics {
         }
     }
 
+    /// Teleport a body to `position`, at rest. A body that actually moves is
+    /// woken: rapier sleeps a body held at rest, and wakes one for a move
+    /// only once its collider already touches something, so a sleeping body
+    /// moved into another and held there would never be pushed apart.
     pub fn move_rapier_body(&mut self, body_handle: &RapierBodyHandle, position: &Vec3<f32>) {
         let body = self.get_mut(body_handle);
         let &Vec3(px, py, pz) = position;
+        let target = vector![px, py, pz];
+        let is_moved = (body.translation() - target).norm_squared() > 1e-8;
 
-        body.set_translation(vector![px, py, pz], false);
+        body.set_translation(target, is_moved);
         body.set_linvel(vector![0.0, 0.0, 0.0], false);
         body.set_angvel(vector![0.0, 0.0, 0.0], false);
         body.reset_forces(false);
@@ -978,6 +984,67 @@ fn hop_launch_speed(apex: f32, gravity: f32, drag_per_second: f32, dt: f32) -> f
         }
     }
     hi
+}
+
+#[cfg(test)]
+mod sleeping_tests {
+    use super::*;
+
+    #[test]
+    fn a_body_moved_into_another_is_pushed_apart_after_both_fell_asleep() {
+        let mut physics = Physics::new();
+        let aabb = AABB::new().scale_x(0.8).scale_y(1.8).scale_z(0.8).build();
+        let mut walker = RigidBody::new(&aabb).build();
+        walker.set_position(0.0, 1.0, 0.0);
+        let mut post = RigidBody::new(&aabb).build();
+        post.set_position(5.0, 1.0, 0.0);
+        let (walker, _) = physics.register(&walker);
+        let (post, _) = physics.register(&post);
+
+        // Teleported in place tick after tick, at rest, as the physics
+        // system moves every interactor: rapier puts both to sleep.
+        for _ in 0..300 {
+            physics.move_rapier_body(&walker, &Vec3(0.0, 1.0, 0.0));
+            physics.move_rapier_body(&post, &Vec3(5.0, 1.0, 0.0));
+            physics.step(1.0 / 60.0);
+        }
+        assert!(physics.get(&walker).is_sleeping());
+        assert!(physics.get(&post).is_sleeping());
+
+        // One move into the post, then held there tick after tick. Rapier
+        // wakes a body for a move only once its collider already touches
+        // something, so unless the move itself wakes it, nothing ever does.
+        let into = Vec3(4.7, 1.0, 0.0);
+        let mut pushed = 0.0f32;
+        for _ in 0..30 {
+            physics.move_rapier_body(&walker, &into);
+            physics.move_rapier_body(&post, &Vec3(5.0, 1.0, 0.0));
+            physics.step(1.0 / 60.0);
+            pushed = pushed.max((physics.get(&walker).translation().x - into.0).abs());
+        }
+
+        assert!(
+            pushed > 1e-4,
+            "the overlap the move made must be pushed apart, the walker never left {}",
+            into.0
+        );
+    }
+
+    #[test]
+    fn a_body_teleported_where_it_already_is_stays_asleep() {
+        let mut physics = Physics::new();
+        let aabb = AABB::new().scale_x(0.8).scale_y(1.8).scale_z(0.8).build();
+        let mut walker = RigidBody::new(&aabb).build();
+        walker.set_position(0.0, 1.0, 0.0);
+        let (walker, _) = physics.register(&walker);
+
+        for _ in 0..300 {
+            physics.move_rapier_body(&walker, &Vec3(0.0, 1.0, 0.0));
+            physics.step(1.0 / 60.0);
+        }
+
+        assert!(physics.get(&walker).is_sleeping());
+    }
 }
 
 #[cfg(test)]
