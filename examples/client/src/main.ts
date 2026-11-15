@@ -871,6 +871,9 @@ const frameStats = () => {
     method.call("spawn-fauna", { position: [x, y, z], count }),
   spawnCritters: (x: number, y: number, z: number, count = 12) =>
     method.call("spawn-critter", { position: [x, y, z], count }),
+  // The flat world's box, solid to the player (`CollidersComp`).
+  spawnBox: (x: number, y: number, z: number) =>
+    method.call("spawn", { position: [x, y, z] }),
   toggleAtlasViewer: (x: number, y: number, z: number, size = 6) =>
     toggleAtlasViewer(x, y, z, size),
   setPerspective: (state: "first" | "second" | "third") => {
@@ -1237,7 +1240,7 @@ debug.registerDisplay("Packet queue length", network, "packetQueueLength"); //! 
 let entityMessageCount = 0;
 
 const chat = new VOXELIZE.Chat();
-const entities = new VOXELIZE.Entities();
+const entities = new VOXELIZE.Entities({ physics: world.physics });
 const method = new VOXELIZE.Method();
 const events = new VOXELIZE.Events();
 network

@@ -7,10 +7,11 @@ use serde::{Deserialize, Serialize};
 use specs::{Builder, Component, DispatcherBuilder, NullStorage, VecStorage, WorldExt};
 use voxelize::{
     BroadcastSystem, ChunkGeneratingSystem, ChunkRequestsSystem, ChunkSavingSystem,
-    ChunkSendingSystem, ChunkUpdatingSystem, CleanupSystem, CurrentChunkSystem, DataSavingSystem,
-    EntitiesMetaSystem, EntitiesSendingSystem, Event, EventsSystem, FlatlandStage, InteractorComp,
-    PeersMetaSystem, PeersSendingSystem, PhysicsSystem, PositionComp, Registry, RigidBody,
-    RigidBodyComp, UpdateStatsSystem, Vec3, World, WorldConfig, AABB,
+    ChunkSendingSystem, ChunkUpdatingSystem, CleanupSystem, CollidersComp, CurrentChunkSystem,
+    DataSavingSystem, EntitiesMetaSystem, EntitiesSendingSystem, Event, EventsSystem,
+    FlatlandStage, InteractorComp, PeersMetaSystem, PeersSendingSystem, PhysicsSystem,
+    PositionComp, Registry, RigidBody, RigidBodyComp, UpdateStatsSystem, Vec3, World, WorldConfig,
+    AABB,
 };
 
 use self::{
@@ -82,6 +83,15 @@ pub fn setup_flat_world(registry: &Registry) -> World {
             .with(PositionComp::default())
             .with(RigidBodyComp::new(&body))
             .with(InteractorComp::new(&interactor))
+            // Solid to players: the body's box, about its centre.
+            .with(CollidersComp::new(&[AABB::new()
+                .offset_x(-0.25)
+                .offset_y(-0.25)
+                .offset_z(-0.25)
+                .scale_x(0.5)
+                .scale_y(0.5)
+                .scale_z(0.5)
+                .build()]))
             .with(Name("Box".to_owned()))
             // .with(CountdownComp::new(300))
             .with(position)
