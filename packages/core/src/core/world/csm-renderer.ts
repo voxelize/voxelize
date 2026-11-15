@@ -549,11 +549,15 @@ export class CSMRenderer {
       this.frustumCenter,
       this.renderLightDirection,
     );
-    this.lightViewMatrix.lookAt(
-      this.tempLookAtTarget,
-      this.frustumCenter,
-      this.frustumUp,
-    );
+    // `Matrix4.lookAt` builds the light-to-world rotation (its columns are the
+    // light's basis in world space). The snap has to happen in light space,
+    // where x and y are the shadow map's texel axes, so invert it to the
+    // world-to-light view matrix first. Snapping with the lookAt matrix
+    // itself snaps along a mix of the basis vectors, which leaves the grid
+    // off the texels and shimmers shadow edges as the camera moves.
+    this.lightViewMatrix
+      .lookAt(this.tempLookAtTarget, this.frustumCenter, this.frustumUp)
+      .invert();
     this.lightSpaceCenter
       .copy(this.frustumCenter)
       .applyMatrix4(this.lightViewMatrix);

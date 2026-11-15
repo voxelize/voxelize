@@ -203,6 +203,42 @@ describe("CSMRenderer redraw policy", () => {
   });
 });
 
+describe("CSMRenderer texel snapping", () => {
+  it("keeps the shadow grid locked to the world as the camera moves", () => {
+    // The light-space cascade centre snaps to the texel grid, so the grid
+    // only ever shifts by whole texels: a fixed world point stays at the same
+    // place within its shadow-map texel as the player walks. Snapping in the
+    // wrong basis lets that place crawl, which shimmers shadow edges.
+    const csm = new CSMRenderer();
+    const scene = new Scene();
+    const counter = makeRenderer();
+    // Let the accepted light direction settle before measuring, so only the
+    // player's movement moves the fit.
+    drain(csm, scene, counter);
+    const size = (csm.getShadowMap(0)!.image as { width: number }).width;
+    const point = new Vector3(3.7, 40, -2.1);
+
+    const texel = (x: number): [number, number] => {
+      const position = new Vector3(x, 40, 0);
+      csm.update(makeCamera(position, new Vector3(x + 10, 40, 0)), SUN, position);
+      csm.render(counter.renderer, scene);
+      const ndc = point.clone().applyMatrix4(csm.getCascadeMatrix(0)!);
+      return [(ndc.x * 0.5 + 0.5) * size, (ndc.y * 0.5 + 0.5) * size];
+    };
+
+    const base = texel(0);
+    // A walk of a few texels per step: the point's texel coordinate shifts by
+    // whole texels every step, never a drifting fraction.
+    for (let step = 1; step <= 8; step++) {
+      const [tx, ty] = texel(step * 0.37);
+      const dx = tx - base[0];
+      const dy = ty - base[1];
+      expect(Math.abs(dx - Math.round(dx))).toBeLessThan(1e-3);
+      expect(Math.abs(dy - Math.round(dy))).toBeLessThan(1e-3);
+    }
+  });
+});
+
 describe("CSMRenderer forced renders", () => {
   it("draws faded shadows only when forced, refitted to the light as it stands", () => {
     const csm = new CSMRenderer();
