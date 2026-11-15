@@ -966,8 +966,10 @@ export class Engine {
     ];
 
     let voxel: number[] = [];
+    let hitTop = -Infinity;
 
-    // move towards the target until the first X/Z collision
+    // move towards the target until the first X/Z collision, keeping the top
+    // of the box actually hit
     sweep(
       this.getVoxel,
       oldBox,
@@ -978,12 +980,14 @@ export class Engine {
         dir: number,
         vec: number[],
         vox?: number[],
+        box?: AABB,
       ) {
         if (axis === 1) {
           vec[axis] = 0;
           return false;
         } else {
           voxel = vox || [];
+          hitTop = box ? box.maxY : -Infinity;
           return true;
         }
       },
@@ -995,9 +999,13 @@ export class Engine {
 
     const y = body.aabb.minY;
 
-    // getVoxel hands back world-space boxes, so the tallest maxY of the
-    // obstruction is the exact plane the feet have to reach
-    const obstructionTop = this.voxelTop(voxel);
+    // Rise to the box the body actually hit, not the tallest box sharing the
+    // voxel: a low stile or slab beside a tall post of the same block must
+    // still be steppable. The voxel's barrier still caps automatic moves.
+    const obstructionTop = Math.max(
+      hitTop,
+      this.getBarrierTop(voxel[0], voxel[1], voxel[2]),
+    );
     if (obstructionTop === -Infinity) return;
 
     const yDist = obstructionTop - y + Engine.EPSILON;

@@ -142,6 +142,7 @@ export function sweep(
     dir: number,
     leftover: number[],
     voxel?: number[],
+    aabb?: AABB,
   ) => boolean,
   translate = true,
   maxIterations = 100,
@@ -161,6 +162,10 @@ export function sweep(
   const maxZ = Math.floor(vz > 0 ? box.maxZ + vz : box.maxZ) + 1;
 
   let voxel: number[] = [];
+  // The box `closest` was found against: the box the sweep actually collided
+  // with, so callers (auto-step) can rise to its top rather than the tallest
+  // box sharing the voxel.
+  let hitBox: AABB | null = null;
   let closest = { h: 1, nx: 0, ny: 0, nz: 0 };
 
   for (const e of extras) {
@@ -168,6 +173,7 @@ export function sweep(
     if (collision.h < closest.h) {
       closest = collision;
       voxel = [vx, vy, vz];
+      hitBox = e;
     }
   }
 
@@ -183,6 +189,7 @@ export function sweep(
           if (collision.h < closest.h) {
             closest = collision;
             voxel = [vx, vy, vz];
+            hitBox = aabb;
           }
         }
       }
@@ -211,7 +218,10 @@ export function sweep(
   ];
 
   // Bail out on truthy response
-  if (dir !== 0 && callback(mag * closest.h, axis, dir, leftover, voxel)) {
+  if (
+    dir !== 0 &&
+    callback(mag * closest.h, axis, dir, leftover, voxel, hitBox ?? undefined)
+  ) {
     return;
   }
 
