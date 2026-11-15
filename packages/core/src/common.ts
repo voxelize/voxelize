@@ -92,13 +92,20 @@ interface CachedMedium {
   stamp: number;
 }
 
+/**
+ * A transparent render item as the renderer hands it to the sort. A structural
+ * superset of three's `RenderItem` (whose fields are all nullable), so the
+ * comparator {@link TRANSPARENT_SORT} returns installs straight into
+ * `renderer.setTransparentSort` with no cast at the call site. Every item the
+ * renderer sorts carries the fields this reads.
+ */
 interface TransparentSortItem {
-  object?: Object3D;
-  material?: Material;
-  renderOrder: number;
-  groupOrder: number;
-  z: number;
-  id: number;
+  object?: Object3D | null;
+  material?: Material | null;
+  renderOrder?: number | null;
+  groupOrder?: number | null;
+  z?: number | null;
+  id?: number | null;
 }
 
 /** An item's place in the transparent order: its band, then its order in it. */
@@ -198,12 +205,13 @@ function placeOf(
   out: TransparentPlace,
 ): TransparentPlace {
   const object = item.object;
+  const material = item.material ?? undefined;
   out.sub = 0;
   if (!object) {
     out.band = item.renderOrder ?? 0;
     return out;
   }
-  const band = media?.orderIndependentBandOf?.(object, item.material);
+  const band = media?.orderIndependentBandOf?.(object, material);
   if (band !== undefined) {
     out.band = band;
     return out;
@@ -211,7 +219,7 @@ function placeOf(
   const named = object.userData?.[TRANSPARENT_MEDIUM_KEY] as
     | TransparentMedium
     | undefined;
-  if (named === undefined && !isUnbandedEffect(object, item.material)) {
+  if (named === undefined && !isUnbandedEffect(object, material)) {
     out.band = object.renderOrder;
     return out;
   }
@@ -317,11 +325,11 @@ export const TRANSPARENT_SORT = (
     }
 
     if (a.groupOrder !== b.groupOrder) {
-      return a.groupOrder - b.groupOrder;
+      return (a.groupOrder ?? 0) - (b.groupOrder ?? 0);
     } else if (a.z !== b.z) {
-      return b.z - a.z;
+      return (b.z ?? 0) - (a.z ?? 0);
     } else {
-      return a.id - b.id;
+      return (a.id ?? 0) - (b.id ?? 0);
     }
   };
 };
