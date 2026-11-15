@@ -90,6 +90,23 @@ const controls = new VOXELIZE.RigidControls(camera, canvas, world, {
 });
 ```
 
+### Solid Colliders
+
+Solid shapes that aren't blocks (a wall, a platform, a prop) can be added to the client's physics engine as colliders. Bodies collide with them exactly as they collide with blocks: they stop at their faces, stand on their tops and step up their low ledges, and auto-jump sees them too.
+
+```ts title="Adding a Collider"
+import { AABB } from "@voxelize/aabb";
+
+// A 2x3x2 crate at the origin, in world space.
+const crate = world.physics.addCollider([new AABB(0, 0, 0, 2, 3, 2)]);
+
+// Move it, or take it away.
+world.physics.updateCollider(crate, [new AABB(4, 0, 0, 6, 3, 2)]);
+world.physics.removeCollider(crate);
+```
+
+A collider that moves or appears around a body doesn't push it out; the body walks out of it freely, as out of a block placed around it. Every box needs finite bounds and a positive size on every axis: `addCollider` and `updateCollider` throw on one that doesn't.
+
 ### Raycasting
 
 Use raycasting to detect blocks or entities:

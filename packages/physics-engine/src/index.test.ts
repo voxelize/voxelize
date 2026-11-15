@@ -483,6 +483,185 @@ describe("Engine", () => {
     });
   });
 
+  describe("colliders", () => {
+    const floorOnly: VoxelSource = (vx, vy, vz) =>
+      vy === FLOOR_Y && inWorld(vx, vz) ? [fullBlock(vx, vy, vz)] : [];
+
+    /** A wall across the way of a body heading +x, its near face at `x`. */
+    const wallAt = (x: number) =>
+      new AABB(x, BODY_MIN_Y, -5, x + 1, BODY_MIN_Y + 3, 5);
+
+    const boundsOf = (aabb: AABB) => [
+      aabb.minX,
+      aabb.minY,
+      aabb.minZ,
+      aabb.maxX,
+      aabb.maxY,
+      aabb.maxZ,
+    ];
+
+    function walk(
+      engine: Engine,
+      body: RigidBody,
+      heading = HEADING_PLUS_X,
+      frames = STEP_FRAMES,
+    ) {
+      for (let frame = 0; frame < frames; frame++) {
+        applyMovement(body, heading);
+        engine.update(DELTA_TIME);
+      }
+    }
+
+    it("stops a body at a collider's face", () => {
+      const engine = createWorldEngine(floorOnly);
+      engine.addCollider([wallAt(WALL_X)]);
+      const body = createBody(engine, 0, STEP_START_X);
+
+      walk(engine, body);
+
+      expect(body.aabb.maxX).toBeLessThanOrEqual(WALL_X + POSITION_EPSILON);
+      expect(body.aabb.maxX).toBeGreaterThan(WALL_X - 1e-3);
+      expect(body.atRestX).toBe(1);
+    });
+
+    it("holds a body up on a collider's top", () => {
+      const engine = createWorldEngine(floorOnly);
+      engine.addCollider([new AABB(-1, BODY_MIN_Y, -1, 1, BODY_MIN_Y + 1, 1)]);
+      const body = createBody(engine, 0, 0);
+      body.aabb.translate([0, 2, 0]);
+
+      for (let frame = 0; frame < STEP_FRAMES; frame++) {
+        engine.update(DELTA_TIME);
+      }
+
+      expect(body.aabb.minY).toBeCloseTo(BODY_MIN_Y + 1, 6);
+      expect(body.atRestY).toBe(-1);
+    });
+
+    it("lets a body a collider appears around walk out of it", () => {
+      const engine = createWorldEngine(floorOnly);
+      const body = createBody(engine, 0, 0);
+      engine.addCollider([new AABB(-1, BODY_MIN_Y, -1, 1, BODY_MIN_Y + 2, 1)]);
+
+      walk(engine, body);
+
+      expect(body.aabb.minX).toBeGreaterThan(1);
+    });
+
+    it.each([
+      { rise: HALF_STEP_HEIGHT, climbs: true },
+      { rise: FULL_STEP_HEIGHT, climbs: false },
+    ])(
+      "steps up a collider's ledge of $rise only within stepHeight",
+      ({ rise, climbs }) => {
+        const engine = createWorldEngine(floorOnly);
+        const top = BODY_MIN_Y + rise;
+        engine.addCollider([
+          new AABB(WALL_X, BODY_MIN_Y, -5, WORLD_MAX, top, 5),
+        ]);
+        const body = createBody(engine, STEP_HEIGHT, STEP_START_X);
+
+        walk(engine, body);
+
+        if (climbs) {
+          expect(body.aabb.minX).toBeGreaterThan(WALL_X);
+          expect(body.aabb.minY).toBeCloseTo(top, 6);
+        } else {
+          expect(body.aabb.maxX).toBeLessThanOrEqual(WALL_X + POSITION_EPSILON);
+          expect(body.aabb.minY).toBeCloseTo(BODY_MIN_Y, 6);
+        }
+      },
+    );
+
+    it("shows a collider to look-ahead probes, with its top", () => {
+      const engine = createWorldEngine(floorOnly);
+      const top = BODY_MIN_Y + 1.25;
+      engine.addCollider([
+        new AABB(WALL_X, BODY_MIN_Y, -5, WALL_X + 1, top, 5),
+      ]);
+      const box = new AABB(
+        STEP_START_X - BODY_WIDTH / 2,
+        BODY_MIN_Y + 1e-4,
+        -BODY_DEPTH / 2,
+        STEP_START_X + BODY_WIDTH / 2,
+        BODY_MIN_Y + BODY_HEIGHT,
+        BODY_DEPTH / 2,
+      );
+
+      const hit = engine.sweepObstruction(box, [2, 0, 0]);
+      expect(hit?.voxel.slice(0, 2)).toEqual([WALL_X, BODY_MIN_Y]);
+      expect(hit?.top).toBeCloseTo(top, 9);
+
+      const lifted = box.clone().translate([0, top - BODY_MIN_Y, 0]);
+      expect(engine.isSweepClear(lifted, [3, 0, 0])).toBe(true);
+    });
+
+    it("is solid on both sides of an index cell it straddles, below zero too", () => {
+      const engine = createWorldEngine(floorOnly);
+      // x -10..-6 reaches across the cell edge at -8.
+      engine.addCollider([
+        new AABB(-10, BODY_MIN_Y, -5, -6, BODY_MIN_Y + 3, 5),
+      ]);
+      const fromEast = createBody(engine, 0, -3);
+      const fromWest = createBody(engine, 0, -13);
+
+      walk(engine, fromEast, -HEADING_PLUS_X);
+      walk(engine, fromWest);
+
+      expect(fromEast.aabb.minX).toBeGreaterThanOrEqual(-6 - POSITION_EPSILON);
+      expect(fromEast.aabb.minX).toBeLessThan(-6 + 1e-3);
+      expect(fromWest.aabb.maxX).toBeLessThanOrEqual(-10 + POSITION_EPSILON);
+      expect(fromWest.aabb.maxX).toBeGreaterThan(-10 - 1e-3);
+    });
+
+    it("frees the way when a collider is removed, and blocks it where it is put back", () => {
+      const engine = createWorldEngine(floorOnly);
+      const wall = engine.addCollider([wallAt(WALL_X)]);
+      engine.removeCollider(wall);
+      const body = createBody(engine, 0, STEP_START_X);
+
+      walk(engine, body, HEADING_PLUS_X, 60);
+      expect(body.aabb.minX).toBeGreaterThan(WALL_X + 1);
+
+      const farWallX = 12;
+      engine.updateCollider(wall, [wallAt(farWallX)]);
+      walk(engine, body);
+      expect(body.aabb.maxX).toBeLessThanOrEqual(farWallX + POSITION_EPSILON);
+      expect(body.aabb.maxX).toBeGreaterThan(farWallX - 1e-3);
+    });
+
+    it("refuses a box that cannot be solid, and keeps the collider as it was", () => {
+      const engine = createWorldEngine(floorOnly);
+      const wall = engine.addCollider([wallAt(WALL_X)]);
+
+      expect(() =>
+        engine.addCollider([new AABB(0, 0, 0, Infinity, 1, 1)]),
+      ).toThrow(/finite bounds/);
+      expect(() =>
+        engine.updateCollider(wall, [new AABB(0, 1, 0, 1, 1, 1)]),
+      ).toThrow(/min < max/);
+      expect(wall.aabbs.map(boundsOf)).toEqual([boundsOf(wallAt(WALL_X))]);
+
+      const body = createBody(engine, 0, STEP_START_X);
+      walk(engine, body);
+      expect(body.aabb.maxX).toBeLessThanOrEqual(WALL_X + POSITION_EPSILON);
+    });
+
+    it("never adds a collider's box to an array the voxel callback hands out", () => {
+      const noBoxes: AABB[] = [];
+      const engine = createWorldEngine((vx, vy, vz) =>
+        vy === FLOOR_Y && inWorld(vx, vz) ? [fullBlock(vx, vy, vz)] : noBoxes,
+      );
+      engine.addCollider([wallAt(WALL_X)]);
+      const body = createBody(engine, 0, STEP_START_X);
+
+      walk(engine, body);
+
+      expect(body.atRestX).toBe(1);
+      expect(noBoxes).toHaveLength(0);
+    });
+  });
+
   it("holds a zero-gravity body in place underwater", () => {
     const startY = SUBMERGED_MIN_Y + BODY_HEIGHT / 2;
 
