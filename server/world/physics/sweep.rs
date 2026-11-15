@@ -121,12 +121,16 @@ fn sweep_aabb(target: &AABB, other: &AABB, vector: &Vec3<f32>) -> SweepResults {
     SweepResults { h, nx, ny, nz }
 }
 
+/// Sweeps `target` along `velocity`, invoking `callback` at the first
+/// collision. The callback's last argument is the world-space top (`max_y`)
+/// of the box actually hit, so auto-stepping rises to that box rather than to
+/// the tallest box sharing the voxel.
 pub fn sweep(
     space: &dyn VoxelAccess,
     registry: &Registry,
     target: &mut AABB,
     velocity: &Vec3<f32>,
-    callback: &mut dyn FnMut(f32, usize, i32, &mut [f32; 3]) -> bool,
+    callback: &mut dyn FnMut(f32, usize, i32, &mut [f32; 3], f32) -> bool,
     translate: bool,
     max_iterations: usize,
 ) {
@@ -187,6 +191,9 @@ pub fn sweep(
         ny: 0.0,
         nz: 0.0,
     };
+    // World-space top of the box `closest` was found against: the box the
+    // body actually collided with, not the tallest box in its voxel.
+    let mut closest_top = f32::NEG_INFINITY;
 
     for vx in (min_x as i32)..=(max_x as i32) {
         for vz in (min_z as i32)..=(max_z as i32) {
@@ -216,6 +223,7 @@ pub fn sweep(
 
                     if result.h < closest.h {
                         closest = result;
+                        closest_top = block_aabb.max_y;
                     }
                 })
             }
@@ -251,7 +259,7 @@ pub fn sweep(
         (1.0 - closest.h) * vz,
     ];
 
-    if dir != 0 && callback(mag * closest.h, axis, dir, &mut leftover) {
+    if dir != 0 && callback(mag * closest.h, axis, dir, &mut leftover, closest_top) {
         return;
     }
 

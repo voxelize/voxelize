@@ -406,6 +406,53 @@ describe("Engine", () => {
         6,
       );
     });
+
+    it("steps onto the box it hits, not the tallest sharing the voxel", () => {
+      // A low tread and a tall post occupy one voxel; a slim body meets only
+      // the tread, the post standing beside it clear of the body's depth —
+      // a stile beside a fence post. Rising to the tallest box in the voxel
+      // (the post) would refuse a step the body could take.
+      const treadTop = BODY_MIN_Y + HALF_STEP_HEIGHT;
+      const engine = createWorldEngine((vx, vy, vz) => {
+        const boxes: AABB[] = [];
+        if (vy === FLOOR_Y && inWorld(vx, vz))
+          boxes.push(fullBlock(vx, vy, vz));
+        if (vx === WALL_X && vy === BODY_MIN_Y && vz === 0) {
+          boxes.push(
+            new AABB(WALL_X, BODY_MIN_Y, 0, WALL_X + 1, treadTop, 0.5),
+          );
+          boxes.push(
+            new AABB(WALL_X, BODY_MIN_Y, 0.5, WALL_X + 1, BODY_MIN_Y + 3, 1),
+          );
+        }
+        return boxes;
+      });
+
+      const slim = 0.4;
+      const body = engine.addBody({
+        aabb: new AABB(
+          STEP_START_X - slim / 2,
+          BODY_MIN_Y,
+          0.25 - slim / 2,
+          STEP_START_X + slim / 2,
+          BODY_MIN_Y + BODY_HEIGHT,
+          0.25 + slim / 2,
+        ),
+        stepHeight: STEP_HEIGHT,
+      });
+      let highestStep = -Infinity;
+      body.onStep = (newAABB) => {
+        highestStep = Math.max(highestStep, newAABB.minY);
+        body.aabb = newAABB.clone();
+      };
+
+      for (let frame = 0; frame < STEP_FRAMES; frame++) {
+        applyMovement(body, HEADING_PLUS_X);
+        engine.update(DELTA_TIME);
+      }
+
+      expect(highestStep).toBeCloseTo(treadTop, 6);
+    });
   });
 
   describe("barriers", () => {
