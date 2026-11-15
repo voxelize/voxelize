@@ -7,6 +7,7 @@ import {
   PerspectiveCamera,
   Sprite,
   SpriteNodeMaterial,
+  type WebGPURenderer,
 } from "three/webgpu";
 import { describe, expect, it } from "vitest";
 
@@ -68,7 +69,10 @@ const effect = (
   position: [number, number, number],
   renderOrder = 0,
 ) => {
-  const material = new SpriteNodeMaterial({ transparent: true, depthWrite: false });
+  const material = new SpriteNodeMaterial({
+    transparent: true,
+    depthWrite: false,
+  });
   return item(label, new Sprite(material), material, renderOrder, position);
 };
 
@@ -172,6 +176,17 @@ describe("TRANSPARENT_SORT", () => {
     );
     expect(labels.slice(0, 2)).toEqual(["sky", "leaves"]);
     expect(labels.slice(2).sort()).toEqual(["spark", "water"]);
+  });
+
+  it("installs into renderer.setTransparentSort with no call-site cast", () => {
+    // three types every RenderItem field as nullable; the helper's item type is
+    // a structural superset, so its comparator is assignable to
+    // setTransparentSort's parameter — the exact shape a consumer used to cast
+    // to — with no cast. Strict-mode assignability (where this would otherwise
+    // fail) is proven in the PR; the annotation documents the call site.
+    const sort: Parameters<WebGPURenderer["setTransparentSort"]>[0] =
+      TRANSPARENT_SORT(camera, pool({ isSubmerged: false }));
+    expect(typeof sort).toBe("function");
   });
 
   it("treats every effect as in the camera's air without a medium source", async () => {
