@@ -432,6 +432,7 @@ impl World {
         ecs.register::<ChunkRequestsComp>();
         ecs.register::<ClientFlag>();
         ecs.register::<ClientPreferencesComp>();
+        ecs.register::<CollidersComp>();
         ecs.register::<CollisionsComp>();
         ecs.register::<CurrentChunkComp>();
         ecs.register::<DirectionComp>();

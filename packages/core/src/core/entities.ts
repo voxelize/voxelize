@@ -1,3 +1,5 @@
+import { AABB } from "@voxelize/aabb";
+import { Collider, Engine as PhysicsEngine } from "@voxelize/physics-engine";
 import {
   EntityMotionProtocol,
   EntityOperation,
@@ -25,8 +27,22 @@ export type EntityRigidBodyMetadata = {
   fluidRatio: number;
 };
 
+/**
+ * Solid boxes the server gives an entity (its `CollidersComp`), relative to
+ * its position: `[minX, minY, minZ, maxX, maxY, maxZ]` each.
+ */
+export type EntityCollidersMetadata = [
+  number,
+  number,
+  number,
+  number,
+  number,
+  number,
+][];
+
 export type EntityMetadata = {
   rigidBody?: EntityRigidBodyMetadata;
+  colliders?: EntityCollidersMetadata;
 };
 
 type JsonValue =
@@ -108,6 +124,69 @@ function applyMotionToMetadata(
   } else if (motion.targetPosition) {
     metadata.target = { position: motion.targetPosition };
   }
+}
+
+function isCoords3(
+  value: JsonValue | undefined,
+): value is [number, number, number] {
+  return (
+    Array.isArray(value) &&
+    value.length === 3 &&
+    value.every((v) => typeof v === "number" && Number.isFinite(v))
+  );
+}
+
+/**
+ * The world-space box of a replicated collider box (`[minX, minY, minZ,
+ * maxX, maxY, maxZ]` relative to `position`), or `null` when it is not one
+ * the physics engine takes: finite bounds, min below max on every axis.
+ */
+function placeColliderBox(
+  box: JsonValue,
+  [px, py, pz]: [number, number, number],
+): AABB | null {
+  if (!Array.isArray(box) || box.length !== 6) return null;
+  if (!box.every((v): v is number => typeof v === "number")) return null;
+  const [minX, minY, minZ, maxX, maxY, maxZ] = box;
+  const aabb = new AABB(
+    px + minX,
+    py + minY,
+    pz + minZ,
+    px + maxX,
+    py + maxY,
+    pz + maxZ,
+  );
+  const hasFiniteBounds = [
+    aabb.minX,
+    aabb.minY,
+    aabb.minZ,
+    aabb.maxX,
+    aabb.maxY,
+    aabb.maxZ,
+  ].every(Number.isFinite);
+  return hasFiniteBounds &&
+    aabb.minX < aabb.maxX &&
+    aabb.minY < aabb.maxY &&
+    aabb.minZ < aabb.maxZ
+    ? aabb
+    : null;
+}
+
+/** Whether two replicated `colliders` values hold the same boxes. */
+function isSameColliderBoxes(a: JsonValue, b: JsonValue) {
+  if (a === b) return true;
+  if (!Array.isArray(a) || !Array.isArray(b) || a.length !== b.length) {
+    return false;
+  }
+  return a.every((box, i) => {
+    const other = b[i];
+    return (
+      Array.isArray(box) &&
+      Array.isArray(other) &&
+      box.length === other.length &&
+      box.every((v, j) => v === other[j])
+    );
+  });
 }
 
 export class Entity<T = any> extends Group {
@@ -225,6 +304,20 @@ export type EntitiesOptions = {
    * {@link Entities.update}.
    */
   offscreenUpdateInterval: number;
+
+  /**
+   * The physics engine to keep entities' replicated colliders in, usually
+   * `world.physics`: the boxes a server's `CollidersComp` gives an entity
+   * (its `colliders` metadata), placed at its replicated position for as
+   * long as it is in range, so the player stops at them as at blocks.
+   * Without one, colliders are ignored.
+   *
+   * @example
+   * ```ts
+   * const entities = new VOXELIZE.Entities({ physics: world.physics });
+   * ```
+   */
+  physics: PhysicsEngine | null;
 };
 
 const defaultOptions: EntitiesOptions = {
@@ -232,6 +325,7 @@ const defaultOptions: EntitiesOptions = {
   streamSilenceGraceSeconds: 3,
   releasedTickRetentionSeconds: 30,
   offscreenUpdateInterval: 1,
+  physics: null,
 };
 
 /**
@@ -309,6 +403,21 @@ export class Entities extends Group implements NetIntercept {
   private motionGapSamples: number[] = [];
 
   private motionGapWindowStartMs = 0;
+
+  /**
+   * Each entity's replicated colliders in the physics engine, with the
+   * position and boxes they were placed from.
+   */
+  private colliders: Map<
+    string,
+    {
+      collider: Collider;
+      position: [number, number, number];
+      boxes: JsonValue;
+    }
+  > = new Map();
+
+  private malformedColliderTypes = new Set<string>();
 
   constructor(options: Partial<EntitiesOptions> = {}) {
     super();
@@ -472,6 +581,7 @@ export class Entities extends Group implements NetIntercept {
           object.metadata = metadata;
           object.onUpdate?.(metadata);
           object.snapToTarget?.();
+          this.syncColliders(object, metadata);
           this.noteAppliedTick(id, messageTick);
           this.liveness.touchEntity(id, nowSeconds);
           return;
@@ -481,6 +591,7 @@ export class Entities extends Group implements NetIntercept {
         if (object) {
           object.metadata = metadata;
           object.onCreate?.(metadata);
+          this.syncColliders(object, metadata);
           this.noteAppliedTick(id, messageTick);
           this.liveness.touchEntity(id, nowSeconds);
           this.releasedAt.delete(id);
@@ -540,6 +651,7 @@ export class Entities extends Group implements NetIntercept {
           }
           object.metadata = merged;
           object.onUpdate?.(merged);
+          this.syncColliders(object, merged);
           this.noteAppliedTick(id, messageTick);
           this.liveness.touchEntity(id, nowSeconds);
           if (
@@ -682,10 +794,82 @@ export class Entities extends Group implements NetIntercept {
     });
   };
 
+  /**
+   * Keep an entity's replicated colliders (its `colliders` metadata, boxes
+   * relative to its position) in the physics engine, placed at its
+   * replicated position. Only a changed position or set of boxes moves
+   * them; a box the engine would refuse is left out, and said so once per
+   * entity type.
+   */
+  private syncColliders = (
+    object: Entity,
+    metadata: MutableMetadata | null | undefined,
+  ) => {
+    const { physics } = this.options;
+    if (!physics) return;
+
+    const id = object.entId;
+    const existing = this.colliders.get(id);
+    const boxes = metadata?.colliders;
+    const position = metadata?.position;
+    if (!Array.isArray(boxes) || boxes.length === 0 || !isCoords3(position)) {
+      this.dropColliders(id);
+      return;
+    }
+
+    if (
+      existing &&
+      existing.position.every((v, i) => v === position[i]) &&
+      isSameColliderBoxes(existing.boxes, boxes)
+    ) {
+      return;
+    }
+
+    const aabbs: AABB[] = [];
+    for (const box of boxes) {
+      const aabb = placeColliderBox(box, position);
+      if (aabb) {
+        aabbs.push(aabb);
+      } else {
+        this.reportMalformedColliderBox(object.entType, box);
+      }
+    }
+
+    if (existing) {
+      physics.updateCollider(existing.collider, aabbs);
+      existing.position = [...position];
+      existing.boxes = boxes;
+    } else {
+      this.colliders.set(id, {
+        collider: physics.addCollider(aabbs),
+        position: [...position],
+        boxes,
+      });
+    }
+  };
+
+  private dropColliders = (id: string) => {
+    const existing = this.colliders.get(id);
+    if (!existing) return;
+    this.options.physics?.removeCollider(existing.collider);
+    this.colliders.delete(id);
+  };
+
+  private reportMalformedColliderBox = (entityType: string, box: JsonValue) => {
+    if (this.malformedColliderTypes.has(entityType)) return;
+    this.malformedColliderTypes.add(entityType);
+    console.warn(
+      `[entities] Entity type "${entityType}" replicated the collider box ${JSON.stringify(box)}, ` +
+        `which is not [minX, minY, minZ, maxX, maxY, maxZ] with finite bounds and min < max on every axis; ` +
+        `it is left out. Further bad boxes for this type are not reported.`,
+    );
+  };
+
   private releaseEntity = (object: Entity, metadata: Entity["metadata"]) => {
     this.map.delete(object.entId);
     this.liveness.forget(object.entId);
     this.lastMotionApplyMs.delete(object.entId);
+    this.dropColliders(object.entId);
     // lastAppliedTick is kept for now: it is what blocks an out-of-order
     // state frame from resurrecting the released entity. It expires after
     // `releasedTickRetentionSeconds` (see forgetExpiredWatermarks) and is

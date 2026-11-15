@@ -107,6 +107,33 @@ world.physics.removeCollider(crate);
 
 A collider that moves or appears around a body doesn't push it out; the body walks out of it freely, as out of a block placed around it. Every box needs finite bounds and a positive size on every axis: `addCollider` and `updateCollider` throw on one that doesn't.
 
+### Solid Entities
+
+To make an entity solid to players (a stall, a fence, a signpost), give it a `CollidersComp` on the server: boxes relative to its position.
+
+```rust title="A Solid Entity"
+world.set_entity_loader("stall", |world, metadata| {
+    world
+        .create_entity(&nanoid!(), "stall")
+        .with(metadata.get::<PositionComp>("position").unwrap_or_default())
+        .with(CollidersComp::new(&[AABB::new()
+            .offset_x(-1.5)
+            .offset_z(-1.0)
+            .scale_x(3.0)
+            .scale_y(2.5)
+            .scale_z(2.0)
+            .build()]))
+});
+```
+
+The boxes replicate under the entity's `colliders` metadata. Pass the client's physics engine to `Entities` and it keeps them in that engine, at the entity's replicated position, for as long as the entity is in range:
+
+```ts title="Solid Entities on the Client"
+const entities = new VOXELIZE.Entities({ physics: world.physics });
+```
+
+Removing the component (or setting an empty one) takes the boxes away on every client.
+
 ### Raycasting
 
 Use raycasting to detect blocks or entities:
