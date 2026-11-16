@@ -240,6 +240,73 @@ describe("GpuTerrainBucket", () => {
     }
   });
 
+  it("holds no array for a buffer only the GPU fills, made at its full length", async () => {
+    const bucket = new GpuTerrainBucket(new MeshBasicNodeMaterial(), {
+      vertexCapacity: 1024,
+      sectionCapacity: 64,
+      positionUnits: UNITS,
+    });
+    // What three makes each GPU buffer from: its type, and the array's
+    // length at that moment (the buffer's size).
+    const made = new Map<unknown, { type: number; length: number }>();
+    const renderer = {
+      compileComputeAsync: async () => {},
+      _attributes: {
+        update: (attribute: BufferAttribute, type: number) => {
+          if (made.has(attribute)) return;
+          made.set(attribute, { type, length: attribute.array.length });
+        },
+      },
+    } as never;
+    type View = { packed: BufferAttribute };
+    const state = bucket as unknown as Internals & {
+      views: { main: View; shadow: View };
+      nextGrowth: {
+        sourceIndex: BufferAttribute;
+        views: Map<View, View>;
+      } | null;
+    };
+    const INDEX = 2;
+    const STORAGE = 3;
+    const onGpuAlone = (
+      attribute: BufferAttribute,
+      type: number,
+      count: number,
+    ) => {
+      expect(made.get(attribute)).toEqual({ type, length: count });
+      expect(attribute.count).toBe(count);
+      expect(attribute.array).toHaveLength(0);
+      // The backend reads a list's index format off its array's type.
+      expect(attribute.array).toBeInstanceOf(Uint32Array);
+    };
+
+    await bucket.compileCulls(renderer);
+    onGpuAlone(state.views.main.packed, INDEX, 1536);
+    onGpuAlone(state.views.shadow.packed, INDEX, 1536);
+
+    // Three quarters full: the next size is made ahead, on the GPU alone.
+    for (let i = 0; i < 3; i++) {
+      bucket.setSectionGeometry(`s${i}`, section(128), i * 16, 0, 0);
+    }
+    const ahead = state.nextGrowth!;
+    onGpuAlone(ahead.sourceIndex, STORAGE, 3072);
+    onGpuAlone(ahead.views.get(state.views.main)!.packed, INDEX, 3072);
+    onGpuAlone(ahead.views.get(state.views.shadow)!.packed, INDEX, 3072);
+
+    // The grow takes them: the indices get their array, the lists none.
+    await new Promise((resolve) => setTimeout(resolve));
+    bucket.setSectionGeometry("s3", section(128), 48, 0, 0);
+    bucket.setSectionGeometry("s4", section(128), 64, 0, 0);
+    expect(state.sourceIndex).toBe(ahead.sourceIndex);
+    expect(state.sourceIndex.array).toHaveLength(3072);
+    for (let i = 0; i < 5; i++) {
+      const slot = state.slots.get(`s${i}`)!;
+      expect(state.sourceIndex.array[slot.indexStart]).toBe(slot.vertexStart);
+    }
+    onGpuAlone(state.views.main.packed, INDEX, 3072);
+    onGpuAlone(state.views.shadow.packed, INDEX, 3072);
+  });
+
   it("lays out a bucket with no sections as another's, for its pipelines", () => {
     const source = make();
     source.setSectionGeometry("a", section(8), 0, 0, 0);
@@ -302,6 +369,223 @@ describe("GpuTerrainBucket", () => {
     expect(arenas.bucket.hasSection("4,2,0")).toBe(true);
     expect(arenas.stats.sections).toBe(1);
   });
+  describe("on the GPU", () => {
+    type Buffer = { label: string; size: number; usage: number };
+    type Ranged = BufferAttribute & {
+      updateRanges: { start: number; count: number }[];
+    };
+    const VERTEX = 1;
+    const INDEX = 2;
+    const STORAGE = 3;
+
+    /**
+     * A stand-in for three on WebGPU: buffers as plain records, three's
+     * make-or-upload rule for an attribute, and every device call in order.
+     */
+    const gpu = () => {
+      const records = new WeakMap<object, { buffer?: Buffer }>();
+      const versions = new WeakMap<object, number>();
+      /** Buffers three made its own way: mapped, the whole array copied in. */
+      const copiedIn = new Set<Buffer>();
+      const events: (
+        | { kind: "upload"; attribute: Ranged; ranges: Ranged["updateRanges"] }
+        | { kind: "copy"; source: Buffer; target: Buffer; size: number }
+      )[] = [];
+      const backend = {
+        isWebGPUBackend: true,
+        device: {
+          createBuffer: (descriptor: Buffer): Buffer => ({ ...descriptor }),
+          createCommandEncoder: () => {
+            const queued: (typeof events)[number][] = [];
+            return {
+              copyBufferToBuffer: (
+                source: Buffer,
+                _from: number,
+                target: Buffer,
+                _to: number,
+                size: number,
+              ) => queued.push({ kind: "copy", source, target, size }),
+              finish: () => queued,
+            };
+          },
+          queue: {
+            submit: (commands: (typeof events)[]) =>
+              events.push(...commands.flat()),
+          },
+        },
+        get: (attribute: object) => {
+          let record = records.get(attribute);
+          if (!record) records.set(attribute, (record = {}));
+          return record;
+        },
+      };
+      const update = (attribute: Ranged) => {
+        const record = backend.get(attribute);
+        if (!versions.has(attribute)) {
+          if (!record.buffer) {
+            record.buffer = {
+              label: attribute.name,
+              size: attribute.array.byteLength,
+              usage: 0,
+            };
+            copiedIn.add(record.buffer);
+          }
+        } else if (versions.get(attribute)! < attribute.version) {
+          events.push({
+            kind: "upload",
+            attribute,
+            ranges: attribute.updateRanges.map((range) => ({ ...range })),
+          });
+          attribute.clearUpdateRanges();
+        }
+        versions.set(attribute, attribute.version);
+      };
+      const renderer = {
+        backend,
+        compileComputeAsync: async () => {},
+        _attributes: { update },
+      } as never;
+      return { renderer, backend, events, copiedIn, update };
+    };
+
+    type State = Internals & {
+      views: { main: { packed: BufferAttribute } };
+      nextGrowth: { sourceIndex: BufferAttribute } | null;
+    };
+
+    const small = () =>
+      new GpuTerrainBucket(new MeshBasicNodeMaterial(), {
+        vertexCapacity: 1024,
+        sectionCapacity: 64,
+        positionUnits: UNITS,
+      });
+
+    /** What a frame that draws the bucket does to its buffers. */
+    const draw = (
+      bucket: GpuTerrainBucket,
+      update: (attribute: Ranged) => void,
+    ) => {
+      const state = bucket as unknown as State;
+      for (const attribute of Object.values(bucket.mesh.geometry.attributes)) {
+        update(attribute as Ranged);
+      }
+      update(state.sourceIndex as Ranged);
+    };
+
+    it("makes a list only the GPU fills as an empty buffer, copying nothing in", async () => {
+      const bucket = small();
+      const { renderer, backend, copiedIn } = gpu();
+      await bucket.compileCulls(renderer);
+      const packed = (bucket as unknown as State).views.main.packed;
+      const buffer = backend.get(packed).buffer!;
+      // Its full length, as an index a cull can also write (index, storage,
+      // copy source and target).
+      expect(buffer.size).toBe(1536 * 4);
+      expect(buffer.usage).toBe(0x10 | 0x80 | 0x4 | 0x8);
+      expect(copiedIn.has(buffer)).toBe(false);
+      expect(packed.array).toHaveLength(0);
+    });
+
+    it("carries what it holds to the larger buffers there, uploading only what is new", async () => {
+      const bucket = small();
+      const state = bucket as unknown as State;
+      const { renderer, backend, events, copiedIn, update } = gpu();
+      await bucket.compileCulls(renderer);
+      // Three quarters full: the next size's indices are made ahead, empty.
+      for (let i = 0; i < 3; i++) {
+        bucket.setSectionGeometry(`s${i}`, section(128), i * 16, 0, 0);
+      }
+      const ahead = state.nextGrowth!.sourceIndex;
+      expect(copiedIn.has(backend.get(ahead).buffer!)).toBe(false);
+      draw(bucket, update);
+      await new Promise((resolve) => setTimeout(resolve));
+      const light = state.attributes.get("light")!;
+      const heldBytes = backend.get(light).buffer!.size;
+      // The last section the old buffers fit, still waiting for its upload
+      // when the next one grows the bucket.
+      bucket.setSectionGeometry("s3", section(128), 48, 0, 0);
+      events.length = 0;
+      bucket.setSectionGeometry("s4", section(128), 64, 0, 0);
+      expect(bucket.stats.vertexCapacity).toBe(2048);
+
+      // What waited goes up before anything is copied.
+      const firstCopy = events.findIndex((event) => event.kind === "copy");
+      const waiting = events
+        .slice(0, firstCopy)
+        .filter((event) => event.kind === "upload");
+      expect(waiting.some((event) => event.attribute === light)).toBe(true);
+      expect(events.slice(firstCopy).every((e) => e.kind === "copy")).toBe(
+        true,
+      );
+
+      // Every vertex attribute, the section ids and the indices: the whole
+      // old buffer into the start of one twice its size (the indices' was
+      // made ahead).
+      const copies = events.filter((event) => event.kind === "copy");
+      expect(copies).toHaveLength(7);
+      const grown = state.attributes.get("light")!;
+      const lightCopy = copies.find(
+        (copy) => copy.target === backend.get(grown).buffer,
+      )!;
+      expect(lightCopy.size).toBe(heldBytes);
+      expect(lightCopy.target.size).toBe(heldBytes * 2);
+      expect(copiedIn.has(lightCopy.target)).toBe(false);
+      expect(state.sourceIndex).toBe(ahead);
+      expect(
+        copies.some((copy) => copy.target === backend.get(ahead).buffer),
+      ).toBe(true);
+
+      // The arrays hold only what is still to upload: the section written
+      // after the grow, and nothing of the sections the copy carried.
+      const s0 = state.slots.get("s0")!;
+      const s4 = state.slots.get("s4")!;
+      expect(grown.array[s0.vertexStart]).toBe(0);
+      expect(grown.array[s4.vertexStart]).toBe(7);
+      expect(state.sourceIndex.array[s0.indexStart + 1]).toBe(0);
+      expect(state.sourceIndex.array[s4.indexStart]).toBe(s4.vertexStart);
+      for (const attribute of [grown, state.sourceIndex] as Ranged[]) {
+        const start = attribute === grown ? s4.vertexStart : s4.indexStart;
+        expect(attribute.updateRanges).toHaveLength(1);
+        expect(attribute.updateRanges[0].start).toBe(start);
+      }
+
+      // The frame after uploads those ranges and makes no buffer from an
+      // array.
+      events.length = 0;
+      draw(bucket, update);
+      expect(
+        events.every((event) => event.kind === "upload" && event.ranges.length),
+      ).toBe(true);
+      expect(copiedIn.has(backend.get(grown).buffer!)).toBe(false);
+    });
+
+    it("copies the array where an attribute has no buffer to carry", async () => {
+      const bucket = small();
+      const state = bucket as unknown as State;
+      const { renderer, backend, events } = gpu();
+      await bucket.compileCulls(renderer);
+      // No frame has drawn the bucket: nothing it holds is on the GPU yet.
+      for (let i = 0; i < 6; i++) {
+        bucket.setSectionGeometry(`s${i}`, section(128), i * 16, 0, 0);
+      }
+      expect(bucket.stats.vertexCapacity).toBe(2048);
+      const light = state.attributes.get("light")!;
+      expect(backend.get(light).buffer).toBeUndefined();
+      expect(
+        events.some(
+          (event) =>
+            event.kind === "copy" && event.target === backend.get(light).buffer,
+        ),
+      ).toBe(false);
+      for (let i = 0; i < 6; i++) {
+        const slot = state.slots.get(`s${i}`)!;
+        expect(light.array[slot.vertexStart]).toBe(7);
+        expect(state.sectionIds.array[slot.vertexStart]).toBe(slot.id);
+        expect(state.sourceIndex.array[slot.indexStart]).toBe(slot.vertexStart);
+      }
+    });
+  });
+
   describe("culls", () => {
     /** A renderer that records each compute submission's kernels. */
     const recorder = () => {

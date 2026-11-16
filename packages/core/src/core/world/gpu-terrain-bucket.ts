@@ -75,8 +75,111 @@ import type { Vec4Node } from "./shading/types";
 import { isShadowView } from "./shadow-casters";
 import { POSITION_BLOCK_BIAS } from "./vertex-quantization";
 
-/** three's `AttributeType.INDEX` (not exported). */
+/** three's `AttributeType.VERTEX`, `.INDEX` and `.STORAGE` (not exported). */
+const VERTEX_ATTRIBUTE = 1;
 const INDEX_ATTRIBUTE = 2;
+const STORAGE_ATTRIBUTE = 3;
+
+/** A WebGPU buffer, as far as a bucket handles one. */
+type GpuBuffer = {
+  readonly size: number;
+  readonly usage: number;
+  readonly label: string;
+};
+
+/**
+ * What a bucket asks of a WebGPU renderer's backend to make and fill its
+ * buffers on the GPU itself: the device, and the backend's record of each
+ * attribute (the buffer three draws it from, and the padding three applies
+ * to its updates).
+ */
+type GpuBackend = {
+  device: {
+    createBuffer(descriptor: {
+      label: string;
+      size: number;
+      usage: number;
+    }): GpuBuffer;
+    createCommandEncoder(): {
+      copyBufferToBuffer(
+        source: GpuBuffer,
+        sourceOffset: number,
+        target: GpuBuffer,
+        targetOffset: number,
+        size: number,
+      ): void;
+      finish(): unknown;
+    };
+    queue: { submit(commands: unknown[]): void };
+  };
+  get(attribute: BufferAttribute): {
+    buffer?: GpuBuffer;
+    _itemSize?: number;
+    _paddedItemSize?: number;
+  };
+};
+
+/** three's own record of which attributes have a GPU buffer, and how new. */
+type RendererAttributes = {
+  update(attribute: BufferAttribute, type: number): void;
+};
+
+const attributesOf = (renderer: Renderer) =>
+  (renderer as unknown as { _attributes: RendererAttributes })._attributes;
+
+/**
+ * The WebGPU backend of `renderer`, or null where there is none to make a
+ * buffer on directly (no renderer yet, another backend, a test's stand-in):
+ * three then makes each buffer from its array, as it does by default.
+ */
+function gpuBackendOf(renderer: Renderer | null): GpuBackend | null {
+  const backend = (
+    renderer as unknown as {
+      backend?: Partial<GpuBackend> & { isWebGPUBackend?: boolean };
+    } | null
+  )?.backend;
+  if (
+    !backend?.isWebGPUBackend ||
+    !backend.device ||
+    typeof backend.get !== "function"
+  ) {
+    return null;
+  }
+  return backend as GpuBackend;
+}
+
+/** `GPUBufferUsage`, by the bits the WebGPU specification gives them. */
+const BUFFER_USAGE = {
+  COPY_SRC: 0x4,
+  COPY_DST: 0x8,
+  INDEX: 0x10,
+  VERTEX: 0x20,
+  STORAGE: 0x80,
+} as const;
+
+/** The usage three's backend makes a buffer of `type` with. */
+function bufferUsageOf(type: number, attribute: BufferAttribute): number {
+  const copies = BUFFER_USAGE.COPY_SRC | BUFFER_USAGE.COPY_DST;
+  if (type === INDEX_ATTRIBUTE) {
+    const isStorage = (attribute as { isStorageBufferAttribute?: boolean })
+      .isStorageBufferAttribute;
+    return BUFFER_USAGE.INDEX | copies | (isStorage ? BUFFER_USAGE.STORAGE : 0);
+  }
+  if (type === STORAGE_ATTRIBUTE) {
+    return BUFFER_USAGE.STORAGE | BUFFER_USAGE.VERTEX | copies;
+  }
+  return BUFFER_USAGE.VERTEX | copies;
+}
+
+/** A buffer's size is a multiple of four bytes. */
+const alignedBytes = (bytes: number) => Math.ceil(bytes / 4) * 4;
+
+/**
+ * The array of an attribute whose data is on the GPU alone (see
+ * {@link reserveOnGpu}): empty, and a `Uint32Array` still, which is how the
+ * backend tells a list's index format.
+ */
+const ON_GPU_ALONE = new Uint32Array(0);
 
 /** The attributes a merged section carries, as `mergeSectionGeometries` lays them. */
 const SECTION_ATTRIBUTES = [
@@ -224,16 +327,90 @@ type CullView = {
 };
 
 /**
+ * Makes `attribute`'s GPU buffer now, as `type`, and lets its array go.
+ *
+ * three sizes a GPU buffer by the array it is made from and copies that
+ * array in, then reads it again only to upload a change. A buffer made of
+ * zeros that the CPU never writes (a view's packed list: the cull writes
+ * it, on the GPU) or does not write yet (the next size's indices, until the
+ * grow that takes them) has no use for the array once the buffer exists,
+ * and those arrays are as long as the bucket's indices each: on a world
+ * loaded to twelve chunks they were half a gigabyte of zeros. The attribute
+ * keeps its `count`, which is what the culls and the draw size by.
+ *
+ * three makes a buffer again from the array when the attribute's own buffer
+ * was destroyed (its geometry disposed) and something still draws it. No
+ * list here outlives its geometry in use: a grow gives every view a new
+ * list before the old geometry goes.
+ *
+ * On WebGPU the buffer is made here, empty: a new WebGPU buffer reads as
+ * zeros, which is all the array holds. three's own way maps the buffer and
+ * copies the array in, and for a bucket of twelve million vertices that was
+ * 70 MB of zeros a list, three lists a grow: 55 to 85 ms of one frame, in
+ * flight, each time a bucket neared its room.
+ */
+function reserveOnGpu(
+  renderer: Renderer,
+  attribute: StorageBufferAttribute,
+  type: number,
+) {
+  const gpu = gpuBackendOf(renderer);
+  if (gpu) {
+    const held = gpu.get(attribute);
+    held.buffer ??= gpu.device.createBuffer({
+      label: attribute.name,
+      size: alignedBytes(attribute.array.byteLength),
+      usage: bufferUsageOf(type, attribute),
+    });
+  }
+  // three's record of it: with a buffer already there, nothing is made.
+  attributesOf(renderer).update(attribute, type);
+  attribute.array = ON_GPU_ALONE;
+}
+
+/** An attribute a grow replaces, and the larger one that takes its place. */
+type Carried = { from: BufferAttribute; to: BufferAttribute; type: number };
+
+/**
+ * Carries each attribute's GPU buffer over to its larger successor, on the
+ * GPU: the successor's buffer is made empty (or was, ahead) and the old
+ * buffer copied into its start, in one submission.
+ *
+ * What an old array still held for upload is written first, so the copy
+ * carries it; a successor's array therefore owes the GPU nothing, and three
+ * is told its buffer is made, so it uploads only the ranges written from
+ * here on. The old buffers are destroyed with their geometry right after:
+ * a destroyed buffer still serves what was submitted before.
+ */
+function carryOnGpu(renderer: Renderer, gpu: GpuBackend, carried: Carried[]) {
+  if (carried.length === 0) return;
+  const attributes = attributesOf(renderer);
+  const encoder = gpu.device.createCommandEncoder();
+  for (const { from, to, type } of carried) {
+    attributes.update(from, type);
+    const held = gpu.get(from);
+    const source = held.buffer!;
+    const next = gpu.get(to);
+    next.buffer ??= gpu.device.createBuffer({
+      label: source.label,
+      size: alignedBytes((source.size / from.count) * to.count),
+      usage: source.usage,
+    });
+    next._itemSize = held._itemSize;
+    next._paddedItemSize = held._paddedItemSize;
+    encoder.copyBufferToBuffer(source, 0, next.buffer, 0, source.size);
+    attributes.update(to, type);
+  }
+  gpu.device.queue.submit([encoder.finish()]);
+}
+
+/**
  * Makes `packed` an index buffer before anything binds it as storage, so
  * it can be both: a buffer a cull meets first is made storage and vertex
- * only.
+ * only. Only the GPU writes the list, so its array goes with that.
  */
 function markIndexed(renderer: Renderer, packed: StorageBufferAttribute) {
-  (
-    renderer as unknown as {
-      _attributes: { update(a: unknown, type: number): void };
-    }
-  )._attributes.update(packed, INDEX_ATTRIBUTE);
+  reserveOnGpu(renderer, packed, INDEX_ATTRIBUTE);
 }
 
 /**
@@ -736,6 +913,9 @@ export class GpuTerrainBucket {
       new Uint32Array(indexCapacity),
       1,
     );
+    // On the GPU for the culls compiled below to bind; the grow that takes
+    // it makes the array its indices are copied into.
+    reserveOnGpu(renderer, sourceIndex, STORAGE_ATTRIBUTE);
     const views = new Map<
       CullView,
       { packed: StorageBufferAttribute; kernels: CullKernels }
@@ -1189,8 +1369,18 @@ export class GpuTerrainBucket {
 
   /**
    * Room for `vertices` and more: the buffers half as large again, on a new
-   * geometry (the old one's GPU buffers freed with it). One full upload,
-   * as rare as a world's render radius growing past what it held.
+   * geometry (the old one's GPU buffers freed with it).
+   *
+   * What the bucket holds is carried across on the GPU where it can be
+   * (`carryOnGpu`): each new buffer is made empty and the old one copied
+   * into it there. The arrays are then only where a section's data waits
+   * for its upload, so a new array starts empty too. Without that (no
+   * renderer yet, or no buffer made for an attribute) the array is copied
+   * and three uploads it whole when it next draws.
+   *
+   * Copying on the main thread was the frame in flight: a bucket of eight
+   * million vertices grew in 15 ms of copies, then 35 to 45 ms of upload on
+   * the frame after, each time a traveller's bucket filled.
    */
   private grow(vertices: number) {
     // The size made ahead, when it holds what is asked for.
@@ -1203,21 +1393,30 @@ export class GpuTerrainBucket {
       prepared?.vertexCapacity ??
       Math.max(vertices, nextVertexCapacity(this.sectionIds.count));
     const indexCapacity = Math.ceil(vertexCapacity * INDEX_PER_VERTEX);
+    const gpu = gpuBackendOf(this.renderer);
+    const carried: Carried[] = [];
     const resized = <T extends BufferAttribute>(
       attribute: T,
       count: number,
+      type: number,
       make: (array: ArrayLike<number> & { constructor: unknown }) => T,
     ) => {
       const Kind = attribute.array.constructor as new (n: number) => Uint8Array;
       const array = new Kind(count * attribute.itemSize);
-      array.set(attribute.array as Uint8Array);
-      return make(array);
+      const next = make(array);
+      if (gpu?.get(attribute).buffer) {
+        carried.push({ from: attribute, to: next, type });
+      } else {
+        array.set(attribute.array as Uint8Array);
+      }
+      return next;
     };
     const geometry = unboundedGeometry();
     for (const [name, attribute] of this.attributes) {
       const next = resized(
         attribute,
         vertexCapacity,
+        VERTEX_ATTRIBUTE,
         (array) =>
           new BufferAttribute(
             array as Uint8Array,
@@ -1231,30 +1430,44 @@ export class GpuTerrainBucket {
     this.sectionIds = resized(
       this.sectionIds,
       vertexCapacity,
+      VERTEX_ATTRIBUTE,
       (array) => new BufferAttribute(array as Uint32Array, 1),
     );
     geometry.setAttribute("sectionId", this.sectionIds);
     if (prepared) {
-      // The size made ahead already has its GPU buffer (its culls bound it
-      // to compile), so an upload is no longer whole by default: three
-      // writes only the update ranges when there are any, and the section
-      // that set off this grow adds one before the frame uploads. Without a
-      // range over the copy, every section held before the grow read zeros
-      // on the GPU and drew as degenerate triangles (water vanished as an
-      // ocean's bucket grew).
       const held = this.sourceIndex.array as Uint32Array;
-      (prepared.sourceIndex.array as Uint32Array).set(held);
+      // Made ahead on the GPU alone (`reserveOnGpu`): its array starts here.
+      const indices = new Uint32Array(prepared.sourceIndex.count);
+      prepared.sourceIndex.array = indices;
       prepared.sourceIndex.clearUpdateRanges();
-      prepared.sourceIndex.addUpdateRange(0, held.length);
-      prepared.sourceIndex.needsUpdate = true;
+      if (gpu?.get(this.sourceIndex).buffer) {
+        carried.push({
+          from: this.sourceIndex,
+          to: prepared.sourceIndex,
+          type: STORAGE_ATTRIBUTE,
+        });
+      } else {
+        // The size made ahead already has its GPU buffer (`prepareGrowth`
+        // makes it), so an upload is no longer whole by default: three
+        // writes only the update ranges when there are any, and the section
+        // that set off this grow adds one before the frame uploads. Without
+        // a range over the copy, every section held before the grow read
+        // zeros on the GPU and drew as degenerate triangles (water vanished
+        // as an ocean's bucket grew).
+        indices.set(held);
+        prepared.sourceIndex.addUpdateRange(0, held.length);
+        prepared.sourceIndex.needsUpdate = true;
+      }
       this.sourceIndex = prepared.sourceIndex;
     } else {
       this.sourceIndex = resized(
         this.sourceIndex,
         indexCapacity,
+        STORAGE_ATTRIBUTE,
         (array) => new StorageBufferAttribute(array as Uint32Array, 1),
       );
     }
+    if (gpu && this.renderer) carryOnGpu(this.renderer, gpu, carried);
     // Each view packs into a list as long as the indices, read by a cull
     // over the new buffers: the one compiled ahead, else built anew (and
     // its packed list made an index again).
