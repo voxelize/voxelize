@@ -196,4 +196,24 @@ describe("NameTag painting", () => {
     tag.updateMatrixWorld();
     expect(tag.material.map).not.toBe(painted);
   });
+
+  it("knows its height before it is painted, so it can be seated at once", () => {
+    // Seating code reads `scale.y` as the tag is made, a frame before the
+    // deferred paint. A sprite's default scale of 1 there lifted a name
+    // 0.44 blocks off the head it belongs to.
+    const tag = new NameTag("Steve", { fontSize: 0.12 });
+    expect(tag.material.map).toBeFalsy();
+    expect(tag.scale.y).toBeCloseTo(0.12, 10);
+    tag.text = "Steve\nthe builder";
+    expect(tag.scale.y).toBeCloseTo(0.24, 10);
+    tag.textHeight = 0.2;
+    expect(tag.scale.y).toBeCloseTo(0.4, 10);
+    tag.padding = 0.05;
+    tag.borderWidth = 0.01;
+    expect(tag.scale.y).toBeCloseTo(0.52, 10);
+    // The paint agrees with what was promised.
+    tag.updateMatrixWorld();
+    expect(tag.material.map).toBeTruthy();
+    expect(tag.scale.y).toBeCloseTo(0.52, 10);
+  });
 });

@@ -69,6 +69,7 @@ export class SpriteText extends Sprite {
     this.layers.set(SCENE_OVERLAY_LAYER);
 
     this.isDirty = true;
+    this.syncHeight();
   }
 
   /**
@@ -85,6 +86,7 @@ export class SpriteText extends Sprite {
     if (this._text === text) return;
     this._text = text;
     this.isDirty = true;
+    this.syncHeight();
   }
 
   /**
@@ -101,6 +103,7 @@ export class SpriteText extends Sprite {
     if (this._textHeight === textHeight) return;
     this._textHeight = textHeight;
     this.isDirty = true;
+    this.syncHeight();
   }
 
   /**
@@ -135,6 +138,7 @@ export class SpriteText extends Sprite {
     if (this._padding === padding) return;
     this._padding = padding;
     this.isDirty = true;
+    this.syncHeight();
   }
 
   /**
@@ -151,6 +155,7 @@ export class SpriteText extends Sprite {
     if (this._borderWidth === borderWidth) return;
     this._borderWidth = borderWidth;
     this.isDirty = true;
+    this.syncHeight();
   }
 
   /**
@@ -274,6 +279,31 @@ export class SpriteText extends Sprite {
     // Before the matrix: the painted size sets the sprite's scale.
     if (this.isDirty) this.generate();
     super.updateMatrixWorld(force);
+  }
+
+  /**
+   * The label's height in world units. It follows from the text and style
+   * alone, so it is known before the canvas is painted.
+   */
+  private labelHeight(): number {
+    const border = Array.isArray(this.borderWidth)
+      ? this.borderWidth[1]
+      : this.borderWidth;
+    const padding = Array.isArray(this.padding)
+      ? this.padding[1]
+      : this.padding;
+    const lineCount = this.text.split("\n").length;
+    return this.textHeight * lineCount + border * 2 + padding * 2;
+  }
+
+  /**
+   * Keeps `scale.y` at the label's height from construction on, so code that
+   * seats a label over something before its first draw reads the real
+   * height. The paint is deferred and only it can measure the width, so
+   * `scale.x` is set there.
+   */
+  private syncHeight() {
+    this.scale.y = this.labelHeight();
   }
 
   private generate = () => {
@@ -505,8 +535,7 @@ export class SpriteText extends Sprite {
     texture.minFilter = LinearFilter;
     texture.needsUpdate = true;
 
-    const yScale =
-      this.textHeight * lines.length + border[1] * 2 + padding[1] * 2;
+    const yScale = this.labelHeight();
     this.scale.set((yScale * canvas.width) / canvas.height, yScale, 0);
   };
 
