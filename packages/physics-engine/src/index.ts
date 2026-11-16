@@ -1,6 +1,7 @@
 import { AABB } from "@voxelize/aabb";
 import raycast from "@voxelize/raycast";
 
+import { Collider } from "./collider";
 import { RigidBody } from "./rigid-body";
 import { sweep } from "./sweep";
 
@@ -21,6 +22,36 @@ const STEP_HEIGHT_SLOP = 1e-3;
  * leaves between a box and what it hit, far thinner than any tread.
  */
 const LEDGE_NUDGE = 1e-3;
+
+/**
+ * The side, in blocks, of the column cells colliders are indexed under.
+ */
+const COLLIDER_CELL_SIZE = 8;
+
+function colliderCell(v: number) {
+  return Math.floor(v / COLLIDER_CELL_SIZE);
+}
+
+/**
+ * Throws unless `aabb` can be a collider's box. One with an infinite bound
+ * would be indexed under endless cells, and an inverted or flat one is not
+ * solid.
+ */
+function assertColliderBox(aabb: AABB) {
+  const { minX, minY, minZ, maxX, maxY, maxZ } = aabb;
+  const bounds = [minX, minY, minZ, maxX, maxY, maxZ];
+  if (
+    bounds.every(Number.isFinite) &&
+    minX < maxX &&
+    minY < maxY &&
+    minZ < maxZ
+  ) {
+    return;
+  }
+  throw new Error(
+    `A collider box needs finite bounds and min < max on every axis, got [minX, minY, minZ, maxX, maxY, maxZ] = [${bounds.join(", ")}].`,
+  );
+}
 
 export type BodyOptions = {
   aabb: AABB;
@@ -80,8 +111,15 @@ export class Engine {
 
   public static EPSILON = 1e-10;
 
+  /**
+   * Colliders by the column cells they reach into, `cx` then `cz`. Numbers,
+   * not string keys: every voxel a sweep or a raycast visits is looked up
+   * here.
+   */
+  private colliderCells = new Map<number, Map<number, Set<Collider>>>();
+
   constructor(
-    private getVoxel: (vx: number, vy: number, vz: number) => AABB[],
+    private getVoxelAABBs: (vx: number, vy: number, vz: number) => AABB[],
     private testFluid: (vx: number, vy: number, vz: number) => boolean,
     private getClimbableAABBs: (vx: number, vy: number, vz: number) => AABB[],
     private getVoxelStage: (vx: number, vy: number, vz: number) => number,
@@ -89,9 +127,10 @@ export class Engine {
     public options: EngineOptions,
     /**
      * World-space top of a voxel's barrier: how high other bodies (a
-     * server's simulated ones) find it standing, above the boxes `getVoxel`
-     * gives these. `-Infinity` where the voxel has none. These bodies never
-     * collide with it; only {@link Engine.voxelTop} reads it.
+     * server's simulated ones) find it standing, above the boxes
+     * `getVoxelAABBs` gives these. `-Infinity` where the voxel has none.
+     * These bodies never collide with it; only {@link Engine.voxelTop}
+     * reads it.
      */
     private getBarrierTop: (
       vx: number,
@@ -145,6 +184,135 @@ export class Engine {
     const i = this.bodies.indexOf(body);
     if (i < 0) return undefined;
     this.bodies.splice(i, 1);
+  };
+
+  /**
+   * Add solid boxes, in world space, that bodies collide with exactly as
+   * they collide with blocks: a body stops at a face, stands on a top and
+   * steps up a low ledge, and the engine's probes (auto-step, look-ahead
+   * sweeps, ledge raycasts, sleep checks) all see them. A collider that
+   * moves or appears around a body doesn't push it out; the body walks out
+   * of it freely, as out of a block placed around it.
+   *
+   * @example
+   * ```ts
+   * import { AABB } from "@voxelize/aabb";
+   *
+   * // A 2x3x2 crate standing at the origin, solid to the player.
+   * const crate = world.physics.addCollider([new AABB(0, 0, 0, 2, 3, 2)]);
+   *
+   * // Move it, or take it away.
+   * world.physics.updateCollider(crate, [new AABB(4, 0, 0, 6, 3, 2)]);
+   * world.physics.removeCollider(crate);
+   * ```
+   */
+  addCollider = (aabbs: readonly AABB[]) => {
+    const collider = new Collider();
+    this.updateCollider(collider, aabbs);
+    return collider;
+  };
+
+  /**
+   * Replace a collider's boxes (world space, copied), e.g. to move it, or to
+   * put back one taken out by {@link Engine.removeCollider}. Throws, leaving
+   * the collider as it was, on a box without finite bounds and a positive
+   * size on every axis.
+   */
+  updateCollider = (collider: Collider, aabbs: readonly AABB[]) => {
+    for (const aabb of aabbs) assertColliderBox(aabb);
+    this.unindexCollider(collider);
+    collider.aabbs = aabbs.map((aabb) => aabb.clone());
+    this.indexCollider(collider);
+  };
+
+  /**
+   * Take a collider out, so bodies pass where it stood.
+   */
+  removeCollider = (collider: Collider) => {
+    this.unindexCollider(collider);
+    collider.aabbs = [];
+  };
+
+  private indexCollider = (collider: Collider) => {
+    const cells: number[] = [];
+    for (const aabb of collider.aabbs) {
+      const maxCx = colliderCell(aabb.maxX);
+      const maxCz = colliderCell(aabb.maxZ);
+      for (let cx = colliderCell(aabb.minX); cx <= maxCx; cx++) {
+        let column = this.colliderCells.get(cx);
+        if (!column) {
+          column = new Map();
+          this.colliderCells.set(cx, column);
+        }
+        for (let cz = colliderCell(aabb.minZ); cz <= maxCz; cz++) {
+          let colliders = column.get(cz);
+          if (!colliders) {
+            colliders = new Set();
+            column.set(cz, colliders);
+          }
+          if (colliders.has(collider)) continue;
+          colliders.add(collider);
+          cells.push(cx, cz);
+        }
+      }
+    }
+    collider.cells = cells;
+  };
+
+  private unindexCollider = (collider: Collider) => {
+    const { cells } = collider;
+    for (let i = 0; i < cells.length; i += 2) {
+      const column = this.colliderCells.get(cells[i]);
+      const colliders = column?.get(cells[i + 1]);
+      if (!column || !colliders) continue;
+      colliders.delete(collider);
+      if (colliders.size > 0) continue;
+      column.delete(cells[i + 1]);
+      if (column.size === 0) this.colliderCells.delete(cells[i]);
+    }
+    collider.cells = [];
+  };
+
+  /**
+   * The solid boxes in a voxel: the block's own, and those of any collider
+   * reaching into it. Every sweep, step, sleep check and ledge raycast goes
+   * through here, so colliders are solid to all of them.
+   */
+  private getVoxel = (vx: number, vy: number, vz: number) => {
+    const voxels = this.getVoxelAABBs(vx, vy, vz);
+    if (this.colliderCells.size === 0) return voxels;
+
+    const colliders = this.colliderCells
+      .get(colliderCell(vx))
+      ?.get(colliderCell(vz));
+    if (!colliders) return voxels;
+
+    // A probe may ask with a fractional coordinate (the cliff check does);
+    // it names the voxel it falls in, as it does for the block's boxes.
+    const x = Math.floor(vx);
+    const y = Math.floor(vy);
+    const z = Math.floor(vz);
+
+    let boxes: AABB[] | null = null;
+    for (const collider of colliders) {
+      for (const aabb of collider.aabbs) {
+        if (
+          aabb.maxX <= x ||
+          aabb.minX >= x + 1 ||
+          aabb.maxY <= y ||
+          aabb.minY >= y + 1 ||
+          aabb.maxZ <= z ||
+          aabb.minZ >= z + 1
+        ) {
+          continue;
+        }
+        // Copy before adding: the voxel callback may hand out a cached array.
+        if (!boxes) boxes = voxels.slice();
+        boxes.push(aabb);
+      }
+    }
+
+    return boxes ?? voxels;
   };
 
   update = (dt: number) => {
@@ -870,7 +1038,8 @@ export class Engine {
     let hitAxis = 0;
     let hitDir = 0;
 
-    // move towards the target until the first X/Z collision
+    // move towards the target until the first X/Z collision, keeping the
+    // face that stopped the body
     sweep(
       this.getVoxel,
       oldBox,
@@ -902,8 +1071,13 @@ export class Engine {
 
     // getVoxel hands back world-space boxes, so the top of the ledge the
     // body is against is the exact plane the feet have to reach: a stair's
-    // tread from the front, never the taller back behind it
-    const obstructionTop = this.ledgeTop(oldBox, voxel, hitAxis, hitDir);
+    // tread from the front, never the taller back behind it, and a low
+    // stile or slab beside a tall post of the same block. The voxel's
+    // barrier still caps automatic moves.
+    const obstructionTop = Math.max(
+      this.ledgeTop(oldBox, voxel, hitAxis, hitDir),
+      this.getBarrierTop(voxel[0], voxel[1], voxel[2]),
+    );
     if (obstructionTop === -Infinity) return;
 
     const yDist = obstructionTop - y + Engine.EPSILON;
@@ -1008,5 +1182,6 @@ export class Engine {
   };
 }
 
+export * from "./collider";
 export * from "./rigid-body";
 export * from "./sweep";

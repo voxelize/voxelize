@@ -166,11 +166,17 @@ impl Physics {
         }
     }
 
+    /// Teleport a body to `position`, at rest. A body that actually moves is
+    /// woken: rapier sleeps a body held at rest, and wakes one for a move
+    /// only once its collider already touches something, so a sleeping body
+    /// moved into another and held there would never be pushed apart.
     pub fn move_rapier_body(&mut self, body_handle: &RapierBodyHandle, position: &Vec3<f32>) {
         let body = self.get_mut(body_handle);
         let &Vec3(px, py, pz) = position;
+        let target = vector![px, py, pz];
+        let is_moved = (body.translation() - target).norm_squared() > 1e-8;
 
-        body.set_translation(vector![px, py, pz], false);
+        body.set_translation(target, is_moved);
         body.set_linvel(vector![0.0, 0.0, 0.0], false);
         body.set_angvel(vector![0.0, 0.0, 0.0], false);
         body.reset_forces(false);
@@ -515,7 +521,7 @@ impl Physics {
             registry,
             &mut body.aabb,
             &sleep_vec,
-            &mut |_, _, _, _| {
+            &mut |_, _, _, _, _| {
                 is_resting = true;
                 true
             },
@@ -770,7 +776,7 @@ impl Physics {
             registry,
             aabb,
             velocity,
-            &mut |_, axis, dir, vec| -> bool {
+            &mut |_, axis, dir, vec, _| -> bool {
                 resting[axis] = dir;
                 vec[axis] = 0.0;
                 false
@@ -828,27 +834,43 @@ impl Physics {
         // All trial sweeps run on `old_aabb` (a scratch copy); `body.aabb`
         // stays at its post-collision position unless the step commits.
 
-        // move towards the target until the first x/z collision
+        // move towards the target until the first x/z collision, keeping the
+        // top of the box actually hit so the step rises to it rather than to
+        // the tallest box sharing its voxel (a low stile or slab beside a
+        // tall post of the same block must still be steppable).
+        let mut obstruction_top = f32::NEG_INFINITY;
         sweep(
             space,
             registry,
             old_aabb,
             dx,
-            &mut |_, axis, _, vec| {
+            &mut |_, axis, _, vec, top| {
                 if axis == 1 {
                     vec[axis] = 0.0;
                     return false;
                 }
+                obstruction_top = top;
                 true
             },
             true,
             10,
         );
 
+        // Nothing on the horizontal axes to step onto (the block came from a
+        // probe the re-sweep cannot see): leave the body where it is.
+        if !obstruction_top.is_finite() {
+            return;
+        }
+
         let y = old_aabb.min_y;
         // The epsilon lifts the body a hair over the step's top plane so the
         // slide-over below does not graze it as a collision.
-        let y_dist = (y + 1.001).floor() - y + 1e-3;
+        let y_dist = obstruction_top - y + 1e-3;
+        // The obstruction stands at or below the feet (its top reaches no
+        // higher than where the body already is): there is nothing to climb.
+        if y_dist <= 1e-3 {
+            return;
+        }
         let up_vec = Vec3(0.0, y_dist, 0.0);
         let mut is_blocked_above = false;
 
@@ -857,7 +879,7 @@ impl Physics {
             registry,
             old_aabb,
             &up_vec,
-            &mut |_, _, _, _| {
+            &mut |_, _, _, _, _| {
                 is_blocked_above = true;
                 true
             },
@@ -911,7 +933,7 @@ impl Physics {
         let grounded = body.resting[1] < 0;
         let hop_mode = perf_toggle(PerfToggle::LedgeHopStep);
         // An airborne body out of the water never steps: the trial above
-        // targets the next whole block over its current feet, so a body
+        // targets the obstruction's top over its current feet, so a body
         // that jumped ~1.3 blocks and pressed into a two-high wall was
         // teleported the rest of the way onto it — a snap that read as a
         // two-block jump. A walker in the air climbs only what its own
@@ -978,6 +1000,67 @@ fn hop_launch_speed(apex: f32, gravity: f32, drag_per_second: f32, dt: f32) -> f
         }
     }
     hi
+}
+
+#[cfg(test)]
+mod sleeping_tests {
+    use super::*;
+
+    #[test]
+    fn a_body_moved_into_another_is_pushed_apart_after_both_fell_asleep() {
+        let mut physics = Physics::new();
+        let aabb = AABB::new().scale_x(0.8).scale_y(1.8).scale_z(0.8).build();
+        let mut walker = RigidBody::new(&aabb).build();
+        walker.set_position(0.0, 1.0, 0.0);
+        let mut post = RigidBody::new(&aabb).build();
+        post.set_position(5.0, 1.0, 0.0);
+        let (walker, _) = physics.register(&walker);
+        let (post, _) = physics.register(&post);
+
+        // Teleported in place tick after tick, at rest, as the physics
+        // system moves every interactor: rapier puts both to sleep.
+        for _ in 0..300 {
+            physics.move_rapier_body(&walker, &Vec3(0.0, 1.0, 0.0));
+            physics.move_rapier_body(&post, &Vec3(5.0, 1.0, 0.0));
+            physics.step(1.0 / 60.0);
+        }
+        assert!(physics.get(&walker).is_sleeping());
+        assert!(physics.get(&post).is_sleeping());
+
+        // One move into the post, then held there tick after tick. Rapier
+        // wakes a body for a move only once its collider already touches
+        // something, so unless the move itself wakes it, nothing ever does.
+        let into = Vec3(4.7, 1.0, 0.0);
+        let mut pushed = 0.0f32;
+        for _ in 0..30 {
+            physics.move_rapier_body(&walker, &into);
+            physics.move_rapier_body(&post, &Vec3(5.0, 1.0, 0.0));
+            physics.step(1.0 / 60.0);
+            pushed = pushed.max((physics.get(&walker).translation().x - into.0).abs());
+        }
+
+        assert!(
+            pushed > 1e-4,
+            "the overlap the move made must be pushed apart, the walker never left {}",
+            into.0
+        );
+    }
+
+    #[test]
+    fn a_body_teleported_where_it_already_is_stays_asleep() {
+        let mut physics = Physics::new();
+        let aabb = AABB::new().scale_x(0.8).scale_y(1.8).scale_z(0.8).build();
+        let mut walker = RigidBody::new(&aabb).build();
+        walker.set_position(0.0, 1.0, 0.0);
+        let (walker, _) = physics.register(&walker);
+
+        for _ in 0..300 {
+            physics.move_rapier_body(&walker, &Vec3(0.0, 1.0, 0.0));
+            physics.step(1.0 / 60.0);
+        }
+
+        assert!(physics.get(&walker).is_sleeping());
+    }
 }
 
 #[cfg(test)]
@@ -1516,5 +1599,97 @@ mod ledge_hop_tests {
              delta:                     mean {:+.4} p95 {:+.4} p99 {:+.4} ms",
             a.0, a.1, a.2, b.0, b.1, b.2, b.0 - a.0, b.1 - a.1, b.2 - a.2
         );
+    }
+}
+
+#[cfg(test)]
+mod auto_step_hit_box_tests {
+    use super::*;
+    use crate::{set_perf_toggle, Block, Chunk, ChunkOptions, Registry, WorldConfig};
+
+    // A stone floor at `floor_y`, with one "Step" block at (12, floor_y + 1, 0)
+    // whose two collision boxes share that voxel: a low tread across its front
+    // half (z 0..0.5, 0.4 tall) and a tall post in its back half (z 0.5..1,
+    // 2.5 tall). A body walking in along the tread's half meets only the
+    // tread; the post stands beside it, clear of the body's depth.
+    fn stepped_block_chunk(floor_y: i32) -> (Chunk, Registry) {
+        let mut registry = Registry::new();
+        registry.register_block(&Block::new("Stone").id(5).build());
+        registry.register_block(
+            &Block::new("Step")
+                .id(6)
+                .aabbs(&[
+                    AABB::new().scale_y(0.4).scale_z(0.5).build(),
+                    AABB::new().scale_y(2.5).scale_z(0.5).offset_z(0.5).build(),
+                ])
+                .build(),
+        );
+        let opts = ChunkOptions {
+            size: 16,
+            max_height: 64,
+            sub_chunks: 4,
+        };
+        let mut chunk = Chunk::new("stepped", 0, 0, &opts);
+        for x in 0..16 {
+            for z in 0..16 {
+                chunk.set_voxel(x, floor_y, z, 5);
+            }
+        }
+        chunk.set_voxel(12, floor_y + 1, 0, 6);
+        (chunk, registry)
+    }
+
+    // A slim body standing on the floor in the tread's half (z 0.05..0.45),
+    // west of the step block, driven east into it. Frictionless so the drive
+    // is the only thing setting velocity.x.
+    fn walking_body(floor_y: i32) -> RigidBody {
+        let aabb = AABB::new().scale_x(0.4).scale_y(1.0).scale_z(0.4).build();
+        let mut body = RigidBody::new(&aabb).auto_step(true).friction(0.0).build();
+        body.air_drag = 0.0;
+        body.set_position(10.5, floor_y as f32 + 1.0 + 0.5, 0.25);
+        body.velocity = Vec3(2.0, 0.0, 0.0);
+        body
+    }
+
+    #[test]
+    fn auto_step_rises_to_the_box_it_hits_not_the_tallest_in_the_voxel() {
+        let floor_y = 10;
+        let config = WorldConfig::new().build();
+        // The instant step lands the body exactly on the box it met, so its
+        // height reads the fix directly. `PerfToggle::LedgeHopStep` is a
+        // process-wide atomic shared across this binary's parallel tests;
+        // restore it before propagating any failure.
+        set_perf_toggle("ledgeHopStep", false).ok();
+        let result = std::panic::catch_unwind(|| {
+            let (chunk, registry) = stepped_block_chunk(floor_y);
+            let mut body = walking_body(floor_y);
+
+            let mut stepped_min_y: Option<f32> = None;
+            for _ in 0..120 {
+                body.velocity.0 = 2.0;
+                Physics::iterate_body(&mut body, 1.0 / 60.0, &chunk, &registry, &config);
+                if body.stepped && stepped_min_y.is_none() {
+                    stepped_min_y = Some(body.aabb.min_y);
+                }
+            }
+
+            let min_y = stepped_min_y.expect(
+                "the body must step onto the tread it meets, not refuse at the post's height",
+            );
+            // The tread tops out 0.4 over the floor's walking plane. The step
+            // rises to it, never to the whole block the tall post reaches.
+            assert!(
+                (min_y - (floor_y as f32 + 1.4)).abs() < 0.05,
+                "stepped to min_y={min_y}, expected the tread at {}",
+                floor_y as f32 + 1.4
+            );
+            assert!(
+                body.aabb.min_x > 12.0,
+                "the body must cross onto the step, min_x={}",
+                body.aabb.min_x
+            );
+        });
+        set_perf_toggle("ledgeHopStep", true).ok();
+        result.unwrap();
     }
 }

@@ -2,6 +2,7 @@ mod addr;
 mod brain;
 mod chunk_requests;
 mod client_preferences;
+mod colliders;
 mod collisions;
 mod current_chunk;
 mod direction;
@@ -25,6 +26,7 @@ pub use chunk_requests::ChunkRequestsComp;
 pub use client_preferences::{
     parse_preferences_patch, ClientPreferences, ClientPreferencesComp, ClientPreferencesPatch,
 };
+pub use colliders::CollidersComp;
 pub use collisions::*;
 pub use current_chunk::CurrentChunkComp;
 pub use direction::DirectionComp;

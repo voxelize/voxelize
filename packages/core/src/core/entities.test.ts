@@ -1,3 +1,5 @@
+import { AABB } from "@voxelize/aabb";
+import { Collider, Engine as PhysicsEngine } from "@voxelize/physics-engine";
 import { EntityMotionProtocol, MessageProtocol } from "@voxelize/protocol";
 import {
   BoxGeometry,
@@ -1052,5 +1054,171 @@ describe("Entities metadata a server repeats", () => {
       id: "e7",
       position: [9, 9, 9],
     });
+  });
+});
+
+describe("Entities replicated colliders", () => {
+  function physicsEngine(
+    getVoxel: (vx: number, vy: number, vz: number) => AABB[] = () => [],
+  ) {
+    return new PhysicsEngine(
+      getVoxel,
+      () => false,
+      () => [],
+      () => 0,
+      () => 0,
+      {
+        gravity: [0, -28, 0],
+        minBounceImpulse: 0,
+        airDrag: 0,
+        fluidDrag: 0,
+        fluidDensity: 1,
+      },
+    );
+  }
+
+  function solidEntities(physics: PhysicsEngine) {
+    const entities = new Entities({ physics });
+    entities.setClass("probe", ProbeEntity);
+    return entities;
+  }
+
+  const boundsOf = (aabbs: readonly AABB[]) =>
+    aabbs.map((aabb) => [
+      aabb.minX,
+      aabb.minY,
+      aabb.minZ,
+      aabb.maxX,
+      aabb.maxY,
+      aabb.maxZ,
+    ]);
+
+  const solid = (
+    position: [number, number, number],
+    colliders: unknown[],
+  ): Partial<ProbeData> => ({ position, colliders }) as Partial<ProbeData>;
+
+  it("places an entity's colliders at its position, moves them with it and drops them on release", () => {
+    const physics = physicsEngine();
+    const added = vi.spyOn(physics, "addCollider");
+    const updated = vi.spyOn(physics, "updateCollider");
+    const entities = solidEntities(physics);
+    const boxes = [[-1, 0, -1, 1, 2, 1]];
+
+    entities.onMessage(entityMessage("CREATE", "a", solid([10, 5, -3], boxes)));
+    expect(added).toHaveBeenCalledTimes(1);
+    const collider = added.mock.results[0].value as Collider;
+    expect(boundsOf(collider.aabbs)).toEqual([[9, 5, -4, 11, 7, -2]]);
+
+    updated.mockClear();
+    entities.onMessage(
+      entityMessage("UPDATE", "a", null, { motion: { position: [12, 5, -3] } }),
+    );
+    expect(updated).toHaveBeenCalledTimes(1);
+    expect(boundsOf(collider.aabbs)).toEqual([[11, 5, -4, 13, 7, -2]]);
+
+    // Standing still, and the same boxes resent beside another key, move
+    // nothing.
+    entities.onMessage(
+      entityMessage("UPDATE", "a", null, { motion: { position: [12, 5, -3] } }),
+    );
+    entities.onMessage(
+      entityMessage("UPDATE", "a", {
+        name: "renamed",
+        colliders: [[-1, 0, -1, 1, 2, 1]],
+      } as Partial<ProbeData>),
+    );
+    expect(updated).toHaveBeenCalledTimes(1);
+
+    entities.onMessage(entityMessage("OUT_OF_RANGE", "a", null));
+    expect(collider.aabbs).toEqual([]);
+    expect(added).toHaveBeenCalledTimes(1);
+  });
+
+  it("drops an entity's colliders when the server empties them, and on a new session", () => {
+    const physics = physicsEngine();
+    const removed = vi.spyOn(physics, "removeCollider");
+    const entities = solidEntities(physics);
+
+    entities.onMessage(
+      entityMessage("CREATE", "a", solid([0, 0, 0], [[0, 0, 0, 1, 2, 0.2]])),
+    );
+    entities.onMessage(
+      entityMessage("UPDATE", "a", { colliders: [] } as Partial<ProbeData>),
+    );
+    expect(removed).toHaveBeenCalledTimes(1);
+
+    entities.onMessage(
+      entityMessage("CREATE", "b", solid([0, 0, 0], [[0, 0, 0, 1, 1, 1]])),
+    );
+    entities.onMessage(initMessage());
+    expect(removed).toHaveBeenCalledTimes(2);
+  });
+
+  it("stops a body at an entity's colliders, wherever the entity goes", () => {
+    const physics = physicsEngine((vx, vy, vz) =>
+      vy === 0 ? [new AABB(vx, vy, vz, vx + 1, vy + 1, vz + 1)] : [],
+    );
+    const entities = solidEntities(physics);
+    entities.onMessage(
+      entityMessage(
+        "CREATE",
+        "a",
+        solid([4, 1, 0], [[-0.5, 0, -2, 0.5, 2, 2]]),
+      ),
+    );
+    const body = physics.addBody({
+      aabb: new AABB(-0.4, 1, -0.4, 0.4, 2.8, 0.4),
+    });
+    const walk = () => {
+      for (let frame = 0; frame < 60; frame++) {
+        body.velocity[0] = 4;
+        body.markActive();
+        physics.update(1 / 60);
+      }
+    };
+
+    walk();
+    expect(body.aabb.maxX).toBeLessThanOrEqual(3.5);
+    expect(body.aabb.maxX).toBeGreaterThan(3.49);
+
+    entities.onMessage(
+      entityMessage("UPDATE", "a", null, { motion: { position: [20, 1, 0] } }),
+    );
+    walk();
+    expect(body.aabb.minX).toBeGreaterThan(4.5);
+    expect(body.aabb.maxX).toBeLessThanOrEqual(19.5);
+  });
+
+  it("leaves out a box the engine would refuse, and says so once per type", () => {
+    const physics = physicsEngine();
+    const added = vi.spyOn(physics, "addCollider");
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+    const entities = solidEntities(physics);
+    const boxes = [[0, 0, 0, 1, 1, 1], [1, 1, 1, 0, 0, 0], [0, 0, 0, 1], "box"];
+
+    entities.onMessage(entityMessage("CREATE", "a", solid([0, 0, 0], boxes)));
+    entities.onMessage(entityMessage("CREATE", "b", solid([0, 0, 0], boxes)));
+
+    const collider = added.mock.results[0].value as Collider;
+    expect(boundsOf(collider.aabbs)).toEqual([[0, 0, 0, 1, 1, 1]]);
+    expect(entities.getEntityById("a")).toBeDefined();
+    expect(warn).toHaveBeenCalledTimes(1);
+    expect(warn.mock.calls[0][0]).toContain('"probe"');
+    warn.mockRestore();
+  });
+
+  it("leaves entities without colliders, and every entity without an engine, alone", () => {
+    const physics = physicsEngine();
+    const added = vi.spyOn(physics, "addCollider");
+    const entities = solidEntities(physics);
+    entities.onMessage(entityMessage("CREATE", "a"));
+    expect(added).not.toHaveBeenCalled();
+
+    const headless = makeEntities();
+    headless.onMessage(
+      entityMessage("CREATE", "b", solid([0, 0, 0], [[0, 0, 0, 1, 1, 1]])),
+    );
+    expect(headless.getEntityById("b")).toBeDefined();
   });
 });

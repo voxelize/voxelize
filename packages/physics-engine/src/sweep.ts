@@ -164,6 +164,7 @@ export function sweep(
     dir: number,
     leftover: number[],
     voxel?: number[],
+    aabb?: AABB,
   ) => boolean,
   translate = true,
   maxIterations = 100,
@@ -186,17 +187,32 @@ export function sweep(
   // Its own, since a sweep runs again for what is left over: the nearest
   // hit so far, copied out of `sweepAABB`'s shared answer.
   const closest: Hit = { h: 1, nx: 0, ny: 0, nz: 0 };
-  const take = (collision: Hit) => {
+  // The box `closest` was found against: the box the sweep actually collided
+  // with, for a callback that wants more than the voxel it stands in. A copy,
+  // since a voxel's boxes are only the sweep's to read until it asks about
+  // the next voxel.
+  let hitBox: AABB | null = null;
+  const take = (collision: Hit, against: AABB) => {
     closest.h = collision.h;
     closest.nx = collision.nx;
     closest.ny = collision.ny;
     closest.nz = collision.nz;
+    if (!hitBox) {
+      hitBox = against.clone();
+      return;
+    }
+    hitBox.minX = against.minX;
+    hitBox.minY = against.minY;
+    hitBox.minZ = against.minZ;
+    hitBox.maxX = against.maxX;
+    hitBox.maxY = against.maxY;
+    hitBox.maxZ = against.maxZ;
   };
 
   for (const e of extras) {
     const collision = sweepAABB(box, e, velocity);
     if (collision.h < closest.h) {
-      take(collision);
+      take(collision, e);
       voxel = [vx, vy, vz];
     }
   }
@@ -211,7 +227,7 @@ export function sweep(
 
           // Check if this collision is closer than the closest so far.
           if (collision.h < closest.h) {
-            take(collision);
+            take(collision, aabb);
             voxel = [vx, vy, vz];
           }
         }
@@ -241,7 +257,10 @@ export function sweep(
   ];
 
   // Bail out on truthy response
-  if (dir !== 0 && callback(mag * closest.h, axis, dir, leftover, voxel)) {
+  if (
+    dir !== 0 &&
+    callback(mag * closest.h, axis, dir, leftover, voxel, hitBox ?? undefined)
+  ) {
     return;
   }
 
