@@ -10818,8 +10818,11 @@ export class World<T = any> extends Scene implements NetIntercept {
       // update, which holds exactly what this hides, so the frame it lands
       // it hides and the frame it finishes it shows as the far layer steps
       // aside. A chunk with nothing in the scene has nothing to hide.
+      // (With the far layer off it hides nothing, and the question is not
+      // even put: asking builds a closure a chunk a frame.)
       if (
         chunk.group.parent &&
+        this.farTerrain.visible &&
         this.farTerrain.hidesChunk(cx, cz, () =>
           this.isFarColumnPending(cx, cz),
         )
@@ -10838,18 +10841,9 @@ export class World<T = any> extends Scene implements NetIntercept {
       // sees, so a sealed interior collapses either way.
       const isShadowSafe = distanceSquared <= shadowSafeSquared;
 
-      let sectionMask = allVisibleMask;
-      if (graph) {
-        sectionMask = 0;
-        for (let level = 0; level < subChunks; level++) {
-          const isSectionShown = isShadowSafe
-            ? graph.isSectionReached(cx, cz, level)
-            : graph.isSectionVisible(cx, cz, level);
-          if (isSectionShown) {
-            sectionMask |= 1 << level;
-          }
-        }
-      }
+      const sectionMask = graph
+        ? graph.columnMask(cx, cz, isShadowSafe)
+        : allVisibleMask;
 
       this.applySectionVisibility(chunk, sectionMask);
 

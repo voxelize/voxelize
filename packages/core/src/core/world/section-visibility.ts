@@ -22,6 +22,7 @@ const FACE_OFFSETS: readonly (readonly [number, number, number])[] = [
 ];
 
 const OPPOSITE_FACE = [1, 0, 3, 2, 5, 4];
+const ALL_FACES = (1 << FACE_COUNT) - 1;
 
 const pairBit = (a: number, b: number) => {
   const lo = Math.min(a, b);
@@ -113,11 +114,17 @@ export type SectionVisibilityGraphOptions = {
 
 /**
  * Sodium-style section traversal graph. Each meshed section reports which of
- * its face pairs see each other through non-opaque voxels; a per-frame BFS
- * from the camera's section walks the graph, only continuing through a
- * section when the face it entered connects to the face it wants to leave by,
- * and never doubling back toward the camera. Sections the walk cannot reach
- * are occluded — enclosed interiors stop paying for the terrain around them.
+ * its face pairs see each other through non-opaque voxels; a BFS from the
+ * camera's section walks the graph, only continuing through a section when
+ * the face it entered connects to the face it wants to leave by, and never
+ * doubling back toward the camera. Sections the walk cannot reach are
+ * occluded — enclosed interiors stop paying for the terrain around them.
+ *
+ * What the walk reaches depends on the section it starts in and on the
+ * graph, and on nothing else about the camera, so it is kept until one of
+ * those changes: a camera turning or moving inside its section, which is
+ * most frames, only retests the reached sections against its frustum and
+ * fog.
  */
 export class SectionVisibilityGraph {
   /**
@@ -134,7 +141,24 @@ export class SectionVisibilityGraph {
    */
   private queue: (SectionNode | undefined)[] = [];
   private queueHighWater = 0;
-  private generation = 0;
+  /**
+   * Every section the kept walk reached, once each (the work list repeats a
+   * section whose paths merged). Never truncated, as the work list is not.
+   */
+  private reached: (SectionNode | undefined)[] = [];
+  private reachedLength = 0;
+  private reachedHighWater = 0;
+  /** Stamps a section the kept walk reached. */
+  private reachedGeneration = 0;
+  /** Stamps a section the last `walk` call found in the frustum and fog. */
+  private visibleGeneration = 0;
+  /** Counts every change to the graph: a section added or removed, a
+   * connectivity that changed. */
+  private topologyVersion = 0;
+  /** The section and graph the kept walk was made from. */
+  private walkedFrom: SectionNode | null = null;
+  private walkedVersion = -1;
+  private walkCount = 0;
   private isLastWalkComplete = false;
   private lastReachedCount = 0;
   private lastVisibleCount = 0;
@@ -176,6 +200,7 @@ export class SectionVisibilityGraph {
     }
     row.delete(cz);
     if (row.size === 0) this.columns.delete(cx);
+    this.topologyVersion += 1;
   }
 
   setConnectivity(cx: number, cz: number, level: number, connectivity: number) {
@@ -191,7 +216,9 @@ export class SectionVisibilityGraph {
     ) {
       this.sealedConnectivityCount += 1;
     }
+    if (node.connectivity === connectivity) return;
     node.connectivity = connectivity;
+    this.topologyVersion += 1;
   }
 
   clear() {
@@ -199,6 +226,11 @@ export class SectionVisibilityGraph {
     this.nodeCount = 0;
     this.queue.length = 0;
     this.queueHighWater = 0;
+    this.reached.length = 0;
+    this.reachedLength = 0;
+    this.reachedHighWater = 0;
+    this.walkedFrom = null;
+    this.topologyVersion += 1;
     this.isLastWalkComplete = false;
     this.sealedConnectivityCount = 0;
     this.lastReachedCount = 0;
@@ -218,6 +250,8 @@ export class SectionVisibilityGraph {
       reached: this.lastReachedCount,
       visible: this.lastVisibleCount,
       isComplete: this.isLastWalkComplete,
+      // Traversals made, against `walk` calls that reused the one before.
+      walks: this.walkCount,
     };
   }
 
@@ -234,14 +268,43 @@ export class SectionVisibilityGraph {
     if (!this.isLastWalkComplete) return true;
     const node = this.nodeAt(cx, cz, level);
     if (!node) return true;
-    return node.visibleGen === this.generation;
+    return node.visibleGen === this.visibleGeneration;
   }
 
   isSectionReached(cx: number, cz: number, level: number) {
     if (!this.isLastWalkComplete) return true;
     const node = this.nodeAt(cx, cz, level);
     if (!node) return true;
-    return node.reachedGen === this.generation;
+    return node.reachedGen === this.reachedGeneration;
+  }
+
+  /**
+   * A whole column's answers at once, one bit a level: the levels the last
+   * walk left visible, or with `isReached` the ones it reached. The same
+   * answers as {@link isSectionVisible} and {@link isSectionReached} level
+   * by level, for a caller that asks about every level of every chunk.
+   */
+  columnMask(cx: number, cz: number, isReached: boolean) {
+    const levels = this.options.subChunks;
+    const all = levels >= 31 ? -1 : (1 << levels) - 1;
+    if (!this.isLastWalkComplete) return all;
+    const column = this.columns.get(cx)?.get(cz);
+    if (!column) return all;
+    const reachedGeneration = this.reachedGeneration;
+    const visibleGeneration = this.visibleGeneration;
+    let mask = 0;
+    for (let level = 0; level < levels; level++) {
+      const node = column[level];
+      if (
+        !node ||
+        (isReached
+          ? node.reachedGen === reachedGeneration
+          : node.visibleGen === visibleGeneration)
+      ) {
+        mask |= 1 << level;
+      }
+    }
+    return mask;
   }
 
   /**
@@ -274,8 +337,6 @@ export class SectionVisibilityGraph {
     const { chunkSize } = this.options;
     const heightPerSubChunk = this.heightPerSubChunk();
 
-    this.generation += 1;
-    const gen = this.generation;
     this.frustum.setFromProjectionMatrix(projectionScreenMatrix);
 
     const startCx = Math.floor(cameraPosition.x / chunkSize);
@@ -293,25 +354,67 @@ export class SectionVisibilityGraph {
       return;
     }
     this.isLastWalkComplete = true;
-    let reachedCount = 1;
-    let visibleCount = 1;
 
+    if (
+      start !== this.walkedFrom ||
+      this.topologyVersion !== this.walkedVersion
+    ) {
+      this.traverse(start);
+      this.walkedFrom = start;
+      this.walkedVersion = this.topologyVersion;
+    }
+
+    // Which of the reached sections this camera sees: the frustum and the
+    // fog, the only part of the answer that moves with the view.
+    this.visibleGeneration += 1;
+    const visibleGen = this.visibleGeneration;
     const fogFarSquared = fogFar * fogFar;
+    const reached = this.reached;
+    const reachedLength = this.reachedLength;
+    let visibleCount = 0;
+    for (let i = 0; i < reachedLength; i++) {
+      const node = reached[i] as SectionNode;
+      if (
+        node === start ||
+        this.isSectionInRange(node, cameraPosition, fogFarSquared)
+      ) {
+        node.visibleGen = visibleGen;
+        visibleCount += 1;
+      }
+    }
+
+    this.lastReachedCount = reachedLength;
+    this.lastVisibleCount = visibleCount;
+  }
+
+  /**
+   * The traversal itself: every section an air path from `start` reaches,
+   * stamped and listed. Connectivity alone decides where it goes.
+   */
+  private traverse(start: SectionNode) {
+    this.walkCount += 1;
+    this.reachedGeneration += 1;
+    const gen = this.reachedGeneration;
     const queue = this.queue;
+    const reached = this.reached;
     let tail = 0;
+    let reachedLength = 0;
 
     start.reachedGen = gen;
-    start.visibleGen = gen;
     start.traveledMask = 0;
-    start.entryMask = (1 << FACE_COUNT) - 1;
+    start.entryMask = ALL_FACES;
     queue[tail++] = start;
+    reached[reachedLength++] = start;
 
     for (let head = 0; head < tail; head++) {
       const node = queue[head] as SectionNode;
 
       let exitableMask = 0;
-      if (node === start) {
-        exitableMask = (1 << FACE_COUNT) - 1;
+      if (node === start || node.connectivity === CONNECTIVITY_FULL) {
+        // Open all the way through: whichever face it was entered by, every
+        // other face is a way out, and the one entered by is never taken
+        // (it doubles back).
+        exitableMask = ALL_FACES;
       } else {
         for (let entry = 0; entry < FACE_COUNT; entry++) {
           if ((node.entryMask & (1 << entry)) === 0) continue;
@@ -350,13 +453,7 @@ export class SectionVisibilityGraph {
         neighbor.reachedGen = gen;
         neighbor.traveledMask = traveledMask;
         neighbor.entryMask = entryFaceBit;
-        reachedCount += 1;
-
-        if (this.isSectionInRange(neighbor, cameraPosition, fogFarSquared)) {
-          neighbor.visibleGen = gen;
-          visibleCount += 1;
-        }
-
+        reached[reachedLength++] = neighbor;
         queue[tail++] = neighbor;
       }
     }
@@ -367,9 +464,11 @@ export class SectionVisibilityGraph {
       queue[i] = undefined;
     }
     this.queueHighWater = tail;
-
-    this.lastReachedCount = reachedCount;
-    this.lastVisibleCount = visibleCount;
+    for (let i = reachedLength; i < this.reachedHighWater; i++) {
+      reached[i] = undefined;
+    }
+    this.reachedHighWater = reachedLength;
+    this.reachedLength = reachedLength;
   }
 
   private isSectionInRange(
@@ -438,6 +537,7 @@ export class SectionVisibilityGraph {
     };
     column[level] = node;
     this.nodeCount += 1;
+    this.topologyVersion += 1;
 
     for (let face = 0; face < FACE_COUNT; face++) {
       const [dx, dy, dz] = FACE_OFFSETS[face];

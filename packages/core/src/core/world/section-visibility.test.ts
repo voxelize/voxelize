@@ -296,3 +296,170 @@ describe("noclip eye probe", () => {
     expect(graph.isSectionVisible(3, 0, 0)).toBe(false);
   });
 });
+
+describe("SectionVisibilityGraph, the kept walk", () => {
+  const RADIUS = 5;
+  /** A disc of chunks whose sections carry a repeatable mix of open, sealed
+   * and partly open connectivity. */
+  const fill = (graph: SectionVisibilityGraph, salt = 0) => {
+    let seed = 12345 + salt;
+    const next = () => {
+      seed = (seed * 1103515245 + 12345) & 0x7fffffff;
+      return seed;
+    };
+    for (let cx = -RADIUS; cx <= RADIUS; cx++) {
+      for (let cz = -RADIUS; cz <= RADIUS; cz++) {
+        graph.addChunk(cx, cz);
+        for (let level = 0; level < SUB_CHUNKS; level++) {
+          const roll = next() % 10;
+          const connectivity =
+            roll < 5 ? CONNECTIVITY_FULL : roll < 7 ? 0 : next() & 0x7fff;
+          graph.setConnectivity(cx, cz, level, connectivity);
+        }
+      }
+    }
+  };
+  const look = (
+    graph: SectionVisibilityGraph,
+    eye: Vector3,
+    toward: Vector3,
+    fogFar = Infinity,
+  ) => {
+    const camera = new PerspectiveCamera(70, 1.6, 0.1, 10_000);
+    camera.position.copy(eye);
+    camera.lookAt(toward);
+    camera.updateMatrixWorld();
+    const matrix = new Matrix4().multiplyMatrices(
+      camera.projectionMatrix,
+      camera.matrixWorldInverse,
+    );
+    graph.walk(eye, matrix, fogFar);
+  };
+  const answers = (graph: SectionVisibilityGraph) => {
+    const rows: string[] = [];
+    for (let cx = -RADIUS; cx <= RADIUS; cx++) {
+      for (let cz = -RADIUS; cz <= RADIUS; cz++) {
+        let visible = 0;
+        let reached = 0;
+        for (let level = 0; level < SUB_CHUNKS; level++) {
+          if (graph.isSectionVisible(cx, cz, level)) visible |= 1 << level;
+          if (graph.isSectionReached(cx, cz, level)) reached |= 1 << level;
+        }
+        // The column's answer in one call is the levels' answers.
+        expect(graph.columnMask(cx, cz, false)).toBe(visible);
+        expect(graph.columnMask(cx, cz, true)).toBe(reached);
+        rows.push(`${cx},${cz}:${visible}/${reached}`);
+      }
+    }
+    return rows.join(" ");
+  };
+  /** The answers a graph gives that has never walked before. */
+  const fresh = (
+    eye: Vector3,
+    toward: Vector3,
+    fogFar = Infinity,
+    edit?: (graph: SectionVisibilityGraph) => void,
+  ) => {
+    const graph = makeGraph();
+    fill(graph);
+    edit?.(graph);
+    look(graph, eye, toward, fogFar);
+    return answers(graph);
+  };
+
+  it("turning and moving inside a section reuses the walk and answers as a new one would", () => {
+    const graph = makeGraph();
+    fill(graph);
+    const views: [Vector3, Vector3, number][] = [
+      [new Vector3(8, 20, 8), new Vector3(100, 20, 8), Infinity],
+      [new Vector3(8, 20, 8), new Vector3(-100, 30, 40), Infinity],
+      [new Vector3(3, 17, 12), new Vector3(8, 200, 9), Infinity],
+      [new Vector3(14, 30, 2), new Vector3(-50, 0, -80), 40],
+      [new Vector3(8, 20, 8), new Vector3(100, 20, 8), 24],
+    ];
+    for (const [eye, toward, fogFar] of views) {
+      look(graph, eye, toward, fogFar);
+      expect(answers(graph)).toBe(fresh(eye, toward, fogFar));
+    }
+    expect(graph.stats.walks).toBe(1);
+  });
+
+  it("walks again from another section", () => {
+    const graph = makeGraph();
+    fill(graph);
+    const steps: [Vector3, Vector3][] = [
+      [new Vector3(8, 20, 8), new Vector3(100, 20, 8)],
+      // Up a level, then across into the next chunk, then back.
+      [new Vector3(8, 40, 8), new Vector3(100, 20, 8)],
+      [new Vector3(24, 40, 8), new Vector3(100, 20, 8)],
+      [new Vector3(8, 20, 8), new Vector3(100, 20, 8)],
+    ];
+    for (const [eye, toward] of steps) {
+      look(graph, eye, toward);
+      expect(answers(graph)).toBe(fresh(eye, toward));
+    }
+    expect(graph.stats.walks).toBe(4);
+  });
+
+  it("walks again when the graph changes, and only then", () => {
+    const eye = new Vector3(8, 20, 8);
+    const toward = new Vector3(100, 20, 8);
+    const graph = makeGraph();
+    fill(graph);
+    look(graph, eye, toward);
+
+    // A remesh that reports what the section already had changes nothing.
+    graph.setConnectivity(3, 0, 1, CONNECTIVITY_FULL);
+    graph.setConnectivity(3, 0, 1, CONNECTIVITY_FULL);
+    look(graph, eye, toward);
+    const walksBefore = graph.stats.walks;
+
+    const edits: ((g: SectionVisibilityGraph) => void)[] = [
+      (g) => g.setConnectivity(1, 0, 1, 0),
+      (g) => g.removeChunk(2, 1),
+      (g) => g.addChunk(RADIUS + 1, 0),
+      (g) => g.setConnectivity(1, 0, 1, CONNECTIVITY_FULL),
+    ];
+    const applied: ((g: SectionVisibilityGraph) => void)[] = [];
+    for (const edit of edits) {
+      edit(graph);
+      applied.push(edit);
+      look(graph, eye, toward);
+      // The extra column is outside the disc `answers` reads; the rest must
+      // match a graph built the same way and walked once.
+      expect(answers(graph)).toBe(
+        fresh(eye, toward, Infinity, (g) => applied.forEach((e) => e(g))),
+      );
+    }
+    expect(graph.stats.walks).toBe(walksBefore + edits.length);
+  });
+
+  it("starts over after a clear", () => {
+    const graph = makeGraph();
+    fill(graph);
+    look(graph, new Vector3(8, 20, 8), new Vector3(100, 20, 8));
+    graph.clear();
+    fill(graph);
+    look(graph, new Vector3(8, 20, 8), new Vector3(100, 20, 8));
+    expect(answers(graph)).toBe(
+      fresh(new Vector3(8, 20, 8), new Vector3(100, 20, 8)),
+    );
+  });
+
+  it("a walk that could not start, or was suspended, leaves the next one right", () => {
+    const eye = new Vector3(8, 20, 8);
+    const toward = new Vector3(100, 20, 8);
+    const graph = makeGraph();
+    fill(graph);
+    look(graph, eye, toward);
+    // Outside the loaded disc: nothing is claimed hidden.
+    look(graph, new Vector3(4000, 20, 8), toward);
+    expect(graph.isComplete).toBe(false);
+    expect(graph.columnMask(0, 0, false)).toBe((1 << SUB_CHUNKS) - 1);
+    graph.walk(eye, new Matrix4(), Infinity, true);
+    expect(graph.isComplete).toBe(false);
+    look(graph, eye, toward);
+    expect(graph.isComplete).toBe(true);
+    expect(answers(graph)).toBe(fresh(eye, toward));
+  });
+});
