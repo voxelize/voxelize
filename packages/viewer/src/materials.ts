@@ -138,6 +138,8 @@ export class ViewerMaterials {
       cones: this.lightCones.uniforms,
       local: this.localLights.shadingInputs,
       swayTable: this.swayProfileTable,
+      // The viewer draws its blended layers in order, with no accumulation.
+      blended: null,
     };
     return this.shadingInputsCache;
   }
