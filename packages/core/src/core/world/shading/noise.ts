@@ -29,7 +29,7 @@ export const simplexNoise3Node = /*@__PURE__*/ Fn(
   ([v]: [Vec3Node]) => {
     const C = vec2(1 / 6, 1 / 3);
 
-    const i = floor(v.add(dot(v, C.yyy))).toVar();
+    const i = floor(v.add(dot(v, C.yyy)));
     const x0 = v.sub(i).add(dot(i, C.xxx));
 
     const g = step(x0.yzx, x0.xyz);
@@ -41,14 +41,17 @@ export const simplexNoise3Node = /*@__PURE__*/ Fn(
     const x2 = x0.sub(i2).add(C.xxx.mul(2));
     const x3 = x0.sub(1).add(C.xxx.mul(3));
 
-    i.assign(mod(i, 289));
+    // Wrapped for the permutation only: the corner offsets read `i` as it
+    // is, and TSL builds them where they are first read, so a wrap
+    // assigned into `i` would move every corner by a multiple of 289.
+    const wrapped = mod(i, 289);
     const p = permute(
       permute(
-        permute(vec4(0, i1.z, i2.z, 1).add(i.z))
-          .add(i.y)
+        permute(vec4(0, i1.z, i2.z, 1).add(wrapped.z))
+          .add(wrapped.y)
           .add(vec4(0, i1.y, i2.y, 1)),
       )
-        .add(i.x)
+        .add(wrapped.x)
         .add(vec4(0, i1.x, i2.x, 1)),
     );
 
