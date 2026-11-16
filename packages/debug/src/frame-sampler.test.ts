@@ -36,25 +36,87 @@ describe("FrameSampler cadence", () => {
     runFrames(sampler, Array(80).fill(VSYNC_60), clock);
 
     expect(sampler.fps).toBe(60);
+    expect(sampler.medianFps).toBe(60);
     expect(sampler.droppedFrames).toBe(0);
     expect(sampler.frameMs).toBeCloseTo(16.7, 1);
   });
 
-  it("does not let one stall dictate the rate for the rest of the window", () => {
+  it("does not read a full 60 over a window that missed a refresh", () => {
     const clock = useClock();
     const sampler = new FrameSampler({ historySize: 80, publishIntervalMs: 0 });
 
-    // The captured repro: a single 234ms hitch among otherwise perfect frames
-    // pulled the old mean-based reading down to 43 fps for 1.4 seconds after
-    // the hitch was over. The rate must stay honest and the hitch must still
-    // be reported -- by the readings that exist to report it.
+    // The subtle lag: one frame held for two refreshes among perfect ones.
+    // The median-only reading said 60 here, while the person watching felt
+    // the hitch.
+    const intervals = Array(80).fill(VSYNC_60);
+    intervals[20] = VSYNC_60 * 2;
+    runFrames(sampler, intervals, clock);
+
+    expect(sampler.fps).toBe(59);
+    expect(sampler.medianFps).toBe(60);
+    expect(sampler.droppedFrames).toBe(1);
+  });
+
+  it("shows one missed refresh at any refresh rate a display runs at", () => {
+    for (const hz of [60, 75, 90, 120, 144]) {
+      const clock = useClock();
+      const sampler = new FrameSampler({
+        historySize: 80,
+        publishIntervalMs: 0,
+      });
+
+      const intervals = Array(80).fill(1000 / hz);
+      intervals[40] = 2000 / hz;
+      runFrames(sampler, intervals, clock);
+
+      expect(sampler.medianFps).toBe(hz);
+      expect(sampler.fps).toBeLessThan(hz);
+      vi.restoreAllMocks();
+    }
+  });
+
+  it("counts a stall against the rate and keeps the pace beside it", () => {
+    const clock = useClock();
+    const sampler = new FrameSampler({ historySize: 80, publishIntervalMs: 0 });
+
+    // A single 234ms hitch among otherwise perfect frames: 80 frames took
+    // 1551 ms, which is 52 a second, and the typical frame still ran at 60.
     const intervals = Array(80).fill(VSYNC_60);
     intervals[20] = 234;
     runFrames(sampler, intervals, clock);
 
-    expect(sampler.fps).toBe(60);
+    expect(sampler.fps).toBe(52);
+    expect(sampler.medianFps).toBe(60);
     expect(sampler.worstFrameMs).toBeCloseTo(234, 0);
     expect(sampler.droppedFrames).toBe(13);
+  });
+
+  it("returns to the full rate once the stall leaves the window", () => {
+    const clock = useClock();
+    const sampler = new FrameSampler({ historySize: 80, publishIntervalMs: 0 });
+
+    const intervals = Array(160).fill(VSYNC_60);
+    intervals[20] = 234;
+    runFrames(sampler, intervals, clock);
+
+    expect(sampler.fps).toBe(60);
+    expect(sampler.droppedFrames).toBe(0);
+  });
+
+  it("does not flicker off a steady rate when frame times jitter", () => {
+    const clock = useClock();
+    const sampler = new FrameSampler({ historySize: 80, publishIntervalMs: 0 });
+
+    // Callbacks landing a little early and late around the same refresh: the
+    // window still spans 80 refreshes, so the rate is still 60.
+    const intervals = Array.from(
+      { length: 80 },
+      (_, i) => VSYNC_60 + (i % 2 === 0 ? 1.5 : -1.5),
+    );
+    runFrames(sampler, intervals, clock);
+
+    expect(sampler.fps).toBe(60);
+    expect(sampler.droppedFrames).toBe(0);
   });
 
   it("counts every refresh missed, not just the frames that missed one", () => {
@@ -79,7 +141,8 @@ describe("FrameSampler cadence", () => {
 
     expect(sampler.worstFrameMs).toBeCloseTo(4000, 0);
     expect(sampler.droppedFrames).toBeGreaterThan(200);
-    expect(sampler.fps).toBe(60);
+    expect(sampler.fps).toBe(15);
+    expect(sampler.medianFps).toBe(60);
   });
 
   it("reports the slow rate when the client is genuinely slow", () => {
@@ -89,6 +152,7 @@ describe("FrameSampler cadence", () => {
     runFrames(sampler, Array(80).fill(VSYNC_60 * 2), clock);
 
     expect(sampler.fps).toBe(30);
+    expect(sampler.medianFps).toBe(30);
     expect(sampler.droppedFrames).toBe(0);
   });
 });

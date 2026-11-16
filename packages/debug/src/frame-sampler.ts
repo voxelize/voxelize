@@ -12,6 +12,7 @@ export class FrameSampler {
   private lastFrameAt: number | null = null;
   private lastPublishAt = 0;
   private publishedFps = 0;
+  private publishedMedianFps = 0;
   private publishedFrameMs = 0;
   private publishedP95FrameMs = 0;
   private publishedWorstFrameMs = 0;
@@ -72,10 +73,21 @@ export class FrameSampler {
     this.publish();
   }
 
+  /** Frames delivered per second across the history window: the frames
+   * counted against the time they took. A missed refresh lowers it, so it
+   * cannot read a full 60 over a window that hitched. */
   get fps(): number {
     return this.publishedFps;
   }
 
+  /** The rate the typical frame is running at. It ignores hitches by design,
+   * which makes it the cadence missed refreshes are counted against and the
+   * wrong number to show a person on its own. */
+  get medianFps(): number {
+    return this.publishedMedianFps;
+  }
+
+  /** The typical (median) frame time. */
   get frameMs(): number {
     return this.publishedFrameMs;
   }
@@ -89,8 +101,8 @@ export class FrameSampler {
   }
 
   /** Refreshes missed across the history window, counted against the cadence
-   * the client is actually holding. This is what separates a steady 60 from a
-   * 60 that hitches: the rate is identical and only this number moves. */
+   * the client is actually holding. One missed refresh in eighty moves `fps`
+   * by a single frame; this is the reading that names it. */
   get droppedFrames(): number {
     return this.publishedDroppedFrames;
   }
@@ -107,18 +119,24 @@ export class FrameSampler {
   private publish(): void {
     const sorted = this.sortScratch;
     sorted.length = 0;
-    for (const ms of this.frameTimes) sorted.push(ms);
+    let windowMs = 0;
+    for (const ms of this.frameTimes) {
+      sorted.push(ms);
+      windowMs += ms;
+    }
     sorted.sort((a, b) => a - b);
 
-    // The median, not the mean: a mean lets one stall dictate the reading for
-    // the whole window, so the bar reports a slowdown that stopped a second
-    // ago and cannot say when it happened. The stall is not lost -- it lands
-    // in p95, the worst reading, and the dropped count.
     const median = sorted[sorted.length >> 1];
     if (median <= 0) return;
 
+    // Two rates, because neither is honest alone. The headline is the frames
+    // counted against the time they took: the median reads a full 60 through
+    // any hitch shorter than half the window, which is exactly when a person
+    // feels a lag and sees a number that denies it. The median stays as the
+    // cadence -- what a refresh is, for counting the ones that were missed.
     this.publishedFrameMs = Math.round(median * 10) / 10;
-    this.publishedFps = Math.round(1000 / median);
+    this.publishedMedianFps = Math.round(1000 / median);
+    this.publishedFps = Math.round((this.frameTimes.length * 1000) / windowMs);
     this.publishedP95FrameMs =
       Math.round(sorted[Math.floor((sorted.length - 1) * 0.95)] * 10) / 10;
     this.publishedWorstFrameMs =
