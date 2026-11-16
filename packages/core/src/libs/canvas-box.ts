@@ -462,7 +462,10 @@ export class BoxLayer extends Mesh {
       texture.wrapT = ClampToEdgeWrapping;
       this.atlas = { canvas, texture, material, layout: null };
       this.material = material;
-      this.syncAtlas();
+      // Laid out and its UVs pointed, with nothing copied in: no face holds
+      // a pixel yet, and the atlas canvas is as blank as they are. Copying
+      // six blank faces was a third of what a character cost to build.
+      this.layOutAtlas();
     } else {
       const materials = Array.from(this.materials.values());
       const temp = materials[0];
@@ -486,6 +489,32 @@ export class BoxLayer extends Mesh {
     const atlas = this.atlas;
     if (!atlas) return;
 
+    const targets = this.layOutAtlas() ? BOX_SIDES : faces;
+    const layout = atlas.layout;
+    const context = atlas.canvas.getContext("2d");
+    if (!layout || !context) return;
+    context.imageSmoothingEnabled = false;
+    for (const face of targets) {
+      const rect = layout.rects[face as BoxFace];
+      const canvas = this.materials.get(face)?.map?.image as
+        | HTMLCanvasElement
+        | undefined;
+      if (!rect || !canvas) continue;
+      blitFaceToAtlas(context, canvas, rect, layout.height);
+    }
+    atlas.texture.needsUpdate = true;
+  };
+
+  /**
+   * Lays a merged layer's atlas out for its face canvases as they are sized
+   * now and points the geometry's UVs into it, when either changed since it
+   * was last laid out. Returns whether it was: every face then needs copying
+   * in again.
+   */
+  private layOutAtlas(): boolean {
+    const atlas = this.atlas;
+    if (!atlas) return false;
+
     const sizes = {} as Record<BoxFace, { width: number; height: number }>;
     for (const face of CANVAS_BOX_GROUP_FACES) {
       const canvas = this.materials.get(face)?.map?.image as
@@ -497,8 +526,8 @@ export class BoxLayer extends Mesh {
       (face) => `${sizes[face].width}x${sizes[face].height}`,
     ).join(",")}`;
 
-    let targets = faces;
-    if (signature !== this.atlasSignature || !atlas.layout) {
+    if (signature === this.atlasSignature && atlas.layout) return false;
+    {
       const layout = canvasBoxAtlasLayout(sizes);
       atlas.layout = layout;
       if (
@@ -527,23 +556,9 @@ export class BoxLayer extends Mesh {
       uv.needsUpdate = true;
 
       this.atlasSignature = signature;
-      targets = BOX_SIDES;
     }
-
-    const layout = atlas.layout;
-    const context = atlas.canvas.getContext("2d");
-    if (!context) return;
-    context.imageSmoothingEnabled = false;
-    for (const face of targets) {
-      const rect = layout.rects[face as BoxFace];
-      const canvas = this.materials.get(face)?.map?.image as
-        | HTMLCanvasElement
-        | undefined;
-      if (!rect || !canvas) continue;
-      blitFaceToAtlas(context, canvas, rect, layout.height);
-    }
-    atlas.texture.needsUpdate = true;
-  };
+    return true;
+  }
 
   /**
    * Add art to the canvas(s) of this box layer.
@@ -633,7 +648,8 @@ export class BoxLayer extends Mesh {
   setShadowBody(body: EntityShadowBody) {
     if (!this.shadowBody) return;
     this.shadowBody = body;
-    for (const material of this.materials.values()) setShadowBody(material, body);
+    for (const material of this.materials.values())
+      setShadowBody(material, body);
     if (this.atlas) setShadowBody(this.atlas.material, body);
   }
 
