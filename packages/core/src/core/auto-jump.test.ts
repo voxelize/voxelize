@@ -124,6 +124,68 @@ describe("planAutoJump", () => {
     expect(planAutoJump(probe, bodyAt(4), PLUS_X, PARAMS)).toBeNull();
   });
 
+  describe("at a stair", () => {
+    /**
+     * One stair voxel at `x = LEDGE_X`: a half-block tread across it and a
+     * full-height back over half of it, the tread toward -x when it `faces`
+     * the body walking +x.
+     */
+    const stair = (faces: boolean): Box[] => [
+      {
+        min: [LEDGE_X, FLOOR_TOP, -20],
+        max: [LEDGE_X + 1, FLOOR_TOP + 0.5, 20],
+      },
+      {
+        min: [LEDGE_X + (faces ? 0.5 : 0), FLOOR_TOP + 0.5, -20],
+        max: [LEDGE_X + (faces ? 1 : 0.5), FLOOR_TOP + 1, 20],
+      },
+    ];
+
+    it("leaves the tread to auto-stepping, though the back is a block tall", () => {
+      const probe = createProbe(stair(true));
+
+      expect(planAutoJump(probe, bodyAt(4), PLUS_X, PARAMS)).toBeNull();
+      expect(
+        planAutoJump(
+          probe,
+          bodyAt(LEDGE_X - BODY_WIDTH / 2 - 1e-9),
+          PLUS_X,
+          PARAMS,
+        ),
+      ).toBeNull();
+    });
+
+    it("leaves the back to auto-stepping from the tread", () => {
+      const probe = createProbe(stair(true));
+      const onTread = bodyAt(LEDGE_X + 0.1);
+      onTread.translate([0, 0.5, 0]);
+
+      expect(planAutoJump(probe, onTread, PLUS_X, PARAMS)).toBeNull();
+    });
+
+    it("hops the whole block when it meets the tall side", () => {
+      const plan = planAutoJump(
+        createProbe(stair(false)),
+        bodyAt(4),
+        PLUS_X,
+        PARAMS,
+      );
+
+      expect(plan).not.toBeNull();
+      expect(plan?.height).toBeCloseTo(1, 9);
+    });
+
+    it("lands on the back when the tread is too tall to step and too shallow to stand on", () => {
+      const plan = planAutoJump(createProbe(stair(true)), bodyAt(4), PLUS_X, {
+        ...PARAMS,
+        minHeight: 0.3,
+      });
+
+      expect(plan).not.toBeNull();
+      expect(plan?.height).toBeCloseTo(1, 9);
+    });
+  });
+
   it("does not attempt a wall taller than a jump clears", () => {
     const probe = createProbe([ledge(2)]);
 

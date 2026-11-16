@@ -80,8 +80,11 @@ export function planAutoJump(
     if (isGrazingX || isGrazingZ) return null;
   }
 
-  const height = hit.top - box.minY;
-  if (!(height > minHeight) || height > maxHeight) return null;
+  // What the feet have to reach to get on is the ledge the body meets, not
+  // the tallest thing in the block: a stair met from the front is its
+  // tread, half a block up, and belongs to auto-stepping like any slab.
+  const ledge = hit.ledge - box.minY;
+  if (!(ledge > minHeight) || ledge > maxHeight) return null;
 
   // Room to launch: the whole body must be able to rise to the apex where
   // it stands, or the jump would bonk instead of clearing the ledge.
@@ -93,12 +96,23 @@ export function planAutoJump(
   // the next riser of a staircase, one tread further on, does not.
   const footprint = Math.abs(dx) * box.width + Math.abs(dz) * box.depth;
   const landingRun = hit.distance + footprint;
-  const raised = lifted.clone().translate([0, height, 0]);
-  if (!probe.isSweepClear(raised, [dx * landingRun, 0, dz * landingRun])) {
-    return null;
+  const canLandAt = (height: number) =>
+    probe.isSweepClear(lifted.clone().translate([0, height, 0]), [
+      dx * landingRun,
+      0,
+      dz * landingRun,
+    ]);
+
+  if (canLandAt(ledge)) return { height: ledge, distance: hit.distance };
+
+  // A tread too tall to step and too shallow to stand on: the jump lands on
+  // the top of the block behind it instead, when it reaches that far.
+  const top = hit.top - box.minY;
+  if (top > ledge && top <= maxHeight && canLandAt(top)) {
+    return { height: top, distance: hit.distance };
   }
 
-  return { height, distance: hit.distance };
+  return null;
 }
 
 /**

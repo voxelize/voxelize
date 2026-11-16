@@ -15,6 +15,13 @@ function approxEquals(a: number, b: number) {
  */
 const STEP_HEIGHT_SLOP = 1e-3;
 
+/**
+ * How far a box lifted onto a ledge is nudged into the face that stopped
+ * it, to ask whether the lift freed it. Far wider than the seam a sweep
+ * leaves between a box and what it hit, far thinner than any tread.
+ */
+const LEDGE_NUDGE = 1e-3;
+
 export type BodyOptions = {
   aabb: AABB;
   mass: number;
@@ -59,6 +66,13 @@ export type SweepHit = {
    * voxel's barrier when that stands higher (see {@link Engine.voxelTop}).
    */
   top: number;
+  /**
+   * World-space plane the swept box's feet have to reach to carry on past
+   * that voxel: a stair's tread when met from the front, `top` when nothing
+   * lower frees the box (see {@link Engine.ledgeTop}). Equal to `top` for a
+   * floor or ceiling hit.
+   */
+  ledge: number;
 };
 
 export class Engine {
@@ -689,6 +703,57 @@ export class Engine {
   };
 
   /**
+   * World-space plane the feet of `box` have to reach to carry on past the
+   * `voxel` it is pressed against on `axis`, travelling `dir` along it.
+   *
+   * A voxel is not always one box: a stair is a low tread in front of a
+   * taller back. Met from the front the tread is all there is to climb; met
+   * from the side or the back it is the whole block. So this is the lowest
+   * box top in the voxel that frees the box once it is lifted there, and
+   * the voxel's tallest (see {@link voxelTop}) when none does. A barrier is
+   * never ducked: a voxel whose barrier stands over its boxes answers with
+   * the barrier. Auto-stepping and auto-jump both measure a rise with this,
+   * so what one refuses as too tall is exactly what the other takes.
+   */
+  ledgeTop = (
+    box: AABB,
+    voxel: number[],
+    axis: number,
+    dir: number,
+  ): number => {
+    const boxes = this.getVoxel(voxel[0], voxel[1], voxel[2]);
+
+    let tallest = -Infinity;
+    for (const a of boxes) {
+      if (a.maxY > tallest) tallest = a.maxY;
+    }
+    if (tallest === -Infinity) return tallest;
+
+    const barrier = this.getBarrierTop(voxel[0], voxel[1], voxel[2]);
+    if (barrier > tallest) return barrier;
+    if (boxes.length < 2) return tallest;
+
+    const nudge = [0, 0, 0];
+    nudge[axis] = dir * LEDGE_NUDGE;
+
+    // Lowest top first, each one the next above the last tried.
+    let tried = box.minY;
+    for (;;) {
+      let next = tallest;
+      for (const a of boxes) {
+        if (a.maxY > tried && a.maxY < next) next = a.maxY;
+      }
+      if (next >= tallest) return tallest;
+
+      const lifted = box
+        .clone()
+        .translate([0, next - box.minY + Engine.EPSILON, 0]);
+      if (this.isSweepClear(lifted, nudge)) return next;
+      tried = next;
+    }
+  };
+
+  /**
    * The first voxel `box` would touch travelling along `vector`, or `null`
    * when the path is clear. `box` is not moved. Look-ahead probes (auto-jump
    * scanning for a ledge before the body reaches it) build on this.
@@ -696,18 +761,22 @@ export class Engine {
   sweepObstruction = (box: AABB, vector: number[]): SweepHit | null => {
     let hit: SweepHit | null = null;
 
-    sweep(
-      this.getVoxel,
-      box.clone(),
-      vector,
-      (dist, axis, dir, _leftover, voxel) => {
-        if (voxel && voxel.length === 3) {
-          hit = { distance: dist, axis, dir, voxel, top: this.voxelTop(voxel) };
-        }
-        return true;
-      },
-      false,
-    );
+    // The copy travels to the point of contact, where the ledge is measured.
+    const swept = box.clone();
+    sweep(this.getVoxel, swept, vector, (dist, axis, dir, _leftover, voxel) => {
+      if (voxel && voxel.length === 3) {
+        const top = this.voxelTop(voxel);
+        hit = {
+          distance: dist,
+          axis,
+          dir,
+          voxel,
+          top,
+          ledge: axis === 1 ? top : this.ledgeTop(swept, voxel, axis, dir),
+        };
+      }
+      return true;
+    });
 
     return hit;
   };
@@ -798,6 +867,8 @@ export class Engine {
     ];
 
     let voxel: number[] = [];
+    let hitAxis = 0;
+    let hitDir = 0;
 
     // move towards the target until the first X/Z collision
     sweep(
@@ -816,6 +887,8 @@ export class Engine {
           return false;
         } else {
           voxel = vox || [];
+          hitAxis = axis;
+          hitDir = dir;
           return true;
         }
       },
@@ -827,9 +900,10 @@ export class Engine {
 
     const y = body.aabb.minY;
 
-    // getVoxel hands back world-space boxes, so the tallest maxY of the
-    // obstruction is the exact plane the feet have to reach
-    const obstructionTop = this.voxelTop(voxel);
+    // getVoxel hands back world-space boxes, so the top of the ledge the
+    // body is against is the exact plane the feet have to reach: a stair's
+    // tread from the front, never the taller back behind it
+    const obstructionTop = this.ledgeTop(oldBox, voxel, hitAxis, hitDir);
     if (obstructionTop === -Infinity) return;
 
     const yDist = obstructionTop - y + Engine.EPSILON;
