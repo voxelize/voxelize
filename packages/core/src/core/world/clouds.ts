@@ -29,6 +29,7 @@ import {
 } from "three/tsl";
 
 import { cull } from "../../libs/cull";
+import { frameNow, frameStep } from "../../libs/frame-clock";
 import { WorkerPool } from "../../libs/worker-pool";
 import { Coords2, Coords3 } from "../../types";
 
@@ -399,8 +400,8 @@ export class Clouds extends Group {
     if (!this.isInitialized) return;
 
     // Normalize the delta
-    this.timer.update();
-    const delta = Math.min(0.1, this.timer.getDelta());
+    this.timer.update(frameNow());
+    const delta = frameStep(this.timer.getDelta(), 0.1);
 
     const { speedFactor, count, dimensions } = this.options;
 

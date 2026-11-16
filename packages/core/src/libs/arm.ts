@@ -28,6 +28,7 @@ import { AnimationUtils, releaseObject } from "../utils";
 import { CanvasBox } from "./canvas-box";
 import { defaultArmsOptions } from "./character";
 import { isSelfIlluminated } from "./effects/light-shined";
+import { frameNow, frameStep } from "./frame-clock";
 
 const ARM_POSITION = new THREE.Vector3(1, -1, -1);
 const ARM_QUATERION = new THREE.Quaternion().setFromEuler(
@@ -710,8 +711,8 @@ export class Arm extends THREE.Group {
    */
   public update() {
     // Normalize the delta
-    this.timer.update();
-    const delta = Math.min(0.1, this.timer.getDelta());
+    this.timer.update(frameNow());
+    const delta = frameStep(this.timer.getDelta(), 0.1);
 
     this.liftRecoveryDip();
     this.liftIdleSway();

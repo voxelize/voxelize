@@ -57,6 +57,7 @@ import {
   sortTransparentMesh,
 } from "../../core/transparent-sorter";
 import { BoundedLruMap, WorkerPool } from "../../libs";
+import { frameNow, frameStep } from "../../libs/frame-clock";
 import { createBudgetedDrain } from "../../libs/instancing/frame-budget";
 import {
   getMeshTransferStatus,
@@ -356,6 +357,8 @@ const warnedUnloadedUpdateChunks = new Set<string>();
 
 /** Overdue chunk requests one report names before summing up the rest. */
 const MAX_OVERDUE_CHUNKS_NAMED = 8;
+/** A voxel with nothing to collide with: one list for every such answer. */
+const NO_COLLISION_BOXES: AABB[] = [];
 
 /**
  * The chunk material buckets drawn from region arenas, one multi-draw per
@@ -4654,12 +4657,16 @@ export class World<T = any> extends Scene implements NetIntercept {
 
     const ignoreList = new Set(options.ignoreList || []);
 
+    // The ray reads each voxel's boxes and moves on, so a skipped voxel
+    // answers with one shared list and a plain block with boxes that the
+    // next voxel reuses: a light sample's ray made a rotation, a list and a
+    // box for every voxel it crossed.
     return raycast(
       (wx, wy, wz) => {
         const block = this.getBlockAt(wx, wy, wz);
 
         if (!block) {
-          return [];
+          return NO_COLLISION_BOXES;
         }
 
         const {
@@ -4674,7 +4681,7 @@ export class World<T = any> extends Scene implements NetIntercept {
         } = block;
 
         if (ignoreList.has(id)) {
-          return [];
+          return NO_COLLISION_BOXES;
         }
 
         if (isDynamic && !dynamicFn) {
@@ -4688,7 +4695,7 @@ export class World<T = any> extends Scene implements NetIntercept {
           (isPassable && ignorePassables) ||
           (isSeeThrough && ignoreSeeThrough)
         ) {
-          return [];
+          return NO_COLLISION_BOXES;
         }
 
         const vx = Math.floor(wx);
@@ -4701,6 +4708,23 @@ export class World<T = any> extends Scene implements NetIntercept {
           if (override) {
             return override;
           }
+        }
+
+        const isPlain =
+          !isDynamic && !(dynamicPatterns && dynamicPatterns.length > 0);
+        const chunk = isPlain ? this.getChunkByPosition(vx, vy, vz) : null;
+        if (chunk) {
+          return this.placeTurnedBoxes(
+            block,
+            aabbs,
+            chunk,
+            chunk.getRawValue(vx, vy, vz),
+            vx,
+            vy,
+            vz,
+            this.raycastBoxes,
+            this.raycastList,
+          );
         }
 
         const rotation = this.getVoxelRotationAt(wx, wy, wz);
@@ -4808,10 +4832,152 @@ export class World<T = any> extends Scene implements NetIntercept {
     if (isPassable || isFluid) return [];
 
     const rotation = this.voxelRotationOf(block, chunk, vx, vy, vz);
-    return aabbs.map((aabb) =>
-      rotation.rotateAABB(aabb).translate([vx, vy, vz]),
+    const turned = this.turnedAabbsOf(block, aabbs, rotation);
+    const boxes = new Array<AABB>(turned.length);
+    for (let i = 0; i < turned.length; i++) {
+      const box = turned[i];
+      boxes[i] = new AABB(
+        box.minX + vx,
+        box.minY + vy,
+        box.minZ + vz,
+        box.maxX + vx,
+        box.maxY + vy,
+        box.maxZ + vz,
+      );
+    }
+    return boxes;
+  };
+
+  /**
+   * Each block's own collision boxes as a rotation turns them, in the
+   * voxel's space: the same for every voxel of that block and rotation, so
+   * they are turned once. Turning them for every voxel a body's sweep asked
+   * about (each a dozen arrays and closures) was a fifth of everything the
+   * page allocated while a player stood in a village of logs and stairs.
+   */
+  private turnedAabbs = new WeakMap<Block, Map<number, AABB[]>>();
+
+  private turnedAabbsOf(
+    block: Block,
+    aabbs: AABB[],
+    rotation: BlockRotation,
+  ): AABB[] {
+    let byRotation = this.turnedAabbs.get(block);
+    if (!byRotation) this.turnedAabbs.set(block, (byRotation = new Map()));
+    // The rotation's axis and its sixteenth of a turn about it.
+    const key =
+      rotation.value * 64 +
+      (Math.round((rotation.yRotation * 16) / (Math.PI * 2)) & 63);
+    let turned = byRotation.get(key);
+    if (!turned) {
+      turned = aabbs.map((aabb) => rotation.rotateAABB(aabb));
+      byRotation.set(key, turned);
+    }
+    return turned;
+  }
+
+  /** The boxes and the list {@link collisionBoxesForSweep} hands out. */
+  private sweepBoxes: AABB[] = [];
+  private sweepList: AABB[] = [];
+
+  /**
+   * {@link getCollisionAABBsAt} for the physics engine, which reads a
+   * voxel's boxes and is done with them before it asks about the next
+   * voxel: the list and the boxes in it are the caller's to read until the
+   * next call, which reuses them. Never keep or change what this returns.
+   *
+   * A body's sweep asks about every voxel around it, several times a frame,
+   * most of them air: a new list for each, and new boxes for each solid
+   * one, was a fifth of everything the page allocated while a player stood
+   * still. The rare shapes (branches, blocks whose boxes depend on their
+   * neighbours) are answered as before, with lists of their own.
+   */
+  private collisionBoxesForSweep = (
+    vx: number,
+    vy: number,
+    vz: number,
+  ): AABB[] => {
+    const chunk = this.getChunkByPosition(vx, vy, vz);
+    if (!chunk) return NO_COLLISION_BOXES;
+
+    const raw = chunk.getRawValue(vx, vy, vz);
+    const block = this.getBlockByIdSafe(BlockUtils.extractID(raw));
+    if (!block) return NO_COLLISION_BOXES;
+
+    const { aabbs, isPassable, isFluid, dynamicPatterns } = block;
+    if (
+      block.branch ||
+      block.branchShell ||
+      (dynamicPatterns && dynamicPatterns.length > 0)
+    ) {
+      return this.getCollisionAABBsAt(vx, vy, vz);
+    }
+    if (isPassable || isFluid || aabbs.length === 0) return NO_COLLISION_BOXES;
+
+    return this.placeTurnedBoxes(
+      block,
+      aabbs,
+      chunk,
+      raw,
+      vx,
+      vy,
+      vz,
+      this.sweepBoxes,
+      this.sweepList,
     );
   };
+
+  /** As {@link turnedAabbs}, keyed by a voxel's raw rotation bits. */
+  private turnedAabbsByBits = new WeakMap<Block, Map<number, AABB[]>>();
+
+  /**
+   * A block's own boxes, turned as the voxel's rotation bits (`raw`'s) say
+   * and placed at the voxel, written into `list` from `pool`: both are the
+   * caller's to read until it next asks with the same pair.
+   */
+  private placeTurnedBoxes(
+    block: Block,
+    aabbs: AABB[],
+    chunk: Chunk,
+    raw: number,
+    vx: number,
+    vy: number,
+    vz: number,
+    pool: AABB[],
+    list: AABB[],
+  ): AABB[] {
+    // The voxel's rotation bits name its turned boxes; the rotation itself
+    // is only made the first time a block is met turned that way.
+    const rotationBits = block.rotationBitsAreState ? 0 : (raw >> 16) & 0xff;
+    let byRotation = this.turnedAabbsByBits.get(block);
+    if (!byRotation) {
+      this.turnedAabbsByBits.set(block, (byRotation = new Map()));
+    }
+    let turned = byRotation.get(rotationBits);
+    if (!turned) {
+      const rotation = this.voxelRotationOf(block, chunk, vx, vy, vz);
+      turned = aabbs.map((aabb) => rotation.rotateAABB(aabb));
+      byRotation.set(rotationBits, turned);
+    }
+
+    list.length = turned.length;
+    for (let i = 0; i < turned.length; i++) {
+      const from = turned[i];
+      const box = (pool[i] ??= new AABB(0, 0, 0, 0, 0, 0));
+      box.minX = from.minX + vx;
+      box.minY = from.minY + vy;
+      box.minZ = from.minZ + vz;
+      box.maxX = from.maxX + vx;
+      box.maxY = from.maxY + vy;
+      box.maxZ = from.maxZ + vz;
+      list[i] = box;
+    }
+    return list;
+  }
+
+  /** The boxes and the list a voxel raycast reads each voxel's boxes from. */
+  private raycastBoxes: AABB[] = [];
+  private raycastList: AABB[] = [];
 
   /**
    * World-space height the server's bodies find the voxel at `vx, vy, vz`
@@ -5991,8 +6157,10 @@ export class World<T = any> extends Scene implements NetIntercept {
       return;
     }
 
-    this.timer.update();
-    const delta = this.timer.getDelta();
+    // Stepped by the frame's own time, so a callback that began late
+    // still moves the world one refresh's worth.
+    this.timer.update(frameNow());
+    const delta = frameStep(this.timer.getDelta());
     this.lastFrameMs = delta * 1000;
 
     const center = ChunkUtils.mapVoxelToChunk(
@@ -9070,7 +9238,7 @@ export class World<T = any> extends Scene implements NetIntercept {
     this.csmRenderer?.addNeverCaster(this.farTerrain);
 
     this.physics = new PhysicsEngine(
-      this.getCollisionAABBsAt,
+      this.collisionBoxesForSweep,
       (vx: number, vy: number, vz: number) => {
         const chunk = this.getChunkByPosition(vx, vy, vz);
         if (!chunk) return false;

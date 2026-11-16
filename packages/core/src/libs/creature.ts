@@ -11,6 +11,7 @@ import {
 import { MathUtils as VoxMathUtils } from "../utils";
 
 import { CanvasBox, CanvasBoxOptions } from "./canvas-box";
+import { frameNow, frameStep } from "./frame-clock";
 import { NameTag, NameTagOptions } from "./nametag";
 
 const CREATURE_SCALE = 0.5;
@@ -160,8 +161,8 @@ export class Creature extends Group {
   }
 
   update() {
-    this.timer.update();
-    const dt = this.timer.getDelta();
+    this.timer.update(frameNow());
+    const dt = frameStep(this.timer.getDelta());
     this.interpolateFromBuffer();
     this.calculateDelta();
     this.playLegsWalkingAnimation();

@@ -27,6 +27,7 @@ import {
 } from "../utils";
 
 import { BoxLayer, CanvasBox, CanvasBoxOptions } from "./canvas-box";
+import { frameNow, frameStep } from "./frame-clock";
 import { HeadLedBody, HeadLedBodyOptions } from "./head-led-body";
 import { NameTag, NameTagOptions } from "./nametag";
 import { SpriteText } from "./sprite-text";
@@ -688,8 +689,8 @@ export class Character extends Group {
    */
   update() {
     // Normalize the delta
-    this.timer.update();
-    const delta = Math.min(0.1, this.timer.getDelta());
+    this.timer.update(frameNow());
+    const delta = frameStep(this.timer.getDelta(), 0.1);
 
     this.mixer.update(delta);
     this.calculateDelta();

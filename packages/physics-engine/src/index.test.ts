@@ -525,4 +525,63 @@ describe("Engine", () => {
     expect(engine.fluidSurfaceOver(box(WATER_SURFACE_Y - 6), 2)).toBe(Infinity);
     expect(engine.fluidSurfaceOver(box(WATER_SURFACE_Y + 0.2), 2)).toBeNull();
   });
+
+  it("is done with a voxel's boxes before it asks about the next voxel", () => {
+    // A world may answer every voxel with one list and the same boxes,
+    // rewritten for each call (the client's does, so a sweep allocates
+    // nothing). A step up onto a plateau under a ceiling plate exercises
+    // the sweeps, the cliff and step probes and the raycasts: the body must
+    // end where it does when every answer is a list of its own.
+    const plateau = (vx: number, vy: number, vz: number): number[][] => {
+      const boxes: number[][] = [];
+      if (!inWorld(vx, vz)) return boxes;
+      if (vy === FLOOR_Y) boxes.push([vx, vy, vz, vx + 1, vy + 1, vz + 1]);
+      if (vx >= WALL_X && vy === FLOOR_Y + 1) {
+        boxes.push([vx, vy, vz, vx + 1, vy + 0.5, vz + 1]);
+      }
+      if (vy === 4) boxes.push([vx, 4.2, vz, vx + 1, 4.4, vz + 1]);
+      return boxes;
+    };
+    const fresh: VoxelSource = (vx, vy, vz) =>
+      plateau(vx, vy, vz).map(
+        ([a, b, c, d, e, f]) => new AABB(a, b, c, d, e, f),
+      );
+    const pool: AABB[] = [];
+    const list: AABB[] = [];
+    const reused: VoxelSource = (vx, vy, vz) => {
+      const boxes = plateau(vx, vy, vz);
+      list.length = boxes.length;
+      boxes.forEach(([a, b, c, d, e, f], i) => {
+        const box = (pool[i] ??= new AABB(0, 0, 0, 0, 0, 0));
+        box.minX = a;
+        box.minY = b;
+        box.minZ = c;
+        box.maxX = d;
+        box.maxY = e;
+        box.maxZ = f;
+        list[i] = box;
+      });
+      return list;
+    };
+    const run = (getVoxel: VoxelSource) => {
+      const engine = createWorldEngine(getVoxel);
+      const body = createBody(engine, STEP_HEIGHT);
+      body.onStep = (newAABB) => {
+        body.aabb = newAABB.clone();
+      };
+      const path: number[][] = [];
+      for (let frame = 0; frame < SIMULATION_FRAMES; frame++) {
+        applyMovement(body, Math.PI / 2);
+        engine.update(DELTA_TIME);
+        if (frame % 20 === 0) path.push(body.getPosition());
+      }
+      path.push(body.getPosition());
+      return path;
+    };
+    const expected = run(fresh);
+    // It climbed the plateau: the path means something.
+    expect(expected[expected.length - 1][0]).toBeGreaterThan(WALL_X + 1);
+    expect(expected[expected.length - 1][1]).toBeGreaterThan(BODY_MIN_Y + 0.4);
+    expect(run(reused)).toEqual(expected);
+  });
 });

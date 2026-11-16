@@ -1791,9 +1791,12 @@ composer.addPass(
 );
 composer.setSize(...renderer.getDrawingBufferSize(new THREE.Vector2()).toArray());
 
-const animate = () => {
+const animate = (timestamp?: number) => {
   requestAnimationFrame(animate);
   recordFrame(performance.now());
+  // Every engine timer steps by the refresh this frame is drawn for, so a
+  // callback that starts late (a collection, a timer) does not stutter.
+  VOXELIZE.setFrameTime(timestamp ?? null);
   if (isFocused) update();
   // Drive the sun/moon + CSM uniforms and render the shadow maps (cascades
   // plus the local-light atlas) exactly the way a production host does.
@@ -1802,6 +1805,7 @@ const animate = () => {
     world.renderShadowMaps(renderer, collectShadowCasters());
   }
   composer.render();
+  VOXELIZE.setFrameTime(null);
 };
 
 const start = async () => {

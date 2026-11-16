@@ -28,8 +28,11 @@ rigidControls.connect(inputs);
 ## Update Loop
 
 ```javascript title="main.js"
-function animate() {
+function animate(timestamp) {
   requestAnimationFrame(animate);
+
+  // The refresh this frame is drawn for. The engine steps by it.
+  VOXELIZE.setFrameTime(timestamp ?? null);
 
   if (world.isInitialized) {
     world.update(
@@ -41,8 +44,18 @@ function animate() {
   }
 
   world.renderFrame(renderer, camera, null);
+
+  VOXELIZE.setFrameTime(null);
 }
 ```
+
+`setFrameTime` hands the engine the timestamp the browser gave the callback.
+A callback can start late (a garbage collection, a timer, a burst of network
+messages), and the frame is still drawn for the same refresh. Stepped by that
+refresh's time, the player and the world move one even step a frame; stepped
+by the wall clock, a frame that began 10 ms late moves a frame and a half and
+the next one half a frame, which shows as a stutter at a steady 60 fps.
+Without the call the engine falls back to the wall clock.
 
 Click the canvas to lock the pointer and start moving:
 

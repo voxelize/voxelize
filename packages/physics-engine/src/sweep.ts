@@ -2,11 +2,23 @@ import { AABB } from "@voxelize/aabb";
 
 import { Engine } from ".";
 
-function lineToPlane(unit: number[], vector: number[], normal: number[]) {
-  const [ux, uy, uz] = unit;
-  const [vx, vy, vz] = vector;
-  const [nx, ny, nz] = normal;
-
+/**
+ * Where along `unit` the line from the origin meets the plane through
+ * `vector` with `normal`. Numbers in and out, with nothing made on the way:
+ * a body's sweep asks this six times for every voxel box around it, and as
+ * arrays those calls were a tenth of everything the page allocated.
+ */
+function lineToPlane(
+  ux: number,
+  uy: number,
+  uz: number,
+  vx: number,
+  vy: number,
+  vz: number,
+  nx: number,
+  ny: number,
+  nz: number,
+) {
   // Check if parallel
   const NdotU = nx * ux + ny * uy + nz * uz;
   if (NdotU === 0) return Infinity;
@@ -18,7 +30,16 @@ function between(x: number, a: number, b: number) {
   return x >= a && x <= b;
 }
 
-function sweepAABB(self: AABB, other: AABB, vector: number[]) {
+type Hit = { h: number; nx: number; ny: number; nz: number };
+
+/** The last `sweepAABB` answer: read before the next call. */
+const hit: Hit = { h: 1, nx: 0, ny: 0, nz: 0 };
+
+/**
+ * How far along `vector` `self` travels before it meets `other` (1: not at
+ * all), and the face it meets, left in {@link hit}.
+ */
+function sweepAABB(self: AABB, other: AABB, vector: number[]): Hit {
   const mx = other.minX - self.maxX;
   const my = other.minY - self.maxY;
   const mz = other.minZ - self.maxZ;
@@ -26,7 +47,9 @@ function sweepAABB(self: AABB, other: AABB, vector: number[]) {
   const mhy = self.height + other.height;
   const mhz = self.depth + other.depth;
 
-  const [dx, dy, dz] = vector;
+  const dx = vector[0];
+  const dy = vector[1];
+  const dz = vector[2];
 
   let h = 1,
     s = 0,
@@ -35,7 +58,7 @@ function sweepAABB(self: AABB, other: AABB, vector: number[]) {
     nz = 0;
 
   // X min
-  s = lineToPlane(vector, [mx, my, mz], [-1, 0, 0]);
+  s = lineToPlane(dx, dy, dz, mx, my, mz, -1, 0, 0);
   if (
     s >= 0 &&
     dx > 0 &&
@@ -50,7 +73,7 @@ function sweepAABB(self: AABB, other: AABB, vector: number[]) {
   }
 
   // X max
-  s = lineToPlane(vector, [mx + mhx, my, mz], [1, 0, 0]);
+  s = lineToPlane(dx, dy, dz, mx + mhx, my, mz, 1, 0, 0);
   if (
     s >= 0 &&
     dx < 0 &&
@@ -65,7 +88,7 @@ function sweepAABB(self: AABB, other: AABB, vector: number[]) {
   }
 
   // Y min
-  s = lineToPlane(vector, [mx, my, mz], [0, -1, 0]);
+  s = lineToPlane(dx, dy, dz, mx, my, mz, 0, -1, 0);
   if (
     s >= 0 &&
     dy > 0 &&
@@ -80,7 +103,7 @@ function sweepAABB(self: AABB, other: AABB, vector: number[]) {
   }
 
   // Y max
-  s = lineToPlane(vector, [mx, my + mhy, mz], [0, 1, 0]);
+  s = lineToPlane(dx, dy, dz, mx, my + mhy, mz, 0, 1, 0);
   if (
     s >= 0 &&
     dy < 0 &&
@@ -95,7 +118,7 @@ function sweepAABB(self: AABB, other: AABB, vector: number[]) {
   }
 
   // Z min
-  s = lineToPlane(vector, [mx, my, mz], [0, 0, -1]);
+  s = lineToPlane(dx, dy, dz, mx, my, mz, 0, 0, -1);
   if (
     s >= 0 &&
     dz > 0 &&
@@ -110,7 +133,7 @@ function sweepAABB(self: AABB, other: AABB, vector: number[]) {
   }
 
   // Z max
-  s = lineToPlane(vector, [mx, my, mz + mhz], [0, 0, 1]);
+  s = lineToPlane(dx, dy, dz, mx, my, mz + mhz, 0, 0, 1);
   if (
     s >= 0 &&
     dz < 0 &&
@@ -124,12 +147,11 @@ function sweepAABB(self: AABB, other: AABB, vector: number[]) {
     nz = 1;
   }
 
-  return {
-    h,
-    nx,
-    ny,
-    nz,
-  };
+  hit.h = h;
+  hit.nx = nx;
+  hit.ny = ny;
+  hit.nz = nz;
+  return hit;
 }
 
 export function sweep(
@@ -161,12 +183,20 @@ export function sweep(
   const maxZ = Math.floor(vz > 0 ? box.maxZ + vz : box.maxZ) + 1;
 
   let voxel: number[] = [];
-  let closest = { h: 1, nx: 0, ny: 0, nz: 0 };
+  // Its own, since a sweep runs again for what is left over: the nearest
+  // hit so far, copied out of `sweepAABB`'s shared answer.
+  const closest: Hit = { h: 1, nx: 0, ny: 0, nz: 0 };
+  const take = (collision: Hit) => {
+    closest.h = collision.h;
+    closest.nx = collision.nx;
+    closest.ny = collision.ny;
+    closest.nz = collision.nz;
+  };
 
   for (const e of extras) {
     const collision = sweepAABB(box, e, velocity);
     if (collision.h < closest.h) {
-      closest = collision;
+      take(collision);
       voxel = [vx, vy, vz];
     }
   }
@@ -181,7 +211,7 @@ export function sweep(
 
           // Check if this collision is closer than the closest so far.
           if (collision.h < closest.h) {
-            closest = collision;
+            take(collision);
             voxel = [vx, vy, vz];
           }
         }

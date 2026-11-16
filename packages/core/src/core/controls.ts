@@ -13,6 +13,7 @@ import {
 } from "three/webgpu";
 
 import { Arm, Character } from "../libs";
+import { frameNow, frameStep } from "../libs/frame-clock";
 import { Coords3 } from "../types";
 import { ChunkUtils } from "../utils";
 
@@ -864,8 +865,8 @@ export class RigidControls extends EventEmitter implements NetIntercept {
    */
   update = () => {
     // Normalize the delta
-    this.timer.update();
-    const delta = Math.min(0.1, this.timer.getDelta());
+    this.timer.update(frameNow());
+    const delta = frameStep(this.timer.getDelta(), 0.1);
 
     this.object.quaternion.slerp(this.quaternion, this.options.rotationLerp);
 

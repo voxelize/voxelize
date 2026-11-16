@@ -4,6 +4,8 @@ import { RigidControls } from "../core/controls";
 import { Inputs } from "../core/inputs";
 import { World } from "../core/world";
 
+import { frameNow, frameStep } from "./frame-clock";
+
 /**
  * The frame rate the zoom lerp factors are authored at. Each factor is the
  * fraction of the remaining distance closed per frame at this rate and is
@@ -273,8 +275,8 @@ export class Perspective {
   update = () => {
     const { object, camera } = this.controls;
 
-    this.timer.update();
-    const delta = Math.min(0.1, this.timer.getDelta());
+    this.timer.update(frameNow());
+    const delta = frameStep(this.timer.getDelta(), 0.1);
 
     if (this.controls.character) {
       if (this.state === "first" && this.controls.character.visible) {

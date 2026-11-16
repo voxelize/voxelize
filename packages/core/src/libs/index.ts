@@ -11,6 +11,7 @@ export * from "./creature";
 export * from "./cull";
 export * from "./debug";
 export * from "./effects";
+export * from "./frame-clock";
 export * from "./instancing";
 export * from "./item-slots";
 export * from "./motion";

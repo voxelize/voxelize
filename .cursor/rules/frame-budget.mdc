@@ -26,3 +26,15 @@ every browser on a Mac draws WebGL through ANGLE's Metal backend, and three thin
 - a vertex stride that is not a multiple of four bytes (an `Int16` vec3) is converted into an aligned copy of the whole buffer, again after every upload into it. pad to four components.
 
 texture uploads go through a freshly allocated staging buffer, and three's `BatchedMesh` re-uploads its draw-id texture on every pass it culls or sorts, and re-reads and transforms every instance's bounds as it does. a batch whose instances rarely move (chunk sections, far tiles) is a `StaticBatchedMesh` (`static-batched-mesh.ts`): bounds kept until an instance moves or is rewritten, the draw-id texture uploaded only when the list in it changed. count batches as well as draw calls. to see any of this, run macOS `sample <pid>` on the browser's GPU process (`--type=gpu-process`) during the motion: ANGLE is stripped, but Metal's `waitUntilCompleted`, `commandBuffer` waits and `AGXBuffer` allocations show by name.
+
+## a frame that starts late is not a slow frame
+
+the browser issues each animation frame for one refresh and can run its callback late: a collection, a timer or a burst of messages holds the main thread first. the frame is still drawn for the same refresh. so motion steps by the frame's own time, `frameNow()` (`packages/core/src/libs/frame-clock.ts`), never by `performance.now()` read when the callback happens to run: stepped by the wall clock, a frame that began 10 ms late moves the world a frame and a half and the next one half a frame, a stutter on a screen that missed nothing. a host calls `setFrameTime(timestamp)` first thing in its callback and `setFrameTime(null)` when the frame is drawn; a new engine timer is fed `frameNow()` and clamps with `frameStep`.
+
+## collections are part of the budget
+
+a major collection ends in a pause of 10 ms or more that no code can split, and it comes as often as memory is retired that only it can free. two things retire such memory from a hot path without looking like allocation:
+
+- clearing and refilling a `Map` or `Set` that has lived a while. `clear()` and growth give it new tables in the old generation every time. stamp entries with a pass counter, or keep an array (`length = 0` and `push` cost nothing there).
+- replacing a long-lived value with an equal copy. an entity's decoded metadata, a cached list, a config object: keep the one already held when the new one says the same thing, and the copy dies young.
+
