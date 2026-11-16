@@ -23,6 +23,7 @@ import {
   Y_ROT_MAP_FOUR,
 } from "../core/world/block";
 import { exemptFromLightCones } from "../core/world/light-cones";
+import { markNeverCaster } from "../core/world/shadow-casters";
 import { Coords3 } from "../types";
 import { ChunkUtils, MathUtils } from "../utils";
 
@@ -265,6 +266,9 @@ export class VoxelInteract extends Group {
       ...options,
     });
     exemptFromLightCones(this, "the block-selection overlay, not a surface");
+    // An outline over the block looked at shades nothing: left in, every
+    // shadow map redrawn in a frame drew its edges again as solids.
+    markNeverCaster(this);
 
     this.setup();
 
