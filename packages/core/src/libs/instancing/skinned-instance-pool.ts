@@ -15,6 +15,7 @@ import {
   InstancedSkinnedMaterialOptions,
 } from "./instanced-skinned-material";
 import { measureLegLength } from "./leg-length";
+import { measureMeshReach } from "./mesh-reach";
 import { measureMeshTop } from "./mesh-top";
 import {
   noteLazyBake,
@@ -127,6 +128,9 @@ export interface SkinnedRigInfo {
   /// Tallest point of the drawn mesh above the origin, mesh units
   /// (mesh-top.ts).
   meshTop: number | null;
+  /// Farthest point of the drawn mesh from the origin, mesh units
+  /// (mesh-reach.ts).
+  reach: number;
 }
 
 interface InstanceSlot {
@@ -268,6 +272,7 @@ export class SkinnedInstancePool<
       boneCount,
       legLength: measureLegLength(geometry),
       meshTop: measureMeshTop(geometry),
+      reach: measureMeshReach(geometry),
     };
     const rigInfo = config.rigInfo
       ? { ...measured, ...config.rigInfo(variant, isBaby, measured) }
@@ -513,6 +518,27 @@ export class SkinnedInstancePool<
     bounds.copy(geometry.boundingBox);
     resolved.pool.mesh.getMatrixAt(resolved.slot.localIndex, matrix);
     return true;
+  }
+
+  /// How far the body `globalSlot` draws reaches from its root, in blocks:
+  /// its variant's rest-pose reach at the scale of the root transform last
+  /// written by `setInstanceMatrix`. A sphere of this radius about the root
+  /// holds the body however it is turned, which is the bound the off-screen
+  /// test wants (`Entity.offscreenRadius`). 0 when the slot is not
+  /// allocated, or is hidden.
+  getInstanceReach(globalSlot: number): number {
+    const resolved = this.resolve(globalSlot);
+    if (!resolved) return 0;
+    const elements = resolved.pool.mesh.instanceMatrix.array;
+    const offset = resolved.slot.localIndex * 16;
+    let scaleSq = 0;
+    for (let column = 0; column < 3; column++) {
+      const x = elements[offset + column * 4];
+      const y = elements[offset + column * 4 + 1];
+      const z = elements[offset + column * 4 + 2];
+      scaleSq = Math.max(scaleSq, x * x + y * y + z * z);
+    }
+    return resolved.pool.rigInfo.reach * Math.sqrt(scaleSq);
   }
 
   setInstanceMatrix(globalSlot: number, matrix: THREE.Matrix4): void {

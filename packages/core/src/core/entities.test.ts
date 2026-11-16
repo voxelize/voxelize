@@ -782,6 +782,104 @@ describe("Entities off-screen updates", () => {
     entities.update(cameraPos, 1000);
     expect(behind.frames).toBe(4);
   });
+
+  it("judges an entity that poses a child, its group left at the origin, by where the server put it", () => {
+    const entities = new Entities({ offscreenUpdateInterval: 4 });
+    entities.setClass("probe", FrameProbe);
+    // Far from the world origin, looking down -z: the origin is off screen.
+    const camera = new PerspectiveCamera(70, 1, 0.1, 500);
+    camera.position.set(200, 0, 0);
+    camera.updateMatrixWorld();
+    const replicate = (id: string, z: number) => {
+      entities.onMessage(
+        entityMessage("CREATE", id, { position: [200, 0, z] }),
+      );
+      return entities.getEntityById(id) as unknown as FrameProbe;
+    };
+    const ahead = replicate("ahead", -40);
+    const near = replicate("near", 6);
+    const behind = replicate("behind", 40);
+    expect(ahead.position.toArray()).toEqual([0, 0, 0]);
+
+    const cameraPos = camera.position.clone();
+    for (let i = 0; i < 12; i++) entities.update(cameraPos, 1000, camera);
+
+    expect(ahead.frames).toBe(12);
+    expect(near.frames).toBe(12);
+    expect(behind.frames).toBe(3);
+  });
+
+  it("bounds a long body by what a game says it draws, asked on its turn", () => {
+    const reaches = new Map<string, number>([["whale", 30]]);
+    let asks = 0;
+    const entities = new Entities({
+      offscreenUpdateInterval: 4,
+      offscreenRadiusOf: (entity) => {
+        asks += 1;
+        return reaches.get(entity.entId);
+      },
+    });
+    entities.setClass("probe", FrameProbe);
+    // Looking down -z from the origin, 70 degrees wide: at z = -40 the view
+    // ends 28 blocks to the side.
+    const camera = new PerspectiveCamera(70, 1, 0.1, 500);
+    camera.updateMatrixWorld();
+    const side = (id: string) => {
+      entities.onMessage(
+        entityMessage("CREATE", id, { position: [55, 0, -40] }),
+      );
+      const probe = entities.getEntityById(id) as unknown as FrameProbe;
+      probe.position.set(55, 0, -40);
+      return probe;
+    };
+    // Both stand 27 blocks past the edge of the view; the whale's flukes
+    // reach back into it.
+    const whale = side("whale");
+    const minnow = side("minnow");
+    const named = side("named");
+    named.offscreenRadius = 30;
+
+    const cameraPos = new Vector3();
+    for (let i = 0; i < 12; i++) entities.update(cameraPos, 1000, camera);
+
+    expect(whale.frames).toBe(12);
+    expect(named.frames).toBe(12);
+    expect(minnow.frames).toBe(3);
+    // Once when first met, then on each entity's turn: never every frame,
+    // and never for an entity that names its own radius.
+    expect(asks).toBe(2 + 3 + 3);
+
+    // The body shrinks (a calf takes its place): bounded anew by its turn.
+    reaches.set("whale", 1);
+    for (let i = 0; i < 12; i++) entities.update(cameraPos, 1000, camera);
+    expect(whale.frames).toBe(12 + 3 + 3);
+  });
+
+  it("hides by distance from where the server put an entity whose group stays at the origin", () => {
+    class Hideable extends FrameProbe {
+      public hidden: boolean | null = null;
+      setHidden = (hidden: boolean) => {
+        this.hidden = hidden;
+      };
+    }
+    const entities = new Entities();
+    entities.setClass("probe", Hideable);
+    entities.onMessage(
+      entityMessage("CREATE", "close", { position: [200, 0, -10] }),
+    );
+    entities.onMessage(
+      entityMessage("CREATE", "far", { position: [200, 0, -400] }),
+    );
+    const close = entities.getEntityById("close") as unknown as Hideable;
+    const far = entities.getEntityById("far") as unknown as Hideable;
+
+    entities.update(new Vector3(200, 0, 0), 64);
+
+    expect(close.hidden).toBe(false);
+    expect(close.frames).toBe(1);
+    expect(far.hidden).toBe(true);
+    expect(far.frames).toBe(0);
+  });
 });
 
 describe("Entity scene walk", () => {
@@ -834,5 +932,125 @@ describe("Entities on-request metadata", () => {
     expect(requests(entities)).toEqual([
       { name: ON_REQUEST_METADATA_METHOD, payload: { on: false } },
     ]);
+  });
+});
+
+describe("Entities metadata a server repeats", () => {
+  type CreatureData = ProbeData & {
+    wander?: { state: { kind: string; since: number }; home: number[] };
+    herd?: { id: string; members: string[] };
+  };
+
+  class CreatureEntity extends Entity<CreatureData> {}
+
+  function makeCreatures(): Entities {
+    const entities = new Entities();
+    entities.setClass("creature", CreatureEntity);
+    return entities;
+  }
+
+  const whole = (since: number, members: string[] = ["a", "b"]) => ({
+    wander: { state: { kind: "Wandering", since }, home: [4, 60, -2] },
+    herd: { id: "h1", members },
+    name: "Doe",
+  });
+
+  function createCreature(entities: Entities): CreatureEntity {
+    entities.onMessage(
+      entityMessage(
+        "CREATE",
+        "c1",
+        { position: [0, 0, 0], ...whole(10) } as Partial<ProbeData>,
+        { type: "creature" },
+      ),
+    );
+    return entities.map.get("c1") as CreatureEntity;
+  }
+
+  const update = (entities: Entities, metadata: object) =>
+    entities.onMessage(
+      entityMessage("UPDATE", "c1", metadata as Partial<ProbeData>, {
+        type: "creature",
+      }),
+    );
+
+  it("keeps the value it holds when the same one arrives again", () => {
+    const entities = makeCreatures();
+    const creature = createCreature(entities);
+    const held = creature.metadata!;
+
+    // One key changed, so the server sent the creature's whole metadata.
+    update(entities, whole(25));
+
+    const merged = creature.metadata!;
+    expect(merged.wander).toEqual(whole(25).wander);
+    expect(merged.wander).not.toBe(held.wander);
+    // What did not change is the very value that was here already.
+    expect(merged.herd).toBe(held.herd);
+    expect(merged.name).toBe("Doe");
+    expect(merged.position).toBe(held.position);
+  });
+
+  it("takes a value that differs anywhere inside it", () => {
+    const entities = makeCreatures();
+    const creature = createCreature(entities);
+    const held = creature.metadata!;
+
+    update(entities, whole(10, ["a", "b", "c"]));
+    expect(creature.metadata!.herd).toEqual({
+      id: "h1",
+      members: ["a", "b", "c"],
+    });
+    expect(creature.metadata!.herd).not.toBe(held.herd);
+    expect(creature.metadata!.wander).toBe(held.wander);
+
+    // Fewer keys is a difference too, and so is an array against an object.
+    update(entities, { wander: { state: { kind: "Wandering", since: 10 } } });
+    expect(creature.metadata!.wander).toEqual({
+      state: { kind: "Wandering", since: 10 },
+    });
+    update(entities, { herd: ["a", "b", "c"] });
+    expect(creature.metadata!.herd).toEqual(["a", "b", "c"]);
+    update(entities, { herd: null });
+    expect(creature.metadata!.herd).toBeNull();
+  });
+
+  it("still hands every update a metadata object of its own", () => {
+    const entities = makeCreatures();
+    const creature = createCreature(entities);
+    const held = creature.metadata!;
+    update(entities, whole(10));
+    expect(creature.metadata).not.toBe(held);
+    expect(creature.metadata).toEqual(held);
+  });
+
+  it("keeps a target whose identity arrives unchanged, with its position", () => {
+    const entities = makeCreatures();
+    const creature = createCreature(entities);
+    update(entities, { target: { targetType: "Player", id: "p1" } });
+    entities.onMessage(
+      entityMessage("UPDATE", "c1", null, {
+        type: "creature",
+        motion: { position: [1, 0, 0], targetPosition: [9, 9, 9] },
+      }),
+    );
+    const tracked = creature.metadata!.target;
+    expect(tracked).toEqual({
+      targetType: "Player",
+      id: "p1",
+      position: [9, 9, 9],
+    });
+
+    // The metadata lane repeats the identity: nothing about it changed.
+    update(entities, { target: { targetType: "Player", id: "p1" } });
+    expect(creature.metadata!.target).toBe(tracked);
+
+    // A new identity lays over the held target and keeps its position.
+    update(entities, { target: { targetType: "Entity", id: "e7" } });
+    expect(creature.metadata!.target).toEqual({
+      targetType: "Entity",
+      id: "e7",
+      position: [9, 9, 9],
+    });
   });
 });

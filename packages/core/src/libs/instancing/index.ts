@@ -8,6 +8,7 @@ export * from "./instanced-entity";
 export * from "./instanced-entity-roster";
 export * from "./instanced-skinned-material";
 export * from "./leg-length";
+export * from "./mesh-reach";
 export * from "./mesh-top";
 export * from "./pool-warmup";
 export * from "./skinned-instance-pool";

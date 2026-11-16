@@ -12,6 +12,8 @@ sources:
   - examples/client/src/critters.ts
   - examples/server/worlds/shared/methods.rs
   - packages/core/src/libs/motion/stride-gait.ts
+  - packages/core/src/core/entities.ts
+  - packages/core/src/libs/instancing/mesh-reach.ts
 ---
 
 # Instanced entities in Voxelize
@@ -105,6 +107,16 @@ critters.install({ entities, roster, world, lightAt, entity: Critter });
 ```
 
 Or subclass `InstancedEntity` directly with your own `SkinnedInstancePool` and `animate(time, deltaTime)` using `setBone(index, matrix)`. Override `resolveMotion` to attach to a rider, `bodyPitch`/`bodyRoll` to bank, `readVariant` if the variant lives under another key. `markHit()` flashes the instance.
+
+## 5. Off-screen updates
+
+`new Entities({ offscreenUpdateInterval: 4 })` poses an entity on one frame in four while it is out of view and more than 16 blocks from the camera (pass the camera to `entities.update`). "Out of view" is a sphere around the entity, so it has to be the right sphere:
+
+- **Where.** The entity's own `position`. A class that leaves its group at the origin and poses a child in world space is judged by the position the server last sent.
+- **How big.** An `InstancedEntity` bounds itself: its variant's measured reach (`rig.reach`, the farthest rest-pose vertex from the origin) times its `size`. Any other class gets two blocks unless it sets `offscreenRadius`, or the game answers for all its classes in one place with the `offscreenRadiusOf` option (`pool.getInstanceReach(slot)` is a pooled body's reach at the scale it was last drawn).
+- **Never.** An entity that must move every frame wherever it is (a carried light, a projectile) sets `offscreenUpdateInterval = 1`.
+
+A body bigger than its sphere is posed at a quarter of the frame rate while its far end is on screen: it reads as a stutter in a wing or a tail at the edge of the view.
 
 ## Verify
 

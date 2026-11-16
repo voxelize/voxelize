@@ -58,6 +58,41 @@ function isJsonObject(
   return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 
+/** Whether two decoded metadata values say the same thing. */
+function isSameJson(
+  a: JsonValue | undefined,
+  b: JsonValue | undefined,
+): boolean {
+  if (a === b) return true;
+  if (
+    typeof a !== "object" ||
+    typeof b !== "object" ||
+    a === null ||
+    b === null
+  ) {
+    return false;
+  }
+  if (Array.isArray(a)) {
+    if (!Array.isArray(b) || a.length !== b.length) return false;
+    for (let i = 0; i < a.length; i++) {
+      if (!isSameJson(a[i], b[i])) return false;
+    }
+    return true;
+  }
+  if (Array.isArray(b)) return false;
+  let shared = 0;
+  for (const key in a) {
+    if (!(key in b) || !isSameJson(a[key], b[key])) return false;
+    shared += 1;
+  }
+  // Every key of `a` is in `b` and agrees; `b` must hold no others.
+  let total = 0;
+  for (const key in b) {
+    if (key in b) total += 1;
+  }
+  return total === shared;
+}
+
 /**
  * Merge an incoming (possibly partial) metadata update over the accumulated
  * map. `target` straddles the two replication lanes — identity
@@ -66,18 +101,46 @@ function isJsonObject(
  * carries no `position` of its own must never clobber the motion-maintained
  * one. An explicit incoming `position` (legacy full snapshots, or null)
  * still wins.
+ *
+ * A value that arrives saying what the held one already says keeps the held
+ * one. A server resends an entity's whole metadata when one key of it
+ * changes, so most of what arrives is a copy of what is here; taking the
+ * copies would retire values that have lived for seconds each time, and
+ * memory that old is only reclaimed by a major collection, whose pause is
+ * long enough to drop a frame. Left alone, the copy is freed young, for
+ * nothing. It also means a key that did not change keeps its identity.
  */
 function mergeMetadataUpdate(
   previous: MutableMetadata | null | undefined,
   incoming: MutableMetadata | null | undefined,
 ): MutableMetadata {
-  const merged: MutableMetadata = { ...(previous ?? {}), ...(incoming ?? {}) };
-  const previousTarget = previous?.target;
-  const incomingTarget = incoming?.target;
-  if (isJsonObject(previousTarget) && isJsonObject(incomingTarget)) {
-    merged.target = { ...previousTarget, ...incomingTarget };
+  const merged: MutableMetadata = { ...(previous ?? {}) };
+  if (!incoming) return merged;
+  for (const key in incoming) {
+    const arrived = incoming[key];
+    const held = previous?.[key];
+    if (key === "target" && isJsonObject(held) && isJsonObject(arrived)) {
+      merged.target = mergeTarget(held, arrived);
+    } else {
+      merged[key] = isSameJson(held, arrived) ? (held as JsonValue) : arrived;
+    }
   }
   return merged;
+}
+
+/** The held target with what arrived laid over it, or the held one itself
+ * when nothing that arrived differs from it. */
+function mergeTarget(
+  held: { [key: string]: JsonValue },
+  arrived: { [key: string]: JsonValue },
+): { [key: string]: JsonValue } {
+  let merged: { [key: string]: JsonValue } | null = null;
+  for (const key in arrived) {
+    if (key in held && isSameJson(held[key], arrived[key])) continue;
+    merged ??= { ...held };
+    merged[key] = arrived[key];
+  }
+  return merged ?? held;
 }
 
 /**
@@ -176,8 +239,10 @@ export class Entity<T = any> extends Group {
   offscreenUpdateInterval?: number;
 
   /**
-   * Blocks around `position` that bound what the entity draws, for the
-   * off-screen test. Unset, {@link OFFSCREEN_DEFAULT_RADIUS}.
+   * Blocks around the entity that bound what it draws, for the off-screen
+   * test: around its group's `position`, or around the position the server
+   * last gave it when its class leaves the group at the origin and poses a
+   * child in world space. Unset, {@link OFFSCREEN_DEFAULT_RADIUS}.
    */
   offscreenRadius?: number;
 }
@@ -225,6 +290,16 @@ export type EntitiesOptions = {
    * {@link Entities.update}.
    */
   offscreenUpdateInterval: number;
+
+  /**
+   * Blocks around an entity that bound what it draws, for an entity that
+   * names no {@link Entity.offscreenRadius} of its own: the one place for a
+   * game whose classes share a way to say what they draw (a pool slot, a
+   * model), instead of a number on each class. Asked on the entity's turn
+   * of `offscreenUpdateInterval` and remembered in between. An answer under
+   * {@link OFFSCREEN_DEFAULT_RADIUS}, or none, leaves the default.
+   */
+  offscreenRadiusOf?: (entity: Entity) => number | undefined;
 };
 
 const defaultOptions: EntitiesOptions = {
@@ -587,10 +662,57 @@ export class Entities extends Group implements NetIntercept {
     frustum: new Frustum(),
     matrix: new Matrix4(),
     sphere: new Sphere(),
+    place: new Vector3(),
     frame: 0,
     phases: new WeakMap<Entity, number>(),
     nextPhase: 0,
+    askedRadii: new WeakMap<Entity, number>(),
   };
+
+  /**
+   * The radius of the sphere the off-screen test puts around `entity`: its
+   * own {@link Entity.offscreenRadius}, else what
+   * {@link EntitiesOptions.offscreenRadiusOf} last answered for it (asked
+   * again when `isRefreshing`), else the default.
+   */
+  private boundOf(entity: Entity, isRefreshing: boolean): number {
+    const own = entity.offscreenRadius;
+    if (own !== undefined) return own;
+    const ask = this.options.offscreenRadiusOf;
+    if (!ask) return OFFSCREEN_DEFAULT_RADIUS;
+    const asked = this.view.askedRadii;
+    let radius = isRefreshing ? undefined : asked.get(entity);
+    if (radius === undefined) {
+      radius = Math.max(OFFSCREEN_DEFAULT_RADIUS, ask(entity) ?? 0);
+      asked.set(entity, radius);
+    }
+    return radius;
+  }
+
+  /**
+   * Where `entity` is, for the distance and off-screen tests: its group's
+   * position, or, for a class that leaves the group at the origin and poses
+   * a child in world space, the position the server last gave it. Judged by
+   * its group alone, such an entity stood at the world origin: in plain view
+   * anywhere else, it was posed on one frame in
+   * {@link EntitiesOptions.offscreenUpdateInterval}. The answer is a
+   * scratch vector, good until the next call.
+   */
+  private placeOf(entity: Entity): Vector3 {
+    const own = entity.position;
+    if (own.x !== 0 || own.y !== 0 || own.z !== 0) return own;
+    const replicated = (entity.metadata as MutableMetadata | null)?.position;
+    if (!Array.isArray(replicated)) return own;
+    const [x, y, z] = replicated;
+    if (
+      typeof x !== "number" ||
+      typeof y !== "number" ||
+      typeof z !== "number"
+    ) {
+      return own;
+    }
+    return this.view.place.set(x, y, z);
+  }
 
   /**
    * Whether `entity` sits out this frame: off screen, away from the camera,
@@ -606,14 +728,22 @@ export class Entities extends Group implements NetIntercept {
       phase = view.nextPhase++;
       view.phases.set(entity, phase);
     }
-    if ((view.frame + phase) % interval === 0) return false;
-    const near = OFFSCREEN_NEAR_DISTANCE;
-    if (entity.position.distanceToSquared(cameraPos) < near * near) {
+    if ((view.frame + phase) % interval === 0) {
+      // A body that grew or changed since its last turn is bounded anew.
+      this.boundOf(entity, true);
       return false;
     }
-    view.sphere.center.copy(entity.position);
-    view.sphere.radius =
-      (entity.offscreenRadius ?? OFFSCREEN_DEFAULT_RADIUS) + OFFSCREEN_MARGIN;
+    const radius = this.boundOf(entity, false);
+    // Near is measured to the body, not its middle: a long one counts as
+    // close while any of it is.
+    const near =
+      OFFSCREEN_NEAR_DISTANCE + Math.max(0, radius - OFFSCREEN_DEFAULT_RADIUS);
+    const place = this.placeOf(entity);
+    if (place.distanceToSquared(cameraPos) < near * near) {
+      return false;
+    }
+    view.sphere.center.copy(place);
+    view.sphere.radius = radius + OFFSCREEN_MARGIN;
     return !view.frustum.intersectsSphere(view.sphere);
   }
 
@@ -650,7 +780,7 @@ export class Entities extends Group implements NetIntercept {
     this.map.forEach((entity) => {
       if (renderDistSq > 0 && cameraPos && entity.setHidden) {
         const isTooFar =
-          entity.position.distanceToSquared(cameraPos) > renderDistSq;
+          this.placeOf(entity).distanceToSquared(cameraPos) > renderDistSq;
         entity.setHidden(isTooFar);
         if (isTooFar) {
           // Keep tracking the server position while invisible so the entity

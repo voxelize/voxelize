@@ -1,6 +1,6 @@
 import * as THREE from "three/webgpu";
 
-import { Entity } from "../../core/entities";
+import { Entity, OFFSCREEN_DEFAULT_RADIUS } from "../../core/entities";
 import type { World } from "../../core/world";
 import type { Coords3 } from "../../types";
 import { dampPosition } from "../motion/damp-position";
@@ -276,6 +276,7 @@ export abstract class InstancedEntity<
       this.slot === -1
         ? null
         : pool.getRigInfo(this.variant, this.isBaby) ?? null;
+    this.refreshOffscreenRadius();
   }
 
   protected releaseSlot(): void {
@@ -283,6 +284,7 @@ export abstract class InstancedEntity<
     if (pool && this.slot !== -1) pool.free(this.slot);
     this.slot = -1;
     this.rig = null;
+    this.refreshOffscreenRadius();
   }
 
   /// The mesh lives in the old variant's pool, so a live variant change
@@ -295,8 +297,22 @@ export abstract class InstancedEntity<
     this.refreshLight(true);
   }
 
+  /**
+   * The off-screen bound follows the body: the reach of the slot's variant
+   * at this size, never under the default. A large body is then posed every
+   * frame while only its far end is in view.
+   */
+  private refreshOffscreenRadius(): void {
+    this.offscreenRadius = this.rig
+      ? Math.max(OFFSCREEN_DEFAULT_RADIUS, this.rig.reach * this.size)
+      : undefined;
+  }
+
   private readCommon(data: TData): void {
-    if (data.size !== undefined) this.size = data.size;
+    if (data.size !== undefined && data.size !== this.size) {
+      this.size = data.size;
+      this.refreshOffscreenRadius();
+    }
     if (data.baby !== undefined) this.isBaby = data.baby;
     const variant = this.readVariant(data);
     if (variant !== undefined) this.variant = variant;

@@ -4,6 +4,7 @@ import * as THREE from "three/webgpu";
 import { describe, it } from "vitest";
 
 import { defineSkinnedFamily } from "./define-skinned-family";
+import { InstancedEntity } from "./instanced-entity";
 import {
   ownedTextureSource,
   SkinnedFamilyConfig,
@@ -117,6 +118,32 @@ describe("SkinnedInstancePool", () => {
     pool.dispose();
   });
 
+  it("measures how far a body reaches, at the scale of the root it was given", () => {
+    const pool = new SkinnedInstancePool(testConfig(), 2);
+    // The head's far top corner: (0.15, 0.95, 0.65).
+    const reach = Math.hypot(0.15, 0.95, 0.65);
+    assert.ok(Math.abs((pool.getRigInfo("a")?.reach ?? 0) - reach) < 1e-6);
+
+    const slot = pool.allocate("a");
+    const root = new THREE.Matrix4().compose(
+      new THREE.Vector3(40, 3, -12),
+      new THREE.Quaternion().setFromEuler(new THREE.Euler(0.4, 1.1, -0.2)),
+      new THREE.Vector3(3, 3, 3),
+    );
+    pool.setInstanceMatrix(slot, root);
+    assert.ok(Math.abs(pool.getInstanceReach(slot) - reach * 3) < 1e-4);
+
+    pool.setInstanceMatrix(slot, new THREE.Matrix4().makeScale(0, 0, 0));
+    assert.equal(
+      pool.getInstanceReach(slot),
+      0,
+      "a hidden body reaches nowhere",
+    );
+    pool.free(slot);
+    assert.equal(pool.getInstanceReach(slot), 0, "a freed slot draws nothing");
+    pool.dispose();
+  });
+
   it("seeds and toggles the emissive attribute", () => {
     const pool = new SkinnedInstancePool(
       testConfig({ emissive: (variant) => (variant === "a" ? 1 : 0) }),
@@ -128,6 +155,36 @@ describe("SkinnedInstancePool", () => {
     assert.equal(attr.getX(0), 1);
     pool.setEmissive(slot, 0);
     assert.equal(attr.getX(0), 0);
+    pool.dispose();
+  });
+});
+
+describe("InstancedEntity", () => {
+  class Probe extends InstancedEntity<
+    { position: [number, number, number]; size?: number },
+    "a" | "b"
+  > {
+    protected animate(): void {}
+  }
+
+  it("bounds itself for the off-screen test by its body at its size", () => {
+    const pool = new SkinnedInstancePool(testConfig(), 2);
+    const reach = Math.hypot(0.15, 0.95, 0.65);
+    const probe = new Probe("p", pool);
+    assert.equal(probe.offscreenRadius, undefined, "no body, no bound");
+
+    probe.onCreate({ position: [10, 0, 10], size: 6 });
+    assert.ok(Math.abs((probe.offscreenRadius ?? 0) - reach * 6) < 1e-6);
+
+    probe.onUpdate({ position: [10, 0, 10], size: 9 });
+    assert.ok(Math.abs((probe.offscreenRadius ?? 0) - reach * 9) < 1e-6);
+
+    // A small body keeps the default: its shadow and name still need room.
+    probe.onUpdate({ position: [10, 0, 10], size: 1 });
+    assert.equal(probe.offscreenRadius, 2);
+
+    probe.onDelete();
+    assert.equal(probe.offscreenRadius, undefined);
     pool.dispose();
   });
 });
