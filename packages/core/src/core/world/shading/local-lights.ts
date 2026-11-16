@@ -32,6 +32,7 @@ import {
   vec4,
 } from "three/tsl";
 
+import { BLOCK_LIGHT_HUE_RAMP_LEVEL } from "../block-light-transfer";
 import type { LocalLightAirlight } from "../local-lights/airlight";
 import { AIRLIGHT_SLOTS } from "../local-lights/airlight";
 import {
@@ -336,6 +337,34 @@ export function localLightShading(
     smoothstep(0, g.maskKnee, max(max(flood.x, flood.y), flood.z));
 
   /**
+   * Where a light's light leaves from, as a point sees it: its position,
+   * or for a capsule the closest point on its segment.
+   */
+  const originAt = (
+    rec: IntNode,
+    t0: Vec4Node,
+    shape: IntNode,
+    pos: Vec3Node,
+  ) => {
+    const origin = vec3(t0.xyz).toVar();
+    If(shape.equal(SHAPE_CAPSULE), () => {
+      const axis = record(rec, 2).xyz;
+      const len2 = max(dot(axis, axis), 1e-6);
+      const t = clamp(dot(pos.sub(t0.xyz), axis).div(len2), 0, 1);
+      origin.assign(t0.xyz.add(axis.mul(t)));
+    });
+    return origin;
+  };
+
+  /**
+   * One light's share of the hue around a point (`lightHue`): its colour by
+   * the inverse square of its distance, in its reach or past it, by its
+   * slot's fade. The one expression every surface's hue is summed from.
+   */
+  const hueShare = (t1: Vec4Node, d2: FloatNode, slotWeight: FloatNode) =>
+    t1.xyz.mul(slotWeight.div(d2.add(1)));
+
+  /**
    * One clustered light at a fragment, all but its shadow map: adds the
    * light's claim and hue, and returns its light (zero beyond its reach).
    * A cell's slots and its overflow both come through here.
@@ -355,14 +384,7 @@ export function localLightShading(
     const flags = flagsOf(t1);
     const shape = flags.shiftRight(SHAPE_SHIFT);
 
-    const origin = vec3(t0.xyz).toVar();
-    If(shape.equal(SHAPE_CAPSULE), () => {
-      // Capsule: light from the closest point on the segment.
-      const axis = record(rec, 2).xyz;
-      const len2 = max(dot(axis, axis), 1e-6);
-      const t = clamp(dot(pos.sub(t0.xyz), axis).div(len2), 0, 1);
-      origin.assign(t0.xyz.add(axis.mul(t)));
-    });
+    const origin = originAt(rec, t0, shape, pos);
     // A flame breathes and shivers: its brightness and, by a few
     // centimetres, the point its light leaves from. Only the lit colour
     // moves: the claim (and so the flood it hands back) and the shadow map
@@ -378,7 +400,7 @@ export function localLightShading(
 
     const toLight = origin.sub(pos);
     const d2 = dot(toLight, toLight);
-    lightHue.addAssign(t1.xyz.mul(slotWeight.div(d2.add(1))));
+    lightHue.addAssign(hueShare(t1, d2, slotWeight));
     const range = t0.w;
     If(d2.lessThan(range.mul(range)), () => {
       const dist = sqrt(max(d2, 1e-6));
@@ -492,6 +514,32 @@ export function localLightShading(
   };
 
   /**
+   * The hue of the lights around a point and nothing else: `surface`'s
+   * `lightHue` for a surface that takes none of their light, summed over
+   * the same slots and overflow by the same share.
+   */
+  const hueAround = (cell: IntNode, pos: Vec3Node, lightHue: Vec3Node) => {
+    for (const perCell of [MAX_LIGHTS_PER_CELL, OVERFLOW_SLOTS_PER_CELL]) {
+      Loop({ start: int(0), end: int(perCell) }, ({ i }) => {
+        const slot = slotOf(cell, i, perCell);
+        If(slot.row.equal(0), () => {
+          Break();
+        });
+        const rec = slot.row.sub(1);
+        const t0 = record(rec, 0);
+        const t1 = record(rec, 1);
+        const toLight = originAt(
+          rec,
+          t0,
+          flagsOf(t1).shiftRight(SHAPE_SHIFT),
+          pos,
+        ).sub(pos);
+        lightHue.addAssign(hueShare(t1, dot(toLight, toLight), slot.weight));
+      });
+    }
+  };
+
+  /**
    * The clustered response at a surface point: the summed light of the
    * cell's slots (shadow-mapped where granted) and its overflow, the share
    * of the baked flood the fragment still keeps (`floodRemainder`, 1 where
@@ -499,6 +547,14 @@ export function localLightShading(
    * the flood's spent channels (`lightHue`). `gate`, when given, is false
    * for a fragment that draws nothing (a cutout's hole): it takes the
    * answer of a cell with no lights and runs none of this.
+   *
+   * `slotLimit` 0 is a surface that takes no clustered light and keeps its
+   * whole flood (a fluid: it pays for refraction instead). It still takes
+   * the hue, so its flood ends the colour the ground's beside it does. A
+   * fluid face carries its own voxel's level, flat, so without the hue a
+   * coloured emitter's flood lost a spent channel a whole block at a time:
+   * the fluid inside that channel's reach stood apart from the rest of the
+   * same pool as a patch with the outline of the flood's diamond.
    */
   const surface = (
     pos: Vec3Node,
@@ -511,12 +567,24 @@ export function localLightShading(
     const total = vec3(0).toVar();
     const floodRemainder = float(1).toVar();
     const lightHue = vec3(0).toVar();
-    if (slotLimit === 0) return { total, floodRemainder, lightHue };
 
     const cell = cellOf(pos);
     const hasLights = g.clusteredCount
       .greaterThan(0)
       .and(cell.greaterThanEqual(0));
+    if (slotLimit === 0) {
+      // Only a flood with a channel under its first level borrows a hue
+      // (`blockLightCurveFilledNode`): every other fragment skips the sum.
+      const peak = max(max(flood.x, flood.y), flood.z);
+      const spent = min(min(flood.x, flood.y), flood.z).lessThan(
+        BLOCK_LIGHT_HUE_RAMP_LEVEL,
+      );
+      const borrows = hasLights.and(peak.greaterThan(0)).and(spent);
+      If(gate ? gate.and(borrows) : borrows, () => {
+        hueAround(cell, pos, lightHue);
+      });
+      return { total, floodRemainder, lightHue };
+    }
     If(gate ? gate.and(hasLights) : hasLights, () => {
       const mask = floodMask(flood);
       const fade = windowFade(pos);

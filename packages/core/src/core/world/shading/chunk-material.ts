@@ -1056,6 +1056,7 @@ export class ChunkMaterial extends NodeMaterial {
     // Analytic ownership of block light: where clustered lights claim this
     // fragment, the baked flood yields (floodRemainder -> 0) and the
     // per-pixel model is the visible block light, so nothing double-lights.
+    // A fluid takes none of their light (slot limit 0), only their hue.
     const cluster = local.surface(
       v.worldPosition,
       normal,
