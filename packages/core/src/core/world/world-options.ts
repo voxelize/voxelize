@@ -85,7 +85,16 @@ export type WorldClientOptions = {
   borderSwapHoldMs: number;
 
   /**
-   * Dedicated mesh workers reserved for client-originated voxel edits.
+   * Mesh workers for the world's own chunks, never more than the device has
+   * cores. Each holds the mesher and its copy of the block registry (tens
+   * of megabytes), so a page that loads few chunks, or runs on a device
+   * short of memory, asks for fewer. Defaults to 4.
+   */
+  maxMeshWorkers: number;
+
+  /**
+   * Dedicated mesh workers reserved for client-originated voxel edits,
+   * never more than `maxMeshWorkers`.
    */
   maxUrgentMeshWorkers: number;
 
@@ -566,6 +575,7 @@ export const defaultWorldClientOptions: WorldClientOptions = {
   maxMeshesPerUpdate: 32,
   meshJobsInFlight: 2,
   borderSwapHoldMs: 20000,
+  maxMeshWorkers: 4,
   maxUrgentMeshWorkers: 4,
   isCullingChunksByFrustum: true,
   chunkCullShadowSafeDistance: 160,

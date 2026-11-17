@@ -612,6 +612,15 @@ onmessage = function (e) {
 
   if (type === "init") {
     registry = Registry.deserialize(e.data.registryData);
+    // Light reads a block's levels, transparency and pattern rules, never
+    // its faces, and the faces are most of a registry: with them each light
+    // worker held twice what it uses.
+    for (const block of registry.blocksById.values()) {
+      block.faces = [];
+      for (const pattern of block.dynamicPatterns ?? []) {
+        for (const part of pattern.parts) part.faces = [];
+      }
+    }
     return;
   }
 

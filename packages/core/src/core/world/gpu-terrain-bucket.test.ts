@@ -12,6 +12,7 @@ import {
   GpuTerrainArenas,
   GpuTerrainBucket,
   GpuTerrainCulls,
+  startVertexCapacity,
 } from "./gpu-terrain-bucket";
 import { markShadowView } from "./shadow-casters";
 import { POSITION_BLOCK_BIAS } from "./vertex-quantization";
@@ -70,6 +71,28 @@ type Internals = {
   flags: BufferAttribute;
   slots: Map<string, { id: number; vertexStart: number; indexStart: number }>;
 };
+
+describe("a bucket's starting room", () => {
+  const FULL = 5 * 1024 * 1024;
+
+  it("is the full room at the radius it was sized for and past it", () => {
+    expect(startVertexCapacity(FULL, 8)).toBe(FULL);
+    expect(startVertexCapacity(FULL, 16)).toBe(FULL);
+  });
+
+  it("is the share of it a smaller radius loads", () => {
+    // 9 x 9 chunks of 17 x 17.
+    expect(startVertexCapacity(FULL, 4)).toBe(Math.ceil((FULL * 81) / 289));
+    expect(startVertexCapacity(FULL, 2)).toBeLessThan(
+      startVertexCapacity(FULL, 4),
+    );
+  });
+
+  it("never starts below a small bucket's room, nor above its own", () => {
+    expect(startVertexCapacity(FULL, 0)).toBeGreaterThanOrEqual(1 << 17);
+    expect(startVertexCapacity(1 << 14, 4)).toBe(1 << 14);
+  });
+});
 
 describe("GpuTerrainBucket", () => {
   it("writes a section's vertices, ids, rebased indices and record", () => {

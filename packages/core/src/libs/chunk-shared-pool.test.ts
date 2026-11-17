@@ -95,4 +95,43 @@ describe("the shared chunk pool keeps a chunk's data where workers read it", () 
     expect(second.lights.data[CELLS / 2 - 1]).toBe(5);
     expect(second.lights.data[CELLS / 2]).toBe(0);
   });
+
+  it("costs what the chunks it holds do, not its full size from the first one", () => {
+    const pool = ChunkSharedPool.getInstance();
+    const bytesPerSlot = CELLS * Uint32Array.BYTES_PER_ELEMENT * 2;
+    pool.ensureChunk(chunkAt(0, 0, 1));
+    const oneBlock = pool.getStats().bytesAllocated;
+    expect(oneBlock).toBeLessThan(pool.getStats().maxSlots * bytesPerSlot);
+
+    // A released slot is taken again before any new room is made.
+    pool.releaseChunk("chunk-0-0");
+    pool.ensureChunk(chunkAt(5, 5, 2));
+    expect(pool.getStats().bytesAllocated).toBe(oneBlock);
+
+    const chunks: RawChunk[] = [];
+    const slots = oneBlock / bytesPerSlot;
+    for (let i = 0; i < slots * 2; i++) {
+      const chunk = chunkAt(i, 1, i + 10);
+      expect(pool.ensureChunk(chunk)).toBe(true);
+      chunks.push(chunk);
+    }
+    expect(pool.getStats().bytesAllocated).toBe(oneBlock * 3);
+    // Chunks on different blocks each keep their own data.
+    chunks.forEach((chunk, i) => {
+      expect(chunk.voxels.data.every((voxel) => voxel === i + 10)).toBe(true);
+      expect(chunk.lights.data.every((light) => light === i + 110)).toBe(true);
+    });
+  });
+
+  it("holds no more chunks than its slots", () => {
+    const pool = ChunkSharedPool.getInstance();
+    const { maxSlots } = pool.getStats();
+    for (let i = 0; i < maxSlots; i++) {
+      expect(pool.ensureChunk(chunkAt(i, 2, 1))).toBe(true);
+    }
+    const extra = chunkAt(0, 3, 1);
+    expect(pool.ensureChunk(extra)).toBe(false);
+    expect(isOnPool(extra)).toBe(false);
+    expect(pool.getStats().usedSlots).toBe(maxSlots);
+  });
 });

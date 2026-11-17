@@ -168,6 +168,7 @@ import {
   GpuTerrainArenas,
   GpuTerrainBucket,
   GpuTerrainCulls,
+  startVertexCapacity,
 } from "./gpu-terrain-bucket";
 import { HeldServerUpdates } from "./held-server-updates";
 import { ItemDef, ItemRegistry } from "./items";
@@ -1901,7 +1902,10 @@ export class World<T = any> extends Scene implements NetIntercept {
       ...options,
     });
 
-    const maxMeshWorkers = Math.min(navigator.hardwareConcurrency ?? 4, 4);
+    const maxMeshWorkers = Math.max(
+      1,
+      Math.min(navigator.hardwareConcurrency ?? 4, this.options.maxMeshWorkers),
+    );
     const { maxQueuedWorkerJobs } = this.options;
 
     this.swayProfileTable = arrayUniform(
@@ -8876,7 +8880,10 @@ export class World<T = any> extends Scene implements NetIntercept {
    */
   private makeGpuTerrain(
     bucket: string,
-    vertexCapacity = GPU_TERRAIN_CAPACITY[bucket] ?? 1 << 17,
+    vertexCapacity = startVertexCapacity(
+      GPU_TERRAIN_CAPACITY[bucket] ?? 1 << 17,
+      this.renderRadius,
+    ),
     // A bucket made in play stays hidden until its culls compile; one made
     // for the load warmup is compiled with the scene, so it shows.
     compilesAhead = this.gpuTerrainRenderer !== null,

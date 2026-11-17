@@ -2,7 +2,9 @@ import type { RawChunk } from "../core/world/raw-chunk";
 
 type SlotRecord = {
   key: string;
+  slotIndex: number;
   elementCount: number;
+  buffer: SharedArrayBuffer;
   voxelsByteOffset: number;
   lightsByteOffset: number;
 };
@@ -15,11 +17,19 @@ export type ChunkSharedPoolStats = {
 };
 
 const DEFAULT_MAX_SLOTS = 512;
+/**
+ * Slots a block of the pool holds. The pool was one buffer for every slot,
+ * made at the first chunk: a quarter of a gigabyte on a page that would
+ * load eighty chunks, which a phone's tab did not survive. It is made a
+ * block at a time now, as chunks need the room, so it costs what the loaded
+ * chunks do.
+ */
+const SLOTS_PER_BLOCK = 32;
 
 export class ChunkSharedPool {
   private static instance: ChunkSharedPool | null = null;
 
-  private buffer: SharedArrayBuffer | null = null;
+  private blocks: SharedArrayBuffer[] = [];
   private maxSlots: number;
   private elementCountPerSlot = 0;
   private slots = new Map<string, SlotRecord>();
@@ -50,10 +60,13 @@ export class ChunkSharedPool {
 
   getStats(): ChunkSharedPoolStats {
     return {
-      isActive: this.buffer !== null,
+      isActive: this.blocks.length > 0,
       maxSlots: this.maxSlots,
       usedSlots: this.slots.size,
-      bytesAllocated: this.buffer?.byteLength ?? 0,
+      bytesAllocated: this.blocks.reduce(
+        (bytes, block) => bytes + block.byteLength,
+        0,
+      ),
     };
   }
 
@@ -82,8 +95,8 @@ export class ChunkSharedPool {
     const held = this.slots.get(key);
     if (held) {
       if (
-        chunk.voxels.data.buffer === this.buffer &&
-        chunk.lights.data.buffer === this.buffer
+        chunk.voxels.data.buffer === held.buffer &&
+        chunk.lights.data.buffer === held.buffer
       ) {
         return true;
       }
@@ -102,11 +115,13 @@ export class ChunkSharedPool {
       return false;
     }
 
-    if (!this.buffer || this.elementCountPerSlot !== elementCount) {
+    if (this.elementCountPerSlot !== elementCount) {
       if (this.slots.size > 0) {
         return false;
       }
-      this.initializeBuffer(elementCount);
+      this.blocks = [];
+      this.freeSlotIndices = [];
+      this.elementCountPerSlot = elementCount;
     }
 
     const slotIndex = this.allocateSlotIndex();
@@ -115,9 +130,16 @@ export class ChunkSharedPool {
     }
 
     const bytesPerArray = elementCount * Uint32Array.BYTES_PER_ELEMENT;
-    const voxelsByteOffset = slotIndex * bytesPerArray * 2;
+    const voxelsByteOffset = (slotIndex % SLOTS_PER_BLOCK) * bytesPerArray * 2;
     const lightsByteOffset = voxelsByteOffset + bytesPerArray;
-    const slot = { key, elementCount, voxelsByteOffset, lightsByteOffset };
+    const slot = {
+      key,
+      slotIndex,
+      elementCount,
+      buffer: this.blocks[Math.floor(slotIndex / SLOTS_PER_BLOCK)],
+      voxelsByteOffset,
+      lightsByteOffset,
+    };
 
     if (!this.moveIn(chunk, slot)) {
       this.freeSlotIndices.push(slotIndex);
@@ -130,17 +152,17 @@ export class ChunkSharedPool {
 
   /** Copies a chunk's arrays into `slot` and points the chunk at the copy. */
   private moveIn(chunk: RawChunk, slot: SlotRecord): boolean {
-    if (!this.buffer || chunk.lights.data.length > slot.elementCount) {
+    if (chunk.lights.data.length > slot.elementCount) {
       return false;
     }
 
     const voxelsView = new Uint32Array(
-      this.buffer,
+      slot.buffer,
       slot.voxelsByteOffset,
       slot.elementCount,
     );
     const lightsView = new Uint32Array(
-      this.buffer,
+      slot.buffer,
       slot.lightsByteOffset,
       slot.elementCount,
     );
@@ -161,26 +183,28 @@ export class ChunkSharedPool {
     const slot = this.slots.get(key);
     if (!slot) return;
 
-    const slotIndex = slot.voxelsByteOffset / (slot.elementCount * 8);
-    this.freeSlotIndices.push(slotIndex);
+    this.freeSlotIndices.push(slot.slotIndex);
     this.slots.delete(key);
   }
 
-  private initializeBuffer(elementCount: number): void {
-    const bytesPerArray = elementCount * Uint32Array.BYTES_PER_ELEMENT;
-    const bytesPerSlot = bytesPerArray * 2;
-    const totalBytes = bytesPerSlot * this.maxSlots;
-
-    this.buffer = new SharedArrayBuffer(totalBytes);
-    this.elementCountPerSlot = elementCount;
-    this.freeSlotIndices = Array.from({ length: this.maxSlots }, (_, i) => i);
-    this.slots.clear();
-  }
-
+  /**
+   * A free slot, from a block already made when one has room; a new block
+   * only when every slot made so far is held, and none past `maxSlots`.
+   */
   private allocateSlotIndex(): number | null {
-    if (this.freeSlotIndices.length === 0) {
-      return null;
+    const free = this.freeSlotIndices.pop();
+    if (free !== undefined) return free;
+
+    const firstSlot = this.blocks.length * SLOTS_PER_BLOCK;
+    const slots = Math.min(SLOTS_PER_BLOCK, this.maxSlots - firstSlot);
+    if (slots <= 0) return null;
+
+    const bytesPerSlot =
+      this.elementCountPerSlot * Uint32Array.BYTES_PER_ELEMENT * 2;
+    this.blocks.push(new SharedArrayBuffer(bytesPerSlot * slots));
+    for (let i = slots - 1; i > 0; i--) {
+      this.freeSlotIndices.push(firstSlot + i);
     }
-    return this.freeSlotIndices.pop() ?? null;
+    return firstSlot;
   }
 }

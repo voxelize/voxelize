@@ -216,6 +216,28 @@ const GROW_AHEAD = 0.75;
  */
 const nextVertexCapacity = (vertices: number) =>
   vertices < 1 << 20 ? vertices * 2 : Math.ceil(vertices * 1.5);
+/** The render radius a bucket's full starting room is sized for. */
+const FULL_START_RADIUS = 8;
+/**
+ * The vertex room a bucket starts with at `renderRadius`, given the room it
+ * takes at a radius of {@link FULL_START_RADIUS} or more: the same share of
+ * it as the share of chunks the radius loads. Every page used to start with
+ * the full room whatever it would load, which at a radius of 4 was most of a
+ * gigabyte of vertex buffers, held twice (the arrays and their GPU copies),
+ * for a quarter of the terrain: a phone's tab was killed for it during the
+ * load. A page that raises its radius later grows its buckets as any full
+ * bucket does.
+ */
+export function startVertexCapacity(
+  fullCapacity: number,
+  renderRadius: number,
+): number {
+  const side = (radius: number) => 2 * radius + 1;
+  const radius = Math.max(1, Math.min(renderRadius, FULL_START_RADIUS));
+  const share = (side(radius) / side(FULL_START_RADIUS)) ** 2;
+  const scaled = Math.max(1 << 17, Math.ceil(fullCapacity * share));
+  return Math.min(fullCapacity, scaled);
+}
 /**
  * A list holding more holes than this share of its length, or longer than
  * this share of its room, is repacked whole (see `buildCull`).
