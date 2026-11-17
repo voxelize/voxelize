@@ -214,6 +214,77 @@ describe("stride gait: the legs swing like pendulums, paced by the ground", () =
     );
   });
 
+  it("a turn on the spot steps the legs, and stops when the turn does", () => {
+    const gait = deerGait();
+    const pos = new Vector3();
+    const turnRate = 2.2;
+    let yaw = 0;
+    const phase0 = gait.phase;
+    for (let i = 0; i < 60; i++) {
+      nowMs += 1000 / 60;
+      yaw += turnRate / 60;
+      gait.update(pos, pos, yaw);
+    }
+    const cycles = (gait.phase - phase0) / TWO_PI;
+    assert.ok(gait.isTurning, "a turning body counts as moving");
+    assert.ok(
+      cycles > 0.6 && cycles < 2.5,
+      `a second of turning takes a step or two, took ${cycles} cycles`,
+    );
+    assert.ok(gait.swingScale < 0.6, "the steps are small ones");
+
+    const phaseAtStop = gait.phase;
+    for (let i = 0; i < 60; i++) {
+      nowMs += 1000 / 60;
+      gait.update(pos, pos, yaw);
+    }
+    assert.equal(gait.phase, phaseAtStop, "facing held, the legs hold");
+    assert.ok(!gait.isTurning);
+  });
+
+  it("a slow drift, a snap and a clock without yaw leave the legs still", () => {
+    const pos = new Vector3();
+
+    const drift = deerGait();
+    let yaw = 0;
+    for (let i = 0; i < 60; i++) {
+      nowMs += 1000 / 60;
+      yaw += 0.2 / 60;
+      drift.update(pos, pos, yaw);
+    }
+    assert.ok(!drift.isTurning, "a 0.2 rad/s drift is not a turn");
+
+    const snap = deerGait();
+    snap.update(pos, pos, 0);
+    nowMs += 1000 / 60;
+    const before = snap.phase;
+    snap.update(pos, pos, Math.PI);
+    assert.equal(snap.phase, before, "a half-turn in one frame is a snap");
+
+    const plain = deerGait();
+    for (let i = 0; i < 30; i++) {
+      nowMs += 1000 / 60;
+      plain.update(pos, pos);
+    }
+    assert.equal(plain.phase, 0, "no yaw passed, no turn steps");
+  });
+
+  it("a whipped turn steps no faster than the calm ceiling", () => {
+    const calm = deerGait();
+    const whipped = deerGait();
+    const pos = new Vector3();
+    let calmYaw = 0;
+    let whippedYaw = 0;
+    for (let i = 0; i < 60; i++) {
+      nowMs += 1000 / 60;
+      calmYaw += 4 / 60;
+      whippedYaw += 20 / 60;
+      calm.update(pos, pos, calmYaw);
+      whipped.update(pos, pos, whippedYaw);
+    }
+    assert.ok(Math.abs(whipped.phase - calm.phase) < 1e-9);
+  });
+
   it("capCadenceHz follows the demand to the knee, then bends to the ceiling", () => {
     assert.equal(capCadenceHz(1, 4, 0.7), 1);
     assert.equal(capCadenceHz(2.8, 4, 0.7), 2.8);

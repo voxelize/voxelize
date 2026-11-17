@@ -214,6 +214,10 @@ export function defineSkinnedFamily<
       this.latest = data;
     }
 
+    protected isSteppingInPlace(): boolean {
+      return this.gait?.isTurning ?? false;
+    }
+
     protected animate(time: number, deltaTime: number): void {
       if (!animate || !this.latest) return;
       const pose = (this.pose ??= this.makePose());
@@ -221,7 +225,7 @@ export function defineSkinnedFamily<
         strideGaitParamsForScale(this.size),
       ));
       gait.fitWalker(this.rig?.legLength, this.size, legSwing);
-      gait.update(this.position, this.targetPosition);
+      gait.update(this.position, this.targetPosition, this.yaw);
       Object.assign(pose, {
         time,
         deltaTime,

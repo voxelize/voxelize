@@ -143,6 +143,15 @@ export abstract class InstancedEntity<
     return 0;
   }
 
+  /**
+   * Whether the body is stepping without travelling (turning on the spot):
+   * `movement` counts it as travel. A family with a stride clock answers
+   * from its `isTurning`.
+   */
+  protected isSteppingInPlace(): boolean {
+    return false;
+  }
+
   onCreate = (data: TData) => {
     this.readCommon(data);
     this.acquireSlot();
@@ -233,7 +242,7 @@ export abstract class InstancedEntity<
     const gap = this.targetPosition.distanceTo(this.position);
     dampPosition(this.position, this.targetPosition, this.positionDamping);
     this.yaw += shortestYawDelta(this.yaw, this.targetYaw) * this.yawDamping;
-    const isMoving = gap > 0.002;
+    const isMoving = gap > 0.002 || this.isSteppingInPlace();
     this.movement +=
       ((isMoving ? 1 : 0) - this.movement) * (isMoving ? 0.08 : 0.05);
   }

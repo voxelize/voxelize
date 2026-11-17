@@ -1,5 +1,7 @@
 import type { Vector3 } from "three/webgpu";
 
+import { shortestYawDelta } from "./yaw";
+
 /// Tunables for one land animal's stride cycle. Swing amplitude and cadence
 /// are both derived from the body's travel, so the legs match the ground
 /// covered instead of windmilling at a fixed arc.
@@ -37,6 +39,11 @@ export interface StrideGaitParams {
   /// toward what the ground asks instead of the feet skating under a
   /// capped beat. 0 keeps the amplitude at the walk swing.
   gallopReachBoost: number;
+  /// Ground the feet sweep for each radian the body turns (world units):
+  /// about how far they stand from the turning point. With it, and the yaw
+  /// passed to `update`, a body turning on the spot takes steps instead of
+  /// rotating over still legs. Unset, a turn does not move the legs.
+  turnRadius?: number;
 }
 
 /// Baseline stride derived from the shared box-critter proportions: leg
@@ -88,6 +95,23 @@ const WALKER_MIN_SWING_SCALE = 0.35;
 const WALKER_CADENCE_KNEE = 0.7;
 /// Legs reach up to 30% further than the walk swing once the ceiling holds.
 const WALKER_GALLOP_REACH_BOOST = 0.3;
+/// A walker's feet stand about this far from its turning point, in leg
+/// lengths. Tied to the leg, a turn takes the same number of steps whatever
+/// the animal's size: about two cycles for a half turn at the creep swing.
+const WALKER_TURN_RADIUS_PER_LEG = 0.8;
+/// Share of a turn's foot sweep the legs step for. The feet sweep sideways
+/// and the legs swing fore and aft, so it cannot be made slip-free; half
+/// reads as small shuffling steps rather than a march on the spot.
+const TURN_STEP_SHARE = 0.5;
+/// Turn rate (radians/sec) above which the body counts as turning: slower
+/// drifts (a herd easing into line) leave the legs still.
+const TURN_STEP_MIN_RATE = 0.35;
+/// Fastest turn (radians/sec) the legs step for. A body whipped round
+/// faster (a mount under a rider's flicked view) still takes calm steps.
+const TURN_STEP_MAX_RATE = 4;
+/// A yaw change this large in one frame is a snap (a spawn, a teleport),
+/// not a turn the legs should step through.
+const TURN_SNAP_RADIANS = 1;
 /// Fallback when a mesh could not be measured: the leg a render scale of 1
 /// implies under the old proxy (0.65 of ground per cycle at a 0.42 swing).
 const FALLBACK_LEG_PER_SCALE =
@@ -125,9 +149,12 @@ export function strideGaitParamsForLeg(
   legLength: number,
   maxLegSwing: number,
 ): StrideGaitParams {
-  return strideGaitParamsWithLength(
-    STRIDE_GROUND_PER_LEG_PAIR * legLength * maxLegSwing,
-  );
+  return {
+    ...strideGaitParamsWithLength(
+      STRIDE_GROUND_PER_LEG_PAIR * legLength * maxLegSwing,
+    ),
+    turnRadius: WALKER_TURN_RADIUS_PER_LEG * legLength,
+  };
 }
 
 /// Pendulum cadence ceiling for a walker with legs of `legLength` (world
@@ -170,6 +197,7 @@ export function strideGaitParamsForWalker(
     gallopSpeedSpan: 1,
     cadenceKnee: WALKER_CADENCE_KNEE,
     gallopReachBoost: WALKER_GALLOP_REACH_BOOST,
+    turnRadius: WALKER_TURN_RADIUS_PER_LEG * legLength,
   };
 }
 
@@ -240,6 +268,16 @@ export class StrideGait {
   private prevTargetX = 0;
   private prevTargetZ = 0;
   private hasPrevTarget = false;
+  private prevYaw = 0;
+  private hasPrevYaw = false;
+  private turnRate = 0;
+
+  /// True while the body turns fast enough to step for (see `update`'s
+  /// `yaw`): the walk-versus-idle blend counts it as moving, so a turn on
+  /// the spot poses as a walk.
+  get isTurning(): boolean {
+    return this.turnRate > TURN_STEP_MIN_RATE;
+  }
 
   constructor(params: StrideGaitParams) {
     this.params = params;
@@ -273,7 +311,10 @@ export class StrideGait {
     this.setParams(strideGaitParamsForWalker(legLength, maxLegSwing));
   }
 
-  update(position: Vector3, target?: Vector3): number {
+  /// `yaw` is the drawn body's facing (radians). Pass it and a turn steps
+  /// the legs for the ground the feet sweep (`turnRadius`); leave it out
+  /// and only travel does.
+  update(position: Vector3, target?: Vector3, yaw?: number): number {
     const now = performance.now();
     // Two clocks on purpose: the CLAMPED dt feeds the smoothing EMAs
     // (a hitch must not slam them), but the REAL dt drives the phase
@@ -318,7 +359,26 @@ export class StrideGait {
       this.hasPrevTarget = false;
     }
 
-    const travel = Math.max(renderedTravel, targetTravel);
+    // A turn sweeps the feet over the ground even when the body goes
+    // nowhere: count it, so the legs step through a turn on the spot.
+    let turnTravel = 0;
+    let turned = 0;
+    if (yaw !== undefined) {
+      if (this.hasPrevYaw) {
+        const radius = this.params.turnRadius ?? 0;
+        turned = Math.abs(shortestYawDelta(this.prevYaw, yaw));
+        // No radius, no steps: the body must not pose as walking either.
+        if (turned > TURN_SNAP_RADIANS || radius <= 0) turned = 0;
+        turned = Math.min(turned, TURN_STEP_MAX_RATE * dtReal);
+        turnTravel = turned * radius * TURN_STEP_SHARE;
+      }
+      this.prevYaw = yaw;
+      this.hasPrevYaw = true;
+    } else {
+      this.hasPrevYaw = false;
+    }
+
+    const travel = Math.max(renderedTravel, targetTravel) + turnTravel;
 
     const {
       strideLength,
@@ -332,6 +392,7 @@ export class StrideGait {
     } = this.params;
 
     const speedAlpha = 1 - Math.exp(-SPEED_SMOOTHING_RATE * dtSeconds);
+    this.turnRate += (turned / dtSeconds - this.turnRate) * speedAlpha;
     this.smoothedSpeed +=
       (travel / dtSeconds - this.smoothedSpeed) * speedAlpha;
 
