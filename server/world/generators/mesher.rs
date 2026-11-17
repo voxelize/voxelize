@@ -25,6 +25,10 @@ pub struct Mesher {
     /// Load passes relit because the live chunk moved on under them, per
     /// chunk, forgotten once a result is accepted.
     stale_load_retries: HashMap<Vec2<i32>, u8>,
+    /// Ready chunks queued to be lit again (`add_relight`). A bulk rewrite
+    /// left their light stale and a ready chunk is served as it stands, so
+    /// the pass runs whoever is still watching: these survive `drop_queued`.
+    relights: HashSet<Vec2<i32>>,
     sender: Arc<Sender<(Chunk, MessageType)>>,
     receiver: Arc<Receiver<(Chunk, MessageType)>>,
     pool: Arc<ThreadPool>,
@@ -43,6 +47,7 @@ impl Mesher {
             map: HashSet::new(),
             pending_remesh: HashSet::new(),
             stale_load_retries: HashMap::new(),
+            relights: HashSet::new(),
             sender: Arc::new(sender),
             receiver: Arc::new(receiver),
             pool: crate::world::shared_pools::meshing_pool(),
@@ -64,6 +69,19 @@ impl Mesher {
         }
     }
 
+    /// Queue a ready chunk to be lit again from scratch and sent whole
+    /// (`Chunks::request_relight`), ahead of ordinary loads.
+    pub(crate) fn add_relight(&mut self, coords: &Vec2<i32>) {
+        self.relights.insert(coords.to_owned());
+        self.add_chunk(coords, true);
+    }
+
+    /// Whether this chunk is queued or running as a relight, which starts
+    /// from no light at all instead of the light the chunk holds.
+    pub(crate) fn is_relight(&self, coords: &Vec2<i32>) -> bool {
+        self.relights.contains(coords)
+    }
+
     pub fn remove_chunk(&mut self, coords: &Vec2<i32>) {
         self.map.remove(coords);
         self.queue.retain(|c| c != coords);
@@ -74,6 +92,9 @@ impl Mesher {
     /// otherwise stays parked at `Meshing`, which neighbors treat as done and
     /// a later request revives.
     pub fn drop_queued(&mut self, coords: &Vec2<i32>) {
+        if self.relights.contains(coords) {
+            return;
+        }
         self.queue.retain(|c| c != coords);
     }
 
@@ -84,6 +105,7 @@ impl Mesher {
         self.queue.clear();
         self.pending_remesh.clear();
         self.stale_load_retries.clear();
+        self.relights.clear();
     }
 
     pub fn has_chunk(&self, coords: &Vec2<i32>) -> bool {
@@ -99,6 +121,7 @@ impl Mesher {
     /// Forget an evicted chunk's retry count.
     pub(crate) fn forget_evicted(&mut self, coords: &Vec2<i32>) {
         self.stale_load_retries.remove(coords);
+        self.relights.remove(coords);
     }
 
     /// A Load result landed for a chunk that was written to since its
@@ -121,6 +144,7 @@ impl Mesher {
     /// A Load result for this chunk was accepted: its retry count is over.
     pub fn accept_load(&mut self, coords: &Vec2<i32>) {
         self.stale_load_retries.remove(coords);
+        self.relights.remove(coords);
     }
 
     pub fn get(&mut self) -> Option<Vec2<i32>> {
@@ -284,6 +308,25 @@ impl Default for Mesher {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// A queued load nobody watches any more is dropped; a queued relight
+    /// is not, because the ready chunk it is for would be served with the
+    /// light it had before the edit.
+    #[test]
+    fn a_relight_runs_whoever_is_still_watching() {
+        let mut mesher = Mesher::new();
+        let (load, relight) = (Vec2(1, 2), Vec2(-4, 0));
+        mesher.add_chunk(&load, false);
+        mesher.add_relight(&relight);
+        assert!(mesher.is_relight(&relight) && !mesher.is_relight(&load));
+        mesher.drop_queued(&load);
+        mesher.drop_queued(&relight);
+        assert_eq!(mesher.get(), Some(relight.clone()), "relights go first");
+        assert_eq!(mesher.get(), None);
+        // Once its result is accepted it is an ordinary chunk again.
+        mesher.accept_load(&relight);
+        assert!(!mesher.is_relight(&relight));
+    }
 
     #[test]
     fn a_stale_load_is_relit_a_bounded_number_of_times_then_accepted() {

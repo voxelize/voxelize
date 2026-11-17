@@ -412,7 +412,22 @@ impl<'a> System<'a> for ChunkGeneratingSystem {
                     mesher.add_chunk(&chunk.coords, true);
                     continue;
                 }
+            }
+
+            // A relight of a chunk nobody rewrote, whose light came out as
+            // it was, has nothing to tell anyone: most of the chunks round
+            // a bulk edit are asked for only because light could have
+            // crossed their border, and for most it did not. Sending each
+            // whole would have every client rebuild every mesh in it.
+            let is_silent_relight = r#type == MessageType::Load
+                && mesher.is_relight(&chunk.coords)
+                && !chunks.rewritten.contains(&chunk.coords)
+                && chunks
+                    .raw(&chunk.coords)
+                    .is_some_and(|live| live.lights.data == chunk.lights.data);
+            if r#type == MessageType::Load {
                 mesher.accept_load(&chunk.coords);
+                chunks.rewritten.remove(&chunk.coords);
             }
 
             chunk.status = ChunkStatus::Ready;
@@ -439,7 +454,11 @@ impl<'a> System<'a> for ChunkGeneratingSystem {
                 }
             }
 
-            chunks.add_chunk_to_send(&coords, &r#type, false);
+            if is_silent_relight {
+                chunks.silent_relights += 1;
+            } else {
+                chunks.add_chunk_to_send(&coords, &r#type, false);
+            }
 
             // An Update remesh was fed by lights the updating pass already
             // flooded into the live chunk, so only its meshes are newer. A
@@ -521,6 +540,37 @@ impl<'a> System<'a> for ChunkGeneratingSystem {
         /* -------------------------------------------------------------------------- */
         /*                         PUSHING CHUNKS TO BE MESHED                        */
         /* -------------------------------------------------------------------------- */
+
+        // Relights a bulk rewrite asked for (`Chunks::request_relight`). Only
+        // so many run at once: each pass holds its whole neighbourhood's
+        // light arrays while it runs, and a large edit asks for hundreds. A
+        // chunk with a pass already in flight waits its turn, so the pass it
+        // gets reads the voxels the edit left.
+        if !chunks.relights.is_empty() {
+            let mut room = config
+                .max_chunks_per_tick
+                .max(1)
+                .saturating_sub(mesher.map.len());
+            let mut waiting = std::collections::VecDeque::new();
+            while let Some(coords) = chunks.relights.pop_front() {
+                if room == 0 || mesher.has_chunk(&coords) {
+                    waiting.push_back(coords);
+                    continue;
+                }
+                chunks.relight_set.remove(&coords);
+                // Not ready: the pass that readies it lights what it holds.
+                if !chunks.is_chunk_ready(&coords) {
+                    continue;
+                }
+                // Every level's light moved, whichever levels the edit wrote.
+                if let Some(chunk) = chunks.map.get_mut(&coords) {
+                    chunk.updated_levels.extend(0..config.sub_chunks as u32);
+                }
+                mesher.add_relight(&coords);
+                room -= 1;
+            }
+            chunks.relights = waiting;
+        }
 
         if !mesher.queue.is_empty() {
             mesher
@@ -633,7 +683,10 @@ impl<'a> System<'a> for ChunkGeneratingSystem {
                         .needs_height_maps()
                         .needs_voxels();
 
-                    if chunk.meshes.is_some() {
+                    // A relight starts from darkness: flooding only ever
+                    // raises light, so the light the chunk holds would keep
+                    // every shadow the edit removed lit and vice versa.
+                    if chunk.meshes.is_some() && !mesher.is_relight(&coords) {
                         space = space.needs_lights()
                     }
 

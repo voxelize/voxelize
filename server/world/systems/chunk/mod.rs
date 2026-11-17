@@ -1,5 +1,7 @@
 #[cfg(test)]
 mod branch_waterlog_tests;
+#[cfg(test)]
+mod bulk_rewrite_tests;
 mod current;
 mod evicting;
 mod generating;

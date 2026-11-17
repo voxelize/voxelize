@@ -12,7 +12,7 @@ pub use access::VoxelAccess;
 pub use background_chunk_saver::*;
 pub use block::*;
 pub use chunk::*;
-pub use chunks::{Chunks, ParkedUpdate, PendingUpdateHeadEntry, UpdateLane};
+pub use chunks::{ChunkVoxels, Chunks, ParkedUpdate, PendingUpdateHeadEntry, UpdateLane};
 pub use fluids::*;
 pub use space::*;
 pub use watch::*;

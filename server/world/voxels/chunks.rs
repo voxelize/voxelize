@@ -45,6 +45,70 @@ impl PartialOrd for ActiveVoxel {
     }
 }
 
+/// One chunk's voxels, open for a bulk rewrite ([`Chunks::rewrite_chunk`]).
+/// Coordinates are world voxels; reading or writing outside the chunk
+/// panics, as an index out of bounds does.
+pub struct ChunkVoxels<'a> {
+    data: &'a mut [u32],
+    min: Vec3<i32>,
+    size: i32,
+    max_height: i32,
+    stride: [usize; 3],
+    changed: usize,
+    lowest: i32,
+    highest: i32,
+    highest_filled: i32,
+}
+
+impl ChunkVoxels<'_> {
+    #[inline]
+    fn index(&self, vx: i32, vy: i32, vz: i32) -> usize {
+        let (lx, lz) = (vx - self.min.0, vz - self.min.2);
+        assert!(
+            lx >= 0 && lx < self.size && lz >= 0 && lz < self.size && vy >= 0 && vy < self.max_height,
+            "voxel ({vx}, {vy}, {vz}) is outside the chunk being rewritten"
+        );
+        lx as usize * self.stride[0] + vy as usize * self.stride[1] + lz as usize * self.stride[2]
+    }
+
+    /// The chunk's lowest corner, in world voxels.
+    pub fn min(&self) -> (i32, i32) {
+        (self.min.0, self.min.2)
+    }
+
+    /// Voxels along each horizontal side.
+    pub fn size(&self) -> i32 {
+        self.size
+    }
+
+    /// The raw voxel (id, rotation, stage and state bits) at a position.
+    #[inline]
+    pub fn get(&self, vx: i32, vy: i32, vz: i32) -> u32 {
+        self.data[self.index(vx, vy, vz)]
+    }
+
+    /// Write a raw voxel. Writing what is already there changes nothing.
+    #[inline]
+    pub fn set(&mut self, vx: i32, vy: i32, vz: i32, raw: u32) {
+        let index = self.index(vx, vy, vz);
+        if self.data[index] == raw {
+            return;
+        }
+        self.data[index] = raw;
+        self.changed += 1;
+        self.lowest = self.lowest.min(vy);
+        self.highest = self.highest.max(vy);
+        if raw != 0 {
+            self.highest_filled = self.highest_filled.max(vy);
+        }
+    }
+
+    /// Voxels changed so far.
+    pub fn changed(&self) -> usize {
+        self.changed
+    }
+}
+
 /// A chunk waiting to be handed to the background saver, and how many ticks it
 /// has spent unreadable so far. Entries only ever leave this queue by being
 /// saved or by exhausting `max_save_retries`, which is reported as an error.
@@ -286,6 +350,20 @@ pub struct Chunks {
     /// budget (`max_update_ms_per_tick`), and the most that waited at once:
     /// reported once the lane empties.
     pub(crate) write_backlog: Option<CarriedBacklog>,
+
+    /// Ready chunks waiting to be lit again from scratch and sent whole
+    /// ([`Self::request_relight`]), oldest first. `relight_set` holds exactly
+    /// the coords queued here, so a chunk asked for twice waits once.
+    pub(crate) relights: VecDeque<Vec2<i32>>,
+    pub(crate) relight_set: HashSet<Vec2<i32>>,
+
+    /// Chunks a bulk rewrite changed that have not been lit again and sent
+    /// since: their relight is sent whatever became of their light.
+    pub(crate) rewritten: HashSet<Vec2<i32>>,
+
+    /// Relights that changed nothing and so sent nothing, since the world
+    /// started ([`Self::silent_relights`]).
+    pub(crate) silent_relights: u64,
 
     /// A listener for when a chunk is done generating or meshing.
     pub(crate) listeners: HashMap<Vec2<i32>, Vec<Vec2<i32>>>,
@@ -1165,6 +1243,109 @@ impl Chunks {
         for (voxel, val) in voxels {
             self.update_active_voxel(voxel, *val);
         }
+    }
+
+    /// Rewrite many voxels of one ready chunk in a single borrow: the edit
+    /// too large for the per-voxel lanes (a crater, a landslide, a pasted
+    /// region), where queueing a write per voxel would light and replicate
+    /// each one. `write` gets the chunk's voxels and changes what it likes;
+    /// the height map, the save state and the levels to remesh follow from
+    /// what it changed.
+    ///
+    /// Nothing is lit, sent or woken here, and that is the caller's to
+    /// finish once the whole edit is in:
+    /// - [`Self::request_relight`] for every chunk rewritten and every chunk
+    ///   beside one (light crosses a border by up to `max_light_level`);
+    /// - [`Self::wake_voxel`] for each fluid or active block left standing
+    ///   against the edit, which no write told that its neighbor changed.
+    ///
+    /// A voxel holding a block entity must be left as it is: replacing one
+    /// is `update_voxel`'s work, which owns the entity's lifecycle.
+    ///
+    /// Returns what `write` returned, or `None` for a chunk that is not
+    /// ready (its writes belong to the generator, or it is not resident).
+    pub fn rewrite_chunk<R>(
+        &mut self,
+        coords: &Vec2<i32>,
+        registry: &Registry,
+        write: impl FnOnce(&mut ChunkVoxels) -> R,
+    ) -> Option<R> {
+        if !self.is_chunk_ready(coords) {
+            return None;
+        }
+        let chunk = self.map.get_mut(coords)?;
+        let (size, max_height) = (chunk.options.size, chunk.options.max_height);
+        let min = chunk.min.clone();
+        let voxels = Arc::make_mut(&mut chunk.voxels);
+        let stride = [voxels.stride[0], voxels.stride[1], voxels.stride[2]];
+        let mut view = ChunkVoxels {
+            data: &mut voxels.data,
+            min,
+            size: size as i32,
+            max_height: max_height as i32,
+            stride,
+            changed: 0,
+            lowest: i32::MAX,
+            highest: i32::MIN,
+            highest_filled: i32::MIN,
+        };
+        let result = write(&mut view);
+        let (changed, lowest, highest, highest_filled) =
+            (view.changed, view.lowest, view.highest, view.highest_filled);
+        if changed == 0 {
+            return Some(result);
+        }
+
+        chunk.is_save_dirty = true;
+        chunk.write_epoch = chunk.write_epoch.wrapping_add(1);
+        // Still an upper bound on the filled rows: removals leave it as it
+        // was, and a block written above it raises it.
+        chunk.top_filled_y = chunk.top_filled_y.map(|top| top.max(highest_filled));
+        chunk.calculate_max_height(registry);
+        let partition = (max_height / chunk.options.sub_chunks.max(1)).max(1) as i32;
+        for level in (lowest / partition)..=(highest / partition) {
+            chunk.add_updated_level(level * partition);
+            chunk.add_updated_level(level * partition + partition - 1);
+        }
+        self.rewritten.insert(coords.to_owned());
+        self.add_chunk_to_save(coords, false);
+        Some(result)
+    }
+
+    /// Have a ready chunk lit again from scratch, from the voxels it and its
+    /// neighbors hold now, and sent whole to every client that has it. For
+    /// the chunks of a bulk rewrite ([`Self::rewrite_chunk`]) and the ones
+    /// beside them; a per-voxel write lights itself and never needs this.
+    ///
+    /// The pass runs on the meshing pool, a bounded number of chunks at a
+    /// time, so a large edit's chunks arrive over the ticks after it. A
+    /// chunk that is not ready when its turn comes is skipped: the pass that
+    /// readies it reads its voxels as they stand. One nobody rewrote, whose
+    /// light comes out as it was, is not sent at all.
+    pub fn request_relight(&mut self, coords: &Vec2<i32>) {
+        if self.relight_set.insert(coords.to_owned()) {
+            self.relights.push_back(coords.to_owned());
+        }
+    }
+
+    /// Chunks asked to be lit again that have not been handed to the
+    /// lighting pass yet.
+    pub fn pending_relights(&self) -> usize {
+        self.relights.len()
+    }
+
+    /// Relights since the world started that found the chunk's light as it
+    /// was, in a chunk nobody rewrote, and so sent nothing.
+    pub fn silent_relights(&self) -> u64 {
+        self.silent_relights
+    }
+
+    /// Have the fluid or active block at `voxel` asked when it next wants to
+    /// run, as a write beside it would have: for the blocks a bulk rewrite
+    /// ([`Self::rewrite_chunk`]) left standing against the hole it made.
+    /// Drains with every other ticker consult, under the same budget.
+    pub fn wake_voxel(&mut self, voxel: &Vec3<i32>) {
+        self.queue_ticker_consult(voxel.to_owned(), false);
     }
 
     /// The flushed queue of one lane.
