@@ -10,6 +10,7 @@ import {
   countLightSeeds,
   floodLight,
   foldLightJobsBack,
+  groupLightJobs,
   LightJob,
   LightOperations,
   VoxelLightVolume,
@@ -73,7 +74,7 @@ const normalized = (ops: LightOperations) => {
 
 const jobsFor = (ops: LightOperations): LightJob[] => {
   let counter = 0;
-  return buildLightJobs(ops, 0, 1, options, (color) => `${color}-${counter++}`);
+  return buildLightJobs(ops, 1, options, (color) => `${color}-${counter++}`);
 };
 
 /** Fold, and fail the test loudly if nothing came back. */
@@ -220,6 +221,98 @@ class MemoryVolume implements VoxelLightVolume {
     // Sunlight-only scene.
   }
 }
+
+describe("groupLightJobs", () => {
+  const seedAt = (x: number, z: number): LightOperations => ({
+    removals: {
+      sunlight: [[x, 40, z]],
+      red: [[x, 40, z]],
+      green: [[x, 40, z]],
+      blue: [[x, 40, z]],
+    },
+    floods: {
+      sunlight: [],
+      red: [{ voxel: [x, 40, z], level: 14 }],
+      green: [{ voxel: [x, 40, z], level: 9 }],
+      blue: [{ voxel: [x, 40, z], level: 3 }],
+    },
+    hasOperations: true,
+  });
+
+  it("sends the four colours of one edit over one snapshot", () => {
+    const jobs = jobsFor(seedAt(8, 8));
+    expect(jobs.map((job) => job.color)).toEqual([
+      "SUNLIGHT",
+      "RED",
+      "GREEN",
+      "BLUE",
+    ]);
+
+    const groups = groupLightJobs(jobs, options);
+    expect(groups).toHaveLength(1);
+    expect(groups[0].jobs).toEqual(jobs);
+    // A seed mid-chunk reaches the ring of chunks around its own.
+    expect(groups[0].minChunk).toEqual([-1, -1]);
+    expect(groups[0].maxChunk).toEqual([1, 1]);
+    expect(groups[0].reachableCount).toBe(9);
+  });
+
+  it("keeps edits with no chunk in common apart, so they run side by side", () => {
+    const near = jobsFor(seedAt(8, 8));
+    const far = jobsFor(seedAt(100, 100));
+    const groups = groupLightJobs([...near, ...far], options);
+
+    expect(groups).toHaveLength(2);
+    expect(groups.map((group) => group.jobs.length)).toEqual([4, 4]);
+    const everyJob = groups.flatMap((group) => group.jobs);
+    expect(everyJob).toHaveLength(8);
+    expect(new Set(everyJob).size).toBe(8);
+  });
+
+  it("marks only the chunks a seed's light can reach", () => {
+    // Two seeds 30 apart on a diagonal still chain into one box, whose two
+    // far corners no light gets to.
+    const ops = seedAt(0, 0);
+    const other = seedAt(30, 30);
+    ops.removals.red.push(...other.removals.red);
+    const [job] = jobsFor({
+      removals: { sunlight: [], red: ops.removals.red, green: [], blue: [] },
+      floods: { sunlight: [], red: [], green: [], blue: [] },
+      hasOperations: true,
+    });
+
+    const [group] = groupLightJobs([job], options);
+    expect(group.minChunk).toEqual([-1, -1]);
+    expect(group.maxChunk).toEqual([2, 2]);
+    const reachableAt = (cx: number, cz: number) =>
+      group.reachable[(cx + 1) * 4 + (cz + 1)];
+    expect(reachableAt(-1, -1)).toBe(true);
+    expect(reachableAt(2, 2)).toBe(true);
+    expect(reachableAt(-1, 2)).toBe(false);
+    expect(reachableAt(2, -1)).toBe(false);
+    expect(group.reachableCount).toBe(
+      group.reachable.filter(Boolean).length,
+    );
+    expect(group.reachableCount).toBeLessThan(16);
+  });
+
+  it("counts a follow-up job's leftover removal nodes as seeds", () => {
+    const [job] = jobsFor({
+      removals: { sunlight: [], red: [[8, 40, 8]], green: [], blue: [] },
+      floods: { sunlight: [], red: [], green: [], blue: [] },
+      hasOperations: true,
+    });
+    const followUp: LightJob = {
+      ...job,
+      lightOps: {
+        removals: [],
+        floods: [],
+        pendingRemovals: [{ voxel: [8, 40, 8], level: 6 }],
+      },
+    };
+    expect(groupLightJobs([followUp], options)[0].reachableCount).toBe(9);
+  });
+});
 
 describe("opening a cell whose lit neighbour has not been re-lit yet", () => {
   // The pit: a stone plinth with its top course and the pit cut in the same

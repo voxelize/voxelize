@@ -9,6 +9,7 @@ import {
   ChunkPipeline,
   MeshPipeline,
   describeChunkRequestHistory,
+  REBUILD_COOLDOWN_MS,
 } from "./pipelines";
 
 const options = {
@@ -606,6 +607,61 @@ describe("MeshPipeline voxel-change remesh", () => {
       "2,0:0",
       "1,0:0",
     ]);
+  });
+
+  it("starts a quiet section's rebuild at once and holds the next one for the cooldown", () => {
+    const pipeline = new MeshPipeline();
+    const key = MeshPipeline.makeKey(1, 0, 0);
+    const pick = (nowMs: number) =>
+      pipeline.nearestDirtyKeys([0, 0], 10, undefined, nowMs);
+
+    // First mesh, then a change: the rebuild has nothing to wait for.
+    pipeline.onVoxelChange(1, 0, 0);
+    pipeline.onJobComplete(key, pipeline.startJob(key, 1_000));
+    pipeline.onVoxelChange(1, 0, 0);
+    expect(pick(1_010)).toEqual([key]);
+    expect(pipeline.hasCoolingRebuilds).toBe(false);
+    pipeline.onJobComplete(key, pipeline.startJob(key, 1_010));
+
+    // A stream of changes (a fire spreading through it): the section stays
+    // dirty, and ground with nothing drawn yet is not held with it.
+    pipeline.onVoxelChange(1, 0, 0);
+    pipeline.onVoxelChange(9, 0, 0);
+    expect(pick(1_050)).toEqual(["9,0:0"]);
+    expect(pipeline.hasCoolingRebuilds).toBe(true);
+    pipeline.onVoxelChange(1, 0, 0);
+    expect(pick(1_010 + REBUILD_COOLDOWN_MS - 1)).toEqual(["9,0:0"]);
+
+    // The cooldown over, one rebuild carries every change made meanwhile.
+    expect(pick(1_010 + REBUILD_COOLDOWN_MS)).toEqual([key, "9,0:0"]);
+    expect(pipeline.hasCoolingRebuilds).toBe(false);
+  });
+
+  it("never holds a player's own edit for the cooldown, nor counts it toward one", () => {
+    const pipeline = new MeshPipeline();
+    const key = MeshPipeline.makeKey(1, 0, 0);
+    pipeline.onVoxelChange(1, 0, 0);
+    pipeline.onJobComplete(key, pipeline.startJob(key, 1_000));
+    pipeline.onVoxelChange(1, 0, 0);
+    pipeline.onJobComplete(key, pipeline.startJob(key, 1_010));
+
+    pipeline.onVoxelChange(1, 0, 0, true, 1_020);
+    expect(pipeline.nearestDirtyKeys([0, 0], 10, undefined, 1_020)).toEqual([
+      key,
+    ]);
+    pipeline.onJobComplete(key, pipeline.startJob(key, 1_020));
+
+    // The light that edit let in lands a moment later, off the urgent lane:
+    // it waits out the rebuild at 1010, not the urgent job at 1020.
+    pipeline.onVoxelChange(1, 0, 0);
+    expect(
+      pipeline.nearestDirtyKeys(
+        [0, 0],
+        10,
+        undefined,
+        1_010 + REBUILD_COOLDOWN_MS,
+      ),
+    ).toEqual([key]);
   });
 
   it("reads negative and multi-digit columns off the key for that order", () => {

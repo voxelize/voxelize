@@ -13,6 +13,8 @@ import {
 import { Block, BlockRotation } from "./block";
 import { Chunk } from "./chunk";
 
+export { packLightSeeds, unpackLightSeeds } from "./light-seeds";
+
 export type LightNode = {
   voxel: Coords3;
   level: number;
@@ -38,7 +40,6 @@ export type LightJob = {
     pendingRemovals?: LightNode[];
   };
   boundingBox: BoundingBox;
-  startSequenceId: number;
   retryCount: number;
   batchId: number;
 };
@@ -52,17 +53,46 @@ export type LightBatchResult = {
 
 export type LightBatch = {
   batchId: number;
-  startSequenceId: number;
   totalJobs: number;
   completedJobs: number;
   results: LightBatchResult[];
   jobs: LightJob[];
   /**
-   * Jobs of this batch that have not been handed to a worker yet. Dispatch
-   * serializes every chunk the job's bounding box covers, so jobs wait here
-   * as cheap descriptors instead of as multi-megabyte copies.
+   * Jobs of this batch that have not been handed to a worker yet, grouped by
+   * the chunk snapshot they share. Dispatch copies every chunk a group's
+   * light can reach, so groups wait here as cheap descriptors instead of as
+   * multi-megabyte copies.
    */
-  pendingDispatch: LightJob[];
+  pendingDispatch: LightJobGroup[];
+};
+
+/**
+ * The jobs of one batch that read the same chunks, sent to one worker over
+ * one snapshot.
+ *
+ * A batch builds a job per colour, and an edit's four colours cover almost
+ * the same box: sent apart, each carried its own copy of every chunk in it,
+ * so a fire spreading through a forest copied the same sixty chunks four
+ * times a batch. The worker runs a group's jobs one after another on the one
+ * copy; a chunk's light word holds all four channels and each job's result
+ * is merged through its own colour mask, so they do not disturb each other.
+ */
+export type LightJobGroup = {
+  jobs: LightJob[];
+  /** The chunk rectangle the snapshot is laid out on, inclusive. */
+  minChunk: Coords2;
+  maxChunk: Coords2;
+  /**
+   * For each cell of the rectangle (x major, z minor, the order the
+   * snapshot is sent in), whether any seed's light can reach that chunk.
+   * Light travels at most `maxLightLevel` columns sideways from where it
+   * starts — the same bound a job's box is built from — so a chunk further
+   * than that from every seed is sent as absent, and the worker's floods
+   * stop at it. A box grown around seeds along a diagonal or a ring is
+   * mostly such chunks.
+   */
+  reachable: boolean[];
+  reachableCount: number;
 };
 
 export type LightOperations = {
@@ -103,9 +133,6 @@ export type LightWorkerResult = {
    * lights to merge — only the y-range to remesh.
    */
   borderNeighbors: LightWorkerBorderNeighbor[];
-  appliedDeltas: {
-    lastSequenceId: number;
-  };
   /**
    * Set when the worker hit its node budget mid-flood (e.g. a long open
    * sunlight shaft under a floating island) and deferred the rest of the
@@ -551,6 +578,28 @@ export function removeLightsBatch(
   floodLight(world, dedupedFill, color);
 }
 
+/**
+ * Which faces of `block` let light through as it is turned. A block that is
+ * not turned answers with its own list, not a copy: a mass edit asks this
+ * twice a voxel. Read it, never change it.
+ */
+function transparencyAsTurned(
+  block: Block,
+  rotation: BlockRotation,
+): boolean[] {
+  if (block && Math.abs(rotation.value) < Number.EPSILON) {
+    return block.isTransparent;
+  }
+  return BlockUtils.getBlockRotatedTransparency(block, rotation);
+}
+
+function isSameTransparency(a: boolean[], b: boolean[]): boolean {
+  for (let side = 0; side < 6; side += 1) {
+    if (a[side] !== b[side]) return false;
+  }
+  return true;
+}
+
 export function analyzeLightOperations(
   world: VoxelLightVolume,
   processedUpdates: ProcessedUpdate[],
@@ -697,22 +746,16 @@ export function analyzeLightOperations(
     const { voxel, oldBlock, newBlock, oldRotation, newRotation } = update;
     const [vx, vy, vz] = voxel;
 
-    const isRemovedLightSource = removedLightSourceKeys.has(
-      ChunkUtils.getVoxelName(voxel),
-    );
+    const isRemovedLightSource =
+      removedLightSourceKeys.size > 0 &&
+      removedLightSourceKeys.has(ChunkUtils.getVoxelName(voxel));
 
     if (isRemovedLightSource && !oldBlock.isOpaque) {
       continue;
     }
 
-    const currentTransparency = BlockUtils.getBlockRotatedTransparency(
-      oldBlock,
-      oldRotation,
-    );
-    const updatedTransparency = BlockUtils.getBlockRotatedTransparency(
-      newBlock,
-      newRotation,
-    );
+    const currentTransparency = transparencyAsTurned(oldBlock, oldRotation);
+    const updatedTransparency = transparencyAsTurned(newBlock, newRotation);
 
     // Light only reads four things about a voxel: opacity, which faces let
     // light through, attenuation, and emission. When none of those changed
@@ -730,9 +773,7 @@ export function analyzeLightOperations(
       !newBlock.dynamicPatterns &&
       oldBlock.isOpaque === newBlock.isOpaque &&
       oldBlock.lightAttenuation === newBlock.lightAttenuation &&
-      currentTransparency.every(
-        (side, index) => side === updatedTransparency[index],
-      );
+      isSameTransparency(currentTransparency, updatedTransparency);
     if (lightInvariant) {
       continue;
     }
@@ -773,11 +814,15 @@ export function analyzeLightOperations(
         if (!nBlock) {
           continue;
         }
-        const nRotation = world.getVoxelRotationAt(nvx, nvy, nvz);
-        const nTransparency = BlockUtils.getBlockRotatedTransparency(
-          nBlock,
-          nRotation,
-        );
+        // Only a block that can be turned reads its rotation: every other
+        // block's faces let light through as its definition says.
+        const nTransparency =
+          nBlock.rotatable || nBlock.yRotatable
+            ? BlockUtils.getBlockRotatedTransparency(
+                nBlock,
+                world.getVoxelRotationAt(nvx, nvy, nvz),
+              )
+            : nBlock.isTransparent;
 
         if (
           !(
@@ -1124,7 +1169,6 @@ export function mergeLightOperations(
 
 export function buildLightJobs(
   lightOps: LightOperations,
-  startSequenceId: number,
   batchId: number,
   options: VoxelLightVolumeOptions,
   allocateJobId: (color: LightColor) => string,
@@ -1281,7 +1325,6 @@ export function buildLightJobs(
         color,
         lightOps: { removals: cluster.removals, floods: cluster.floods },
         boundingBox,
-        startSequenceId,
         retryCount: 0,
         batchId,
       });
@@ -1291,11 +1334,126 @@ export function buildLightJobs(
   return jobsForBatch;
 }
 
+function lightJobChunkRect(job: LightJob, chunkSize: number) {
+  const { min, shape } = job.boundingBox;
+  return {
+    minX: Math.floor(min[0] / chunkSize),
+    minZ: Math.floor(min[2] / chunkSize),
+    maxX: Math.floor((min[0] + shape[0] - 1) / chunkSize),
+    maxZ: Math.floor((min[2] + shape[2] - 1) / chunkSize),
+  };
+}
+
+/**
+ * Sort a batch's jobs into the groups that share a chunk snapshot: jobs
+ * whose chunk rectangles touch go to one worker together, and jobs with no
+ * chunk in common stay apart so they still run side by side.
+ */
+export function groupLightJobs(
+  jobs: LightJob[],
+  options: Pick<VoxelLightVolumeOptions, "chunkSize" | "maxLightLevel">,
+): LightJobGroup[] {
+  const { chunkSize, maxLightLevel } = options;
+
+  type Rect = { minX: number; minZ: number; maxX: number; maxZ: number };
+  const pending: { rect: Rect; jobs: LightJob[] }[] = jobs.map((job) => ({
+    rect: lightJobChunkRect(job, chunkSize),
+    jobs: [job],
+  }));
+
+  // A grown rectangle can reach one it did not touch before.
+  let didMerge = true;
+  while (didMerge) {
+    didMerge = false;
+    outer: for (let i = 0; i < pending.length; i++) {
+      for (let j = i + 1; j < pending.length; j++) {
+        const a = pending[i].rect;
+        const b = pending[j].rect;
+        if (
+          a.minX <= b.maxX &&
+          b.minX <= a.maxX &&
+          a.minZ <= b.maxZ &&
+          b.minZ <= a.maxZ
+        ) {
+          a.minX = Math.min(a.minX, b.minX);
+          a.minZ = Math.min(a.minZ, b.minZ);
+          a.maxX = Math.max(a.maxX, b.maxX);
+          a.maxZ = Math.max(a.maxZ, b.maxZ);
+          pending[i].jobs = pending[i].jobs.concat(pending[j].jobs);
+          pending.splice(j, 1);
+          didMerge = true;
+          break outer;
+        }
+      }
+    }
+  }
+
+  return pending.map(({ rect, jobs: groupJobs }) => {
+    const depth = rect.maxZ - rect.minZ + 1;
+    const reachable: boolean[] = new Array(
+      (rect.maxX - rect.minX + 1) * depth,
+    ).fill(false);
+    let reachableCount = 0;
+
+    const reach = (vx: number, vz: number) => {
+      const fromX = Math.max(
+        rect.minX,
+        Math.floor((vx - maxLightLevel) / chunkSize),
+      );
+      const toX = Math.min(
+        rect.maxX,
+        Math.floor((vx + maxLightLevel) / chunkSize),
+      );
+      const fromZ = Math.max(
+        rect.minZ,
+        Math.floor((vz - maxLightLevel) / chunkSize),
+      );
+      const toZ = Math.min(
+        rect.maxZ,
+        Math.floor((vz + maxLightLevel) / chunkSize),
+      );
+      for (let cx = fromX; cx <= toX; cx++) {
+        for (let cz = fromZ; cz <= toZ; cz++) {
+          const index = (cx - rect.minX) * depth + (cz - rect.minZ);
+          if (!reachable[index]) {
+            reachable[index] = true;
+            reachableCount++;
+          }
+        }
+      }
+    };
+
+    for (const { lightOps } of groupJobs) {
+      for (const voxel of lightOps.removals) reach(voxel[0], voxel[2]);
+      for (const { voxel } of lightOps.floods) reach(voxel[0], voxel[2]);
+      for (const { voxel } of lightOps.pendingRemovals ?? []) {
+        reach(voxel[0], voxel[2]);
+      }
+    }
+
+    return {
+      jobs: groupJobs,
+      minChunk: [rect.minX, rect.minZ],
+      maxChunk: [rect.maxX, rect.maxZ],
+      reachable,
+      reachableCount,
+    };
+  });
+}
+
+/**
+ * Write one colour of a worker's light for `chunk` over the chunk's own,
+ * inside the job's box and between rows `minY` and `maxY` (both included):
+ * the rows the job wrote into, as the worker reports them. The rest of the
+ * worker's copy is the chunk as it stood when the copy was made.
+ */
 export function mergeSingleColorResult(
   chunk: Chunk,
   lights: Uint32Array,
   color: LightColor,
   boundingBox: BoundingBox,
+  minY = 0,
+  maxY = Infinity,
 ) {
   const currentLights = chunk.lights.data;
   const mask = getLightColorMask(color);
@@ -1311,13 +1469,15 @@ export function mergeSingleColorResult(
   const endX = Math.min(maxX, chunkMinX + size);
   const startZ = Math.max(minZ, chunkMinZ);
   const endZ = Math.min(maxZ, chunkMinZ + size);
+  const startY = Math.max(0, minY);
+  const endY = Math.min(maxHeight, maxY + 1);
 
   for (let vx = startX; vx < endX; vx++) {
-    const lx = vx - chunkMinX;
-    for (let vy = 0; vy < maxHeight; vy++) {
+    const column = (vx - chunkMinX) * maxHeight * size;
+    for (let vy = startY; vy < endY; vy++) {
+      const row = column + vy * size - chunkMinZ;
       for (let vz = startZ; vz < endZ; vz++) {
-        const lz = vz - chunkMinZ;
-        const index = lx * maxHeight * size + vy * size + lz;
+        const index = row + vz;
         currentLights[index] =
           (currentLights[index] & inverseMask) | (lights[index] & mask);
       }

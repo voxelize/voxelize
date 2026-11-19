@@ -28,12 +28,96 @@
  */
 let frameTime: number | null = null;
 
+/** The newest frame's own time: kept after the frame is drawn. */
+let issuedAt = Number.NaN;
+/** The gaps between the last frames' times, newest overwriting oldest. */
+const GAPS_KEPT = 90;
+const gaps = new Float64Array(GAPS_KEPT);
+let gapsHeld = 0;
+let gapAt = 0;
+let refreshMs = 0;
+let paceMs = 0;
+/** A gap shorter than this is no display's refresh: the page is unpaced. */
+const SHORTEST_REFRESH_MS = 3;
+/** A gap longer than this is a pause (a hidden tab), not a slow frame. */
+const LONGEST_GAP_MS = 250;
+/**
+ * The share of a refresh that budgeted work may plan to fill. The rest is
+ * left for what nobody schedules: worker results, network messages, input.
+ */
+const PLANNED_SHARE = 0.85;
+
 /**
  * Say which refresh the frame now being drawn is for: the timestamp the
  * browser passed to the animation-frame callback. `null` once it is drawn.
  */
 export function setFrameTime(timestamp: number | null): void {
   frameTime = timestamp;
+  if (timestamp === null) return;
+  const gap = timestamp - issuedAt;
+  issuedAt = timestamp;
+  if (!(gap > 0) || gap > LONGEST_GAP_MS) return;
+  gaps[gapAt] = gap;
+  gapAt = (gapAt + 1) % GAPS_KEPT;
+  if (gapsHeld < GAPS_KEPT) gapsHeld += 1;
+  // The display's refresh is the fastest pace frames have been issued at:
+  // a page that misses refreshes is issued frames two or three apart, never
+  // closer than one.
+  let fastest = Infinity;
+  let sum = 0;
+  for (let i = 0; i < gapsHeld; i += 1) {
+    if (gaps[i] < fastest) fastest = gaps[i];
+    sum += gaps[i];
+  }
+  refreshMs = fastest >= SHORTEST_REFRESH_MS ? fastest : 0;
+  paceMs = sum / gapsHeld;
+}
+
+/**
+ * The display's refresh interval in ms as the frames show it, or 0 while it
+ * is not known: no host has called {@link setFrameTime} twice yet, or the
+ * page is not paced by a display.
+ */
+export function frameRefreshMs(): number {
+  return refreshMs;
+}
+
+/**
+ * The pace frames are really coming at: the mean gap between the last ones,
+ * in ms, or 0 before two frames have been seen. Equal to
+ * {@link frameRefreshMs} on a page that holds its display's refresh, longer
+ * on one that does not.
+ */
+export function framePaceMs(): number {
+  return paceMs;
+}
+
+/**
+ * How many ms of main-thread work still fit before the frame after the
+ * newest one is due, read at `now` (the wall clock). Work that can wait (a
+ * backlog drained a slice a frame) asks this for its slice, so a frame that
+ * began late or ran long gets a short one and the display's refresh is held
+ * whatever else is going on.
+ *
+ * `null` when there is nothing to plan against: no host feeds the frame
+ * clock, the page is unpaced, or frames have stopped (a hidden tab). The
+ * caller then falls back to its own fixed allowance.
+ */
+export function frameRoomMs(now: number = performance.now()): number | null {
+  if (refreshMs === 0) return null;
+  const sinceIssued = now - issuedAt;
+  if (!(sinceIssued >= 0) || sinceIssued > LONGEST_GAP_MS) return null;
+  return refreshMs * PLANNED_SHARE - sinceIssued;
+}
+
+/** Forgets every frame seen. For tests. */
+export function resetFrameClock(): void {
+  frameTime = null;
+  issuedAt = Number.NaN;
+  gapsHeld = 0;
+  gapAt = 0;
+  refreshMs = 0;
+  paceMs = 0;
 }
 
 /**

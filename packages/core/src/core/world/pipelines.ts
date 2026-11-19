@@ -495,6 +495,11 @@ interface MeshState {
   inFlightGenerations: Set<number>;
   displayedGeneration: number;
   /**
+   * When the last regular rebuild of it started: a job for a section already
+   * on screen, off the urgent lane. `-Infinity` for none.
+   */
+  rebuildStartedAt: number;
+  /**
    * When each in-flight generation was dispatched, for the leak watchdog.
    * Single-flight dispatch means a generation that never settles blocks the
    * key forever, and every settle path missing a release becomes a chunk
@@ -557,7 +562,22 @@ function keyColumnDistanceSq(key: string, centerX: number, centerZ: number) {
  */
 const REBUILD_QUOTA = 2;
 
+/**
+ * The shortest time between two regular rebuilds of one section that is
+ * already on screen. A stream of changes the player did not make (a forest
+ * burning, water running, a neighbour's light moving) re-dirties its
+ * sections every frame, and each rebuild is a worker job plus an upload of
+ * the whole section on the main thread: started as fast as the workers
+ * freed up, they took every worker and the whole apply budget, and ground
+ * with nothing drawn yet waited behind them. A section rebuilt inside this
+ * window stays dirty and picks up everything that changed meanwhile in one
+ * rebuild when it ends. A section's first mesh and its first rebuild after
+ * a quiet spell start at once, and player edits take the urgent lane.
+ */
+export const REBUILD_COOLDOWN_MS = 200;
+
 export class MeshPipeline {
+  private coolingRebuilds = 0;
   private states = new Map<string, MeshState>();
   private dirty = new Set<string>();
   /** Urgent keys, each with when it went urgent. */
@@ -574,6 +594,7 @@ export class MeshPipeline {
         generation: 0,
         inFlightGenerations: new Set(),
         displayedGeneration: 0,
+        rebuildStartedAt: -Infinity,
         inFlightStartedAt: new Map(),
       };
       this.states.set(key, state);
@@ -637,6 +658,9 @@ export class MeshPipeline {
     if (!state) return 0;
     state.inFlightGenerations.add(state.generation);
     state.inFlightStartedAt.set(state.generation, nowMs);
+    if (state.displayedGeneration > 0 && !this.urgentDirty.has(key)) {
+      state.rebuildStartedAt = nowMs;
+    }
     this.dirty.delete(key);
     this.urgentDirty.delete(key);
     return state.generation;
@@ -787,12 +811,15 @@ export class MeshPipeline {
    * instead of a sort: a
    * flight keeps thousands of sections dirty, and sorting them all for
    * every dispatch cost more than the dispatches did. A regular key
-   * `isReady` turns down is left out (and stays dirty) for this pass.
+   * `isReady` turns down is left out (and stays dirty) for this pass, and so
+   * is a rebuild started under `REBUILD_COOLDOWN_MS` ago
+   * (`hasCoolingRebuilds` then says a later pass has work).
    */
   nearestDirtyKeys(
     center: Coords2,
     limit: number,
     isReady?: (cx: number, cz: number) => boolean,
+    nowMs: number = performance.now(),
   ): string[] {
     const urgentKeys = this.urgentDirtyKeys();
     const [centerX, centerZ] = center;
@@ -803,9 +830,18 @@ export class MeshPipeline {
     const rebuilt: string[] = [];
     const rebuiltDistances: number[] = [];
     const readyColumns = new Map<number, boolean>();
+    this.coolingRebuilds = 0;
     for (const key of this.dirty) {
       if (this.urgentDirty.has(key)) continue;
       const isFresh = !this.hasDisplayed(key);
+      if (
+        !isFresh &&
+        nowMs - (this.states.get(key)?.rebuildStartedAt ?? -Infinity) <
+          REBUILD_COOLDOWN_MS
+      ) {
+        if (this.shouldStartJob(key)) this.coolingRebuilds += 1;
+        continue;
+      }
       const keys = isFresh ? fresh : rebuilt;
       const distances = isFresh ? freshDistances : rebuiltDistances;
       const distance = keyColumnDistanceSq(key, centerX, centerZ);
@@ -855,6 +891,15 @@ export class MeshPipeline {
       }
     }
     return [...urgentKeys, ...ordered];
+  }
+
+  /**
+   * Whether the last `nearestDirtyKeys` pass left out a rebuild only
+   * because it was started too recently: nothing else will announce the
+   * end of its wait, so the caller looks again next frame.
+   */
+  get hasCoolingRebuilds(): boolean {
+    return this.coolingRebuilds > 0;
   }
 
   hasDirtyChunks(): boolean {

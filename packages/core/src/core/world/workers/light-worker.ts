@@ -4,9 +4,9 @@ import { ChunkUtils } from "../../../utils/chunk-utils";
 import { LightColor, LightUtils } from "../../../utils/light-utils";
 import { Block, BlockRotation } from "../block";
 import type { LightNode, WorldOptions } from "../index";
+import { unpackLightSeeds } from "../light-seeds";
 import { RawChunk } from "../raw-chunk";
 import { Registry } from "../registry";
-import { applyVoxelDelta, type VoxelDelta } from "../voxel-delta";
 
 let registry: Registry;
 
@@ -607,6 +607,121 @@ function removeLightsBatch(
   return { fill: LightUtils.dedupeFillQueue(liveFill), pendingRemovals };
 }
 
+type PackedLightWorkerJob = Omit<LightWorkerJob, "lightOps"> & {
+  seeds: Int32Array;
+};
+
+type LightWorkerJob = {
+  jobId: string;
+  color: LightColor;
+  boundingBox: { min: Coords3; shape: Coords3 };
+  lightOps: {
+    removals: Coords3[];
+    floods: LightNode[];
+    pendingRemovals?: LightNode[];
+  };
+};
+
+/** One job's removals and floods, written into `space`. */
+function runLightJob(
+  job: LightWorkerJob,
+  space: BoundedSpace,
+  options: WorldOptions,
+) {
+  const { jobId, color, boundingBox, lightOps } = job;
+
+  const { min, shape } = boundingBox;
+  const maxCoords: Coords3 = [
+    min[0] + shape[0],
+    min[1] + shape[1],
+    min[2] + shape[2],
+  ];
+
+  // Nodes a prior job on this same box couldn't finish before hitting its
+  // node budget. Gathered here and sent back again (as `pendingFloods` /
+  // `pendingRemovals`) if this job bails too, so a pathological region
+  // (e.g. a long open sunlight shaft under a floating island) converges
+  // over a few follow-up jobs instead of shipping with a permanently
+  // half-lit hole.
+  const pendingFloods: LightNode[] = [];
+  let pendingRemovals: LightNode[] = [];
+
+  if (lightOps.removals.length > 0 || lightOps.pendingRemovals?.length) {
+    const { fill: fillQueue, pendingRemovals: stillPendingRemovals } =
+      removeLightsBatch(
+        space,
+        lightOps.removals,
+        color,
+        min,
+        maxCoords,
+        options,
+        lightOps.pendingRemovals ?? [],
+      );
+    pendingRemovals = stillPendingRemovals;
+
+    if (fillQueue.length > 0) {
+      for (const node of fillQueue) {
+        const [vx, vy, vz] = node.voxel;
+        if (color === "SUNLIGHT") {
+          space.setSunlightAt(vx, vy, vz, node.level);
+        } else {
+          space.setTorchLightAt(vx, vy, vz, node.level, color);
+        }
+      }
+
+      pendingFloods.push(
+        ...floodLight(space, fillQueue, color, min, maxCoords, options),
+      );
+    }
+  }
+
+  // A deferred seed names an opened cell and asks for its neighbours' light
+  // as it stands in this snapshot — which already carries every earlier
+  // batch's result, unlike the main thread at analysis time. A leftover
+  // flood node from a prior bailed-out job is already fully resolved (a
+  // concrete level, not a deferred lookup), so it passes through as-is.
+  const floods: LightNode[] = LightUtils.resolveDeferredSeeds(
+    space,
+    lightOps.floods,
+    color,
+    options.maxHeight,
+  );
+
+  if (floods.length > 0) {
+    // A seed only ever raises its cell. The removal's refill above may
+    // already have brought brighter light back into it — a dim lamp placed
+    // inside a torch's glow — and writing the seed over that left the
+    // lamp's own cell darker than the server's, which keeps the max too.
+    floods.forEach((node) => {
+      const [vx, vy, vz] = node.voxel;
+      if (color === "SUNLIGHT") {
+        if (space.getSunlightAt(vx, vy, vz) < node.level) {
+          space.setSunlightAt(vx, vy, vz, node.level);
+        }
+      } else if (space.getTorchLightAt(vx, vy, vz, color) < node.level) {
+        space.setTorchLightAt(vx, vy, vz, node.level, color);
+      }
+    });
+
+    pendingFloods.push(
+      ...floodLight(space, floods, color, min, maxCoords, options),
+    );
+  }
+
+  return {
+    jobId,
+    modifiedChunks: space.getModifiedChunks().map((chunk) => ({
+      coords: chunk.chunk.coords,
+      lights: chunk.chunk.lights.data,
+      minY: chunk.minY,
+      maxY: chunk.maxY,
+    })),
+    borderNeighbors: space.getBorderNeighbors(),
+    pendingFloods: pendingFloods.length > 0 ? pendingFloods : undefined,
+    pendingRemovals: pendingRemovals.length > 0 ? pendingRemovals : undefined,
+  };
+}
+
 onmessage = function (e) {
   const { type } = e.data;
 
@@ -625,17 +740,31 @@ onmessage = function (e) {
   }
 
   if (type === "batchOperations") {
-    const {
-      jobId,
-      color,
-      boundingBox,
-      chunksData,
-      chunkGridDimensions,
-      chunkGridOffset,
-      relevantDeltas,
-      lightOps,
-      options,
-    } = e.data;
+    const { chunksData, chunkGridDimensions, chunkGridOffset, options } =
+      e.data;
+
+    // A group of jobs shares this one snapshot (`jobs`), each with its
+    // seeds packed into one list of integers; a lone job may still arrive
+    // with its fields on the message itself and is answered in the same
+    // flat shape.
+    const grouped = Array.isArray(e.data.jobs);
+    const jobs: LightWorkerJob[] = grouped
+      ? (e.data.jobs as PackedLightWorkerJob[]).map(
+          ({ jobId, color, boundingBox, seeds }) => ({
+            jobId,
+            color,
+            boundingBox,
+            lightOps: unpackLightSeeds(seeds),
+          }),
+        )
+      : [
+          {
+            jobId: e.data.jobId,
+            color: e.data.color,
+            boundingBox: e.data.boundingBox,
+            lightOps: e.data.lightOps,
+          },
+        ];
 
     const [gridWidth, gridDepth] = chunkGridDimensions;
     const [gridOffsetX, gridOffsetZ] = chunkGridOffset;
@@ -650,141 +779,35 @@ onmessage = function (e) {
       }
     }
 
-    let lastSequenceId = 0;
-    Object.entries(relevantDeltas).forEach(([chunkName, deltas]) => {
-      const [cx, cz] = ChunkUtils.parseChunkName(chunkName);
-      const localX = cx - gridOffsetX;
-      const localZ = cz - gridOffsetZ;
+    // Each job keeps its own record of what it wrote, over the chunks they
+    // all share: a later job reads the earlier ones' light, as it would have
+    // had they landed first, and a chunk's lights go back once however many
+    // jobs wrote into it.
+    const results = jobs.map((job) =>
+      runLightJob(
+        job,
+        new BoundedSpace(
+          chunkGrid,
+          gridWidth,
+          gridDepth,
+          gridOffsetX,
+          gridOffsetZ,
+          options.chunkSize,
+        ),
+        options,
+      ),
+    );
 
-      if (
-        localX < 0 ||
-        localX >= gridWidth ||
-        localZ < 0 ||
-        localZ >= gridDepth
-      ) {
-        return;
-      }
+    const transferBuffers = Array.from(
+      new Set(
+        results.flatMap((result) =>
+          result.modifiedChunks.map((chunk) => chunk.lights.buffer),
+        ),
+      ),
+    ).filter((buffer): buffer is ArrayBuffer => buffer instanceof ArrayBuffer);
 
-      const chunk = chunkGrid[localX][localZ];
-      if (!chunk) return;
-
-      (deltas as VoxelDelta[]).forEach((delta) => {
-        applyVoxelDelta(chunk, delta);
-        lastSequenceId = Math.max(lastSequenceId, delta.sequenceId);
-      });
+    postMessage(grouped ? { results } : results[0], {
+      transfer: transferBuffers,
     });
-
-    const space = new BoundedSpace(
-      chunkGrid,
-      gridWidth,
-      gridDepth,
-      gridOffsetX,
-      gridOffsetZ,
-      options.chunkSize,
-    );
-
-    const { min, shape } = boundingBox;
-    const maxCoords: Coords3 = [
-      min[0] + shape[0],
-      min[1] + shape[1],
-      min[2] + shape[2],
-    ];
-
-    // Nodes a prior job on this same box couldn't finish before hitting its
-    // node budget. Gathered here and sent back again (as `pendingFloods` /
-    // `pendingRemovals`) if this job bails too, so a pathological region
-    // (e.g. a long open sunlight shaft under a floating island) converges
-    // over a few follow-up jobs instead of shipping with a permanently
-    // half-lit hole.
-    const pendingFloods: LightNode[] = [];
-    let pendingRemovals: LightNode[] = [];
-
-    if (lightOps.removals.length > 0 || lightOps.pendingRemovals?.length) {
-      const { fill: fillQueue, pendingRemovals: stillPendingRemovals } =
-        removeLightsBatch(
-          space,
-          lightOps.removals,
-          color,
-          min,
-          maxCoords,
-          options,
-          lightOps.pendingRemovals ?? [],
-        );
-      pendingRemovals = stillPendingRemovals;
-
-      if (fillQueue.length > 0) {
-        for (const node of fillQueue) {
-          const [vx, vy, vz] = node.voxel;
-          if (color === "SUNLIGHT") {
-            space.setSunlightAt(vx, vy, vz, node.level);
-          } else {
-            space.setTorchLightAt(vx, vy, vz, node.level, color);
-          }
-        }
-
-        pendingFloods.push(
-          ...floodLight(space, fillQueue, color, min, maxCoords, options),
-        );
-      }
-    }
-
-    // A deferred seed names an opened cell and asks for its neighbours' light
-    // as it stands in this snapshot — which already carries every earlier
-    // batch's result, unlike the main thread at analysis time. A leftover
-    // flood node from a prior bailed-out job is already fully resolved (a
-    // concrete level, not a deferred lookup), so it passes through as-is.
-    const floods: LightNode[] = LightUtils.resolveDeferredSeeds(
-      space,
-      lightOps.floods,
-      color,
-      options.maxHeight,
-    );
-
-    if (floods.length > 0) {
-      // A seed only ever raises its cell. The removal's refill above may
-      // already have brought brighter light back into it — a dim lamp placed
-      // inside a torch's glow — and writing the seed over that left the
-      // lamp's own cell darker than the server's, which keeps the max too.
-      floods.forEach((node) => {
-        const [vx, vy, vz] = node.voxel;
-        if (color === "SUNLIGHT") {
-          if (space.getSunlightAt(vx, vy, vz) < node.level) {
-            space.setSunlightAt(vx, vy, vz, node.level);
-          }
-        } else if (space.getTorchLightAt(vx, vy, vz, color) < node.level) {
-          space.setTorchLightAt(vx, vy, vz, node.level, color);
-        }
-      });
-
-      pendingFloods.push(
-        ...floodLight(space, floods, color, min, maxCoords, options),
-      );
-    }
-
-    const modifiedChunks = space.getModifiedChunks();
-
-    const transferBuffers = modifiedChunks
-      .map((chunk) => chunk.chunk.lights.data.buffer)
-      .filter((buffer): buffer is ArrayBuffer => buffer instanceof ArrayBuffer);
-
-    postMessage(
-      {
-        jobId,
-        modifiedChunks: modifiedChunks.map((chunk) => ({
-          coords: chunk.chunk.coords,
-          lights: chunk.chunk.lights.data,
-          minY: chunk.minY,
-          maxY: chunk.maxY,
-        })),
-        borderNeighbors: space.getBorderNeighbors(),
-        appliedDeltas: { lastSequenceId },
-        pendingFloods: pendingFloods.length > 0 ? pendingFloods : undefined,
-        pendingRemovals:
-          pendingRemovals.length > 0 ? pendingRemovals : undefined,
-      },
-      {
-        transfer: transferBuffers,
-      },
-    );
   }
 };

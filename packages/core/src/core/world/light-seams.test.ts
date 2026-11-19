@@ -8,9 +8,11 @@ import {
   analyzeLightOperations,
   buildLightJobs,
   floodLight,
-  LightJob,
+  groupLightJobs,
+  LightJobGroup,
   LightWorkerResult,
   mergeSingleColorResult,
+  packLightSeeds,
   ProcessedUpdate,
   removeLightsBatch,
   VoxelLightVolume,
@@ -140,7 +142,9 @@ for (const b of BLOCKS) {
 }
 
 type WorkerMessage = { data: Record<string, unknown> };
-let runWorker: (message: Record<string, unknown>) => LightWorkerResult;
+let runWorker: (message: Record<string, unknown>) => {
+  results: LightWorkerResult[];
+};
 
 beforeAll(async () => {
   // The worker module installs a global `onmessage` and answers through
@@ -149,10 +153,10 @@ beforeAll(async () => {
     onmessage: ((event: WorkerMessage) => void) | null;
     postMessage: (message: unknown) => void;
   };
-  let reply: LightWorkerResult | null = null;
+  let reply: { results: LightWorkerResult[] } | null = null;
   scope.onmessage = null;
   scope.postMessage = (message) => {
-    reply = message as LightWorkerResult;
+    reply = message as { results: LightWorkerResult[] };
   };
   await import("./workers/light-worker");
   const handler = scope.onmessage as unknown as (event: WorkerMessage) => void;
@@ -261,46 +265,72 @@ class ClientWorld implements VoxelLightVolume {
     const jobs = buildLightJobs(
       ops,
       0,
-      0,
       VOLUME_OPTIONS,
       (color) => `${color}-${jobCount++}`,
     );
 
-    // Every job of a batch reads the chunks as they stood when the batch
+    // Every group of a batch reads the chunks as they stood when the batch
     // started; results only land once the whole batch is back.
-    const messages = jobs.map((job) => this.jobMessage(job));
-    const results = messages.map((message) => runWorker(message));
+    const groups = groupLightJobs(jobs, VOLUME_OPTIONS);
+    const answers = groups.map((group) => runWorker(this.groupMessage(group)));
 
-    results.forEach((result, index) => {
-      const job = jobs[index];
-      expect(result.pendingFloods ?? []).toEqual([]);
-      expect(result.pendingRemovals ?? []).toEqual([]);
-      for (const { coords, lights } of result.modifiedChunks) {
-        const chunk = this.chunks.get(ChunkUtils.getChunkName(coords));
-        if (!chunk) continue;
-        mergeSingleColorResult(
-          chunk as unknown as Parameters<typeof mergeSingleColorResult>[0],
-          lights as Uint32Array,
-          job.color,
-          job.boundingBox,
-        );
-      }
+    groups.forEach((group, groupIndex) => {
+      const { results } = answers[groupIndex];
+      expect(results.map((result) => result.jobId)).toEqual(
+        group.jobs.map((job) => job.jobId),
+      );
+      group.jobs.forEach((job, index) => {
+        const result = results[index];
+        expect(result.pendingFloods ?? []).toEqual([]);
+        expect(result.pendingRemovals ?? []).toEqual([]);
+        // Over the rows the job says it wrote, as World.applyBatchResults
+        // merges it: a row left out here would read dark below.
+        for (const { coords, lights, minY, maxY } of result.modifiedChunks) {
+          const chunk = this.chunks.get(ChunkUtils.getChunkName(coords));
+          if (!chunk) continue;
+          mergeSingleColorResult(
+            chunk as unknown as Parameters<typeof mergeSingleColorResult>[0],
+            lights as Uint32Array,
+            job.color,
+            job.boundingBox,
+            minY,
+            maxY,
+          );
+        }
+      });
     });
+
+    this.snapshotChunksCopied += groups.reduce(
+      (count, group) => count + group.reachableCount,
+      0,
+    );
+    this.boxChunksPerJob += jobs.reduce((count, job) => {
+      const [group] = groupLightJobs([job], VOLUME_OPTIONS);
+      return (
+        count +
+        (group.maxChunk[0] - group.minChunk[0] + 1) *
+          (group.maxChunk[1] - group.minChunk[1] + 1)
+      );
+    }, 0);
   }
 
-  /** Mirrors World.executeLightJob's chunk grid for a job's box. */
-  private jobMessage(job: LightJob) {
-    const { min, shape } = job.boundingBox;
-    const { chunkSize } = VOLUME_OPTIONS;
-    const minCX = Math.floor(min[0] / chunkSize);
-    const minCZ = Math.floor(min[2] / chunkSize);
-    const maxCX = Math.floor((min[0] + shape[0] - 1) / chunkSize);
-    const maxCZ = Math.floor((min[2] + shape[2] - 1) / chunkSize);
+  /** Chunk copies the edits so far sent to the workers. */
+  snapshotChunksCopied = 0;
+  /** What they would have sent as one whole box per job. */
+  boxChunksPerJob = 0;
+
+  /** Mirrors World.executeLightJobGroup's snapshot of a group's chunks. */
+  private groupMessage(group: LightJobGroup) {
+    const [minCX, minCZ] = group.minChunk;
+    const [maxCX, maxCZ] = group.maxChunk;
 
     const chunksData: (object | null)[] = [];
+    let index = 0;
     for (let cx = minCX; cx <= maxCX; cx++) {
       for (let cz = minCZ; cz <= maxCZ; cz++) {
-        const chunk = this.chunks.get(ChunkUtils.getChunkName([cx, cz]));
+        const chunk = group.reachable[index++]
+          ? this.chunks.get(ChunkUtils.getChunkName([cx, cz]))
+          : undefined;
         chunksData.push(
           chunk
             ? {
@@ -319,14 +349,15 @@ class ClientWorld implements VoxelLightVolume {
 
     return {
       type: "batchOperations",
-      jobId: job.jobId,
-      color: job.color,
-      boundingBox: job.boundingBox,
+      jobs: group.jobs.map(({ jobId, color, boundingBox, lightOps }) => ({
+        jobId,
+        color,
+        boundingBox,
+        seeds: packLightSeeds(lightOps),
+      })),
       chunksData,
       chunkGridDimensions: [maxCX - minCX + 1, maxCZ - minCZ + 1],
       chunkGridOffset: [minCX, minCZ],
-      relevantDeltas: {},
-      lightOps: job.lightOps,
       options: { ...VOLUME_OPTIONS, subChunks: CHUNK_OPTIONS.subChunks },
     };
   }
@@ -505,6 +536,65 @@ describe("client relight across job boxes and chunk borders", () => {
         `step ${step}: ${id} at ${voxel}, ${seams.length} voxel(s) off`,
       ).toEqual([]);
     }
+  });
+
+  it("fires lit and put out all over a forest relight whole from one snapshot per area", () => {
+    // What a spreading fire sends: every batch lights some cells and puts
+    // others out, scattered across many chunks, and the seeds chain into one
+    // box. Each colour used to copy that whole box for itself.
+    let seed = 0xf12e;
+    const random = () => {
+      seed = (seed * 1103515245 + 12345) & 0x7fffffff;
+      return seed / 0x7fffffff;
+    };
+    const cell = (): Coords3 => [
+      Math.floor(random() * 96) - 44,
+      Y + Math.floor(random() * 3),
+      Math.floor(random() * 64) - 28,
+    ];
+
+    const world = new ClientWorld();
+    const burning: Coords3[] = [];
+    for (let batch = 0; batch < 8; batch++) {
+      const lit = Array.from({ length: 12 }, cell);
+      const out = burning.splice(0, Math.min(burning.length, 8));
+      world.edit([
+        ...out.map((voxel) => ({ voxel, id: AIR })),
+        ...lit.map((voxel) => ({ voxel, id: WARM_LAMP })),
+      ]);
+      burning.push(...lit);
+      const seams = seamsIn(world);
+      expect(
+        seams.slice(0, 4),
+        `batch ${batch}: ${seams.length} voxel(s) off`,
+      ).toEqual([]);
+    }
+
+    // Three colours over the same chunks: one copy where there were three.
+    expect(world.boxChunksPerJob).toBeGreaterThan(0);
+    expect(world.snapshotChunksCopied * 3).toBeLessThanOrEqual(
+      world.boxChunksPerJob,
+    );
+  });
+
+  it("seeds along a diagonal leave the chunks their light cannot reach out of the snapshot", () => {
+    // Lamps 20 apart on a diagonal chain into one box; the corners of that
+    // box are further than any light travels from every lamp.
+    const world = new ClientWorld();
+    const diagonal: Coords3[] = [-2, -1, 0, 1, 2].map((step) => [
+      8 + step * 20,
+      Y,
+      8 + step * 14,
+    ]);
+    world.edit(diagonal.map((voxel) => ({ voxel, id: TORCH })));
+    expectNoSeams(world);
+    world.edit(diagonal.map((voxel) => ({ voxel, id: AIR })));
+    expectNoSeams(world);
+
+    // Six jobs (three colours, twice) of a 7x5 box each, against the
+    // chunks within reach of a lamp, copied once per edit.
+    expect(world.boxChunksPerJob).toBe(6 * 35);
+    expect(world.snapshotChunksCopied).toBeLessThan(2 * 35);
   });
 });
 

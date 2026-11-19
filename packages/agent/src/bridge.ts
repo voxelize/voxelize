@@ -568,8 +568,6 @@ export type WorldMemoryCounters = {
   activeLightBatchUndispatchedJobs: number;
   voxelHistoryVoxels: number;
   memoryPressure: MemoryPressureStatus;
-  voxelDeltaChunks: number;
-  voxelDeltaTotal: number;
   meshQueue: number;
   meshWorking: number;
   meshQueuedBytes: number;

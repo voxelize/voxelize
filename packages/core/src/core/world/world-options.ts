@@ -50,6 +50,15 @@ export type WorldClientOptions = {
   lightJobTimeoutMs: number;
 
   /**
+   * Bytes of chunk copies the light workers may hold at once. A relight
+   * copies every chunk its light can reach, so jobs that would take the
+   * copies in flight past this wait for one to come back; a single job
+   * larger than the whole budget still runs, alone, with a warning.
+   * Defaults to 96 MB.
+   */
+  lightSnapshotBudgetBytes: number;
+
+  /**
    * Milliseconds a mesh worker job may run before its worker is presumed
    * dead and replaced. Defaults to `30000`.
    */
@@ -459,11 +468,6 @@ export type WorldClientOptions = {
   lightJobRetryLimit: number;
 
   /**
-   * How long to retain delta history in milliseconds. Defaults to 5000ms.
-   */
-  deltaRetentionTime: number;
-
-  /**
    * Whether to merge chunk geometries to reduce draw calls. Useful for mobile. Defaults to false.
    */
   mergeChunkGeometries: boolean;
@@ -570,6 +574,7 @@ export const defaultWorldClientOptions: WorldClientOptions = {
   maxOptimisticClientUpdates: 4000,
   maxImmediateServerUpdates: 500,
   lightJobTimeoutMs: 20000,
+  lightSnapshotBudgetBytes: 96 * 1024 * 1024,
   meshJobTimeoutMs: 30000,
   maxLightsUpdateTime: 5, // ms
   maxMeshesPerUpdate: 32,
@@ -624,7 +629,6 @@ export const defaultWorldClientOptions: WorldClientOptions = {
   useLightWorkers: true,
   maxLightWorkers: 4,
   lightJobRetryLimit: 3,
-  deltaRetentionTime: 5000,
   mergeChunkGeometries: false,
   maxQueuedWorkerJobs: 8,
   maxVoxelHistoryVoxels: 4096,

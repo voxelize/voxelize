@@ -56,8 +56,14 @@ import {
   prepareTransparentMesh,
   sortTransparentMesh,
 } from "../../core/transparent-sorter";
-import { BoundedLruMap, WorkerPool } from "../../libs";
-import { frameNow, frameStep } from "../../libs/frame-clock";
+import { WorkerPool } from "../../libs";
+import {
+  frameNow,
+  framePaceMs,
+  frameRoomMs,
+  frameStep,
+} from "../../libs/frame-clock";
+import { VoxelHistory } from "../../libs/voxel-history";
 import { createBudgetedDrain } from "../../libs/instancing/frame-budget";
 import {
   getMeshTransferStatus,
@@ -176,6 +182,7 @@ import { auditLightCones, LightCones } from "./light-cones";
 import {
   LightBatch,
   LightJob,
+  LightJobGroup,
   LightNode,
   LightOperations,
   LightWorkerResult,
@@ -185,12 +192,14 @@ import {
   countLightSeeds,
   floodLight,
   foldLightJobsBack,
+  groupLightJobs,
   mergeLightOperations,
   mergeSingleColorResult,
+  packLightSeeds,
   removeLight,
+  unpackLightSeeds,
   removeLightsBatch,
 } from "./lighting";
-import type { BoundingBox } from "./lighting";
 import { Loader } from "./loader";
 import { LocalLights } from "./local-lights";
 import { installMaterialRenderHooks } from "./material-render-hooks";
@@ -280,7 +289,6 @@ import {
   VoxelBoxTexelFrame,
   VoxelBoxWork,
 } from "./voxel-box";
-import type { VoxelDelta } from "./voxel-delta";
 import { stateBitsOf, withStateBits } from "./voxel-state";
 import { lightsHoldPaneFaces, WaterDepthPass } from "./water-depth";
 import {
@@ -412,6 +420,20 @@ export type RegionArenaStats = {
 
 /** Dirty sections picked, nearest first, for one mesh dispatch window. */
 const MESH_CANDIDATES = 64;
+/**
+ * Applies of sections with nothing on screen yet that may run in a row
+ * while a rebuild of one already drawn waits.
+ */
+const FRESH_APPLIES_PER_REBUILD = 3;
+
+type PendingMeshResult = {
+  cx: number;
+  cz: number;
+  level: number;
+  geometries: GeometryProtocol[];
+  connectivity: number;
+  generation: number;
+};
 /** A mesh dispatch window (`maxMeshesPerUpdate` sections), about a frame. */
 const MESH_DISPATCH_WINDOW_MS = 16;
 /** Past this frame time a finished mesh job leaves its refill to the next frame. */
@@ -502,6 +524,21 @@ export type WorldChunkEvents = {
 
 export type { WorldFogRange };
 
+/** The rotation of a voxel that is not turned. Shared: never change it. */
+const UNTURNED = Object.freeze(new BlockRotation()) as BlockRotation;
+
+/**
+ * The rotation a voxel's word holds for the block it is: none where the
+ * block keeps state in those bits, and the shared unturned one where the
+ * bits are zero, which is nearly every voxel of a mass edit.
+ */
+function rotationInWord(block: Block, raw: number): BlockRotation {
+  if (block.rotationBitsAreState || ((raw >>> 16) & 0xff) === 0) {
+    return UNTURNED;
+  }
+  return BlockUtils.extractRotation(raw);
+}
+
 export type BlockUpdateListener = (args: {
   oldValue: number;
   newValue: number;
@@ -522,8 +559,6 @@ export type BlockEntityUpdateListener<T> = (
   args: BlockEntityUpdateData<T>,
 ) => void;
 
-export type { VoxelDelta } from "./voxel-delta";
-
 /**
  * A snapshot of every queue and in-flight set in the voxel update ->
  * relight -> remesh pipeline. See {@link World.getMemoryCounters}.
@@ -536,8 +571,6 @@ export type WorldMemoryCounters = {
   activeLightBatchUndispatchedJobs: number;
   voxelHistoryVoxels: number;
   memoryPressure: MemoryPressureStatus;
-  voxelDeltaChunks: number;
-  voxelDeltaTotal: number;
   meshQueue: number;
   meshWorking: number;
   meshQueuedBytes: number;
@@ -673,24 +706,20 @@ export class World<T = any> extends Scene implements NetIntercept {
    * carving and watch which stage balloons.
    */
   getMemoryCounters(): WorldMemoryCounters {
-    let voxelDeltaTotal = 0;
-    this.voxelDeltas.forEach((deltas) => {
-      voxelDeltaTotal += deltas.length;
-    });
-
     return {
-      blockUpdatesQueue: this.blockUpdatesQueue.length,
+      blockUpdatesQueue: this.queuedBlockUpdates,
       blockUpdatesToEmit: this.blockUpdatesToEmit.length,
       lightJobQueue: this.lightJobQueue.length,
       activeLightBatchPendingJobs: this.activeLightBatch
         ? this.activeLightBatch.totalJobs - this.activeLightBatch.completedJobs
         : 0,
       activeLightBatchUndispatchedJobs:
-        this.activeLightBatch?.pendingDispatch.length ?? 0,
+        this.activeLightBatch?.pendingDispatch.reduce(
+          (count, group) => count + group.jobs.length,
+          0,
+        ) ?? 0,
       voxelHistoryVoxels: this.oldBlocks.size,
       memoryPressure: this.memoryPressureMonitor.getStatus(),
-      voxelDeltaChunks: this.voxelDeltas.size,
-      voxelDeltaTotal,
       meshQueue: this.meshWorkerPool.queue.length,
       meshWorking: this.meshWorkerPool.workingCount,
       meshQueuedBytes: this.meshWorkerPool.queuedBytes,
@@ -817,14 +846,18 @@ export class World<T = any> extends Scene implements NetIntercept {
    * {@link WorldClientOptions.meshApplyBudgetMs}. Urgent results and results
    * arriving before the first {@link update} tick bypass this queue.
    */
-  private pendingMeshResults: {
-    cx: number;
-    cz: number;
-    level: number;
-    geometries: GeometryProtocol[];
-    connectivity: number;
-    generation: number;
-  }[] = [];
+  private pendingMeshResults: PendingMeshResult[] = [];
+
+  /**
+   * The same, for sections with nothing on screen yet. They apply ahead of
+   * rebuilds (`FRESH_APPLIES_PER_REBUILD`): one apply uploads a whole
+   * section, a frame's budget fits one or two, and while a stream of
+   * changes kept rebuilding the sections it touched (a forest burning),
+   * ground the player had just come to waited its turn behind every one of
+   * them: 21 s to draw what took under a second with nothing burning.
+   */
+  private pendingFreshMeshResults: PendingMeshResult[] = [];
+  private freshAppliesInARow = 0;
 
   /** The render loop has driven at least one {@link update} tick. */
   private isTicking = false;
@@ -1633,7 +1666,7 @@ export class World<T = any> extends Scene implements NetIntercept {
   /**
    * The voxel cache that stores previous values.
    */
-  private oldBlocks: BoundedLruMap<string, number[]>;
+  private oldBlocks: VoxelHistory;
 
   /**
    * Cache for block meshes created by makeBlockMesh with cached option. Each
@@ -1825,18 +1858,27 @@ export class World<T = any> extends Scene implements NetIntercept {
   private activeBlockUpdateSource: "client" | "server" | null = null;
 
   private blockUpdatesQueue: BlockUpdateWithSource[] = [];
+  /**
+   * Where the queue's unapplied updates begin. A slice moves this on instead
+   * of cutting the applied ones off the array's front, which shifted the
+   * whole backlog (hundreds of thousands of entries under a mass edit) twice
+   * every frame; the applied front is dropped once it is most of the array.
+   */
+  private blockUpdatesQueueHead = 0;
+
+  private get queuedBlockUpdates(): number {
+    return this.blockUpdatesQueue.length - this.blockUpdatesQueueHead;
+  }
   private blockUpdatesToEmit: BlockUpdate[] = [];
   /** Replayed through the normal ingest path when each chunk's data lands. */
   private heldServerUpdates = new HeldServerUpdates();
 
   private borderSwapHold = new BorderSwapHold<GeometryProtocol[]>();
 
-  private voxelDeltas = new Map<string, VoxelDelta[]>();
-
-  /** Largest chunk count any single light job has serialized this session. */
+  /** Most chunks any one light snapshot has copied this session. */
   private lightJobHighWaterChunks = 0;
-  private deltaSequenceCounter = 0;
-  private cleanupDeltasInterval: number | null = null;
+  /** Bytes of chunk copies the light workers hold right now. */
+  private lightSnapshotBytesInFlight = 0;
   private stopStatsSync: (() => void) | null = null;
   private isDisposed = false;
   /** Callbacks that end with this world; see {@link onDispose}. */
@@ -1867,7 +1909,6 @@ export class World<T = any> extends Scene implements NetIntercept {
   private memoryPressureMonitor: MemoryPressureMonitor;
 
   private accumulatedLightOps: LightOperations | null = null;
-  private accumulatedStartSequenceId = 0;
   /**
    * The clock chunk shaders animate on (waves, sway, flicker, animated
    * atlas frames): the shared clock, slewed and wrapped for the GPU, so
@@ -1916,7 +1957,10 @@ export class World<T = any> extends Scene implements NetIntercept {
       "vec4",
     );
 
-    this.oldBlocks = new BoundedLruMap(this.options.maxVoxelHistoryVoxels);
+    this.oldBlocks = new VoxelHistory(
+      this.options.maxVoxelHistoryVoxels,
+      this.options.maxVoxelHistoryPerVoxel,
+    );
 
     this.meshWorkerPool = new WorkerPool(MeshWorker, {
       maxWorker: maxMeshWorkers,
@@ -1950,7 +1994,6 @@ export class World<T = any> extends Scene implements NetIntercept {
 
     this.setupComponents();
     this.setupUniforms();
-    this.startDeltaCleanup();
 
     // Fires at the start of every scene render (shadow cascades included),
     // which is the earliest point with a renderer in hand: animated atlas
@@ -2044,10 +2087,6 @@ export class World<T = any> extends Scene implements NetIntercept {
     this.chunkRenderer.uniforms.waterNormalMap.value?.dispose();
     this.sky.dispose();
 
-    if (this.cleanupDeltasInterval !== null) {
-      clearInterval(this.cleanupDeltasInterval);
-      this.cleanupDeltasInterval = null;
-    }
     this.stopStatsSync?.();
     this.stopStatsSync = null;
 
@@ -2122,21 +2161,18 @@ export class World<T = any> extends Scene implements NetIntercept {
 
     const droppedMeshJobs = this.meshWorkerPool.drainQueue();
 
-    const queuedPayloads = this.lightWorkerPool.queue
-      .map(
-        (job) =>
-          job.message as {
-            type?: string;
-            color?: LightColor;
-            lightOps?: LightJob["lightOps"];
-          },
-      )
-      .filter(
-        (message): message is Pick<LightJob, "color" | "lightOps"> =>
-          message.type === "batchOperations" &&
-          message.color !== undefined &&
-          message.lightOps !== undefined,
-      );
+    const queuedPayloads = this.lightWorkerPool.queue.flatMap((job) => {
+      const message = job.message as {
+        type?: string;
+        jobs?: { color: LightColor; seeds: Int32Array }[];
+      };
+      if (message.type !== "batchOperations") return [];
+      // Still waiting for a worker, so its seeds have not been handed over.
+      return (message.jobs ?? []).map(({ color, seeds }) => ({
+        color,
+        lightOps: unpackLightSeeds(seeds),
+      }));
+    });
     const pendingJobs = this.lightJobQueue;
     const deferredJobs = [...pendingJobs, ...queuedPayloads];
 
@@ -2151,19 +2187,6 @@ export class World<T = any> extends Scene implements NetIntercept {
       (this.accumulatedLightOps
         ? countLightSeeds(this.accumulatedLightOps)
         : 0) - seedsBefore;
-
-    // The worker replays voxel deltas newer than the start id over its chunk
-    // snapshot, so the folded work keeps the earliest id it was built with.
-    const startSequenceIds = pendingJobs.map((job) => job.startSequenceId);
-    if (queuedPayloads.length > 0 && this.activeLightBatch) {
-      startSequenceIds.push(this.activeLightBatch.startSequenceId);
-    }
-    if (seedsBefore > 0) {
-      startSequenceIds.push(this.accumulatedStartSequenceId);
-    }
-    if (startSequenceIds.length > 0) {
-      this.accumulatedStartSequenceId = Math.min(...startSequenceIds);
-    }
 
     this.lightJobQueue = [];
     const freedLightPayloads = this.lightWorkerPool.drainQueue();
@@ -2197,23 +2220,6 @@ export class World<T = any> extends Scene implements NetIntercept {
       return;
     }
     this.lightJobsCompleteResolvers.splice(0).forEach((resolve) => resolve());
-  }
-
-  private startDeltaCleanup() {
-    this.cleanupDeltasInterval = setInterval(() => {
-      const now = performance.now();
-      const cutoff = now - this.options.deltaRetentionTime;
-
-      this.voxelDeltas.forEach((deltas, chunkName) => {
-        const filtered = deltas.filter((d) => d.timestamp > cutoff);
-
-        if (filtered.length === 0) {
-          this.voxelDeltas.delete(chunkName);
-        } else if (filtered.length < deltas.length) {
-          this.voxelDeltas.set(chunkName, filtered);
-        }
-      });
-    }, 1000) as unknown as number;
   }
 
   private async dispatchMeshWorker(
@@ -3849,10 +3855,7 @@ export class World<T = any> extends Scene implements NetIntercept {
     const oldVoxel = chunk.getVoxel(px, py, pz);
     chunk.setVoxel(px, py, pz, voxel);
 
-    if (oldVoxel !== voxel) {
-      this.recordVoxelDelta(px, py, pz, { oldVoxel, newVoxel: voxel });
-      this.trackChunkAt(px, py, pz);
-    }
+    if (oldVoxel !== voxel) this.trackChunkAt(px, py, pz);
   }
 
   /**
@@ -3922,7 +3925,6 @@ export class World<T = any> extends Scene implements NetIntercept {
       oldRotation.value !== rotation.value ||
       oldRotation.yRotation !== rotation.yRotation
     ) {
-      this.recordVoxelDelta(px, py, pz, { oldRotation, newRotation: rotation });
       this.trackChunkAt(px, py, pz);
     }
   }
@@ -3950,10 +3952,7 @@ export class World<T = any> extends Scene implements NetIntercept {
     const oldStage = chunk.getVoxelStage(px, py, pz);
     chunk.setVoxelStage(px, py, pz, stage);
 
-    if (oldStage !== stage) {
-      this.recordVoxelDelta(px, py, pz, { oldStage, newStage: stage });
-      this.trackChunkAt(px, py, pz);
-    }
+    if (oldStage !== stage) this.trackChunkAt(px, py, pz);
   }
 
   /**
@@ -4158,14 +4157,12 @@ export class World<T = any> extends Scene implements NetIntercept {
    * @returns
    */
   getPreviousValueAt(px: number, py: number, pz: number, count = 1) {
-    const name = ChunkUtils.getVoxelName([px | 0, py | 0, pz | 0]);
-    const arr = this.oldBlocks.get(name) || [];
-    return arr[arr.length - count] || 0;
+    return this.oldBlocks.previous(`${px | 0}|${py | 0}|${pz | 0}`, count);
   }
 
   /**
-   * Remember the value a voxel held before this change, evicting the
-   * least-recently-touched voxels once the cache is full. A session that
+   * Remember the value a voxel held before this change, dropping the
+   * voxels first recorded longest ago once the store is full. A session that
    * carves thousands of voxels would otherwise keep one string key and one
    * growing array per voxel it ever edited, forever.
    */
@@ -4175,18 +4172,7 @@ export class World<T = any> extends Scene implements NetIntercept {
     vz: number,
     oldValue: number,
   ) {
-    const { maxVoxelHistoryPerVoxel } = this.options;
-    if (maxVoxelHistoryPerVoxel <= 0) return;
-
-    const name = ChunkUtils.getVoxelName([vx, vy, vz]);
-    const history = this.oldBlocks.get(name) ?? [];
-
-    history.push(oldValue);
-    if (history.length > maxVoxelHistoryPerVoxel) {
-      history.splice(0, history.length - maxVoxelHistoryPerVoxel);
-    }
-
-    this.oldBlocks.set(name, history);
+    this.oldBlocks.record(`${vx | 0}|${vy | 0}|${vz | 0}`, oldValue);
   }
 
   getBlockOf(idOrName: number | string) {
@@ -5434,8 +5420,7 @@ export class World<T = any> extends Scene implements NetIntercept {
     const blockUpdates = this.convertServerUpdates(updates);
     if (blockUpdates.length === 0) return;
 
-    const backlogAhead =
-      this.blockUpdatesQueue.length > 0 || this.isTrackingChunks;
+    const backlogAhead = this.queuedBlockUpdates > 0 || this.isTrackingChunks;
     if (
       backlogAhead ||
       blockUpdates.length > this.options.maxImmediateServerUpdates
@@ -5451,7 +5436,7 @@ export class World<T = any> extends Scene implements NetIntercept {
   private applyServerUpdatesImmediately(blockUpdates: BlockUpdateWithSource[]) {
     this.isTrackingChunks = true;
 
-    const remaining = this.processLightUpdates(blockUpdates);
+    const applied = this.processLightUpdates(blockUpdates);
 
     this.flushAccumulatedLightOps();
     this.isTrackingChunks = false;
@@ -5463,12 +5448,14 @@ export class World<T = any> extends Scene implements NetIntercept {
     // remeshes again with corrected lighting via applyBatchResults.
     this.processDirtyChunks();
 
-    if (remaining.length > 0) {
+    if (applied < blockUpdates.length) {
       // The budget ran out mid-batch. Nothing is queued (that is how this
       // path was reached), so the tail lands at the head of the queue and
       // continues next frame in order — deferred, because this frame has
       // already spent its slice.
-      this.blockUpdatesQueue.push(...remaining);
+      for (let i = applied; i < blockUpdates.length; i++) {
+        this.blockUpdatesQueue.push(blockUpdates[i]);
+      }
       this.processClientUpdates(true);
     }
   }
@@ -7304,42 +7291,19 @@ export class World<T = any> extends Scene implements NetIntercept {
     oldValue: number,
     newValue: number,
     source: "client" | "server",
+    chunk: Chunk | null,
   ) {
+    // One event for every listener: a mass edit fires this tens of
+    // thousands of times a second. A listener may keep the event's voxel;
+    // none may change it.
+    const voxel: Coords3 = [vx, vy, vz];
     // Raw values, not extracted ids: an in-place rotation (same id, new
     // rotation bits) must re-anchor the block's light and refresh cached
     // shadow maps.
-    this.localLights.handleBlockUpdate({
-      voxel: [vx, vy, vz],
-      oldValue,
-      newValue,
-      chunk: this.getChunkByPosition(vx, vy, vz) ?? null,
-    });
-    this.blockUpdateListeners.forEach((listener) =>
-      listener({
-        voxel: [vx, vy, vz],
-        oldValue,
-        newValue,
-        source,
-      }),
-    );
-  }
-
-  private attemptBlockCache(
-    vx: number,
-    vy: number,
-    vz: number,
-    newVal: number,
-    source: "client" | "server",
-  ) {
-    const chunk = this.getChunkByPosition(vx, vy, vz);
-    if (!chunk) return;
-
-    const oldVal = chunk.getRawValue(vx, vy, vz);
-
-    if (oldVal !== newVal) {
-      this.recordVoxelHistory(vx, vy, vz, oldVal);
-      this.triggerBlockUpdateListeners(vx, vy, vz, oldVal, newVal, source);
-    }
+    this.localLights.handleBlockUpdate({ voxel, oldValue, newValue, chunk });
+    if (this.blockUpdateListeners.size === 0) return;
+    const event = { voxel, oldValue, newValue, source };
+    for (const listener of this.blockUpdateListeners) listener(event);
   }
 
   /**
@@ -9301,138 +9265,197 @@ export class World<T = any> extends Scene implements NetIntercept {
     this.chunkRenderer.uniforms.showGreedyDebug.value = show ? 1.0 : 0.0;
   }
 
-  private processLightUpdates = (updates: BlockUpdateWithSource[]) => {
+  /**
+   * Apply updates from `updates[from]` on, in order, until `limit` of them
+   * are applied or the slice's time is spent. Returns the position it
+   * stopped at: everything before it is applied and analysed for light.
+   */
+  private processLightUpdates = (
+    updates: BlockUpdateWithSource[],
+    from = 0,
+    limit = Infinity,
+  ): number => {
     const startTime = performance.now();
-    const startSequenceId = this.deltaSequenceCounter;
 
-    const { maxHeight, maxLightsUpdateTime } = this.options;
+    const { maxHeight } = this.options;
+    // The writes stop early enough to leave the light analysis of what was
+    // written its share of the slice.
+    const writeBudgetMs = this.updateSliceMs() * World.UPDATE_SLICE_WRITE_SHARE;
 
     const processedUpdates: ProcessedUpdate[] = [];
-    let processedCount = 0;
+    // How far into `updates` the slice got. Counted by position, since an
+    // update outside the world's height is passed over without being
+    // processed.
+    let consumed = from;
+    const end = Math.min(updates.length, from + limit);
 
-    for (const update of updates) {
-      // Budget check before each write, never before the first: a slice
-      // always makes progress, and the tail is returned to the caller to
-      // continue next frame. Running out of budget is the design, not an
-      // anomaly, so it is not logged.
-      if (performance.now() - startTime > maxLightsUpdateTime) {
-        break;
-      }
+    this.sliceTrackedSections = this.sliceTrackedSectionsScratch;
+    this.sliceTrackedSections.length = 0;
 
-      const {
-        source,
-        update: {
-          type,
-          vx,
-          vy,
-          vz,
-          rotation,
-          yRotation,
-          stateBits,
-          stage,
-          isWaterlogged,
-          waterlogLevel,
-        },
-      } = update;
+    try {
+      for (; consumed < end; consumed++) {
+        // Budget check before a write, never before the first: a slice always
+        // makes progress, and the tail is returned to the caller to continue
+        // next frame. Running out of budget is the design, not an anomaly, so
+        // it is not logged. The clock is read every few writes: a write costs
+        // about what reading it does.
+        if (
+          consumed > from &&
+          ((consumed - from) & 7) === 0 &&
+          performance.now() - startTime > writeBudgetMs
+        ) {
+          break;
+        }
 
-      if (vy < 0 || vy >= maxHeight) continue;
-
-      const currentId = this.getVoxelAt(vx, vy, vz);
-      const currentBlock = this.getBlockById(currentId);
-      const newBlock = this.getBlockById(type);
-      const currentRotation = this.getVoxelRotationAt(vx, vy, vz);
-      const currentStage = this.getVoxelStageAt(vx, vy, vz);
-      const newRotation = BlockRotation.encode(rotation, yRotation);
-
-      const packed = BlockUtils.insertAll(
-        newBlock.id,
-        newBlock.rotatable || newBlock.yRotatable ? newRotation : undefined,
-        stage,
-        isWaterlogged,
-        waterlogLevel,
-      );
-      const newValue = newBlock.rotationBitsAreState
-        ? withStateBits(packed, stateBits ?? 0)
-        : packed;
-      this.attemptBlockCache(vx, vy, vz, newValue, source);
-      const oldRaw = this.getRawVoxelAt(vx, vy, vz);
-
-      this.activeBlockUpdateSource = source;
-      try {
-        this.setVoxelAt(vx, vy, vz, type);
-        this.setVoxelStageAt(vx, vy, vz, stage);
-        this.setVoxelWaterloggedAt(vx, vy, vz, isWaterlogged ?? false);
-        this.setVoxelWaterlogLevelAt(vx, vy, vz, waterlogLevel ?? 0);
-
-        if (newBlock.rotationBitsAreState) {
-          const chunk = this.getChunkByPosition(vx, vy, vz);
-          chunk?.setRawValue(
+        const {
+          source,
+          update: {
+            type,
             vx,
             vy,
             vz,
-            withStateBits(chunk.getRawValue(vx, vy, vz), stateBits ?? 0),
+            rotation,
+            yRotation,
+            stateBits,
+            stage,
+            isWaterlogged,
+            waterlogLevel,
+          },
+        } = updates[consumed];
+
+        if (vy < 0 || vy >= maxHeight) continue;
+
+        // One read of the voxel's word answers everything about what it held;
+        // one write below puts the whole new word in.
+        const chunk = this.getChunkByPosition(vx, vy, vz);
+        const oldRaw = chunk ? chunk.getRawValue(vx, vy, vz) : 0;
+        const currentId = BlockUtils.extractID(oldRaw);
+        const currentBlock = this.getBlockById(currentId);
+        const newBlock = this.getBlockById(type);
+        const currentRotation = rotationInWord(currentBlock, oldRaw);
+        const currentStage = BlockUtils.extractStage(oldRaw);
+        const newRotation =
+          rotation || yRotation
+            ? BlockRotation.encode(rotation, yRotation)
+            : UNTURNED;
+
+        const packed = BlockUtils.insertAll(
+          newBlock.id,
+          newBlock.rotatable || newBlock.yRotatable ? newRotation : undefined,
+          stage,
+          isWaterlogged,
+          waterlogLevel,
+        );
+        const newValue = newBlock.rotationBitsAreState
+          ? withStateBits(packed, stateBits ?? 0)
+          : packed;
+        if (chunk && oldRaw !== newValue) {
+          this.recordVoxelHistory(vx, vy, vz, oldRaw);
+          this.triggerBlockUpdateListeners(
+            vx,
+            vy,
+            vz,
+            oldRaw,
+            newValue,
+            source,
+            chunk,
           );
+        }
+
+        // The word the voxel holds afterwards: the id as it was sent, then
+        // every other field, each written whether or not it is zero, so a
+        // field going back to zero (a stage returning to 0, a rotation back
+        // to 0) lands like any other change.
+        let word = BlockUtils.insertID(0, type);
+        word = BlockUtils.insertStage(word, stage);
+        word = BlockUtils.insertWaterlogged(word, isWaterlogged ?? false);
+        word = BlockUtils.insertWaterlogLevel(word, waterlogLevel ?? 0);
+        if (newBlock.rotationBitsAreState) {
+          word = withStateBits(word, stateBits ?? 0);
         } else if (newBlock.rotatable || newBlock.yRotatable) {
-          this.setVoxelRotationAt(vx, vy, vz, newRotation);
+          word = BlockUtils.insertRotation(word, newRotation);
+        }
+        word >>>= 0;
+        const writtenRotation = chunk
+          ? rotationInWord(newBlock, word)
+          : UNTURNED;
+
+        if (chunk && word !== oldRaw) {
+          this.activeBlockUpdateSource = source;
+          try {
+            chunk.setRawValue(vx, vy, vz, word);
+            // The meshes hear of the change by the whole word: comparing
+            // one field at a time read a field going back to zero as
+            // unchanged, and nothing remeshed.
+            this.trackChunkAt(vx, vy, vz);
+          } finally {
+            this.activeBlockUpdateSource = null;
+          }
         }
 
-        // setVoxelAt rewrites the whole word, so a field going back to zero
-        // (a stage field returning to 0, a rotation back to 0) reads as
-        // unchanged to the setter after it: nothing remeshed and the light
-        // workers kept the old word. Compare the words instead.
-        if (this.getRawVoxelAt(vx, vy, vz) !== oldRaw) {
-          this.recordVoxelDelta(vx, vy, vz, {
-            oldVoxel: currentId,
-            newVoxel: type,
-            oldRotation: currentRotation,
-            newRotation: this.getVoxelRotationAt(vx, vy, vz),
-            oldStage: currentStage,
-            newStage: stage,
-          });
-          this.trackChunkAt(vx, vy, vz);
-        }
-      } finally {
-        this.activeBlockUpdateSource = null;
+        processedUpdates.push({
+          voxel: [vx, vy, vz],
+          oldId: currentId,
+          newId: type,
+          oldBlock: currentBlock,
+          newBlock: newBlock,
+          oldRotation: currentRotation,
+          newRotation: writtenRotation,
+          oldStage: currentStage,
+          stage: stage,
+        });
       }
-
-      processedUpdates.push({
-        voxel: [vx, vy, vz],
-        oldId: currentId,
-        newId: type,
-        oldBlock: currentBlock,
-        newBlock: newBlock,
-        oldRotation: currentRotation,
-        newRotation: this.getVoxelRotationAt(vx, vy, vz),
-        oldStage: currentStage,
-        stage: stage,
-      });
-
-      processedCount++;
+    } finally {
+      // Outside a slice every mark goes through.
+      this.sliceTrackedSections = null;
     }
     const lightOps = analyzeLightOperations(this, processedUpdates);
     this.blockUpdatesApplied += processedUpdates.length;
     this.lightSeedsAnalyzed += countLightSeeds(lightOps);
 
     if (this.options.useLightWorkers && lightOps.hasOperations) {
-      if (!this.accumulatedLightOps) {
-        this.accumulatedLightOps = lightOps;
-        this.accumulatedStartSequenceId = startSequenceId;
-      } else {
-        this.accumulatedLightOps = mergeLightOperations(
-          this.accumulatedLightOps,
-          lightOps,
-        );
-        this.accumulatedStartSequenceId = Math.min(
-          this.accumulatedStartSequenceId,
-          startSequenceId,
-        );
-      }
+      this.accumulatedLightOps = this.accumulatedLightOps
+        ? mergeLightOperations(this.accumulatedLightOps, lightOps)
+        : lightOps;
     } else if (lightOps.hasOperations) {
       this.executeLightOperationsSyncAll(lightOps);
     }
 
-    return updates.slice(processedCount);
+    return consumed;
   };
+
+  /** The share of a drain slice its voxel writes may take; the light
+   * analysis of what they wrote takes the rest. */
+  private static readonly UPDATE_SLICE_WRITE_SHARE = 0.7;
+  /** The share of a frame a drain slice still gets when the frame has no
+   * room left for it. */
+  private static readonly UPDATE_SLICE_LEAST_SHARE = 0.1;
+  private readonly sliceTrackedSectionsScratch: number[] = [];
+
+  /**
+   * What one slice of the voxel update drain may spend, in ms.
+   *
+   * At most `maxLightsUpdateTime`, and no more than still fits in the frame
+   * being drawn (`frameRoomMs`): the slice runs after the host's own frame
+   * work, so on a frame that began late or ran long it shrinks and the
+   * display's refresh is held while a backlog (a crater opening, a flood)
+   * drains over more frames. A fixed slice on top of every frame is what
+   * turned a mass edit into a run of missed refreshes.
+   *
+   * With no room at all a slice still gets a tenth of the pace frames are
+   * coming at, so the backlog always moves: little on a page that holds its
+   * refresh, the whole old allowance on one too slow to hold it anyway.
+   */
+  private updateSliceMs(): number {
+    const most = this.options.maxLightsUpdateTime;
+    const room = frameRoomMs();
+    if (room === null) return most;
+    const least = Math.min(
+      most,
+      framePaceMs() * World.UPDATE_SLICE_LEAST_SHARE,
+    );
+    return Math.min(most, Math.max(least, room));
+  }
 
   /**
    * Drain `blockUpdatesQueue` one budgeted slice per frame. The first slice
@@ -9441,41 +9464,45 @@ export class World<T = any> extends Scene implements NetIntercept {
    * spent its update budget.
    */
   private processClientUpdates = (deferFirstSlice = false) => {
-    if (this.blockUpdatesQueue.length === 0 || this.isTrackingChunks) {
+    if (this.queuedBlockUpdates === 0 || this.isTrackingChunks) {
       return;
     }
 
     this.isTrackingChunks = true;
 
     const processUpdatesInIdleTime = () => {
-      if (this.blockUpdatesQueue.length > 0) {
+      if (this.queuedBlockUpdates > 0) {
         // One slice per frame: at most `maxUpdatesPerUpdate` writes, and
-        // `processLightUpdates` stops early once `maxLightsUpdateTime` is
-        // spent, so a deep backlog costs a bounded piece of every frame
-        // rather than one long frame.
-        const updates = this.blockUpdatesQueue.splice(
-          0,
+        // `processLightUpdates` stops early once the slice's time
+        // (`updateSliceMs`) is spent, so a deep backlog costs a bounded
+        // piece of every frame rather than one long frame. What it did not
+        // reach stays where it is, ahead of everything queued since: order
+        // is the contract.
+        const queue = this.blockUpdatesQueue;
+        const from = this.blockUpdatesQueueHead;
+        const reached = this.processLightUpdates(
+          queue,
+          from,
           this.options.maxUpdatesPerUpdate,
         );
 
-        const remainingUpdates = this.processLightUpdates(updates);
-
-        // The unprocessed tail goes back to the FRONT. Appending it put
-        // older writes behind newer ones already queued for the same voxel,
-        // so the stale word committed last.
-        if (remainingUpdates.length > 0) {
-          this.blockUpdatesQueue.unshift(...remainingUpdates);
+        for (let i = from; i < reached; i++) {
+          if (queue[i].source === "client") {
+            this.blockUpdatesToEmit.push(queue[i].update);
+          }
         }
 
-        const processedCount = updates.length - remainingUpdates.length;
-        this.blockUpdatesToEmit.push(
-          ...updates
-            .slice(0, processedCount)
-            .filter(({ source }) => source === "client")
-            .map(({ update }) => update),
-        );
+        if (reached >= queue.length) {
+          queue.length = 0;
+          this.blockUpdatesQueueHead = 0;
+        } else if (reached >= 4096 && reached * 2 >= queue.length) {
+          queue.splice(0, reached);
+          this.blockUpdatesQueueHead = 0;
+        } else {
+          this.blockUpdatesQueueHead = reached;
+        }
 
-        if (this.blockUpdatesQueue.length > 0) {
+        if (this.queuedBlockUpdates > 0) {
           requestAnimationFrame(processUpdatesInIdleTime);
           return;
         }
@@ -9569,7 +9596,14 @@ export class World<T = any> extends Scene implements NetIntercept {
         this.urgentMeshWorkerPool.queue.length > 0)
     ) {
       // Regular meshing waits out the player's own edits; their jobs
-      // settling start it again.
+      // settling start it again. A voxel box meshed on the urgent workers
+      // (`meshVoxelBox` with `isUrgent`) settles without a pass of its own,
+      // so with sections waiting this pass is asked for again next frame:
+      // without it a section dirtied while a box was meshing kept its old
+      // mesh until some later edit happened to start a pass.
+      if (this.meshPipeline.dirtyCount > 0) {
+        this.scheduleDirtyChunkProcessing();
+      }
       return;
     }
 
@@ -9634,7 +9668,14 @@ export class World<T = any> extends Scene implements NetIntercept {
         this.meshCandidatesAt = now;
         candidates = this.meshCandidates;
         isRefreshed = true;
-        if (candidates.length === 0) return;
+        if (candidates.length === 0) {
+          // Rebuilds waiting out their cooldown: nothing announces its
+          // end, so the next frame's pass looks again.
+          if (this.meshPipeline.hasCoolingRebuilds) {
+            this.scheduleDirtyChunkProcessing();
+          }
+          return;
+        }
       }
       if (this.meshDispatchesInWindow >= this.options.maxMeshesPerUpdate) {
         this.scheduleDirtyChunkProcessing();
@@ -9759,7 +9800,10 @@ export class World<T = any> extends Scene implements NetIntercept {
         generation,
       );
     } else {
-      this.pendingMeshResults.push({
+      const queue = this.meshPipeline.hasDisplayed(key)
+        ? this.pendingMeshResults
+        : this.pendingFreshMeshResults;
+      queue.push({
         cx,
         cz,
         level,
@@ -9816,13 +9860,22 @@ export class World<T = any> extends Scene implements NetIntercept {
    * contract. Leftovers reschedule for the next frame.
    */
   private drainPendingMeshResults() {
-    if (this.pendingMeshResults.length === 0) return;
+    const fresh = this.pendingFreshMeshResults;
+    const rebuilt = this.pendingMeshResults;
+    if (fresh.length === 0 && rebuilt.length === 0) return;
 
     const budgetMs = this.options.meshApplyBudgetMs;
     const start = performance.now();
 
-    while (this.pendingMeshResults.length > 0) {
-      const result = this.pendingMeshResults.shift();
+    while (fresh.length > 0 || rebuilt.length > 0) {
+      // New ground first; a rebuild still lands after every few of them, so
+      // a long flight does not hold a changed section back for its length.
+      const isTakingFresh =
+        fresh.length > 0 &&
+        (rebuilt.length === 0 ||
+          this.freshAppliesInARow < FRESH_APPLIES_PER_REBUILD);
+      this.freshAppliesInARow = isTakingFresh ? this.freshAppliesInARow + 1 : 0;
+      const result = isTakingFresh ? fresh.shift() : rebuilt.shift();
       if (!result) break;
       this.applyMeshResult(
         result.cx,
@@ -9835,7 +9888,7 @@ export class World<T = any> extends Scene implements NetIntercept {
       if (performance.now() - start >= budgetMs) break;
     }
 
-    if (this.pendingMeshResults.length > 0) {
+    if (fresh.length > 0 || rebuilt.length > 0) {
       this.scheduleMeshResultDrain();
     }
   }
@@ -9853,24 +9906,16 @@ export class World<T = any> extends Scene implements NetIntercept {
       return;
     }
 
-    this.scheduleLightJobs(
-      this.accumulatedLightOps,
-      this.accumulatedStartSequenceId,
-    );
+    this.scheduleLightJobs(this.accumulatedLightOps);
 
     this.accumulatedLightOps = null;
-    this.accumulatedStartSequenceId = 0;
   }
 
-  private scheduleLightJobs(
-    lightOps: LightOperations,
-    startSequenceId: number,
-  ) {
+  private scheduleLightJobs(lightOps: LightOperations) {
     const batchId = this.lightBatchIdCounter++;
 
     const jobsForBatch = buildLightJobs(
       lightOps,
-      startSequenceId,
       batchId,
       this.options,
       (color) => `light-${color}-${this.lightJobIdCounter++}`,
@@ -9900,12 +9945,11 @@ export class World<T = any> extends Scene implements NetIntercept {
 
     this.activeLightBatch = {
       batchId,
-      startSequenceId: firstJob.startSequenceId,
       totalJobs: batchJobs.length,
       completedJobs: 0,
       results: [],
       jobs: batchJobs,
-      pendingDispatch: [...batchJobs],
+      pendingDispatch: groupLightJobs(batchJobs, this.options),
     };
 
     this.dispatchPendingLightJobs();
@@ -9913,10 +9957,10 @@ export class World<T = any> extends Scene implements NetIntercept {
 
   /**
    * Hand pending light jobs to workers, but only as many as can start right
-   * now. Dispatch serializes every chunk the job's bounding box covers, so
-   * dispatching a whole batch at once used to park the batch's worth of
-   * multi-megabyte copies in the pool queue — the same unbounded allocation
-   * that mesh dispatch already guards against.
+   * now and fit the snapshot budget. Dispatch copies every chunk a group's
+   * light can reach, so dispatching a whole batch at once used to park the
+   * batch's worth of multi-megabyte copies in the pool queue — the same
+   * unbounded allocation that mesh dispatch already guards against.
    */
   private dispatchPendingLightJobs() {
     const batch = this.activeLightBatch;
@@ -9926,107 +9970,131 @@ export class World<T = any> extends Scene implements NetIntercept {
       batch.pendingDispatch.length > 0 &&
       this.lightWorkerPool.availableCount > 0
     ) {
-      const job = batch.pendingDispatch.shift();
-      if (!job) break;
-      this.executeLightJob(job);
+      const group = batch.pendingDispatch[0];
+      const snapshotBytes = this.lightSnapshotBytes(group);
+      if (
+        this.lightSnapshotBytesInFlight > 0 &&
+        this.lightSnapshotBytesInFlight + snapshotBytes >
+          this.options.lightSnapshotBudgetBytes
+      ) {
+        // A copy coming back calls this again.
+        break;
+      }
+      batch.pendingDispatch.shift();
+      this.executeLightJobGroup(group, snapshotBytes);
     }
   }
 
-  private executeLightJob(job: LightJob) {
-    const { jobId, boundingBox, lightOps, startSequenceId, color } = job;
-    const { min, shape } = boundingBox;
-
-    const [minX, , minZ] = min;
-    const [width, , depth] = shape;
-    const maxX = minX + width - 1;
-    const maxZ = minZ + depth - 1;
-
-    const { chunkSize } = this.options;
-    const minChunkX = Math.floor(minX / chunkSize);
-    const minChunkZ = Math.floor(minZ / chunkSize);
-    const maxChunkX = Math.floor(maxX / chunkSize);
-    const maxChunkZ = Math.floor(maxZ / chunkSize);
-
-    const chunksInSpace: string[] = [];
+  /** Each chunk of a group's snapshot that is loaded and within light reach. */
+  private forEachLightSnapshotChunk(
+    group: LightJobGroup,
+    visit: (chunk: Chunk | null) => void,
+  ) {
+    const [minChunkX, minChunkZ] = group.minChunk;
+    const [maxChunkX, maxChunkZ] = group.maxChunk;
+    let index = 0;
     for (let cx = minChunkX; cx <= maxChunkX; cx++) {
       for (let cz = minChunkZ; cz <= maxChunkZ; cz++) {
-        chunksInSpace.push(ChunkUtils.getChunkName([cx, cz]));
+        const chunk = group.reachable[index++]
+          ? this.getChunkByCoords(cx, cz)
+          : undefined;
+        visit(chunk && chunk.isReady ? chunk : null);
       }
     }
+  }
 
-    // Every chunk in the box is serialized (copied) below, so the box span
-    // IS the job's memory footprint. Track the high-water mark and call out
-    // oversized boxes: a batch merged from spatially-scattered updates
-    // (random ticks across the whole render distance) can balloon into a
-    // renderer-killing burst allocation.
-    if (chunksInSpace.length > this.lightJobHighWaterChunks) {
-      this.lightJobHighWaterChunks = chunksInSpace.length;
-    }
-    if (chunksInSpace.length >= 36) {
-      console.warn(
-        `[world] light job ${jobId} spans ${chunksInSpace.length} chunks ` +
-          `(grid ${maxChunkX - minChunkX + 1}x${maxChunkZ - minChunkZ + 1}, ` +
-          `${lightOps.removals.length} removals, ${lightOps.floods.length} floods); ` +
-          `serializing this box is a large burst allocation`,
-      );
-    }
-
-    const relevantDeltas: Record<string, VoxelDelta[]> = {};
-    chunksInSpace.forEach((chunkName) => {
-      const allDeltas = this.voxelDeltas.get(chunkName) || [];
-      const recentDeltas = allDeltas.filter(
-        (d) => d.sequenceId > startSequenceId,
-      );
-
-      if (recentDeltas.length > 0) {
-        relevantDeltas[chunkName] = recentDeltas.map((delta) => ({
-          ...delta,
-          oldRotation: delta.oldRotation
-            ? JSON.parse(JSON.stringify(delta.oldRotation))
-            : undefined,
-          newRotation: delta.newRotation
-            ? JSON.parse(JSON.stringify(delta.newRotation))
-            : undefined,
-        }));
-      }
+  /** What copying a group's snapshot costs, whichever side makes the copy. */
+  private lightSnapshotBytes(group: LightJobGroup) {
+    let bytes = 0;
+    this.forEachLightSnapshotChunk(group, (chunk) => {
+      if (!chunk) return;
+      bytes += chunk.voxels.data.byteLength + chunk.lights.data.byteLength;
     });
+    return bytes;
+  }
+
+  private executeLightJobGroup(group: LightJobGroup, snapshotBytes: number) {
+    const { jobs } = group;
+    const [minChunkX, minChunkZ] = group.minChunk;
+    const [maxChunkX, maxChunkZ] = group.maxChunk;
 
     const chunksData: (object | null)[] = [];
     const arrayBuffers: ArrayBuffer[] = [];
+    const chunksInSpace: string[] = [];
 
-    for (let cx = minChunkX; cx <= maxChunkX; cx++) {
-      for (let cz = minChunkZ; cz <= maxChunkZ; cz++) {
-        const chunk = this.getChunkByCoords(cx, cz);
-
-        if (chunk && chunk.isReady) {
-          const [data, buffers] = chunk.serialize();
-          chunksData.push(data);
-          arrayBuffers.push(...buffers);
-        } else {
-          chunksData.push(null);
-        }
+    this.forEachLightSnapshotChunk(group, (chunk) => {
+      if (!chunk) {
+        chunksData.push(null);
+        return;
       }
+      const [data, buffers] = chunk.serialize();
+      chunksData.push(data);
+      arrayBuffers.push(...buffers);
+      chunksInSpace.push(chunk.name);
+    });
+
+    if (chunksInSpace.length > this.lightJobHighWaterChunks) {
+      this.lightJobHighWaterChunks = chunksInSpace.length;
+    }
+    // The copies are the job's memory footprint, and this one cannot be
+    // made to wait: it is larger than the budget on its own. A batch merged
+    // from updates dense across the whole render distance can balloon into
+    // a renderer-killing burst allocation.
+    if (snapshotBytes > this.options.lightSnapshotBudgetBytes) {
+      const megabytes = (bytes: number) => Math.round(bytes / 1024 / 1024);
+      const seeds = jobs.reduce(
+        (count, { lightOps }) =>
+          count +
+          lightOps.removals.length +
+          lightOps.floods.length +
+          (lightOps.pendingRemovals?.length ?? 0),
+        0,
+      );
+      console.warn(
+        `[world] light jobs ${jobs.map((job) => job.jobId).join(", ")} copy ` +
+          `${chunksInSpace.length} chunks (${megabytes(snapshotBytes)}MB of a ` +
+          `${megabytes(this.options.lightSnapshotBudgetBytes)}MB budget, grid ` +
+          `${maxChunkX - minChunkX + 1}x${maxChunkZ - minChunkZ + 1}, ` +
+          `${seeds} seeds); this snapshot is a large burst allocation`,
+      );
+    }
+
+    this.lightSnapshotBytesInFlight += snapshotBytes;
+
+    const packedJobs = jobs.map(({ jobId, color, boundingBox, lightOps }) => ({
+      jobId,
+      color,
+      boundingBox,
+      seeds: packLightSeeds(lightOps),
+    }));
+    for (const { seeds } of packedJobs) {
+      arrayBuffers.push(seeds.buffer as ArrayBuffer);
     }
 
     this.lightWorkerPool.addJob({
       message: {
         type: "batchOperations",
-        jobId,
-        color,
-        boundingBox,
+        jobs: packedJobs,
         chunksData,
         chunkGridDimensions: [
           maxChunkX - minChunkX + 1,
           maxChunkZ - minChunkZ + 1,
         ],
         chunkGridOffset: [minChunkX, minChunkZ],
-        relevantDeltas,
-        lightOps,
         options: this.options,
       },
       buffers: arrayBuffers,
-      timeoutMs: this.options.lightJobTimeoutMs,
-      resolve: (result) => this.handleLightJobResult(job, result),
+      // The jobs run one after another in the one worker.
+      timeoutMs: this.options.lightJobTimeoutMs * jobs.length,
+      resolve: (result: { results?: LightWorkerResult[] } | null) => {
+        this.lightSnapshotBytesInFlight = Math.max(
+          0,
+          this.lightSnapshotBytesInFlight - snapshotBytes,
+        );
+        jobs.forEach((job, index) =>
+          this.handleLightJobResult(job, result?.results?.[index] ?? null),
+        );
+      },
     });
   }
 
@@ -10111,10 +10179,17 @@ export class World<T = any> extends Scene implements NetIntercept {
     }
 
     if (result?.modifiedChunks) {
-      for (const { coords, lights } of result.modifiedChunks) {
+      for (const { coords, lights, minY, maxY } of result.modifiedChunks) {
         const chunk = this.getChunkByCoords(coords[0], coords[1]);
         if (!chunk) continue;
-        mergeSingleColorResult(chunk, lights, job.color, job.boundingBox);
+        mergeSingleColorResult(
+          chunk,
+          lights,
+          job.color,
+          job.boundingBox,
+          minY,
+          maxY,
+        );
       }
     }
 
@@ -10127,24 +10202,21 @@ export class World<T = any> extends Scene implements NetIntercept {
         pendingRemovals,
       },
       boundingBox: job.boundingBox,
-      startSequenceId: job.startSequenceId,
       retryCount: job.retryCount + 1,
       batchId: job.batchId,
     };
 
     batch.totalJobs++;
     batch.jobs.push(continuationJob);
-    batch.pendingDispatch.push(continuationJob);
+    batch.pendingDispatch.push(
+      ...groupLightJobs([continuationJob], this.options),
+    );
   }
 
   private applyBatchResults(batch: LightBatch) {
     const { maxHeight, subChunks } = this.options;
     const subChunkHeight = maxHeight / subChunks;
 
-    const chunkResultsByColor = new Map<
-      string,
-      Map<LightColor, { lights: Uint32Array; boundingBox: BoundingBox }>
-    >();
     const allChunkCoords = new Map<string, Coords2>();
     const modifiedYRanges = new Map<string, { minY: number; maxY: number }>();
     const widenYRange = (
@@ -10181,19 +10253,24 @@ export class World<T = any> extends Scene implements NetIntercept {
 
     for (const result of batch.results) {
       for (const { coords, lights, minY, maxY } of result.modifiedChunks) {
+        const chunk = this.getChunkByCoords(coords[0], coords[1]);
+        if (!chunk) continue;
+        // Every job's own light goes in, over the rows it wrote and no
+        // others: two jobs of one colour can each write into a chunk their
+        // boxes both cross, and a merge of the whole column walked every
+        // row of every chunk a crater's relight touched, on the main
+        // thread.
+        mergeSingleColorResult(
+          chunk,
+          lights,
+          result.color,
+          result.boundingBox,
+          minY,
+          maxY,
+        );
+
         const key = `${coords[0]},${coords[1]}`;
         allChunkCoords.set(key, coords);
-
-        let colorMap = chunkResultsByColor.get(key);
-        if (!colorMap) {
-          colorMap = new Map();
-          chunkResultsByColor.set(key, colorMap);
-        }
-        colorMap.set(result.color, {
-          lights,
-          boundingBox: result.boundingBox,
-        });
-
         widenYRange(modifiedYRanges, key, minY, maxY);
       }
       for (const { coords, minY, maxY } of result.borderNeighbors) {
@@ -10203,17 +10280,11 @@ export class World<T = any> extends Scene implements NetIntercept {
       }
     }
 
-    for (const [key, colorMap] of chunkResultsByColor) {
-      const coords = allChunkCoords.get(key);
-      if (!coords) continue;
+    for (const [key, coords] of allChunkCoords) {
       const chunk = this.getChunkByCoords(coords[0], coords[1]);
       if (!chunk) continue;
       const modifiedYRange = modifiedYRanges.get(key);
       if (!modifiedYRange) continue;
-
-      for (const [color, result] of colorMap) {
-        mergeSingleColorResult(chunk, result.lights, color, result.boundingBox);
-      }
 
       chunk.isDirty = true;
       const [minLevel, maxLevel] = levelsFor(modifiedYRange);
@@ -10223,7 +10294,7 @@ export class World<T = any> extends Scene implements NetIntercept {
     for (const [key, coords] of borderNeighborCoords) {
       // A neighbour that also had its own light merged was remeshed above,
       // over a range that already covers its border rows.
-      if (chunkResultsByColor.has(key)) continue;
+      if (allChunkCoords.has(key)) continue;
       if (!this.getChunkByCoords(coords[0], coords[1])) continue;
       const range = borderNeighborYRanges.get(key);
       if (!range) continue;
@@ -10392,42 +10463,39 @@ export class World<T = any> extends Scene implements NetIntercept {
     });
   };
 
+  /**
+   * The sections already marked for a remesh by the drain slice now
+   * running, or null outside one. A crater's writes land thousands to a
+   * section, and no mesh job starts inside a slice, so one mark a section
+   * a slice says everything the rest would.
+   */
+  private sliceTrackedSections: number[] | null = null;
+
   private trackChunkAt(vx: number, vy: number, vz: number) {
     if (!this.isTrackingChunks) return;
     const { chunkSize, maxHeight, subChunks } = this.options;
 
-    const voxel = [vx | 0, vy | 0, vz | 0] as Coords3;
-    const [cx, cz] = ChunkUtils.mapVoxelToChunk(voxel, chunkSize);
-    const [lcx, , lcz] = ChunkUtils.mapVoxelToChunkLocal(voxel, chunkSize);
+    const x = vx | 0;
+    const z = vz | 0;
+    const cx = Math.floor(x / chunkSize);
+    const cz = Math.floor(z / chunkSize);
+    const lcx = x - cx * chunkSize;
+    const lcz = z - cz * chunkSize;
 
     const subChunkHeight = maxHeight / subChunks;
     const level = Math.floor(vy / subChunkHeight);
 
-    // A border voxel is read by the meshes next door: the adjacent chunk on
-    // each border side it touches, and at a corner the diagonal one too
-    // (vertex light averaging reaches it). All four corners, not only the
-    // two on the main diagonal.
-    const chunkCoordsList: Coords2[] = [[cx, cz]];
-    const dxs = lcx === 0 ? [-1] : lcx === chunkSize - 1 ? [1] : [];
-    const dzs = lcz === 0 ? [-1] : lcz === chunkSize - 1 ? [1] : [];
-    for (const dx of [...dxs, 0]) {
-      for (const dz of [...dzs, 0]) {
-        if (dx === 0 && dz === 0) continue;
-        chunkCoordsList.push([cx + dx, cz + dz]);
-      }
-    }
-
-    const levels: number[] = [];
-
+    // A voxel on a section's top or bottom row is read by the section past
+    // it too.
+    let otherLevel = -1;
     if (vy % subChunkHeight === 0 && level > 0) {
-      levels.push(level - 1);
+      otherLevel = level - 1;
     } else if (
       vy % subChunkHeight === subChunkHeight - 1 &&
       level < subChunks
     ) {
-      levels.push(level + 1);
+      otherLevel = level + 1;
     }
-    levels.push(level);
 
     // A client-sourced update is the player's own edit (a lever flip, a
     // block placed under the crosshair). Its remesh takes the urgent lane
@@ -10436,44 +10504,53 @@ export class World<T = any> extends Scene implements NetIntercept {
     // as input lag whenever the surrounding chunks are remesh-heavy.
     const isUrgent = this.activeBlockUpdateSource === "client";
 
-    for (const [chunkX, chunkZ] of chunkCoordsList) {
-      for (const lvl of levels) {
-        this.meshPipeline.onVoxelChange(chunkX, chunkZ, lvl, isUrgent);
-      }
+    // A border voxel is read by the meshes next door: the adjacent chunk on
+    // each border side it touches, and at a corner the diagonal one too
+    // (vertex light averaging reaches it). All four corners, not only the
+    // two on the main diagonal.
+    const dx = lcx === 0 ? -1 : lcx === chunkSize - 1 ? 1 : 0;
+    const dz = lcz === 0 ? -1 : lcz === chunkSize - 1 ? 1 : 0;
+
+    this.trackSections(cx, cz, level, otherLevel, isUrgent);
+    if (dx !== 0 && dz !== 0) {
+      this.trackSections(cx + dx, cz + dz, level, otherLevel, isUrgent);
     }
+    if (dx !== 0) this.trackSections(cx + dx, cz, level, otherLevel, isUrgent);
+    if (dz !== 0) this.trackSections(cx, cz + dz, level, otherLevel, isUrgent);
   }
 
-  private recordVoxelDelta(
-    px: number,
-    py: number,
-    pz: number,
-    deltaData: Partial<
-      Omit<VoxelDelta, "coords" | "timestamp" | "sequenceId" | "newRaw">
-    >,
+  /** Sections a slice remembers marking; past this it marks without
+   * remembering. */
+  private static readonly SLICE_TRACKED_SECTIONS = 96;
+
+  private trackSections(
+    cx: number,
+    cz: number,
+    level: number,
+    otherLevel: number,
+    isUrgent: boolean,
   ) {
-    const chunkName = ChunkUtils.getChunkName(
-      ChunkUtils.mapVoxelToChunk(
-        [px | 0, py | 0, pz | 0],
-        this.options.chunkSize,
-      ),
-    );
+    if (otherLevel >= 0) this.trackSection(cx, cz, otherLevel, isUrgent);
+    this.trackSection(cx, cz, level, isUrgent);
+  }
 
-    const delta: VoxelDelta = {
-      coords: [px | 0, py | 0, pz | 0],
-      oldVoxel: deltaData.oldVoxel ?? 0,
-      newVoxel: deltaData.newVoxel ?? 0,
-      oldRotation: deltaData.oldRotation,
-      newRotation: deltaData.newRotation,
-      oldStage: deltaData.oldStage,
-      newStage: deltaData.newStage,
-      newRaw: this.getRawVoxelAt(px, py, pz),
-      timestamp: performance.now(),
-      sequenceId: this.deltaSequenceCounter++,
-    };
-
-    const deltas = this.voxelDeltas.get(chunkName) || [];
-    deltas.push(delta);
-    this.voxelDeltas.set(chunkName, deltas);
+  private trackSection(
+    cx: number,
+    cz: number,
+    level: number,
+    isUrgent: boolean,
+  ) {
+    const tracked = this.sliceTrackedSections;
+    if (tracked) {
+      // Twenty bits a chunk coordinate, then the level and the lane: one
+      // number names the mark, exactly, for any chunks loaded together.
+      const mark =
+        (((cx & 0xfffff) * 0x100000 + (cz & 0xfffff)) * 1024 + level) * 2 +
+        (isUrgent ? 1 : 0);
+      if (tracked.indexOf(mark) !== -1) return;
+      if (tracked.length < World.SLICE_TRACKED_SECTIONS) tracked.push(mark);
+    }
+    this.meshPipeline.onVoxelChange(cx, cz, level, isUrgent);
   }
 
   private markChunkForRemesh(coords: Coords2) {
