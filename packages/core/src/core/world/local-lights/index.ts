@@ -184,6 +184,11 @@ export class LocalLights {
     BlockLightProfile
   >();
   private readonly pendingScans = new Map<string, PendingScan>();
+  /** Per section: when its current scan window opened and the scans in it. */
+  private readonly scanWindows = new Map<
+    string,
+    { openedAt: number; scans: number }
+  >();
 
   private tracker: SectionTracker | null = null;
   private profileTable: BlockProfileTable | null = null;
@@ -483,6 +488,7 @@ export class LocalLights {
     for (let sectionY = 0; sectionY < subChunks; sectionY++) {
       const key = tracker.sectionKey(cx, cz, sectionY);
       this.pendingScans.delete(key);
+      this.scanWindows.delete(key);
       tracker.releaseSection(key);
     }
   }
@@ -543,8 +549,18 @@ export class LocalLights {
     if (this.pendingScans.size > 0) {
       const table = this.ensureProfileTable();
       const tracker = this.ensureTracker();
+      const { sectionRescanWindowMs, sectionRescansPerWindow } = this.options;
       for (const [key, pending] of this.pendingScans) {
         if (scanned >= this.options.maxSectionScansPerFrame) break;
+        let window = this.scanWindows.get(key);
+        if (!window || scanStart - window.openedAt >= sectionRescanWindowMs) {
+          window = { openedAt: scanStart, scans: 0 };
+          this.scanWindows.set(key, window);
+        }
+        // Scanned its share for now: it stays pending and is read again
+        // when its window closes, with whatever changed in between.
+        if (window.scans >= sectionRescansPerWindow) continue;
+        window.scans += 1;
         this.pendingScans.delete(key);
         tracker.rescanSection(key, pending.chunk, pending.sectionY, table);
         scanned++;
@@ -677,6 +693,7 @@ export class LocalLights {
     this.debugOverlay?.dispose();
     this.tracker?.releaseAll();
     this.pendingScans.clear();
+    this.scanWindows.clear();
     this.grid.dispose();
     this.shadows.dispose();
   }

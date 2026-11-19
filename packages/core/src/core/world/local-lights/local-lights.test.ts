@@ -1,5 +1,5 @@
 import { Vector3 } from "three/webgpu";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 
 import {
   BLOCK_LIGHT_TRANSFER,
@@ -1161,6 +1161,62 @@ describe("setBlockProfile timing", () => {
       LIGHT_FLAG_SHADOW_REQUEST,
     );
     lights.dispose();
+  });
+});
+
+describe("section rescans under churn", () => {
+  it("scans a quiet section's edit the frame it lands and holds a churning one to its window", () => {
+    // A fire spreading through a section changes its emitters every frame,
+    // and one scan reads the whole section.
+    let now = 1_000;
+    const clock = vi.spyOn(performance, "now").mockImplementation(() => now);
+    const lights = new LocalLights(
+      { sectionRescanWindowMs: 250, sectionRescansPerWindow: 2 },
+      () => ({
+        chunkSize: CHUNK_SIZE,
+        maxHeight: MAX_HEIGHT,
+        subChunks: SUB_CHUNKS,
+        maxLightLevel: MAX_LIGHT_LEVEL,
+      }),
+      () => [TORCH],
+    );
+    const chunk = makeChunk(0, 0);
+    lights.getLoadedChunk = () => chunk;
+    const camera = new Vector3(3, 5, 3);
+    const place = (x: number) => {
+      setVoxel(chunk, x, 5, 3, TORCH.id);
+      lights.handleBlockUpdate({
+        voxel: [x, 5, 3],
+        oldValue: 0,
+        newValue: TORCH.id,
+        chunk,
+      });
+      lights.update(camera);
+    };
+
+    lights.handleChunkLoaded(0, 0, chunk);
+    lights.update(camera);
+    expect(lights.registry.aliveCount).toBe(0);
+
+    now += 16;
+    place(3);
+    expect(lights.registry.aliveCount).toBe(1);
+
+    // A third change inside the window waits, still pending.
+    now += 16;
+    place(5);
+    expect(lights.registry.aliveCount).toBe(1);
+    now += 16;
+    place(7);
+    expect(lights.registry.aliveCount).toBe(1);
+
+    // The window closes: one scan brings in everything that changed.
+    now += 250;
+    lights.update(camera);
+    expect(lights.registry.aliveCount).toBe(3);
+
+    lights.dispose();
+    clock.mockRestore();
   });
 });
 

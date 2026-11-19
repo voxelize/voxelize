@@ -179,6 +179,27 @@ Initial quality tier.
 
 ___
 
+### sectionRescanWindowMs
+
+• **sectionRescanWindowMs**: `number`
+
+The window, in ms, a section's emitter scans are counted in. A scan
+reads the whole section, and a stream of changes (flames spreading
+through one) alters its emitters every frame: a section scanned
+`sectionRescansPerWindow` times inside one window waits, still
+pending, and is read again when the window closes.
+
+___
+
+### sectionRescansPerWindow
+
+• **sectionRescansPerWindow**: `number`
+
+Scans one section may take inside `sectionRescanWindowMs`. An edit made
+in a quiet section is scanned the frame it lands.
+
+___
+
 ### selectionHysteresis
 
 • **selectionHysteresis**: `number`

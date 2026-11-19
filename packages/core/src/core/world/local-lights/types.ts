@@ -106,6 +106,19 @@ export interface LocalLightsOptions {
   gridDims: [number, number, number];
   /** Sections scanned for emitters per frame at most. */
   maxSectionScansPerFrame: number;
+  /**
+   * The window, in ms, a section's emitter scans are counted in. A scan
+   * reads the whole section, and a stream of changes (flames spreading
+   * through one) alters its emitters every frame: a section scanned
+   * `sectionRescansPerWindow` times inside one window waits, still
+   * pending, and is read again when the window closes.
+   */
+  sectionRescanWindowMs: number;
+  /**
+   * Scans one section may take inside `sectionRescanWindowMs`. An edit made
+   * in a quiet section is scanned the frame it lands.
+   */
+  sectionRescansPerWindow: number;
   /** Multiplier a light's score gets while selected, against churn. */
   selectionHysteresis: number;
   /** How long a light takes to fade into or out of a cell, in ms. */
@@ -179,6 +192,8 @@ export const defaultLocalLightsOptions: LocalLightsOptions = {
   gridCellSize: 8,
   gridDims: [24, 12, 24],
   maxSectionScansPerFrame: 16,
+  sectionRescanWindowMs: 250,
+  sectionRescansPerWindow: 2,
   selectionHysteresis: 1.2,
   slotFadeMs: 320,
   shadowFadeMs: 320,
