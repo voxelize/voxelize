@@ -37,6 +37,9 @@ describe("the sun through the window under a veiled sky", () => {
     expect(glow.moonHaloColor.value.getHex()).toBe(0);
     expect(glow.sunDiscColor.value.getHex()).toBe(0);
     expect(glow.moonDiscColor.value.getHex()).toBe(0);
+    // Full and smooth by default: a host with no phases and no pixel moon
+    // keeps the round one it had.
+    expect(glow.moonFace.value.toArray()).toEqual([0, 1, 0]);
   });
 
   it("hands the fog the very nodes the dome reads, gated by the beam", () => {
@@ -53,6 +56,7 @@ describe("the sun through the window under a veiled sky", () => {
     expect(inputs.skySunDiscColor).toBe(glow.sunDiscColor);
     expect(inputs.skyMoonDiscColor).toBe(glow.moonDiscColor);
     expect(inputs.skyDiscRadii).toBe(glow.discRadii);
+    expect(inputs.skyMoonFace).toBe(glow.moonFace);
     expect(inputs.directSunlight).toBe(beam);
   });
 });

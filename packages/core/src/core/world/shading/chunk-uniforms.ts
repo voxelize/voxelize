@@ -139,6 +139,11 @@ export function createChunkUniforms() {
     skyMoonDiscColor: worldUniform(new Color(0, 0, 0)),
     skyDiscRadii: worldUniform(new Vector2(0.07, 0.07)),
     /**
+     * The moon's face: its phase as `moonPhaseLit` reads it in xy ((0, 1)
+     * is full), and in z how many texels across it is drawn (0: smooth).
+     */
+    skyMoonFace: worldUniform(new Vector3(0, 1, 0)),
+    /**
      * What the water refracts: a copy of the frame drawn before it, or with
      * order-independent transparency the scene target's own colour, read
      * while the blended layers draw elsewhere.

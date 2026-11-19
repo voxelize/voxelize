@@ -203,6 +203,7 @@ function studioAtmosphere(): EntityFogUniforms {
     skySunDiscColor: ownUniform(new THREE.Color(0, 0, 0)),
     skyMoonDiscColor: ownUniform(new THREE.Color(0, 0, 0)),
     skyDiscRadii: ownUniform(new THREE.Vector2(0.07, 0.07)),
+    skyMoonFace: ownUniform(new THREE.Vector3(0, 1, 0)),
     cameraSubmersion: ownUniform(0),
     cameraWaterPlaneY: ownUniform(0),
     underwaterAmbient: ownUniform(new THREE.Color(0, 0, 0)),

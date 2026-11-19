@@ -3,9 +3,11 @@ import {
   abs,
   cameraPosition,
   clamp,
+  cross,
   dot,
   exp,
   float,
+  floor,
   Fn,
   length,
   max,
@@ -15,8 +17,10 @@ import {
   output,
   positionWorld,
   pow,
+  select,
   smoothstep,
   sqrt,
+  step,
   vec2,
   vec3,
   vec4,
@@ -25,7 +29,7 @@ import {
 import { WATER_OPTICS, WATER_VIEW_EXTINCTION } from "../water-optics";
 
 import type { ChunkUniforms, ShaderLightingUniforms } from "./chunk-uniforms";
-import type { FloatNode, Vec3Node } from "./types";
+import type { FloatNode, Vec2Node, Vec3Node } from "./types";
 
 /** The inputs every fogged surface reads: the chunk set and the beam. */
 export type SkyFogInputs = Pick<
@@ -53,6 +57,7 @@ export type SkyFogInputs = Pick<
   | "skySunDiscColor"
   | "skyMoonDiscColor"
   | "skyDiscRadii"
+  | "skyMoonFace"
   | "cameraSubmersion"
   | "cameraWaterPlaneY"
   | "underwaterAmbient"
@@ -76,8 +81,55 @@ export type SkyGlowInputs = Pick<
   | "skySunDiscColor"
   | "skyMoonDiscColor"
   | "skyDiscRadii"
+  | "skyMoonFace"
   | "directSunlight"
 >;
+
+/** Half the width of the moon's terminator, as a cosine: soft, not a knife. */
+const MOON_TERMINATOR_SOFTNESS = 0.07;
+
+/**
+ * How much of the moon's face is lit at a point on its disc: 0 in shadow,
+ * 1 in light. The disc is shaded as the sphere it stands for, so the
+ * terminator is the ellipse a real moon shows and a crescent has horns.
+ * `across` is the point's offset across the terminator in disc radii, and
+ * `mu` the cosine of its angle off the centre of the face (1 at the centre,
+ * 0 at the limb). `phase` is the light's direction in that frame, (across,
+ * toward the eye): (0, 1) a full moon, (0, -1) a new one, (1, 0) the
+ * positive half lit. A host that draws the moon shades it with this, and so
+ * does the fog that carries the moon, so the two never disagree.
+ */
+export const moonPhaseLit = (
+  across: FloatNode,
+  mu: FloatNode,
+  phase: Vec2Node,
+): FloatNode =>
+  // Biased by the phase's own depth so a full moon is lit to its limb and a
+  // new one dark to it, where `mu` runs out and the dot product is zero.
+  smoothstep(
+    -MOON_TERMINATOR_SOFTNESS,
+    MOON_TERMINATOR_SOFTNESS,
+    across.mul(phase.x).add(mu.add(MOON_TERMINATOR_SOFTNESS).mul(phase.y)),
+  ) as FloatNode;
+
+/**
+ * One texel of a moon drawn in pixels, decided at the texel's centre `q`
+ * (in disc radii) and held across it: `inside` the disc or not, `lit` or
+ * in shadow, with no shades between. `mu` is the cosine of the centre's
+ * angle off the face. Texel `k` of a face `n` texels across has its centre
+ * at `(k + 0.5) / (n / 2)`, counted from the middle of the face. As with
+ * {@link moonPhaseLit}, the host's moon and the fog's are both made of
+ * this, texel for texel.
+ */
+export const moonTexelFace = (q: Vec2Node, phase: Vec2Node) => {
+  const rr = dot(q, q);
+  const mu = sqrt(max(rr.oneMinus(), 0)) as FloatNode;
+  return {
+    inside: step(rr, 1) as FloatNode,
+    lit: step(0.5, moonPhaseLit(q.y, mu, phase)) as FloatNode,
+    mu,
+  };
+};
 
 /**
  * The sky's own light along a unit ray. The sky dome draws it and every
@@ -150,9 +202,41 @@ export function skyGlow(u: SkyGlowInputs) {
       vec2(angles.sun, angles.moon),
     ).oneMinus();
     const horizon = smoothstep(-0.035, 0.05, ray.y);
+    // The moon's lit part alone, on the plane a host's billboard draws it
+    // on: `along` the moon's path and `across` it. The sky spins about Z
+    // and the moon's centre has no Z, so across the terminator is Z itself:
+    // the same picture from moonrise to moonset.
+    const moonDirection = u.skyGlowSunDirection.negate();
+    const facing = dot(ray, moonDirection);
+    const along = normalize(
+      cross(vec3(0, 0, 1), moonDirection).add(vec3(1e-6, 0, 0)),
+    );
+    const onMoon = vec2(dot(ray, along), ray.z)
+      .div(max(facing, 1e-4))
+      .div(angles.radii.y);
+    const phase = u.skyMoonFace.xy;
+    const moonRadius = angles.moon.div(angles.radii.y);
+    const smoothMoon = cover.y.mul(
+      moonPhaseLit(
+        onMoon.y,
+        sqrt(max(moonRadius.mul(moonRadius).oneMinus(), 0)),
+        phase,
+      ),
+    );
+    // A moon drawn in texels is carried in the same texels.
+    const half = max(u.skyMoonFace.z, 1).mul(0.5);
+    const texel = moonTexelFace(
+      floor(onMoon.mul(half)).add(0.5).div(half),
+      phase,
+    );
+    const moon = select(
+      u.skyMoonFace.z.greaterThan(0.5),
+      texel.inside.mul(texel.lit).mul(step(0, facing)),
+      smoothMoon,
+    );
     return u.skySunDiscColor
       .mul(cover.x)
-      .add(u.skyMoonDiscColor.mul(cover.y))
+      .add(u.skyMoonDiscColor.mul(moon))
       .mul(horizon)
       .mul(u.directSunlight);
   };

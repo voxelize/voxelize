@@ -104,6 +104,14 @@ export type SkyGlowUniforms = {
   moonDiscColor: UniformNode<"vec3", Color>;
   /** The discs' angular radii in radians: x the sun, y the moon. */
   discRadii: UniformNode<"vec2", Vector2>;
+  /**
+   * The moon's face as the fog carries it. xy is its phase: the direction
+   * of its light in the disc's own frame (`moonPhaseLit`), x across the
+   * terminator and y toward the eye. z is how many texels across the host
+   * draws the moon (`moonTexelFace`), 0 for a smooth disc. (0, 1, 0), the
+   * default, is a smooth full moon; a host with neither never touches it.
+   */
+  moonFace: UniformNode<"vec3", Vector3>;
 };
 
 export const createSkyGlowUniforms = (): SkyGlowUniforms => ({
@@ -114,6 +122,7 @@ export const createSkyGlowUniforms = (): SkyGlowUniforms => ({
   sunDiscColor: ownUniform(new Color(0, 0, 0)),
   moonDiscColor: ownUniform(new Color(0, 0, 0)),
   discRadii: ownUniform(new Vector2(0.07, 0.07)),
+  moonFace: ownUniform(new Vector3(0, 1, 0)),
 });
 
 /** The glow as `skyGlow` reads it, veiled by `directSunlight`. */
@@ -129,6 +138,7 @@ export const skyGlowInputsOf = (
     skySunDiscColor: glow.sunDiscColor,
     skyMoonDiscColor: glow.moonDiscColor,
     skyDiscRadii: glow.discRadii,
+    skyMoonFace: glow.moonFace,
     directSunlight,
   }) as unknown as SkyGlowInputs;
 

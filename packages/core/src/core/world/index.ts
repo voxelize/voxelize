@@ -9194,6 +9194,7 @@ export class World<T = any> extends Scene implements NetIntercept {
       sunDiscColor: chunkUniforms.skySunDiscColor,
       moonDiscColor: chunkUniforms.skyMoonDiscColor,
       discRadii: chunkUniforms.skyDiscRadii,
+      moonFace: chunkUniforms.skyMoonFace,
     });
     this.clouds = new Clouds({
       ...cloudsOptions,

@@ -738,6 +738,7 @@ function clearAtmosphere(): SkyFogInputs {
     skySunDiscColor: ownUniform(new Color(0, 0, 0)),
     skyMoonDiscColor: ownUniform(new Color(0, 0, 0)),
     skyDiscRadii: ownUniform(new Vector2(0.07, 0.07)),
+    skyMoonFace: ownUniform(new Vector3(0, 1, 0)),
     cameraSubmersion: ownUniform(0),
     cameraWaterPlaneY: ownUniform(0),
     underwaterAmbient: ownUniform(new Color(0, 0, 0)),
