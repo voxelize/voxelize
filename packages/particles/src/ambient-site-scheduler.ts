@@ -255,6 +255,22 @@ export class AmbientSiteScheduler<TSource> {
    */
   noteBlockUpdate(vx: number, vy: number, vz: number): void {
     if (!this.isPrepared) return;
+    // A change out past where sites are kept has nothing to bring in line:
+    // no site is tracked there, and the sweep finds what stands there when
+    // the listener comes near. A crater opening down the valley fires this
+    // tens of thousands of times a second.
+    if (this.hasCenter) {
+      const o = this.options;
+      const reachXZ = o.radiusXZ + FORGET_MARGIN + 2;
+      const reachY = o.radiusY + FORGET_MARGIN + 2;
+      if (
+        Math.abs(vx + 0.5 - this.centerX) > reachXZ ||
+        Math.abs(vz + 0.5 - this.centerZ) > reachXZ ||
+        Math.abs(vy + 0.5 - this.centerY) > reachY
+      ) {
+        return;
+      }
+    }
     for (let i = 0; i < NEIGHBOURS.length; i += 3) {
       this.recheck(
         vx + NEIGHBOURS[i],

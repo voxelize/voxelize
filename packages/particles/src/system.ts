@@ -32,7 +32,17 @@ const DEFAULT_OPTIONS: ParticleSystemOptions = {
   maxFlashLights: 4,
   bloomExemptLayer: PARTICLE_BLOOM_EXEMPT_LAYER,
   softLayerRenderOrder: 0,
+  physicsBudgetMs: 1.5,
 };
+
+/** Colliding particles stepped between two looks at the clock. */
+const PHYSICS_STEPS_PER_CHECK = 16;
+/**
+ * The most one such run counts for, in ms. A collection or a timer landing
+ * inside a run is not the particles' cost, and counted in full it would end
+ * every colliding particle alive on that frame.
+ */
+const PHYSICS_CHECK_CEILING_MS = 0.5;
 
 const TAU = Math.PI * 2;
 
@@ -84,6 +94,12 @@ export class ParticleSystem {
   private readonly flashes: FlashSlot[] = [];
   private flashCursor = 0;
   private readonly capacityPerLayer: number;
+  private readonly physicsBudgetMs: number;
+  /** What colliding particles have spent of this frame's budget, in ms. */
+  private physicsSpentMs = 0;
+  /** The run of steps being timed: how many so far, and when it began. */
+  private physicsRunSteps = 0;
+  private physicsRunBeganAt = 0;
   private readonly bloomExemptLayer: number;
   private readonly softLayerRenderOrder: number;
 
@@ -110,11 +126,13 @@ export class ParticleSystem {
       maxFlashLights,
       bloomExemptLayer,
       softLayerRenderOrder,
+      physicsBudgetMs,
     } = {
       ...DEFAULT_OPTIONS,
       ...options,
     };
     this.capacityPerLayer = capacityPerLayer;
+    this.physicsBudgetMs = physicsBudgetMs;
     this.bloomExemptLayer = bloomExemptLayer;
     this.softLayerRenderOrder = softLayerRenderOrder;
     for (let i = 0; i < maxFlashLights; i += 1) {
@@ -285,6 +303,7 @@ export class ParticleSystem {
     // World space: a player camera is parented under its controls' rig,
     // whose rotation its local quaternion never sees.
     camera.getWorldQuaternion(this.cameraQuaternion);
+    this.physicsSpentMs = 0;
     for (const layer of this.layers.values()) this.stepLayer(layer, dt);
     this.stepFlashes(dt);
   }
@@ -390,6 +409,18 @@ export class ParticleSystem {
     return out;
   }
 
+  /** Charges the run of collision steps just made to the frame's budget. */
+  private endPhysicsRun(): void {
+    const ceiling =
+      (PHYSICS_CHECK_CEILING_MS * this.physicsRunSteps) /
+      PHYSICS_STEPS_PER_CHECK;
+    this.physicsSpentMs += Math.min(
+      performance.now() - this.physicsRunBeganAt,
+      ceiling,
+    );
+    this.physicsRunSteps = 0;
+  }
+
   private stepLayer(layer: ParticleLayer, dt: number): void {
     const bodies = layer.bodies;
     for (let i = layer.alive - 1; i >= 0; i -= 1) {
@@ -401,10 +432,27 @@ export class ParticleSystem {
       if (layer.isSettled[i]) continue;
 
       if (bodies) {
+        // A colliding particle is a body in the physics engine, swept
+        // through the world every frame, and a storm of them (the chips of
+        // a crater, a forest coming down) can cost more than everything
+        // else the frame draws. They share a budget: the newest are stepped
+        // first, and once it is spent the ones left, the oldest, end here.
+        // A blast keeps as much rubble in the air as the frame can afford.
+        if (this.physicsSpentMs >= this.physicsBudgetMs) {
+          layer.removeAt(i);
+          continue;
+        }
+        if (this.physicsRunSteps === 0) {
+          this.physicsRunBeganAt = performance.now();
+        }
         // The engine owns motion for these: gravity, drag and collision are
         // its job, and layering the drift model on top would fight it.
         const body = bodies[i];
         this.world.physics.iterateBody(body, dt, false);
+        this.physicsRunSteps += 1;
+        if (this.physicsRunSteps >= PHYSICS_STEPS_PER_CHECK) {
+          this.endPhysicsRun();
+        }
         const [px, py, pz] = body.getPosition();
         layer.posX[i] = px;
         layer.posY[i] = py;
@@ -440,6 +488,9 @@ export class ParticleSystem {
         layer.removeAt(i);
       }
     }
+
+    // Only the steps are timed: what follows is every layer's cost.
+    if (this.physicsRunSteps > 0) this.endPhysicsRun();
 
     // Write render state after removals, packing each medium's particles
     // into its own mesh.

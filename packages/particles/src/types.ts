@@ -290,4 +290,11 @@ export interface ParticleSystemOptions {
    * themselves and keep 0.
    */
   softLayerRenderOrder: number;
+  /**
+   * Milliseconds a frame that colliding particles
+   * ({@link ParticleConfig.physics}) may spend in the physics engine, all
+   * layers together. Past it the oldest of them end early, so a storm of
+   * rubble costs a bounded piece of every frame. Defaults to `1.5`.
+   */
+  physicsBudgetMs: number;
 }
