@@ -115,6 +115,15 @@ impl Registry {
         instance
     }
 
+    /// Give air a ticker and an updater: what an emptied voxel does next.
+    ///
+    /// The updater must not write a neighbor back as it reads it to "wake"
+    /// it. The engine already asks the ticker of every active block beside a
+    /// committed write, and a write equal to what stands is skipped when it
+    /// commits, so such a write wakes nothing. Planned from the world as it
+    /// stood, it can only undo a newer write to that neighbor, or take the
+    /// neighbor's own proposal out of the tick's plan, where the first
+    /// proposal for a voxel is the one kept.
     pub fn register_air_active_fn<
         F1: Fn(Vec3<i32>, &dyn VoxelAccess, &Registry) -> u64 + 'static + Send + Sync,
         F2: Fn(Vec3<i32>, &dyn VoxelAccess, &Registry) -> Vec<VoxelUpdate> + 'static + Send + Sync,

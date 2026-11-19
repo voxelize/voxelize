@@ -51,45 +51,22 @@ pub fn setup_registry() -> Registry {
 
     registry.register_blocks(&biome_test_blocks);
 
+    // What an emptied voxel does next: here, the plant that stood on the
+    // block goes with it. An air updater never writes a
+    // neighbor back as it reads it to "wake" it: the engine already asks the
+    // ticker of every active block beside a committed write, and such a
+    // write could only undo a newer one (`Registry::register_air_active_fn`).
     registry.register_air_active_fn(
         |_, _, _| 0,
-        |voxel, space, registry| {
+        |voxel, space, _| {
             let Vec3(vx, vy, vz) = voxel;
-            let mut updates = vec![];
-
-            [
-                [1, 0, 0],
-                [-1, 0, 0],
-                [0, 1, 0],
-                [0, -1, 0],
-                [0, 0, 1],
-                [0, 0, -1],
-            ]
-            .into_iter()
-            .for_each(|[dx, dy, dz]| {
-                let id = space.get_voxel(vx + dx, vy + dy, vz + dz);
-
-                if id == 0 {
-                    return;
-                }
-
-                let block = registry.get_block_by_id(id);
-
-                if block.is_active {
-                    updates.push((
-                        Vec3(vx + dx, vy + dy, vz + dz),
-                        space.get_raw_voxel(vx + dx, vy + dy, vz + dz),
-                    ));
-                }
-            });
-
             let voxel_above = space.get_voxel(vx, vy + 1, vz);
 
             if voxel_above == 1000 || voxel_above == 400 {
-                updates.push((Vec3(vx, vy + 1, vz), 0));
+                vec![(Vec3(vx, vy + 1, vz), 0)]
+            } else {
+                vec![]
             }
-
-            updates
         },
     );
 
