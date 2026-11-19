@@ -437,6 +437,8 @@ export class ItemSlots<T = number> {
   private animationFrame = -1;
   private isRenderQueued = false;
   private visibilityObserver: ResizeObserver | undefined;
+  /** Stops following the display's pixel ratio ({@link watchPixelRatio}). */
+  private unwatchPixelRatio: (() => void) | undefined;
   /**
    * What the last {@link connect} returned, so {@link dispose} unbinds the
    * inputs and the canvas handlers even when the caller kept no handle.
@@ -495,6 +497,8 @@ export class ItemSlots<T = number> {
   dispose = () => {
     this.visibilityObserver?.disconnect();
     this.visibilityObserver = undefined;
+    this.unwatchPixelRatio?.();
+    this.unwatchPixelRatio = undefined;
     this.deactivate();
     // The mouse handlers `connect` put on the canvas close over this
     // instance, and a canvas whose WebGL context was just lost outlives
@@ -1000,6 +1004,29 @@ export class ItemSlots<T = number> {
     return this.wrapper;
   }
 
+  /**
+   * Keeps the drawing buffer at the display's pixel ratio. The ratio is not
+   * fixed for a page: dragging the window to another screen or zooming the
+   * browser changes it, and a buffer left at the old one is scaled by the
+   * browser, so icons drawn at 1x turn soft on a 2x screen. A resolution
+   * media query only reports leaving the ratio it was made for, so each
+   * change sets up the next one.
+   */
+  private watchPixelRatio = () => {
+    if (typeof window === "undefined" || !window.matchMedia) return;
+    const query = window.matchMedia(
+      `(resolution: ${window.devicePixelRatio}dppx)`,
+    );
+    const onChange = () => {
+      this.canvasTarget.setPixelRatio(window.devicePixelRatio);
+      this.requestRender();
+      this.watchPixelRatio();
+    };
+    query.addEventListener("change", onChange, { once: true });
+    this.unwatchPixelRatio = () =>
+      query.removeEventListener("change", onChange);
+  };
+
   private generate = () => {
     const {
       wrapperClass,
@@ -1096,6 +1123,7 @@ export class ItemSlots<T = number> {
       typeof window === "undefined" ? 1 : window.devicePixelRatio,
     );
     this.canvasTarget.setSize(width, height);
+    this.watchPixelRatio();
 
     // Renders are skipped while the canvas has no layout (hidden wrapper),
     // so the last painted frame can be stale by the time the slots are shown
