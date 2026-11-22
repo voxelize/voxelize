@@ -113,6 +113,12 @@ pub struct MetadataComp {
     #[serde(skip_deserializing)]
     last_emitted_json: Option<(Arc<str>, u64)>,
 
+    /// The last full snapshot built, kept through `mark_dirty` and `reset`:
+    /// what [`Self::latest_json`] answers with while the map is cleared.
+    #[serde(skip_serializing)]
+    #[serde(skip_deserializing)]
+    last_full_json: Option<Arc<str>>,
+
     /// The last non-motion subset emitted by `snapshot_for_replication`.
     #[serde(skip_serializing)]
     #[serde(skip_deserializing)]
@@ -265,6 +271,7 @@ impl MetadataComp {
         }
         let json: Arc<str> = self.join_fragments(|_| true, false).into();
         self.last_emitted_json = Some((json.clone(), self.version));
+        self.last_full_json = Some(json.clone());
         (json, true)
     }
 
@@ -348,6 +355,22 @@ impl MetadataComp {
         serde_json::to_string(&self.map).unwrap()
     }
 
+    /// The newest full JSON of this metadata, for a reader between ticks.
+    ///
+    /// A peer's map is scratch: peers-sending clears it (`reset`) after each
+    /// snapshot it emits and the next tick's systems fill it again. A join
+    /// handled in between read an empty map for every player who had just
+    /// moved, so the newcomer's INIT listed them with no pose, no role and
+    /// no look. A cleared map answers with the snapshot last built instead.
+    pub fn latest_json(&self) -> String {
+        if self.map.is_empty() {
+            if let Some(json) = &self.last_full_json {
+                return json.to_string();
+            }
+        }
+        self.to_string()
+    }
+
     /// Force the next `to_cached_str` / `snapshot_for_replication` to report
     /// a change, so this metadata is re-emitted to consumers even if its
     /// content did not change. Used to deterministically re-sync peer state
@@ -372,6 +395,31 @@ impl MetadataComp {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn a_cleared_map_still_answers_with_its_last_snapshot() {
+        let mut metadata = MetadataComp::new();
+        assert_eq!(metadata.latest_json(), "{}");
+        metadata.set_value("position", json!([1.0, 2.0, 3.0]));
+        metadata.set_value("role", json!("OWNER"));
+        // Before any snapshot the map itself is the newest state.
+        let map_json: Value = serde_json::from_str(&metadata.latest_json()).unwrap();
+        assert_eq!(map_json["role"], json!("OWNER"));
+
+        let (sent, is_updated) = metadata.to_cached_str();
+        assert!(is_updated);
+        // Peers-sending clears the scratch map; a membership change marks
+        // every peer dirty. Neither may blank what a join reads.
+        metadata.reset();
+        metadata.mark_dirty();
+        assert_eq!(metadata.to_string(), "{}");
+        assert_eq!(metadata.latest_json(), sent);
+
+        // Refilled, the map is the newest state again.
+        metadata.set_value("position", json!([9.0, 2.0, 3.0]));
+        let refilled: Value = serde_json::from_str(&metadata.latest_json()).unwrap();
+        assert_eq!(refilled["position"], json!([9.0, 2.0, 3.0]));
+    }
 
     #[test]
     fn cached_snapshots_parse_back_to_the_map() {

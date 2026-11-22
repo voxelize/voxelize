@@ -207,11 +207,24 @@ fn send_rtc(rtc_sender: Option<&UnboundedSender<Vec<u8>>>, data: &[u8]) -> bool 
 /// Send encoded bytes to a client over its WebRTC data channel when one is
 /// available and the message fits one datagram, otherwise over its
 /// WebSocket channel.
-fn send_to_client(client: &Client, rtc_sender: Option<&UnboundedSender<Vec<u8>>>, data: &[u8]) {
+fn send_to_client(
+    client: &Client,
+    rtc_sender: Option<&UnboundedSender<Vec<u8>>>,
+    data: &[u8],
+) -> StateLane {
     if send_rtc(rtc_sender, data) {
-        return;
+        return StateLane::Lossy;
     }
     let _ = client.sender.send(data.to_vec());
+    StateLane::Reliable
+}
+
+/// Which lane a state message went out on: the data channel, which may drop
+/// it, or the socket, which will not.
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+enum StateLane {
+    Lossy,
+    Reliable,
 }
 
 impl<'a> System<'a> for BroadcastSystem {
@@ -460,7 +473,13 @@ impl<'a> System<'a> for BroadcastSystem {
                     message = message.json(&json!({ "townPerfTraceId": trace_id }).to_string());
                 }
                 let data = encode_message(&message.build());
-                send_to_client(client, rtc_sender.as_ref(), &data);
+                let lane = send_to_client(client, rtc_sender.as_ref(), &data);
+                replicated_state.note_entities_sent(
+                    client_id,
+                    &flush.entities,
+                    lane == StateLane::Lossy,
+                    now_ms,
+                );
 
                 if perf::is_enabled() {
                     let mut depths = Map::new();
@@ -513,7 +532,13 @@ impl<'a> System<'a> for BroadcastSystem {
                     .tick(tick)
                     .build();
                 let data = encode_message(&message);
-                send_to_client(client, rtc_sender.as_ref(), &data);
+                let lane = send_to_client(client, rtc_sender.as_ref(), &data);
+                replicated_state.note_peers_sent(
+                    client_id,
+                    &flush.peers,
+                    lane == StateLane::Lossy,
+                    now_ms,
+                );
 
                 if perf::is_enabled() {
                     perf::log(
@@ -528,6 +553,33 @@ impl<'a> System<'a> for BroadcastSystem {
                         }),
                     );
                 }
+            }
+        }
+
+        // The last word must arrive. State sent on the lossy lane that
+        // nothing newer has followed is repeated here on the socket, after
+        // this tick's flush so whatever just went out counts as the newer
+        // one (see `LOSSY_SETTLE_MS`). A backed-up socket waits its turn:
+        // what is owed keeps, and keeps being replaced by newer sends.
+        for (client_id, client) in clients.iter() {
+            if client.sender.control_len() > crate::STATE_FLUSH_MAX_SOCKET_BACKLOG {
+                continue;
+            }
+            let entities = replicated_state.take_settled_entities(client_id, now_ms);
+            if !entities.is_empty() {
+                let message = Message::new(&MessageType::Entity)
+                    .entities(&entities)
+                    .tick(tick)
+                    .build();
+                let _ = client.sender.send(encode_message(&message));
+            }
+            let peers = replicated_state.take_settled_peers(client_id, now_ms);
+            if !peers.is_empty() {
+                let message = Message::new(&MessageType::Peer)
+                    .peers(&peers)
+                    .tick(tick)
+                    .build();
+                let _ = client.sender.send(encode_message(&message));
             }
         }
 

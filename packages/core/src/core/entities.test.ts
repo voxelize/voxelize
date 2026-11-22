@@ -616,6 +616,124 @@ describe("Entities out-of-order state protection", () => {
   });
 });
 
+describe("Entities motion and state ordered apart", () => {
+  const motionAt = (x: number): EntityMotionProtocol =>
+    ({ position: [x, 0, 0] }) as EntityMotionProtocol;
+
+  const created = () => {
+    const entities = makeEntities();
+    entities.onMessage(
+      entityMessage(
+        "CREATE",
+        "a",
+        { position: [0, 0, 0], name: "first" },
+        { tick: 1 },
+      ),
+    );
+    return { entities, probe: entities.getEntityById("a") as ProbeEntity };
+  };
+
+  // The report this guards: a server repeats an entity's last state on the
+  // reliable lane once it goes quiet; with one watermark for both lanes a
+  // newer motion sample that landed first made that repeat "stale", and
+  // the state it existed to deliver was thrown away.
+  it("takes a state repeat that a newer motion sample overtook", () => {
+    const { entities, probe } = created();
+    entities.onMessage(
+      entityMessage("UPDATE", "a", null, { tick: 20, motion: motionAt(9) }),
+    );
+    entities.onMessage(
+      entityMessage("UPDATE", "a", { name: "renamed" }, { tick: 15 }),
+    );
+    expect(probe.metadata).toMatchObject({
+      position: [9, 0, 0],
+      name: "renamed",
+    });
+  });
+
+  it("keeps a resting pose that lands after a newer state-only update", () => {
+    const { entities, probe } = created();
+    entities.onMessage(
+      entityMessage("UPDATE", "a", { name: "renamed" }, { tick: 30 }),
+    );
+    entities.onMessage(
+      entityMessage("UPDATE", "a", null, { tick: 25, motion: motionAt(4) }),
+    );
+    expect(probe.metadata).toMatchObject({
+      position: [4, 0, 0],
+      name: "renamed",
+    });
+    // Each lane still refuses what is older than its own newest.
+    entities.onMessage(
+      entityMessage("UPDATE", "a", { name: "older" }, { tick: 29 }),
+    );
+    entities.onMessage(
+      entityMessage("UPDATE", "a", null, { tick: 24, motion: motionAt(1) }),
+    );
+    expect(probe.metadata).toMatchObject({
+      position: [4, 0, 0],
+      name: "renamed",
+    });
+    expect(probe.updateCount).toBe(2);
+  });
+
+  it("takes only the fresh lane of a payload that carries both", () => {
+    const { entities, probe } = created();
+    entities.onMessage(
+      entityMessage("UPDATE", "a", null, { tick: 20, motion: motionAt(9) }),
+    );
+    // A full snapshot from before that motion: its pose is old news, its
+    // state is not.
+    entities.onMessage(
+      entityMessage(
+        "UPDATE",
+        "a",
+        { position: [1, 0, 0], name: "renamed" },
+        { tick: 15 },
+      ),
+    );
+    expect(probe.metadata).toMatchObject({
+      position: [9, 0, 0],
+      name: "renamed",
+    });
+
+    // And the other way round: state already newer, the pose still wanted.
+    entities.onMessage(
+      entityMessage("UPDATE", "a", { name: "newest" }, { tick: 40 }),
+    );
+    entities.onMessage(
+      entityMessage(
+        "UPDATE",
+        "a",
+        { name: "stale" },
+        { tick: 35, motion: motionAt(12) },
+      ),
+    );
+    expect(probe.metadata).toMatchObject({
+      position: [12, 0, 0],
+      name: "newest",
+    });
+  });
+
+  it("lets nothing older than a release through on either lane", () => {
+    const { entities } = created();
+    entities.onMessage(entityMessage("OUT_OF_RANGE", "a", null, { tick: 30 }));
+    entities.onMessage(
+      entityMessage("UPDATE", "a", { name: "late" }, { tick: 20 }),
+    );
+    entities.onMessage(
+      entityMessage(
+        "UPDATE",
+        "a",
+        { position: [5, 0, 0], name: "late" },
+        { tick: 25 },
+      ),
+    );
+    expect(entities.getEntityById("a")).toBeUndefined();
+    expect(entities.appliedTick("a")).toBe(30);
+  });
+});
+
 describe("Entities released watermark retention", () => {
   const watermarkCount = (entities: Entities): number =>
     (entities as unknown as { lastAppliedTick: Map<string, number> })

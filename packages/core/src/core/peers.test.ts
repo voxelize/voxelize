@@ -195,3 +195,56 @@ describe("Peers LEAVE", () => {
     expect(peers.getPeerById("a")).toBeUndefined();
   });
 });
+
+describe("Peers out-of-order packets", () => {
+  const update = (id: string, at: number, tick?: number): Msg =>
+    ({
+      type: "PEER",
+      tick,
+      peers: [{ id, username: id, metadata: { position: [at, 0, 0] } }],
+    }) as unknown as Msg;
+
+  const tracked = () => {
+    const { peers, message } = makePeers();
+    const seen: number[] = [];
+    peers.onPeerUpdate = (_peer, metadata) => {
+      seen.push((metadata as { position: number[] }).position[0]);
+    };
+    message(init("me"));
+    return { message, seen };
+  };
+
+  // The report this guards: a friend stopped at the water, and a packet
+  // from a step earlier landed after the one that had them standing there.
+  it("drops a peer packet older than the newest one applied", () => {
+    const { message, seen } = tracked();
+    message(update("friend", 1, 10));
+    message(update("friend", 3, 12));
+    message(update("friend", 2, 11));
+    expect(seen).toEqual([1, 3]);
+
+    // The socket's repeat of a still peer's last snapshot carries a newer
+    // tick and the same pose: it applies, and changes nothing.
+    message(update("friend", 3, 20));
+    expect(seen).toEqual([1, 3, 3]);
+  });
+
+  it("orders each peer on its own, and unstamped packets always apply", () => {
+    const { message, seen } = tracked();
+    message(update("a", 1, 50));
+    message(update("b", 2, 10));
+    message(update("a", 3));
+    expect(seen).toEqual([1, 2, 3]);
+  });
+
+  it("starts over with a new session or a peer who came back", () => {
+    const { message, seen } = tracked();
+    message(update("friend", 1, 900));
+    // A restarted server counts its ticks from the start again.
+    message(init("me"));
+    message(update("friend", 2, 5));
+    message(leave("friend"));
+    message(update("friend", 3, 1));
+    expect(seen).toEqual([1, 2, 3]);
+  });
+});

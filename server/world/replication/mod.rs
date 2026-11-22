@@ -113,6 +113,22 @@ pub const MAX_PENDING_INBOUND_PER_CLIENT: usize = 64;
 /// behind a busy motion lane forever.
 pub const METADATA_MAX_AGE_MS: u64 = 250;
 
+/// How long state sent on the lossy lane may stand as a client's newest
+/// before it is repeated on the reliable one.
+///
+/// Latest-wins state rides the WebRTC data channel when a client has one,
+/// and that channel neither retransmits nor orders. A lost sample of a value
+/// that keeps changing is repaired by the next one; the LAST sample before
+/// it goes still has no next one. Lost, it left that client wrong until the
+/// value happened to change again: a player a step short with the old item
+/// in hand, a creature short of where it came to rest, a one-off flag (a
+/// bite, a pose) that never showed. So the last word is delivered for
+/// certain: once nothing newer has gone out for this long, the last lossy
+/// peer snapshot, entity motion and entity metadata each go out again on
+/// the reliable lane. Whatever keeps changing never pays for it; coming to
+/// rest costs one message.
+pub const LOSSY_SETTLE_MS: u64 = 250;
+
 /// Budget expansion factor for a client whose socket backlog is zero. The
 /// budget exists to protect the socket; when the socket is demonstrably
 /// keeping up there is no reason to ration freshness.
@@ -258,6 +274,12 @@ struct ClientStateSlots {
     entities: HashMap<String, EntitySlot>,
     /// peer id -> newest pending peer snapshot for this client.
     peers: HashMap<String, PeerProtocol>,
+    /// peer id -> the newest snapshot this client was sent on the lossy
+    /// lane, with when, until a newer one goes out or this one is repeated
+    /// on the reliable lane ([`LOSSY_SETTLE_MS`]).
+    unconfirmed_peers: HashMap<String, (PeerProtocol, u64)>,
+    /// entity id -> the same for an entity's two lanes.
+    unconfirmed_entities: HashMap<String, UnconfirmedEntity>,
     /// entity id -> wall-clock ms of the last motion-carrying flush, for gap
     /// telemetry. Bounded by the client's interest set; entries are removed
     /// with [`ReplicatedStateBuffer::clear_entity`].
@@ -265,6 +287,16 @@ struct ClientStateSlots {
     gaps: MotionGapHistogram,
     /// Perf trace ids of the staging batches coalesced into these slots.
     trace_ids: Vec<String>,
+}
+
+/// The newest motion and the newest metadata one client was sent for an
+/// entity on the lossy lane, each with when, until something newer goes out
+/// on that lane or it is repeated on the reliable one.
+#[derive(Default)]
+struct UnconfirmedEntity {
+    etype: String,
+    motion: Option<(Vec<u8>, u64)>,
+    metadata: Option<(String, u64)>,
 }
 
 impl ClientStateSlots {
@@ -463,7 +495,97 @@ impl ReplicatedStateBuffer {
         if let Some(slots) = self.clients.get_mut(client_id) {
             slots.entities.remove(entity_id);
             slots.last_motion_sent_ms.remove(entity_id);
+            slots.unconfirmed_entities.remove(entity_id);
         }
+    }
+
+    /// Record how a client's entity updates just went out (see
+    /// [`Self::note_peers_sent`]). Each lane of an entity is kept apart: a
+    /// motion sample says nothing about whether its metadata arrived.
+    pub fn note_entities_sent(
+        &mut self,
+        client_id: &str,
+        entities: &[EntityProtocol],
+        is_lossy: bool,
+        now_ms: u64,
+    ) {
+        let Some(slots) = self.clients.get_mut(client_id) else {
+            return;
+        };
+        for entity in entities {
+            // A keep-alive carries nothing to lose.
+            if entity.motion.is_none() && entity.metadata.is_none() {
+                continue;
+            }
+            if is_lossy {
+                let owed = slots
+                    .unconfirmed_entities
+                    .entry(entity.id.clone())
+                    .or_insert_with(|| UnconfirmedEntity {
+                        etype: entity.r#type.clone(),
+                        ..Default::default()
+                    });
+                if let Some(motion) = &entity.motion {
+                    owed.motion = Some((motion.clone(), now_ms));
+                }
+                if let Some(metadata) = &entity.metadata {
+                    owed.metadata = Some((metadata.clone(), now_ms));
+                }
+            } else if let Some(owed) = slots.unconfirmed_entities.get_mut(&entity.id) {
+                if entity.motion.is_some() {
+                    owed.motion = None;
+                }
+                if entity.metadata.is_some() {
+                    owed.metadata = None;
+                }
+                if owed.motion.is_none() && owed.metadata.is_none() {
+                    slots.unconfirmed_entities.remove(&entity.id);
+                }
+            }
+        }
+    }
+
+    /// Take, as updates to repeat on the reliable lane, each entity lane
+    /// this client was last sent on the lossy one at least
+    /// [`LOSSY_SETTLE_MS`] ago with nothing newer since. Sorted by entity id.
+    pub fn take_settled_entities(&mut self, client_id: &str, now_ms: u64) -> Vec<EntityProtocol> {
+        let Some(slots) = self.clients.get_mut(client_id) else {
+            return Vec::new();
+        };
+        if slots.unconfirmed_entities.is_empty() {
+            return Vec::new();
+        }
+        let is_settled = |sent_ms: u64| now_ms.saturating_sub(sent_ms) >= LOSSY_SETTLE_MS;
+        let pending = &slots.entities;
+        let mut settled: Vec<EntityProtocol> = Vec::new();
+        slots.unconfirmed_entities.retain(|id, owed| {
+            // A newer value still waiting to flush supersedes the owed one.
+            let waiting = pending.get(id);
+            let motion = owed
+                .motion
+                .take_if(|(_, sent_ms)| {
+                    is_settled(*sent_ms) && !waiting.is_some_and(|slot| slot.motion.is_some())
+                })
+                .map(|(motion, _)| motion);
+            let metadata = owed
+                .metadata
+                .take_if(|(_, sent_ms)| {
+                    is_settled(*sent_ms) && !waiting.is_some_and(|slot| slot.metadata.is_some())
+                })
+                .map(|(metadata, _)| metadata);
+            if motion.is_some() || metadata.is_some() {
+                settled.push(EntityProtocol {
+                    operation: EntityOperation::Update,
+                    id: id.clone(),
+                    r#type: owed.etype.clone(),
+                    metadata,
+                    motion,
+                });
+            }
+            owed.motion.is_some() || owed.metadata.is_some()
+        });
+        settled.sort_unstable_by(|left, right| left.id.cmp(&right.id));
+        settled
     }
 
     /// Drop pending peer snapshots of a departed peer from every client's
@@ -472,7 +594,62 @@ impl ReplicatedStateBuffer {
     pub fn remove_peer(&mut self, peer_id: &str) {
         for slots in self.clients.values_mut() {
             slots.peers.remove(peer_id);
+            slots.unconfirmed_peers.remove(peer_id);
         }
+    }
+
+    /// Record how a client's peer snapshots just went out. Sent on the
+    /// lossy lane they may never arrive, so each is kept as that peer's
+    /// unconfirmed newest; sent on the reliable lane they will, and nothing
+    /// older is owed.
+    pub fn note_peers_sent(
+        &mut self,
+        client_id: &str,
+        peers: &[PeerProtocol],
+        is_lossy: bool,
+        now_ms: u64,
+    ) {
+        let Some(slots) = self.clients.get_mut(client_id) else {
+            return;
+        };
+        for peer in peers {
+            if is_lossy {
+                slots
+                    .unconfirmed_peers
+                    .insert(peer.id.clone(), (peer.clone(), now_ms));
+            } else {
+                slots.unconfirmed_peers.remove(&peer.id);
+            }
+        }
+    }
+
+    /// Take the peer snapshots this client was last sent on the lossy lane
+    /// at least [`LOSSY_SETTLE_MS`] ago with nothing newer since: the
+    /// caller repeats them on the reliable lane. Sorted by peer id.
+    pub fn take_settled_peers(&mut self, client_id: &str, now_ms: u64) -> Vec<PeerProtocol> {
+        let Some(slots) = self.clients.get_mut(client_id) else {
+            return Vec::new();
+        };
+        if slots.unconfirmed_peers.is_empty() {
+            return Vec::new();
+        }
+        let settled: Vec<String> = slots
+            .unconfirmed_peers
+            .iter()
+            .filter(|(id, (_, sent_ms))| {
+                // A newer snapshot still waiting to flush supersedes it.
+                !slots.peers.contains_key(*id)
+                    && now_ms.saturating_sub(*sent_ms) >= LOSSY_SETTLE_MS
+            })
+            .map(|(id, _)| id.clone())
+            .collect();
+        let mut peers: Vec<PeerProtocol> = settled
+            .iter()
+            .filter_map(|id| slots.unconfirmed_peers.remove(id))
+            .map(|(peer, _)| peer)
+            .collect();
+        peers.sort_unstable_by(|left, right| left.id.cmp(&right.id));
+        peers
     }
 
     /// Drop everything pending for a disconnected (or re-initialized) client.
@@ -822,6 +999,150 @@ mod tests {
         buffer.clear_entity("client", "bot");
 
         assert!(drain_all(&mut buffer, "client").is_none());
+    }
+
+    /// The report this guards: a player stopped to fish, the last snapshot
+    /// of them was dropped on the lossy lane, and the watching client kept
+    /// them where the snapshot before it had them.
+    #[test]
+    fn a_peers_last_lossy_snapshot_is_repeated_once_they_go_still() {
+        let mut buffer = ReplicatedStateBuffer::new();
+        buffer.stage_peer_update("client", peer("friend", "walking"));
+        let flush = buffer.drain_client("client", 1_000, usize::MAX).unwrap();
+        buffer.note_peers_sent("client", &flush.peers, true, 1_000);
+        assert!(buffer.take_settled_peers("client", 1_100).is_empty());
+
+        // Still moving: each newer snapshot replaces the one that is owed.
+        buffer.stage_peer_update("client", peer("friend", "at the water"));
+        let flush = buffer.drain_client("client", 1_200, usize::MAX).unwrap();
+        buffer.note_peers_sent("client", &flush.peers, true, 1_200);
+        assert!(
+            buffer.take_settled_peers("client", 1_300).is_empty(),
+            "a peer that sent something newer has not settled"
+        );
+
+        let settled = buffer.take_settled_peers("client", 1_200 + LOSSY_SETTLE_MS);
+        assert_eq!(settled.len(), 1);
+        assert_eq!(settled[0].metadata, "at the water");
+        assert!(
+            buffer
+                .take_settled_peers("client", 9_000)
+                .is_empty(),
+            "one repeat, on the lane that cannot lose it"
+        );
+    }
+
+    fn lossy_flush(buffer: &mut ReplicatedStateBuffer, now_ms: u64) -> usize {
+        let flush = buffer.drain_client("client", now_ms, usize::MAX).unwrap();
+        buffer.note_entities_sent("client", &flush.entities, true, now_ms);
+        flush.entities.len()
+    }
+
+    /// The same hole for entities: a float lands and its last motion sample
+    /// is dropped, or it is bitten and that one metadata change is dropped.
+    #[test]
+    fn an_entitys_last_lossy_motion_and_metadata_are_each_repeated() {
+        let mut buffer = ReplicatedStateBuffer::new();
+        buffer.stage_motion("client", "float", "prop", vec![1], 4.0, 1_000, 50);
+        buffer.stage_metadata(
+            "client",
+            "float",
+            "prop",
+            "flying".to_owned(),
+            false,
+            4.0,
+            1_000,
+            METADATA_MAX_AGE_MS,
+        );
+        assert_eq!(lossy_flush(&mut buffer, 1_000), 1);
+
+        // It keeps moving: only its motion is replaced, and only the
+        // metadata, quiet since 1000, has settled.
+        buffer.stage_motion("client", "float", "prop", vec![2], 4.0, 1_200, 50);
+        lossy_flush(&mut buffer, 1_200);
+        let settled = buffer.take_settled_entities("client", 1_000 + LOSSY_SETTLE_MS);
+        assert_eq!(settled.len(), 1);
+        assert_eq!(settled[0].operation, EntityOperation::Update);
+        assert_eq!(settled[0].r#type, "prop");
+        assert_eq!(settled[0].metadata.as_deref(), Some("flying"));
+        assert_eq!(settled[0].motion, None, "its motion is still changing");
+
+        // At rest: the last motion sample goes out again, once.
+        let settled = buffer.take_settled_entities("client", 1_200 + LOSSY_SETTLE_MS);
+        assert_eq!(settled.len(), 1);
+        assert_eq!(settled[0].motion, Some(vec![2]));
+        assert_eq!(settled[0].metadata, None);
+        assert!(buffer.take_settled_entities("client", 60_000).is_empty());
+    }
+
+    #[test]
+    fn an_entity_owes_no_repeat_once_released_or_sent_reliably() {
+        let mut buffer = ReplicatedStateBuffer::new();
+        buffer.stage_motion("client", "gone", "prop", vec![1], 4.0, 0, 50);
+        lossy_flush(&mut buffer, 0);
+        // The lifecycle event that releases it must never be followed by
+        // state from before it.
+        buffer.clear_entity("client", "gone");
+        assert!(buffer.take_settled_entities("client", 5_000).is_empty());
+
+        buffer.stage_metadata(
+            "client",
+            "kept",
+            "prop",
+            "old".to_owned(),
+            false,
+            4.0,
+            5_000,
+            METADATA_MAX_AGE_MS,
+        );
+        lossy_flush(&mut buffer, 5_000);
+        // A newer value is staged but has not flushed (the socket is
+        // gated): the owed one waits, the newer one is what gets sent.
+        buffer.stage_metadata(
+            "client",
+            "kept",
+            "prop",
+            "new".to_owned(),
+            false,
+            4.0,
+            5_100,
+            METADATA_MAX_AGE_MS,
+        );
+        assert!(buffer.take_settled_entities("client", 9_000).is_empty());
+        // It goes out on the socket: nothing is owed.
+        let flush = buffer.drain_client("client", 9_000, usize::MAX).unwrap();
+        buffer.note_entities_sent("client", &flush.entities, false, 9_000);
+        assert!(buffer.take_settled_entities("client", 20_000).is_empty());
+
+        // A keep-alive carries nothing and owes nothing.
+        buffer.stage_keep_alive("client", "idle", "prop", 4.0, 20_000);
+        lossy_flush(&mut buffer, 20_000);
+        assert!(buffer.take_settled_entities("client", 40_000).is_empty());
+    }
+
+    #[test]
+    fn a_reliable_send_or_a_pending_snapshot_owes_no_repeat() {
+        let mut buffer = ReplicatedStateBuffer::new();
+        buffer.stage_peer_update("client", peer("friend", "lossy"));
+        let flush = buffer.drain_client("client", 0, usize::MAX).unwrap();
+        buffer.note_peers_sent("client", &flush.peers, true, 0);
+
+        // A newer snapshot is staged but the socket is gated: the pending
+        // one is what the client gets, never the older lossy one.
+        buffer.stage_peer_update("client", peer("friend", "newer"));
+        assert!(buffer.take_settled_peers("client", 5_000).is_empty());
+
+        // It flushes on the reliable lane: nothing is owed any more.
+        let flush = buffer.drain_client("client", 5_000, usize::MAX).unwrap();
+        buffer.note_peers_sent("client", &flush.peers, false, 5_000);
+        assert!(buffer.take_settled_peers("client", 9_000).is_empty());
+
+        // A peer who left is owed to nobody.
+        buffer.stage_peer_update("client", peer("gone", "lossy"));
+        let flush = buffer.drain_client("client", 9_000, usize::MAX).unwrap();
+        buffer.note_peers_sent("client", &flush.peers, true, 9_000);
+        buffer.remove_peer("gone");
+        assert!(buffer.take_settled_peers("client", 20_000).is_empty());
     }
 
     #[test]

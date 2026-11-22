@@ -486,6 +486,7 @@ impl World {
         ecs.insert(KdTree::new());
         ecs.insert(EncodedMessageQueue::new());
         ecs.insert(ReplicatedStateBuffer::new());
+        ecs.insert(StrandedPeerClaims::default());
         ecs.insert(Profiler::new(Duration::from_secs_f64(0.001)));
         ecs.insert(EntityIDs::new());
         ecs.insert(WorldPerfMetrics::new());

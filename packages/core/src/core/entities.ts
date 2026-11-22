@@ -189,6 +189,39 @@ function applyMotionToMetadata(
   }
 }
 
+/** The metadata keys the motion lane owns (the server's
+ * `MOTION_METADATA_KEYS`); `target.position` rides with them. */
+const POSE_METADATA_KEYS = ["position", "direction", "rigidBody"] as const;
+
+/**
+ * One lane's share of a metadata payload: its pose keys alone, or
+ * everything but them (`target` then without its `position`, which the
+ * merge keeps from the motion lane).
+ */
+function laneOfMetadata(
+  metadata: MutableMetadata,
+  lane: "pose" | "state",
+): MutableMetadata {
+  const share: MutableMetadata = {};
+  for (const key in metadata) {
+    const isPoseKey = (POSE_METADATA_KEYS as readonly string[]).includes(key);
+    if (lane === "pose") {
+      if (isPoseKey) share[key] = metadata[key];
+      continue;
+    }
+    if (isPoseKey) continue;
+    const value = metadata[key];
+    if (key === "target" && isJsonObject(value) && "position" in value) {
+      const identity = { ...value };
+      delete identity.position;
+      share.target = identity;
+    } else {
+      share[key] = value;
+    }
+  }
+  return share;
+}
+
 function isCoords3(
   value: JsonValue | undefined,
 ): value is [number, number, number] {
@@ -463,6 +496,17 @@ export class Entities extends Group implements NetIntercept {
   private lastAppliedTick: Map<string, number> = new Map();
 
   /**
+   * Server tick of the newest non-motion metadata applied per entity (or of
+   * its last lifecycle event). The two lanes are ordered apart: a server
+   * repeats an entity's last state on the reliable lane once it goes
+   * quiet, and motion for the same entity keeps arriving on the unordered
+   * one. Judged against a single watermark, whichever landed second was
+   * thrown away as stale: the repeat (the state it exists to deliver) or
+   * the entity's resting pose.
+   */
+  private lastStateTick: Map<string, number> = new Map();
+
+  /**
    * Released entities whose watermark is still held, keyed to the second
    * they were released. Insertion order is release order, so the sweep in
    * `update` stops at the first entry inside the retention window.
@@ -538,7 +582,11 @@ export class Entities extends Group implements NetIntercept {
   }
 
   appliedTick = (id: string): number | undefined => {
-    return this.lastAppliedTick.get(id);
+    const pose = this.lastAppliedTick.get(id);
+    const state = this.lastStateTick.get(id);
+    if (pose === undefined) return state;
+    if (state === undefined) return pose;
+    return Math.max(pose, state);
   };
 
   /**
@@ -658,6 +706,7 @@ export class Entities extends Group implements NetIntercept {
           object.snapToTarget?.();
           this.syncColliders(object, metadata);
           this.noteAppliedTick(id, messageTick);
+          this.noteStateTick(id, messageTick);
           this.liveness.touchEntity(id, nowSeconds);
           return;
         }
@@ -668,6 +717,7 @@ export class Entities extends Group implements NetIntercept {
           object.onCreate?.(metadata);
           this.syncColliders(object, metadata);
           this.noteAppliedTick(id, messageTick);
+          this.noteStateTick(id, messageTick);
           this.liveness.touchEntity(id, nowSeconds);
           this.releasedAt.delete(id);
         }
@@ -686,8 +736,15 @@ export class Entities extends Group implements NetIntercept {
 
         // Out-of-order state (possible on unordered transports) must
         // never rewind an entity — and must never resurrect one that a
-        // later lifecycle event already released.
-        if (this.isStaleFrame(id, messageTick)) {
+        // later lifecycle event already released. Each lane answers for
+        // itself: the pose (a motion payload, or a full snapshot's pose
+        // keys) against the newest pose applied, the rest of the metadata
+        // against the newest state applied (see `lastStateTick`).
+        const hasPose =
+          !!motion || (!!metadata && metadata.position !== undefined);
+        const isPoseFresh = hasPose && !this.isStaleFrame(id, messageTick);
+        const isStateFresh = !!metadata && !this.isStaleState(id, messageTick);
+        if (!isPoseFresh && !isStateFresh) {
           return;
         }
 
@@ -700,8 +757,14 @@ export class Entities extends Group implements NetIntercept {
           // callbacks metadata missing the keys they iterate
           // (position, direction, ...) — the exact shape that broke
           // game clients in production. Partial state waits for the
-          // reliable CREATE.
-          if (!metadata || metadata.position === undefined) {
+          // reliable CREATE. So does a snapshot stale on either lane: a
+          // later lifecycle event stamped both.
+          if (
+            !metadata ||
+            metadata.position === undefined ||
+            !isPoseFresh ||
+            !isStateFresh
+          ) {
             return;
           }
           object = this.createEntityOfType(type, id);
@@ -713,26 +776,35 @@ export class Entities extends Group implements NetIntercept {
         }
 
         if (object) {
+          // A payload that is old news on one lane gives only the other
+          // lane's share. One that carries no pose at all is taken whole,
+          // as it always was.
+          const isPoseStale = hasPose && !isPoseFresh;
+          const incoming = !metadata
+            ? null
+            : !isStateFresh
+              ? laneOfMetadata(metadata as MutableMetadata, "pose")
+              : isPoseStale
+                ? laneOfMetadata(metadata as MutableMetadata, "state")
+                : (metadata as MutableMetadata);
           // Merge instead of replace: compact-protocol servers send
           // motion and non-motion state independently, and metadata
           // keys are never removed server-side, so the accumulated map
           // always presents the full legacy shape to game code.
           const merged = mergeMetadataUpdate(
             object.metadata as MutableMetadata | null,
-            metadata as MutableMetadata | null,
+            incoming,
           );
-          if (motion) {
+          if (motion && isPoseFresh) {
             applyMotionToMetadata(merged, motion);
           }
           object.metadata = merged;
           object.onUpdate?.(merged);
           this.syncColliders(object, merged);
-          this.noteAppliedTick(id, messageTick);
+          if (isPoseFresh) this.noteAppliedTick(id, messageTick);
+          if (isStateFresh) this.noteStateTick(id, messageTick);
           this.liveness.touchEntity(id, nowSeconds);
-          if (
-            isLogging &&
-            (motion || (metadata && metadata.position !== undefined))
-          ) {
+          if (isLogging && isPoseFresh) {
             this.recordMotionApplyGap(id);
           }
         }
@@ -742,6 +814,7 @@ export class Entities extends Group implements NetIntercept {
       case "DELETE":
       case "OUT_OF_RANGE": {
         this.noteAppliedTick(id, messageTick);
+        this.noteStateTick(id, messageTick);
 
         if (!object) {
           // Nothing to release, but the watermark just written still has
@@ -1036,6 +1109,7 @@ export class Entities extends Group implements NetIntercept {
       if (releasedAt > cutoff) break;
       this.releasedAt.delete(id);
       this.lastAppliedTick.delete(id);
+      this.lastStateTick.delete(id);
     }
   };
 
@@ -1044,6 +1118,7 @@ export class Entities extends Group implements NetIntercept {
       this.releaseEntity(object, object.metadata);
     }
     this.lastAppliedTick.clear();
+    this.lastStateTick.clear();
     this.releasedAt.clear();
   };
 
@@ -1075,6 +1150,25 @@ export class Entities extends Group implements NetIntercept {
     }
     const lastTick = this.lastAppliedTick.get(id);
     return lastTick !== undefined && messageTick <= lastTick;
+  };
+
+  private isStaleState = (id: string, messageTick: number) => {
+    if (messageTick <= 0) {
+      return false;
+    }
+    const lastTick = this.lastStateTick.get(id);
+    return lastTick !== undefined && messageTick <= lastTick;
+  };
+
+  /** Monotonic, like `noteAppliedTick`. */
+  private noteStateTick = (id: string, messageTick: number) => {
+    if (messageTick <= 0) {
+      return;
+    }
+    const lastTick = this.lastStateTick.get(id);
+    if (lastTick === undefined || messageTick > lastTick) {
+      this.lastStateTick.set(id, messageTick);
+    }
   };
 
   private noteAppliedTick = (id: string, messageTick: number) => {

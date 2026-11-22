@@ -92,6 +92,9 @@ export class Peers<
    */
   public ownID = "";
 
+  /** The server tick of the newest packet applied for each peer. */
+  private lastAppliedTick = new Map<string, number>();
+
   /**
    * The client's own username. This is set when the client first connects to the server.
    */
@@ -203,10 +206,19 @@ export class Peers<
       return peer;
     };
 
+    // The server stamps peer packets with its dispatch counter. On the
+    // unordered data channel, and between it and the socket (which repeats a
+    // still peer's last snapshot), an older packet can land after a newer
+    // one; applied, it would put a peer who has stopped back a step, or
+    // back into the pose they just left, until they moved again.
+    const messageTick = typeof message.tick === "number" ? message.tick : 0;
+
     switch (message.type) {
       case "INIT": {
         const { id } = message.json;
         this.ownID = id;
+        // A fresh server session counts from wherever it likes.
+        this.lastAppliedTick.clear();
         break;
       }
       case "JOIN": {
@@ -234,6 +246,7 @@ export class Peers<
 
         if (peer && this.options.autoAddToSelf) this.remove(peer);
         this.map.delete(id);
+        this.lastAppliedTick.delete(id);
 
         this.onPeerLeave?.(id, peer);
         break;
@@ -269,6 +282,12 @@ export class Peers<
         const self = this.ownID && peer.id === this.ownID;
 
         if (!this.options.countSelf && self) return;
+
+        if (messageTick > 0) {
+          const lastTick = this.lastAppliedTick.get(peer.id);
+          if (lastTick !== undefined && messageTick < lastTick) return;
+          this.lastAppliedTick.set(peer.id, messageTick);
+        }
 
         let object = self ? this.ownPeer : this.getPeerById(peer.id);
 

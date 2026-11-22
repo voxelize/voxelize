@@ -456,7 +456,9 @@ impl World {
             peers.push(PeerProtocol {
                 id: pid.0.to_owned(),
                 username: name.0.to_owned(),
-                metadata: metadata.to_string(),
+                // Not `to_string`: a peer who moved last tick has a cleared
+                // scratch map until the next tick fills it again.
+                metadata: metadata.latest_json(),
             })
         }
 

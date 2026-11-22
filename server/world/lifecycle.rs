@@ -387,6 +387,9 @@ impl World {
         // in an actor mailbox.
         let inbound_started = Instant::now();
         self.apply_inbound_state();
+        // A packet the clamp cut short is all a client that then stands
+        // still ever sends: walk its copy the rest of the way.
+        self.advance_stranded_peers();
         let inbound_time = inbound_started.elapsed();
 
         if self.preloading {
