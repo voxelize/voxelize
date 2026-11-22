@@ -62,6 +62,7 @@ export type {
   SessionMeta,
   SessionMetaPatch,
   SessionOrigin,
+  SessionOriginChat,
   SessionOriginCursor,
   SessionOriginParent,
 } from "./session-meta";

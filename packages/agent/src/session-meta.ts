@@ -30,6 +30,17 @@ export type SessionOriginCursor = {
   workspaceLabel: string | null;
 };
 
+export type SessionOriginChat = {
+  /** Short platform key the launcher assigned, e.g. `claude-code`. */
+  platform: string;
+  /** The platform's name as a person would say it. */
+  app: string;
+  /** Same for every command of one chat, different between chats. */
+  id: string;
+  /** True when an agent (not a person) was typing in the launching shell. */
+  isAgent: boolean;
+};
+
 export type SessionOrigin = {
   /** Wall-clock ms when the launcher started the session. */
   startedAt: number;
@@ -50,6 +61,12 @@ export type SessionOrigin = {
   launcherPid: number | null;
   /** Ancestors of the launcher, nearest first, stopping at pid 1. */
   parentChain: SessionOriginParent[];
+  /**
+   * The chat that launched the session, on whatever agent platform the
+   * launching shell ran under; null for a person's terminal. Launchers that
+   * predate it send none.
+   */
+  chat: SessionOriginChat | null;
   /** Present when the launching shell carried Cursor's environment. */
   cursor: SessionOriginCursor | null;
 };
@@ -251,6 +268,11 @@ export function parseSessionOriginEnv(
     typeof value.cursor === "object" && value.cursor !== null
       ? (value.cursor as Record<string, unknown>)
       : null;
+  const chatRaw =
+    typeof value.chat === "object" && value.chat !== null
+      ? (value.chat as Record<string, unknown>)
+      : null;
+  const chatId = chatRaw ? optionalString(chatRaw.id) : null;
   return {
     startedAt,
     launcher: optionalString(value.launcher),
@@ -261,6 +283,15 @@ export function parseSessionOriginEnv(
     terminal: optionalString(value.terminal),
     launcherPid: optionalInteger(value.launcherPid),
     parentChain,
+    chat:
+      chatRaw && chatId !== null
+        ? {
+            platform: optionalString(chatRaw.platform) ?? "custom",
+            app: optionalString(chatRaw.app) ?? "chat",
+            id: chatId,
+            isAgent: chatRaw.isAgent === true,
+          }
+        : null,
     cursor: cursorRaw
       ? {
           isAgent: cursorRaw.isAgent === true,

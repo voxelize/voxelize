@@ -127,8 +127,40 @@ describe("env parsing", () => {
       terminal: null,
       launcherPid: 42,
       parentChain: [{ pid: 41, command: "pnpm" }],
+      chat: null,
       cursor: { isAgent: true, conversationId: "abc", workspaceLabel: "t" },
     });
+  });
+
+  it("keeps the launching chat of any platform, and drops one without an id", () => {
+    const withChat = parseSessionOriginEnv(
+      JSON.stringify({
+        startedAt: 1,
+        chat: {
+          platform: "claude-code",
+          app: "Claude Code",
+          id: "1779d548",
+          isAgent: true,
+        },
+      }),
+    );
+    expect(withChat?.chat).toEqual({
+      platform: "claude-code",
+      app: "Claude Code",
+      id: "1779d548",
+      isAgent: true,
+    });
+    // A launcher that names only the id still says which chat it was.
+    expect(
+      parseSessionOriginEnv(
+        JSON.stringify({ startedAt: 1, chat: { id: "run-7" } }),
+      )?.chat,
+    ).toEqual({ platform: "custom", app: "chat", id: "run-7", isAgent: false });
+    expect(
+      parseSessionOriginEnv(
+        JSON.stringify({ startedAt: 1, chat: { app: "x" } }),
+      )?.chat,
+    ).toBeNull();
   });
 
   it("refuses an origin without startedAt rather than inventing one", () => {
