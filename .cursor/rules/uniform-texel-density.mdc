@@ -1,6 +1,11 @@
 ---
 description: A texture is drawn at one density on both axes of every face — block builders and entity painters alike
 globs: server/world/voxels/**,crates/core/**,crates/mesher/**,packages/core/src/libs/**
+paths:
+  - "server/world/voxels/**"
+  - "crates/core/**"
+  - "crates/mesher/**"
+  - "packages/core/src/libs/**"
 alwaysApply: false
 ---
 

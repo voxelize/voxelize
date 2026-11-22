@@ -1,6 +1,11 @@
 ---
 description: Never push a grounded body downward — the engine charges it back as friction and silently pins the entity
 globs: server/world/physics/**,server/world/systems/**,server/world/components/**,examples/server/**
+paths:
+  - "server/world/physics/**"
+  - "server/world/systems/**"
+  - "server/world/components/**"
+  - "examples/server/**"
 alwaysApply: false
 ---
 

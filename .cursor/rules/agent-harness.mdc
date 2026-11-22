@@ -1,6 +1,8 @@
 ---
 description: The headless agent (packages/agent) is production-critical infrastructure; lifecycle invariants and measurement honesty
 globs: packages/agent/**
+paths:
+  - "packages/agent/**"
 alwaysApply: false
 ---
 

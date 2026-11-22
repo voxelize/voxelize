@@ -1,6 +1,10 @@
 ---
 description: How entities, instanced pools and particles take voxel light, and the flat-bone chaining instanced skeletons need
 globs: packages/core/src/core/world/entity-light*.ts,packages/core/src/libs/**,packages/particles/**
+paths:
+  - "packages/core/src/core/world/entity-light*.ts"
+  - "packages/core/src/libs/**"
+  - "packages/particles/**"
 alwaysApply: false
 ---
 

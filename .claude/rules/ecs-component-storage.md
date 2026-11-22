@@ -1,0 +1,1 @@
+../../.cursor/rules/ecs-component-storage.mdc

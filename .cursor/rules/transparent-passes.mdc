@@ -1,6 +1,17 @@
 ---
 description: Blended surfaces accumulate order-independently (WorldClientOptions.orderIndependentTransparency) — depth writers first, blended split at the water surface, see-through blocks split by their texels; the sorted pipeline (bands, per-pixel glass split, effect media) stays for hosts without it
 globs: packages/core/src/common.ts,packages/core/src/core/transparent-sorter.ts,packages/core/src/core/world/index.ts,packages/core/src/core/world/chunk-materials.ts,packages/core/src/core/world/order-independent-transparency.ts,packages/core/src/core/world/see-through-texels.ts,packages/core/src/core/world/textures.ts,packages/core/src/core/world/water-depth.ts,packages/core/src/core/world/shaders.ts,packages/particles/src/**
+paths:
+  - "packages/core/src/common.ts"
+  - "packages/core/src/core/transparent-sorter.ts"
+  - "packages/core/src/core/world/index.ts"
+  - "packages/core/src/core/world/chunk-materials.ts"
+  - "packages/core/src/core/world/order-independent-transparency.ts"
+  - "packages/core/src/core/world/see-through-texels.ts"
+  - "packages/core/src/core/world/textures.ts"
+  - "packages/core/src/core/world/water-depth.ts"
+  - "packages/core/src/core/world/shaders.ts"
+  - "packages/particles/src/**"
 alwaysApply: false
 ---
 

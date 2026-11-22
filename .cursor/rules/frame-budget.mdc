@@ -1,6 +1,8 @@
 ---
 description: No frame spikes once the player is playing; heavy one-time work belongs to the load phase under a budgeted drain
 globs: packages/**/src/**/*.ts
+paths:
+  - "packages/**/src/**/*.ts"
 alwaysApply: false
 ---
 

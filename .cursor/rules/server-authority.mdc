@@ -1,6 +1,10 @@
 ---
 description: The server is authoritative and clients render replicated state; the engine's replication lanes and when to use each
 globs: server/**,packages/core/src/core/**,examples/**
+paths:
+  - "server/**"
+  - "packages/core/src/core/**"
+  - "examples/**"
 alwaysApply: false
 ---
 

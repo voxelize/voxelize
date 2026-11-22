@@ -1,0 +1,1 @@
+../../.cursor/rules/canvas-box.mdc

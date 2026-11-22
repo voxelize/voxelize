@@ -1,6 +1,9 @@
 ---
 description: specs storage classes are a per-entity memory decision, and VecStorage is the wrong default for most components
 globs: server/**/*.rs,examples/server/**/*.rs
+paths:
+  - "server/**/*.rs"
+  - "examples/server/**/*.rs"
 alwaysApply: false
 ---
 

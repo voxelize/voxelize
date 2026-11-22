@@ -1,0 +1,1 @@
+../../.cursor/rules/frame-budget.mdc

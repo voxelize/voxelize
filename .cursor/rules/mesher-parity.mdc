@@ -1,6 +1,11 @@
 ---
 description: Server meshing (crates/mesher) and client remeshing (mesh-worker.ts over the wasm mesher) must agree exactly
 globs: crates/mesher/**,crates/wasm-mesher/**,packages/core/src/core/world/workers/mesh-worker.ts,server/world/voxels/block/**
+paths:
+  - "crates/mesher/**"
+  - "crates/wasm-mesher/**"
+  - "packages/core/src/core/world/workers/mesh-worker.ts"
+  - "server/world/voxels/block/**"
 alwaysApply: false
 ---
 

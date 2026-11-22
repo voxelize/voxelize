@@ -3,6 +3,9 @@ description: CanvasBox dimension mapping gotcha - width/depth are swapped from i
 globs:
   - "packages/core/src/libs/**/*.ts"
   - "examples/client/src/**/*.ts"
+paths:
+  - "packages/core/src/libs/**/*.ts"
+  - "examples/client/src/**/*.ts"
 ---
 
 # VOXELIZE.CanvasBox Dimension Mapping

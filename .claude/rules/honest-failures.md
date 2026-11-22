@@ -1,0 +1,1 @@
+../../.cursor/rules/honest-failures.mdc

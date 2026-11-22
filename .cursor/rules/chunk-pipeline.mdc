@@ -1,6 +1,10 @@
 ---
 description: Chunk pipeline invariants — saved chunks short-circuit worldgen, edits commit over ticks, and every queue accounts for what it drops
 globs: server/world/**,crates/gen/**,examples/server/**
+paths:
+  - "server/world/**"
+  - "crates/gen/**"
+  - "examples/server/**"
 alwaysApply: false
 ---
 

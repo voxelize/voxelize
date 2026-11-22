@@ -1,0 +1,1 @@
+../../.cursor/rules/entity-lighting.mdc

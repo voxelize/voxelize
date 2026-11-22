@@ -1,0 +1,1 @@
+../../.cursor/rules/block-textures.mdc

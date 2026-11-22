@@ -1,6 +1,10 @@
 ---
 description: Share block textures with texture groups, and give every dynamic-pattern block its faces so the atlas resolves
 globs: server/world/voxels/**,examples/server/**,packages/core/src/core/world/**
+paths:
+  - "server/world/voxels/**"
+  - "examples/server/**"
+  - "packages/core/src/core/world/**"
 alwaysApply: false
 ---
 

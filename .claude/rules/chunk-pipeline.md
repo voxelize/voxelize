@@ -1,0 +1,1 @@
+../../.cursor/rules/chunk-pipeline.mdc

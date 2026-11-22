@@ -1,0 +1,1 @@
+../../.cursor/rules/no-banned-game-name.mdc

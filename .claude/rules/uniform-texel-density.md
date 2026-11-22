@@ -1,0 +1,1 @@
+../../.cursor/rules/uniform-texel-density.mdc

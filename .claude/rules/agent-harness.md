@@ -1,0 +1,1 @@
+../../.cursor/rules/agent-harness.mdc

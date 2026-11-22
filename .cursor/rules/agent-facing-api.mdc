@@ -1,6 +1,10 @@
 ---
 description: Public engine APIs are written for the agent that will use them from a game - one obvious entry point, declarative config, errors that say the fix, a compiling example, and a shipped skill that stays current
 globs: packages/core/src/**/*.ts,packages/core/skills/**,examples/**
+paths:
+  - "packages/core/src/**/*.ts"
+  - "packages/core/skills/**"
+  - "examples/**"
 alwaysApply: false
 ---
 
