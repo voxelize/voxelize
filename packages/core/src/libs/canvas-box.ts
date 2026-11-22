@@ -107,6 +107,17 @@ export type CanvasBoxOptions = {
    * per-face path. Defaults to `false`.
    */
   mergeFaces?: boolean;
+
+  /**
+   * Draw every layer above the first cut out: its faces start clear, and a
+   * texel left clear is discarded (alpha-tested, never blended), so the
+   * layer below shows through it while the layer still sorts, shades and
+   * takes shadow like an opaque box. For an outer shell that covers part of
+   * a box (`layers` of 2 or more, `gap` apart): a hood round a face, a
+   * sleeve over an arm. Paint it with `paint(side, art, layer)`; a face or
+   * a whole layer nobody paints draws nothing. Defaults to `false`.
+   */
+  cutoutLayers?: boolean;
 };
 
 /**
@@ -132,6 +143,13 @@ export type BoxSides =
   | "sides"
   | "all";
 
+/**
+ * The alpha below which a cut-out layer's texel is discarded
+ * (`CanvasBoxOptions.cutoutLayers`). Faces are painted clear or solid, so
+ * the midpoint keeps a mipped edge where the paint put it.
+ */
+export const CANVAS_BOX_CUTOUT_ALPHA = 0.5;
+
 const defaultOptions: CanvasBoxOptions = {
   gap: 0,
   layers: 1,
@@ -140,6 +158,7 @@ const defaultOptions: CanvasBoxOptions = {
   side: FrontSide,
   transparent: false,
   receiveShadows: false,
+  cutoutLayers: false,
 };
 
 /**
@@ -389,6 +408,12 @@ export class BoxLayer extends Mesh {
   private receiveShadows: boolean;
 
   /**
+   * Whether clear texels of this layer are discarded
+   * (`CanvasBoxOptions.cutoutLayers`).
+   */
+  public readonly isCutout: boolean;
+
+  /**
    * The one atlas this layer draws with when its faces are merged
    * (`CanvasBoxOptions.mergeFaces`), else `null` and the layer draws each
    * face with its own material.
@@ -418,6 +443,7 @@ export class BoxLayer extends Mesh {
    * @param transparent Whether or not should this canvas box be rendered as transparent.
    * @param receiveShadows Whether or not should this canvas box receive shadows.
    * @param mergeFaces Whether to draw the six faces in one call through an atlas.
+   * @param isCutout Whether clear texels are discarded instead of drawn.
    */
   constructor(
     width: number,
@@ -430,6 +456,7 @@ export class BoxLayer extends Mesh {
     transparent: boolean,
     receiveShadows = false,
     mergeFaces = false,
+    isCutout = false,
   ) {
     super(new BoxGeometry(width, height, depth));
 
@@ -442,6 +469,7 @@ export class BoxLayer extends Mesh {
     this.side = side;
     this.transparent = transparent;
     this.receiveShadows = receiveShadows;
+    this.isCutout = isCutout;
 
     if (receiveShadows) {
       this.shadowBody = createEntityShadowBody();
@@ -685,6 +713,9 @@ export class BoxLayer extends Mesh {
     });
 
     material.toneMapped = false;
+    // A cut-out layer keeps its place in the opaque pass: a clear texel is
+    // dropped, the rest writes depth like any other face.
+    if (this.isCutout) material.alphaTest = CANVAS_BOX_CUTOUT_ALPHA;
 
     if (material.map) {
       material.map.magFilter = NearestFilter;
@@ -860,6 +891,7 @@ export class CanvasBox extends Group {
       transparent,
       receiveShadows,
       mergeFaces,
+      cutoutLayers,
     } = this.options;
     let { widthSegments, heightSegments, depthSegments } = this.options;
 
@@ -890,6 +922,7 @@ export class CanvasBox extends Group {
         transparent,
         receiveShadows,
         mergeFaces,
+        i > 0 && !!cutoutLayers,
       );
       this.boxLayers.push(newBoxLayer);
       this.add(newBoxLayer);

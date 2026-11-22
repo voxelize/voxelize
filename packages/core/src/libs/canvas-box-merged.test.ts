@@ -4,6 +4,7 @@ import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 import {
   BoxLayer,
   CANVAS_BOX_ATLAS_GUTTER,
+  CANVAS_BOX_CUTOUT_ALPHA,
   CANVAS_BOX_GROUP_FACES,
   CanvasBox,
   canvasBoxAtlasLayout,
@@ -238,6 +239,77 @@ describe("remapCanvasBoxUVs", () => {
         );
       }
     }
+  });
+});
+
+describe("CanvasBox cutoutLayers", () => {
+  const shell = (mergeFaces: boolean) =>
+    new CanvasBox({
+      width: 1,
+      widthSegments: 4,
+      layers: 2,
+      gap: 0.05,
+      cutoutLayers: true,
+      mergeFaces,
+    });
+
+  it("cuts out only the layers above the first", () => {
+    for (const mergeFaces of [false, true]) {
+      const [inner, outer] = shell(mergeFaces).boxLayers;
+      expect(inner.isCutout).toBe(false);
+      expect(outer.isCutout).toBe(true);
+      const materialsOf = (layer: BoxLayer) =>
+        (Array.isArray(layer.material)
+          ? layer.material
+          : [layer.material]) as MeshBasicNodeMaterial[];
+      for (const material of materialsOf(inner))
+        expect(material.alphaTest).toBe(0);
+      for (const material of materialsOf(outer)) {
+        expect(material.alphaTest).toBe(CANVAS_BOX_CUTOUT_ALPHA);
+        // Dropped, not blended: the shell stays in the opaque pass.
+        expect(material.transparent).toBe(false);
+      }
+    }
+  });
+
+  it("stands the outer layer one gap proud on every side", () => {
+    const [inner, outer] = shell(false).boxLayers;
+    expect(outer.width).toBeCloseTo(inner.width + 0.1, 6);
+    expect(outer.height).toBeCloseTo(inner.height + 0.1, 6);
+    expect(outer.depth).toBeCloseTo(inner.depth + 0.1, 6);
+  });
+
+  it("leaves the default box as it was: one layer, nothing cut out", () => {
+    const box = new CanvasBox({ width: 1, widthSegments: 4 });
+    expect(box.boxLayers).toHaveLength(1);
+    expect(box.boxLayers[0].isCutout).toBe(false);
+  });
+
+  it("keeps an unpainted outer layer clear, and a painted texel solid", () => {
+    const box = shell(true);
+    const [inner, outer] = box.boxLayers;
+    // Painting the box paints its first layer; the shell stays clear.
+    box.paint("all", new Color("#336699"));
+    expect(faceCanvas(inner, "front").get(0, 0)).not.toBe(0);
+    expect(faceCanvas(outer, "front").get(0, 0)).toBe(0);
+    for (let group = 0; group < 6; group++)
+      expect(sampleMerged(outer, group, 0.5, 0.5)).toBe(0);
+
+    // One band on the shell's front: that band is solid in the atlas, the
+    // rest of the face and every other face still clear.
+    box.paint(
+      "front",
+      (ctx) => {
+        ctx.fillStyle = "#ff0000";
+        ctx.fillRect(0, 0, 4, 1);
+      },
+      1,
+    );
+    const front = CANVAS_BOX_GROUP_FACES.indexOf("front");
+    expect(sampleMerged(outer, front, 0.5, 0.9)).toBe(0xff0000ff);
+    expect(sampleMerged(outer, front, 0.5, 0.1)).toBe(0);
+    for (let group = 0; group < 6; group++)
+      if (group !== front) expect(sampleMerged(outer, group, 0.5, 0.5)).toBe(0);
   });
 });
 

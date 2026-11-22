@@ -83,6 +83,22 @@ export type ArmOptions = {
   blockObjectOptions?: ArmObjectOptions;
   armColor?: string | THREE.Color;
   armTexture?: THREE.Texture;
+  /**
+   * Paints the bare arm each time it is built, in place of `armColor` and
+   * `armTexture`. The arm's box is rebuilt whenever a held object is put
+   * away, so art painted once from outside is lost at the next swap; a
+   * painter is asked again every time. The box points its top at the view:
+   * its `top` face is the hand's end.
+   *
+   * @example
+   * new Arm({
+   *   armPainter: (arm) => {
+   *     arm.paint("all", new THREE.Color("#548ca8"));
+   *     arm.paint("top", new THREE.Color("#96baff"));
+   *   },
+   * });
+   */
+  armPainter?: (arm: CanvasBox) => void;
   customObjectOptions?: Record<string, ArmObjectOptions>;
   receiveShadows?: boolean;
   receiveHeldObjectShadows?: boolean;
@@ -504,7 +520,9 @@ export class Arm extends THREE.Group {
       receiveShadows: this.shouldReceiveArmShadows(),
     });
 
-    if (this.options.armTexture) {
+    if (this.options.armPainter) {
+      this.options.armPainter(arm);
+    } else if (this.options.armTexture) {
       const texture = this.options.armTexture;
       if (texture.image && (texture.image as HTMLImageElement).complete) {
         arm.paint("all", texture);

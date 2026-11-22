@@ -294,6 +294,26 @@ describe("first-person arm shadows", () => {
   });
 });
 
+describe("first-person arm painter", () => {
+  it("is asked again every time the bare arm is built", () => {
+    const painted: CanvasBox[] = [];
+    const arm = new Arm({ armPainter: (box) => painted.push(box) });
+    // Built once with the arm, and it is the box the arm holds.
+    expect(painted).toHaveLength(1);
+    expect(arm.children).toContain(painted[0]);
+
+    // Holding something drops the bare arm; putting it away builds a new
+    // one, which is painted too (art painted once from outside was lost
+    // here).
+    arm.setArmObject(new Mesh(new BoxGeometry(), new MeshBasicNodeMaterial()), false);
+    expect(painted).toHaveLength(1);
+    arm.setArmObject(undefined, false);
+    expect(painted).toHaveLength(2);
+    expect(painted[1]).not.toBe(painted[0]);
+    expect(arm.children).toContain(painted[1]);
+  });
+});
+
 describe("entity shadow self exclusion", () => {
   it("is off, and unplaced, on a fresh body", () => {
     const fresh = createEntityShadowBody();
