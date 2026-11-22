@@ -55,9 +55,24 @@ export class ScenePass extends Pass {
  * depth, then each enabled pass reads what the one before drew, through a
  * pair of frame buffers it swaps, and the last enabled pass draws to the
  * screen (encoding sRGB itself, so the renderer adds no conversion pass).
+ *
+ * A pass the renderer left out (its pipeline not ready yet, see
+ * `drew`) is passed over for that frame: the next pass reads what the
+ * last drawn one wrote, and a last pass left out is replaced by a plain
+ * copy of its input. The frame then lacks an effect for a few frames; it is
+ * never empty.
  */
 export class EffectComposer {
   readonly passes: Pass[] = [];
+
+  /**
+   * While true, disabled passes draw too (and the plain copy that stands in
+   * for a last pass left out). For a load warmup, behind a loading screen: a
+   * pass builds its pipeline the first time it draws, so one first switched
+   * on in play would show a few frames late. Drawn here, in the frames it
+   * will draw in, its pipeline is the one play uses.
+   */
+  isWarming = false;
 
   /** Where the scene pass draws: colour and a float depth texture. */
   readonly sceneTarget: RenderTarget;
@@ -132,7 +147,8 @@ export class EffectComposer {
 
   render(delta = 0) {
     const renderer = this.renderer;
-    const enabled = this.passes.filter((pass) => pass.enabled);
+    const { isWarming } = this;
+    const enabled = this.passes.filter((pass) => pass.enabled || isWarming);
     if (enabled.length === 0) return;
     const context: PassContext = {
       depth: (this.sceneTarget.depthTexture as DepthTexture) ?? null,
@@ -163,8 +179,13 @@ export class EffectComposer {
           renderer.outputColorSpace = LinearSRGBColorSpace;
           renderer.toneMapping = NoToneMapping;
         }
-        pass.render(renderer, input, output, context);
-        if (output && pass.needsSwap) {
+        // Under the last pass, which draws over all of it: the copy's
+        // pipeline for the frame that needs it.
+        if (!output && isWarming) this.present(input);
+        const isDrawn = pass.render(renderer, input, output, context) !== false;
+        if (!output) {
+          if (!isDrawn) this.present(input);
+        } else if (isDrawn && pass.needsSwap) {
           input = output;
           next = 1 - next;
         }
@@ -177,7 +198,10 @@ export class EffectComposer {
     }
   }
 
-  /** The scene as the last pass: copied to the screen, encoded. */
+  /**
+   * `input` copied to the screen, encoded: the scene as the last pass, or
+   * the frame in place of a last pass left out.
+   */
   private present(input: RenderTarget) {
     const renderer = this.renderer;
     const outputColorSpace = renderer.outputColorSpace;

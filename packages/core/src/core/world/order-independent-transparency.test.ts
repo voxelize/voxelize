@@ -364,6 +364,73 @@ describe("OrderIndependentTransparency render", () => {
     expect(dispose).not.toHaveBeenCalled();
   });
 
+  it("gives a new accumulation its first render before the scene draws", () => {
+    // three clears a target's depth the first time it renders into it with
+    // the depth auto-clear off, and the accumulation's depth is the
+    // scene's: first rendered into after the scene, the clear wiped the
+    // scene's depth and the blended layers drew over what stood in front.
+    const { oit, scene, camera, fake } = populated();
+    const target = sceneTarget();
+    const renders: {
+      target: RenderTarget | null;
+      clearsDepth: boolean;
+      draws: number;
+    }[] = [];
+    const render = fake.renderer.render.bind(fake.renderer);
+    fake.renderer.render = ((root: Object3D, renderCamera: Camera) => {
+      const { autoClear, autoClearDepth } = fake.renderer as unknown as {
+        autoClear: boolean;
+        autoClearDepth?: boolean;
+      };
+      const entry = {
+        target: fake.renderer.getRenderTarget(),
+        clearsDepth: autoClear && autoClearDepth !== false,
+        draws: fake.draws.length,
+      };
+      renders.push(entry);
+      render(root as Scene, renderCamera);
+      entry.draws = fake.draws.length - entry.draws;
+    }) as typeof fake.renderer.render;
+    const frame = () => {
+      renders.length = 0;
+      oit.render(fake.renderer, scene, camera, target);
+      const accumulation = oit.accumulationPass(target).target;
+      const sceneAt = renders.findIndex((entry) => entry.target === target);
+      return {
+        accumulation,
+        before: renders.slice(0, sceneAt),
+        after: renders
+          .slice(sceneAt + 1)
+          .filter((entry) => entry.target === accumulation),
+      };
+    };
+
+    const first = frame();
+    expect(first.before).toEqual([
+      { target: first.accumulation, clearsDepth: true, draws: 0 },
+    ]);
+    // Once the scene has drawn, nothing clears the depth they share.
+    expect(first.after.length).toBeGreaterThan(0);
+    expect(first.after.every((entry) => !entry.clearsDepth)).toBe(true);
+
+    // The same target again: no pass but the frame's own.
+    const second = frame();
+    expect(second.accumulation).toBe(first.accumulation);
+    expect(second.before).toEqual([]);
+
+    // A new size is a new accumulation, and a first render again.
+    target.setSize(128, 64);
+    const resized = frame();
+    expect(resized.accumulation).not.toBe(first.accumulation);
+    expect(resized.before).toEqual([
+      { target: resized.accumulation, clearsDepth: true, draws: 0 },
+    ]);
+    expect(resized.after.every((entry) => !entry.clearsDepth)).toBe(true);
+    expect(fake.renderObjectFunction()).toBeNull();
+    expect(fake.mrt()).toBeNull();
+    expect(fake.renderer.getRenderTarget()).toBe(target);
+  });
+
   it("draws in list order, and says why once, when it cannot accumulate", () => {
     silence();
     const cases: [string, RenderTarget, Camera][] = [];

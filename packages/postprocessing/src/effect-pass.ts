@@ -11,7 +11,7 @@ import { clamp, Fn, screenUV, vec4 } from "three/tsl";
 import { blend, type Effect } from "./effect";
 import { linearToSrgb } from "./encoding";
 import { depthInput, textureInput, vec2Uniform, type Vec4Node } from "./nodes";
-import { Pass, type PassContext } from "./pass";
+import { drew, Pass, type PassContext } from "./pass";
 
 /**
  * Several effects merged into one full-screen draw: the input at each
@@ -78,7 +78,8 @@ export class EffectPass extends Pass {
     this.input.value = input.texture;
     if (context.depth) this.depth.value = context.depth as DepthTexture;
     renderer.setRenderTarget(output);
-    (output ? this.quad : this.screenQuad).render(renderer);
+    const quad = output ? this.quad : this.screenQuad;
+    return drew(renderer, () => quad.render(renderer));
   }
 
   setSize(width: number, height: number) {

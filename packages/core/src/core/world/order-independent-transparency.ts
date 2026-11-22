@@ -286,6 +286,8 @@ export class OrderIndependentTransparency {
   };
   private readonly encoder: ReturnType<typeof mrt>;
   private accumulation: RenderTarget | null = null;
+  /** The accumulation that has had its first render (`readyAccumulation`). */
+  private renderedInto: RenderTarget | null = null;
   private readonly reportedSkips = new Set<OrderIndependentSkipReason>();
   private isAccumulating = false;
   /** Whether an object is in the scene, asked once per frame. */
@@ -454,6 +456,10 @@ export class OrderIndependentTransparency {
       renderer.render(scene, camera);
       return;
     }
+
+    // Before the scene draws: a new accumulation's first render clears the
+    // depth it borrows from the scene.
+    this.readyAccumulation(renderer, camera, target);
 
     const autoClear = renderer.autoClear;
     const previous = renderer.getRenderObjectFunction();
@@ -784,6 +790,46 @@ export class OrderIndependentTransparency {
       d.scene = this.markerScene;
       d.lightsNode = null as unknown as RecordedDraw["lightsNode"];
       d.clippingContext = null as unknown as RecordedDraw["clippingContext"];
+    }
+  }
+
+  /**
+   * Makes the accumulation target for `target` and gives a new one its
+   * first render, with the scene still to draw.
+   *
+   * three clears the depth of a render target the first time it renders
+   * into it with the depth auto-clear off, so that a new target starts from
+   * far depth. The accumulation's depth is the scene's own, and a new
+   * accumulation is made at every size: first rendered into once the scene
+   * had drawn, that clear wiped the depth the scene had just written, and
+   * for one frame at each new size (every frame of a window being dragged)
+   * the blended layers drew over whatever stood in front of them: water
+   * and glass through a hillside, a tank through its floor. Rendered into
+   * here instead, an empty pass that clears, the clear lands on a depth
+   * nothing has drawn into yet.
+   */
+  private readyAccumulation(
+    renderer: Renderer,
+    camera: Camera,
+    target: RenderTarget,
+  ) {
+    const accumulation = this.accumulationFor(target);
+    if (this.renderedInto === accumulation) return;
+    this.renderedInto = accumulation;
+    const previous = renderer.getRenderObjectFunction();
+    renderer.setRenderTarget(accumulation);
+    renderer.setMRT(this.encoder);
+    // The marker is all the scene holds, and here its draw is nothing.
+    renderer.setRenderObjectFunction(() => undefined);
+    try {
+      renderClearing(renderer, this.markerScene, camera, {
+        color: true,
+        depth: true,
+      });
+    } finally {
+      renderer.setRenderObjectFunction(previous);
+      renderer.setMRT(null);
+      renderer.setRenderTarget(target);
     }
   }
 
