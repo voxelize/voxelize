@@ -610,6 +610,20 @@ pub(super) fn get_dynamic_faces<S: VoxelAccess>(
     block.faces.iter().cloned().map(|f| (f, false)).collect()
 }
 
+/// How far below its cell's floor a stacking plant is rooted: the floor of
+/// its hitbox when that is sunk, else zero.
+///
+/// A plant growing on a block shorter than its cell (a sunk garden bed)
+/// carries its geometry down to that block's top, so its faces run from
+/// below the cell floor to short of the ceiling. Measured from the cell
+/// floor, the root and the tip of such a face land on the same fraction of
+/// a cell and the whole plant slides instead of bending. The run is
+/// measured from the root instead; the shader is told the same offset (the
+/// `rootY` of the block's sway profile).
+pub(super) fn stack_root_y(block_aabb: &AABB) -> f32 {
+    block_aabb.min_y.min(0.0)
+}
+
 /// Where this voxel sits in the vertical run of blocks sharing its stack
 /// group, as `(index from the bottom, length of the run)`.
 ///
@@ -978,6 +992,7 @@ pub(super) fn process_face_in<S: VoxelAccess>(
     let plant_jitter_y = block_stack
         .map(|(index, _)| vy - index as i32)
         .unwrap_or(vy);
+    let stack_root_y = stack_root_y(&block_aabb);
     let (diag_x_offset, diag_z_offset) = if is_diagonal && block.is_plant {
         plant_position_jitter(vx, plant_jitter_y, vz)
     } else {
@@ -1007,11 +1022,13 @@ pub(super) fn process_face_in<S: VoxelAccess>(
         // maps both to zero in the shader, so packing only the voxel index
         // pins the entire lower half of a two-block plant. Advance the packed
         // position at the upper boundary; the shader adds the remaining
-        // fractional height for partial-height faces.
+        // fractional height for partial-height faces. Heights are measured
+        // from the plant's root (`stack_root_y`), which the shader subtracts
+        // too before it takes the fraction.
         let stack_bits = if is_fluid {
             fluid_stack_bits
         } else if let Some((index, count)) = block_stack {
-            let vertex_step = pos[1].floor().clamp(0.0, 1.0) as u32;
+            let vertex_step = (pos[1] - stack_root_y).floor().clamp(0.0, 1.0) as u32;
             with_stack(0, index + vertex_step, count)
         } else {
             0

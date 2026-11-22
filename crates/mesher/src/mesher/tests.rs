@@ -1597,6 +1597,52 @@ fn a_vertical_run_is_grouped_by_stack_group_not_block_id() {
     assert_eq!(run_length(upper_same_group, 0), 1, "air ends the run",);
 }
 
+/// A plant set into a bed lower than its cell runs from below the cell
+/// floor to short of the ceiling. Stepped by its height in the cell, both
+/// ends of a face land in the same cell and the plant slides whole instead
+/// of bending from its root.
+#[test]
+fn a_sunk_plant_is_measured_from_its_root() {
+    const SINK: f32 = 0.125;
+    let mut sunk = Block {
+        stack_group: 7,
+        ..full_block_diagonal_block()
+    };
+    for face in &mut sunk.faces {
+        for corner in &mut face.corners {
+            corner.pos[1] -= SINK;
+        }
+    }
+    for aabb in &mut sunk.aabbs {
+        aabb.min_y -= SINK;
+        aabb.max_y -= SINK;
+    }
+    let air = Block {
+        is_empty: true,
+        aabbs: vec![],
+        ..plain_block(0, "Air")
+    };
+    let mut registry = Registry::new(vec![(0, air), (1, sunk.clone())]);
+    registry.build_cache();
+    let space = ColumnSpace {
+        tint: 0,
+        bottom_id: 1,
+        top_id: 0,
+        is_bottom_waterlogged: false,
+    };
+
+    let lights = mesh_single_face(&sunk, &sunk.faces[0], &registry, &space);
+    let indices = lights
+        .iter()
+        .map(|light| (light >> STACK_INDEX_SHIFT) & STACK_FIELD_BITS)
+        .collect::<Vec<_>>();
+    assert_eq!(
+        indices,
+        vec![1, 0, 1, 0],
+        "the tip of a sunk face is a step above its root",
+    );
+}
+
 /// A vertical run of one fluid centred on the origin, with an optional
 /// waterlogged voxel standing in for a plant rooted part-way up it.
 struct FluidColumnSpace {

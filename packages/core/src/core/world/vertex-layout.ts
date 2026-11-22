@@ -51,3 +51,18 @@ export function packQuantizedPositions<T extends Uint16Array>(
   }
   return out;
 }
+
+/**
+ * How far below its cell's floor a block is rooted, in blocks: the floor of
+ * its hitbox when that is sunk, else zero. A plant growing on a block lower
+ * than its cell (a sunk garden bed) carries its geometry down to that
+ * block's top, so a sway measured from the cell floor finds its root and its
+ * tip on the same fraction of a cell and slides the whole plant. Mirrors
+ * `stack_root_y` in the mesher's faces.rs, which steps a stack's vertices
+ * from the same height; change neither side alone.
+ */
+export function swayRootY(aabbs: readonly { minY: number }[]): number {
+  let root = 0;
+  for (const aabb of aabbs) root = Math.min(root, aabb.minY);
+  return root;
+}

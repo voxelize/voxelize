@@ -4,6 +4,7 @@ import {
   POSITION_STRIDE,
   packQuantizedPositions,
   padByteVectors,
+  swayRootY,
 } from "./vertex-layout";
 
 // Vertex formats WebGPU reads as they are: three widened a three-wide
@@ -21,6 +22,13 @@ describe("chunk vertex layout", () => {
     const out = new Uint16Array(12).fill(9);
     packQuantizedPositions(new Uint16Array([1, 2, 3]), 0, out.subarray(4, 8));
     expect(Array.from(out)).toEqual([9, 9, 9, 9, 1, 2, 3, 0, 9, 9, 9, 9]);
+  });
+
+  it("roots a plant at the floor of a sunk hitbox, never above its cell's", () => {
+    expect(swayRootY([])).toBe(0);
+    expect(swayRootY([{ minY: 0 }, { minY: 0.5 }])).toBe(0);
+    expect(swayRootY([{ minY: 0.25 }])).toBe(0);
+    expect(swayRootY([{ minY: -0.125 }, { minY: 0 }])).toBe(-0.125);
   });
 
   it("pads byte vectors four-wide", () => {
