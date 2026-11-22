@@ -337,6 +337,27 @@ impl WorldConfig {
 }
 
 /// Unbounded by default: no join cap is enforced unless a world opts in.
+/// Names a directory every relative save directory is moved under. A second
+/// server process on the same checkout (a private test instance beside the
+/// one people play on) sets it, so the two never write into each other's
+/// worlds. Unset, save directories are used exactly as configured.
+pub const SAVE_ROOT_ENV: &str = "VOXELIZE_SAVE_ROOT";
+
+/// `dir` under `root`, unless there is no root, no directory, or the
+/// directory is absolute already.
+fn rooted_save_dir(dir: String, root: Option<&std::ffi::OsStr>) -> String {
+    let Some(root) = root.filter(|root| !root.is_empty()) else {
+        return dir;
+    };
+    if dir.is_empty() || std::path::Path::new(&dir).is_absolute() {
+        return dir;
+    }
+    std::path::Path::new(root)
+        .join(&dir)
+        .to_string_lossy()
+        .into_owned()
+}
+
 const DEFAULT_MAX_CLIENT: usize = usize::MAX;
 const DEFAULT_CHUNK_SIZE: usize = 16;
 const DEFAULT_SUB_CHUNKS: usize = 8;
@@ -943,6 +964,12 @@ impl WorldConfigBuilder {
             panic!("Save directory shouldn't be used unless `config.save` is set to true!");
         }
 
+        let save_root = std::env::var_os(SAVE_ROOT_ENV);
+        let save_dir = rooted_save_dir(self.save_dir, save_root.as_deref());
+        let chat_log_dir = self
+            .chat_log_dir
+            .map(|dir| rooted_save_dir(dir, save_root.as_deref()));
+
         let entity_visible_radius = if self.entity_visible_radius > 0.0 {
             self.entity_visible_radius
         } else {
@@ -1075,11 +1102,11 @@ impl WorldConfigBuilder {
             client_collision_repulsion: self.client_collision_repulsion,
             terrain: self.terrain,
             saving: self.saving,
-            save_dir: self.save_dir,
+            save_dir,
             save_interval: self.save_interval,
             command_symbol: self.command_symbol,
             chat_history_capacity: self.chat_history_capacity,
-            chat_log_dir: self.chat_log_dir,
+            chat_log_dir,
             save_entities: self.save_entities,
             save_pristine_chunks: self.save_pristine_chunks,
             client_only_meshing: self.client_only_meshing,
@@ -1094,6 +1121,37 @@ impl WorldConfigBuilder {
             lag_comp: self.lag_comp,
             far_terrain: None,
         }
+    }
+}
+
+#[cfg(test)]
+mod save_root_tests {
+    use super::rooted_save_dir;
+    use std::ffi::OsStr;
+
+    #[test]
+    fn without_a_root_a_save_dir_is_left_as_configured() {
+        assert_eq!(rooted_save_dir("worlds/hub".to_owned(), None), "worlds/hub");
+        assert_eq!(
+            rooted_save_dir("worlds/hub".to_owned(), Some(OsStr::new(""))),
+            "worlds/hub"
+        );
+    }
+
+    #[test]
+    fn a_root_moves_relative_save_dirs_and_nothing_else() {
+        let root = Some(OsStr::new("/tmp/instance-7"));
+        assert_eq!(
+            rooted_save_dir("worlds/hub".to_owned(), root),
+            "/tmp/instance-7/worlds/hub"
+        );
+        // An unsaved world has no directory to move.
+        assert_eq!(rooted_save_dir(String::new(), root), "");
+        // A test's own temp directory is absolute and stays where it is.
+        assert_eq!(
+            rooted_save_dir("/var/tmp/case".to_owned(), root),
+            "/var/tmp/case"
+        );
     }
 }
 
