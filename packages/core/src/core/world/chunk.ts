@@ -56,6 +56,12 @@ export class StaticGroup extends Group {
 
 export class Chunk extends RawChunk {
   public biomeTints: Uint8Array | undefined;
+  /**
+   * The regional water look at the chunk's four corners, x-fast RGBA: the
+   * colour premultiplied by the amount in the alpha byte. Undefined where
+   * the server sent none (plain water).
+   */
+  public waterTints: Uint8Array | undefined;
   public meshes = new Map<number, Mesh[]>();
 
   public added = false;
@@ -102,6 +108,7 @@ export class Chunk extends RawChunk {
     const { voxels, lights } = data;
 
     if (data.biomeTints?.length === 12) this.biomeTints = data.biomeTints;
+    if (data.waterTints?.length === 16) this.waterTints = data.waterTints;
 
     if (lights && lights.byteLength) this.lights.data = lights;
     if (voxels && voxels.byteLength) this.voxels.data = voxels;
@@ -131,5 +138,6 @@ export class Chunk extends RawChunk {
     this.voxels.data = new Uint32Array(0);
     this.lights.data = new Uint32Array(0);
     this.biomeTints = undefined;
+    this.waterTints = undefined;
   }
 }

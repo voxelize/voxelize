@@ -255,9 +255,14 @@ function readVaryings(): ChunkVaryings {
     light: s2,
     lightTwist: s3,
     quadLightTail: s4.w,
-    stageTint: s4.xyz,
+    // On a fluid vertex the tint and greedy slots carry its water look
+    // (chunk-vertex.ts). `isFluid` is flat across a face, so these selects
+    // are exact: a fluid of any material kind reads a neutral stage tint
+    // and no greedy flag, and land reads no water look.
+    stageTint: mix(s4.xyz, vec3(1), s5.x),
+    waterLook: vec4(s4.xyz, s5.y).mul(s5.x),
     isFluid: s5.x,
-    isGreedy: s5.y,
+    isGreedy: s5.y.mul(s5.x.oneMinus()),
     isFluidPane: s5.z,
     isWaterExposed: s5.w,
     fluidDepthBelow: s6.x,

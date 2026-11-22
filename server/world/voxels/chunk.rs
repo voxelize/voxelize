@@ -64,6 +64,14 @@ pub struct Chunk {
     /// owns this small derived field; player voxel edits never change it.
     pub biome_tints: Option<[u8; 12]>,
 
+    /// Optional regional water look at the same four corners, x-fast RGBA:
+    /// the colour the water takes on, premultiplied by how far it has
+    /// turned (the alpha byte, 0 = the world's plain water, 255 = wholly the
+    /// regional colour). Clients blend it across the chunk, so a muddy pool
+    /// shades into a clear river with no edge. Derived like `biome_tints`:
+    /// generation and restoration own it, voxel edits never change it.
+    pub water_tints: Option<[u8; 16]>,
+
     pub meshes: Option<HashMap<u32, MeshProtocol>>,
 
     pub min: Vec3<i32>,
@@ -197,6 +205,10 @@ impl Chunk {
             meshes,
             biome_tints: self
                 .biome_tints
+                .map(|tints| tints.to_vec())
+                .unwrap_or_default(),
+            water_tints: self
+                .water_tints
                 .map(|tints| tints.to_vec())
                 .unwrap_or_default(),
             voxels: if data {

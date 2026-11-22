@@ -55,6 +55,12 @@ export type ChunkProtocol = {
   lights: Uint32Array;
   /** Four x-fast RGB corner multipliers, byte / 128.0; absent on older worlds. */
   biomeTints?: Uint8Array;
+  /**
+   * The regional water look at the same four corners, x-fast RGBA: the
+   * colour premultiplied by the amount in the alpha byte. Absent or zero is
+   * the world's plain water.
+   */
+  waterTints?: Uint8Array;
 };
 
 export type PeerProtocol<T> = {

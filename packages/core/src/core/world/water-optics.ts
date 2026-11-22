@@ -51,6 +51,56 @@ export const WATER_OPTICS = Object.freeze({
   aboveSurfaceScatterDepthScale: 0.3,
 
   /**
+   * A regional water look: water that has taken on a colour of its own,
+   * as a muddy pool or a swamp has. A chunk carries the look at its four
+   * corners (`Chunk.waterTints`) and every surface vertex and the camera
+   * blend between them, so `amount` (how far the water has turned, 0..1)
+   * and the colour change over many blocks, never along an edge.
+   */
+  regionalLook: {
+    /** The look comes on as 1 - (1 - amount)^this. The world's plain water
+     * is a bright, saturated colour, and an even mix of it with a darker
+     * look is neither: it reads grey. Shaped, a place a third turned
+     * already wears most of the look, and the grey is a narrow band at the
+     * very edge of a region. */
+    amountCurve: 2.4,
+    /** Extinction per block of turned water over what lies under it, seen
+     * from above. Turned water is turbid: at 5 a hand's depth of it hides
+     * most of what is below, and half a block hides all of it, so the bed,
+     * a wading leg and a body just under the surface are simply gone and
+     * the water is a sheet of its own colour. */
+    bodyDensity: 5,
+    /** How much of the surface texture's own colour turned water keeps.
+     * None: the texture is a saturated blue, and a little of it greys any
+     * warm look. Its brightness still carries the ripple art. */
+    textureKeep: 0,
+    /** Gain on the look's colour where it stands in for the texture, over
+     * the texture's brightness: set so the look's colour is the water's
+     * colour in full daylight. */
+    bodyGain: 3.7,
+    /** Caustics left on the bed under fully turned water. */
+    causticKeep: 0,
+    /** The share of the sky's mirror, and of the sun's glint, fully turned
+     * water keeps: it shows its own colour where clear water shows sky. */
+    reflectionKeep: 0.8,
+    /** The share of the sky its ripple crests still catch. */
+    crestKeep: 0.6,
+    /** In-scatter of fully turned water, relative to the look's colour,
+     * under full sun: what the camera's fog fades toward inside it. */
+    scatterGain: 1.15,
+    /** That in-scatter dims by this per block of depth: turned water lets
+     * little light down, so it is dark a few blocks under. */
+    scatterDepthDimming: 0.28,
+    /** The camera's view extinction is multiplied by 1 + this in fully
+     * turned water: sight closes from tens of blocks to under two. */
+    viewExtinctionBoost: 60,
+    /** How fast the camera's look follows the water it is in, per second:
+     * quick enough to keep up with a swimmer, slow enough that a chunk
+     * arriving never pops the colour. */
+    smoothingSpeed: 2.5,
+  },
+
+  /**
    * In-scattered water color just below the surface under full sun (SRGB).
    * Deeper ambient colors come from filtering this through
    * {@link WATER_OPTICS.downwellingExtinction}, which naturally walks the
@@ -945,7 +995,17 @@ export type WaterOpticsFrameInput = {
   column: WaterColumnSample | null;
   sunStrength: number;
   deltaSeconds: number;
+  /**
+   * The regional water look where the camera is (`World.getWaterLookAt`):
+   * `null` for the world's plain water, `undefined` where it is not known
+   * (no chunk there yet), which holds the look the camera already has.
+   */
+  look?: WaterLook | null;
 };
+
+/** A regional water look at a point: the colour water takes on there
+ * (0..1) and how far it has turned (0 plain water, 1 wholly that colour). */
+export type WaterLook = { r: number; g: number; b: number; amount: number };
 
 /**
  * Per-frame driver of the camera's underwater state. Smooths submersion and
@@ -971,6 +1031,24 @@ export class WaterOptics {
   public readonly ambientColor = new Color(0, 0, 0);
 
   public readonly lightFilter = new Color(1, 1, 1);
+
+  /**
+   * How strongly the water around the camera wears its regional look,
+   * 0..1, eased over time and shaped as the surface shader shapes it
+   * (`regionalLook.amountCurve`): what a view effect of the app's own (a
+   * lens tint, drifting silt) should scale by. Follows the camera's place
+   * in air too, so it is already there at the moment of a dive.
+   */
+  public lookAmount = 0;
+
+  /** The eased amount before shaping. */
+  private lookTurned = 0;
+
+  /** The colour of that look (meaningful while `lookAmount` is over 0). */
+  public readonly lookColor = new Color(0, 0, 0);
+
+  /** The look, premultiplied, as it is eased: colour times amount. */
+  private readonly lookPremultiplied = new Color(0, 0, 0);
 
   private readonly transmittanceScratch = new Color();
 
@@ -1016,6 +1094,51 @@ export class WaterOptics {
       1,
       MathUtils.clamp(sunStrength, 0, 1),
     );
+
+    // The regional look, eased premultiplied so the colour and the amount
+    // arrive together: turned water scatters its own colour and closes the
+    // view, each in proportion to how far it has turned.
+    if (input.look !== undefined) {
+      const R = WATER_OPTICS.regionalLook;
+      const to = input.look;
+      const amount = to ? MathUtils.clamp(to.amount, 0, 1) : 0;
+      this.lookTurned = expSmooth(
+        this.lookTurned,
+        amount,
+        R.smoothingSpeed,
+        delta,
+      );
+      this.lookPremultiplied.setRGB(
+        expSmooth(this.lookPremultiplied.r, to ? to.r * amount : 0, R.smoothingSpeed, delta),
+        expSmooth(this.lookPremultiplied.g, to ? to.g * amount : 0, R.smoothingSpeed, delta),
+        expSmooth(this.lookPremultiplied.b, to ? to.b * amount : 0, R.smoothingSpeed, delta),
+      );
+      if (this.lookTurned < 0.002 && amount === 0) {
+        this.lookTurned = 0;
+        this.lookPremultiplied.setRGB(0, 0, 0);
+      }
+      this.lookAmount = 1 - (1 - this.lookTurned) ** R.amountCurve;
+    }
+    if (this.lookTurned > 0) {
+      const R = WATER_OPTICS.regionalLook;
+      const inverse = 1 / Math.max(this.lookTurned, 1e-3);
+      this.lookColor.setRGB(
+        this.lookPremultiplied.r * inverse,
+        this.lookPremultiplied.g * inverse,
+        this.lookPremultiplied.b * inverse,
+      );
+      const scatter =
+        getEffectiveScatterStrength(sunStrength) *
+        R.scatterGain *
+        Math.exp(-R.scatterDepthDimming * Math.max(this.depth, 0));
+      this.ambientColor.lerp(
+        this.transmittanceScratch
+          .copy(this.lookColor)
+          .multiplyScalar(scatter),
+        this.lookAmount,
+      );
+      this.viewExtinctionScale *= 1 + R.viewExtinctionBoost * this.lookAmount;
+    }
 
     this.skyFade =
       this.submersion *

@@ -31,6 +31,10 @@ message Chunk {
   // x-fast order: (0,0), (size,0), (0,size), (size,size). Each byte / 128.0.
   // Adjacent chunks share edge samples. Absent means use the stage palette.
   bytes biome_tints = 7;
+  // Optional regional water look at the same four corners, in the same
+  // order: RGBA, the colour premultiplied by the amount in the alpha byte.
+  // Zero is the world's plain water. Absent means plain water everywhere.
+  bytes water_tints = 8;
 }
 
 message Peer {

@@ -81,8 +81,17 @@ export type ChunkVaryings = {
   /** The bilinear correction's twist x head weight (quad-light.ts). */
   lightTwist: Vec4Node;
   quadLightTail: FloatNode;
+  /** A land face's regional colour multiplier; unused on a fluid. */
   stageTint: Vec3Node;
+  /**
+   * A fluid face's regional water look: the colour it takes on,
+   * premultiplied by how far it has turned (w: 0 the world's plain water).
+   * Rides the slots the stage tint and the greedy flag have on land, which
+   * a fluid has no use for.
+   */
+  waterLook: Vec4Node;
   isFluid: FloatNode;
+  /** A greedy-meshed land face (0 on a fluid, whatever the slot holds). */
   isGreedy: FloatNode;
   isFluidPane: FloatNode;
   isWaterExposed: FloatNode;
@@ -127,6 +136,28 @@ export type ChunkDisplaceOptions = {
 
 type VaryingSlot = Vec4Node & { assign(value: Vec4Node): unknown };
 
+/** The hash {@link positionWithProfile} builds under. */
+export const POSITION_WITH_PROFILE_HASH = "position:vec4";
+
+/**
+ * A quantized position with its fourth lane, the vertex's sway profile
+ * (vertex-layout.ts).
+ *
+ * three shares attribute nodes by name alone (`AttributeNode.getHash`), and
+ * `positionGeometry` already reads "position" three-wide. A plain
+ * `attribute("position", "vec4")` beside it is answered with that node
+ * widened, `vec4(position.xyz, 1)`: the lane read 1 on every vertex, so
+ * every plant in a shared cutout swayed by the first profile registered,
+ * whatever its own said. A hash of its own makes this node generate for
+ * itself; both still read the one declared attribute.
+ */
+export function positionWithProfile(): Vec4Node {
+  const node = attribute("position", "vec4");
+  (node as unknown as { getHash(): string }).getHash = () =>
+    POSITION_WITH_PROFILE_HASH;
+  return node as unknown as Vec4Node;
+}
+
 /**
  * The chunk vertex stage. Built inside the material's setupPosition (the
  * vertex stack): decodes the packed light attribute, then, once three's
@@ -165,9 +196,12 @@ export function chunkVertex(
 
   const rawIndex = bits(STACK_INDEX_SHIFT, STACK_FIELD_BITS);
   const rawCount = bits(STACK_COUNT_SHIFT, STACK_FIELD_BITS).add(1);
-  const biomeTint = has("biomeTint")
-    ? vec3(attribute("biomeTint", "vec3"))
-    : vec3(0);
+  // Four bytes a vertex: a land face's biome colour in the first three, a
+  // fluid face's water look in all four.
+  const regionalTint = has("biomeTint")
+    ? vec4(attribute("biomeTint", "vec4"))
+    : vec4(0);
+  const biomeTint = regionalTint.xyz;
 
   const stackIndex = int(rawIndex).toVar("chunkStackIndex");
   const stackCount = int(rawCount).toVar("chunkStackCount");
@@ -262,15 +296,21 @@ export function chunkVertex(
     // A quantized position's fourth lane (vertex-layout.ts).
     const profile =
       geometry.getAttribute("position")?.itemSize === 4
-        ? int(attribute("position", "vec4").w.add(0.5))
+        ? int(positionWithProfile().w.add(0.5))
         : int(0);
     const index = profile.mul(2);
     const params = table.node.element(index);
     const flags = table.node.element(index.add(1));
     const phase = u.time.mul(0.00002).mul(params.x);
+    // The run measured from the profile's root (flags.z): a plant set into
+    // a sunk bed starts below its cell's floor, and the mesher steps its
+    // vertices from there too (`stack_root_y` in the mesher's faces.rs).
+    const rootedHeight = stackIndexF
+      .add(blockPosition.y.sub(flags.z).fract())
+      .div(stackHeight);
     // Rooted plants bend from the dirt; sqrt keeps the root planted and
     // puts the stem at ~70% of the tip.
-    const rootScale = mix(1, sqrt(clamp(runHeight, 0, 1)), flags.x);
+    const rootScale = mix(1, sqrt(clamp(rootedHeight, 0, 1)), flags.x);
     const noise = simplexNoise3Node(
       vec3(
         blockPosition.x.mul(phase).add(u.windOffset.x),
@@ -378,11 +418,12 @@ export function chunkVertex(
     slots[1].assign(vec4(worldNormal, aoValue));
     slots[2].assign(voxelLight);
     slots[3].assign(lightTwist);
-    slots[4].assign(vec4(stageTint, tail));
+    const onFluid = isFluid.equal(1);
+    slots[4].assign(vec4(select(onFluid, regionalTint.xyz, stageTint), tail));
     slots[5].assign(
       vec4(
         float(isFluid),
-        float(isGreedy),
+        select(onFluid, regionalTint.w, float(isGreedy)),
         float(isFluidPane),
         float(isWaterExposed),
       ),

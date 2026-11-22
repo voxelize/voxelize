@@ -102,7 +102,11 @@ function computeFlatNormals(
   );
 }
 
-import { biomeTintAttribute, biomeTintAttributeAt } from "./biome-tint";
+import {
+  biomeTintAttribute,
+  biomeTintAttributeAt,
+  waterLookInChunk,
+} from "./biome-tint";
 import {
   Block,
   BlockDynamicPattern,
@@ -264,6 +268,7 @@ import {
   POSITION_STRIDE,
   packQuantizedPositions,
   padByteVectors,
+  swayRootY,
 } from "./vertex-layout";
 import {
   POSITION_BLOCK_BIAS,
@@ -294,6 +299,7 @@ import { lightsHoldPaneFaces, WaterDepthPass } from "./water-depth";
 import {
   WATER_OPTICS,
   WaterOptics,
+  type WaterLook,
   findWaterBodySurface,
   measureWaterColumn,
   type WaterColumnSample,
@@ -1836,7 +1842,8 @@ export class World<T = any> extends Scene implements NetIntercept {
 
   /**
    * The vec4-pair table the shared cutout buckets sway by (params: speed,
-   * amplitude, scale, yScale; flags: rooted, cross shading), indexed by
+   * amplitude, scale, yScale; flags: rooted, cross shading, root height in
+   * the cell), indexed by
    * each vertex's sway profile (its quantized position's fourth lane,
    * vertex-layout.ts). Slot 0 stays zeroed as the "no
    * sway" profile.
@@ -2870,6 +2877,7 @@ export class World<T = any> extends Scene implements NetIntercept {
         positionBias: isQuantized ? POSITION_BLOCK_BIAS : 0,
         chunkSize: this.options.chunkSize,
         cornersAt: (cx, cz) => this.getChunkByCoords(cx, cz)?.biomeTints,
+        waterCornersAt: (cx, cz) => this.getChunkByCoords(cx, cz)?.waterTints,
       }),
     );
     geometry.setIndex(new BufferAttribute(canonical.indices, 1));
@@ -5725,6 +5733,13 @@ export class World<T = any> extends Scene implements NetIntercept {
    * quads carry the profile's index into {@link swayProfileTable}.
    * Parameter defaults mirror `customShaders.sway`; `isCrossShaded` selects
    * the flattened cross-quad shading (fixed sun incidence, no face shade).
+   *
+   * A rooted plant bends from its root, and a plant set into a block lower
+   * than its cell (a sunk garden bed) is rooted below its cell's floor: at
+   * the floor of its hitbox, the rule the mesher steps a stack's vertices
+   * by (`stack_root_y`). The profile carries that offset, so the two agree
+   * for any block. Such a plant needs a stack group to bend; without one
+   * it holds still.
    */
   setBlockSway = (
     idOrName: number | string,
@@ -5749,6 +5764,7 @@ export class World<T = any> extends Scene implements NetIntercept {
       isCrossShaded: false,
       ...options,
     };
+    const rootY = swayRootY(block.aabbs);
 
     const signature = [
       speed,
@@ -5757,6 +5773,7 @@ export class World<T = any> extends Scene implements NetIntercept {
       rooted ? 1 : 0,
       yScale,
       isCrossShaded ? 1 : 0,
+      rootY,
     ].join(",");
 
     let index = this.swayProfileIndexBySignature.get(signature);
@@ -5769,7 +5786,7 @@ export class World<T = any> extends Scene implements NetIntercept {
       index = this.swayProfileCount++;
       const table = this.swayProfileTable.value;
       table[index * 2].set(speed, amplitude, scale, yScale);
-      table[index * 2 + 1].set(rooted ? 1 : 0, isCrossShaded ? 1 : 0, 0, 0);
+      table[index * 2 + 1].set(rooted ? 1 : 0, isCrossShaded ? 1 : 0, rootY, 0);
       this.swayProfileIndexBySignature.set(signature, index);
     }
 
@@ -7814,6 +7831,22 @@ export class World<T = any> extends Scene implements NetIntercept {
     return false;
   }
 
+  /**
+   * The regional water look at a column: the colour water takes on there
+   * and how far it has turned from the world's plain water (a muddy pool, a
+   * swamp), blended between the chunk's corners exactly as the surface is
+   * drawn. `null` is plain water; `undefined` means the chunk has not
+   * arrived, so nothing is known yet.
+   */
+  getWaterLookAt(x: number, z: number): WaterLook | null | undefined {
+    const size = this.options.chunkSize;
+    const cx = Math.floor(x / size);
+    const cz = Math.floor(z / size);
+    const chunk = this.getChunkByCoords(cx, cz);
+    if (!chunk) return undefined;
+    return waterLookInChunk(chunk.waterTints, x / size - cx, z / size - cz);
+  }
+
   updateWaterOptics(cameraPosition: Vector3, deltaSeconds: number) {
     if (!this.isInitialized) return;
 
@@ -7831,6 +7864,7 @@ export class World<T = any> extends Scene implements NetIntercept {
       column,
       sunStrength: this.chunkRenderer.uniforms.sunlightIntensity.value,
       deltaSeconds,
+      look: this.getWaterLookAt(cameraPosition.x, cameraPosition.z),
     });
 
     const { uniforms } = this.chunkRenderer;
@@ -8068,7 +8102,8 @@ export class World<T = any> extends Scene implements NetIntercept {
         4,
       ),
     );
-    const biomeTints = this.getChunkByCoords(cx, cz)?.biomeTints;
+    const tintChunk = this.getChunkByCoords(cx, cz);
+    const biomeTints = tintChunk?.biomeTints;
     if (biomeTints) {
       geometry.setAttribute(
         "biomeTint",
@@ -8079,6 +8114,7 @@ export class World<T = any> extends Scene implements NetIntercept {
           this.options.chunkSize,
           isQuantized ? this.chunkPositionUnits : 1,
           isQuantized ? POSITION_BLOCK_BIAS : 0,
+          tintChunk?.waterTints,
         ),
       );
     }
@@ -8648,6 +8684,7 @@ export class World<T = any> extends Scene implements NetIntercept {
       sharedCutoutMaterialKeyFor(this.getBlockById(voxel)) !== null;
     return {
       biomeCorners: this.getChunkByCoords(cx, cz)?.biomeTints,
+      waterCorners: this.getChunkByCoords(cx, cz)?.waterTints,
       chunkSize: this.options.chunkSize,
       positionUnits: this.chunkPositionUnits,
       positionBias: POSITION_BLOCK_BIAS,

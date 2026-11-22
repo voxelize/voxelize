@@ -54,6 +54,7 @@ const vec3Of = (c: { red: number; green: number; blue: number }) =>
 
 const DOWNWELLING = vec3Of(W.downwellingExtinction);
 const PANE_EXTINCTION = vec3Of(WATER_PANE_EXTINCTION);
+const R = W.regionalLook;
 
 export type WaterSurfaceInputs = {
   v: ChunkVaryings;
@@ -138,6 +139,18 @@ export function waterSurface(deps: WaterSurfaceDeps) {
     const topFace = smoothstep(0.45, 0.9, normal.y);
     const sideFace = smoothstep(0.45, 0.9, max(absNormal.x, absNormal.z));
     const submersion = c.cameraSubmersion;
+
+    // The regional look of the water here (a muddy pool, a swamp): how far
+    // it has turned from the world's plain water, and the colour it takes.
+    // Blended across the chunk's corners, so one water shades into another
+    // over many blocks and never along an edge.
+    const lookColor = v.waterLook.xyz.div(max(v.waterLook.w, 1e-3)).toVar();
+    // Shaped (`amountCurve`): an even mix of the plain water with a look
+    // reads grey, so the look comes on early and the mix stays at the rim.
+    const turned = pow(clamp(v.waterLook.w, 0, 1).oneMinus(), R.amountCurve)
+      .oneMinus()
+      .toVar();
+    const bodyTint = mix(l.waterTint, lookColor, turned).toVar();
 
     // In air, only the outward water face draws: the near wall, its back,
     // the far wall and the surface's underside would otherwise stack into
@@ -328,7 +341,7 @@ export function waterSurface(deps: WaterSurfaceDeps) {
     const skyAboveOrEnclosed = mix(
       totalLight
         .mul(W.enclosedReflectance)
-        .add(l.waterTint.mul(W.enclosedTintFloor * W.enclosedSheenStrength)),
+        .add(bodyTint.mul(W.enclosedTintFloor * W.enclosedSheenStrength)),
       skyLit,
       skyOpen,
     );
@@ -410,7 +423,19 @@ export function waterSurface(deps: WaterSurfaceDeps) {
         .mul(airSideFace.oneMinus()),
     );
 
-    const baseWater = inputs.lit;
+    // Turned water gives up the texture's own blue for its colour, at the
+    // texture's brightness, so the ripple art still reads in it.
+    const baseWater = mix(
+      inputs.lit,
+      mix(
+        lookColor
+          .mul(dot(inputs.lit, vec3(0.2126, 0.7152, 0.0722)))
+          .mul(R.bodyGain),
+        inputs.lit,
+        R.textureKeep,
+      ),
+      turned,
+    );
     const depthFactor = exp(distToCamera.mul(-0.008)).oneMinus();
     const verticalDepthFactor = exp(
       max(v.waterSurfaceY.sub(wPos.y), 0).mul(-W.downwellingExtinction.green),
@@ -418,7 +443,7 @@ export function waterSurface(deps: WaterSurfaceDeps) {
     // The tint is the water's colour, lit the way the surface stands where
     // it sees no sky, down to a floor that keeps it from going black.
     const enclosedLight = max(clamp(totalLight, 0, 1), vec3(W.enclosedTintFloor));
-    const waterTint = l.waterTint.mul(mix(enclosedLight, vec3(1), skyOpen));
+    const waterTint = bodyTint.mul(mix(enclosedLight, vec3(1), skyOpen));
     const waterColor = mix(
       mix(baseWater, waterTint, 0.1),
       mix(baseWater, waterTint, 0.28),
@@ -426,10 +451,14 @@ export function waterSurface(deps: WaterSurfaceDeps) {
     ).toVar();
     // Head-on air-side faces stay a coloured window, not a frosted pane.
     waterColor.assign(
-      mix(waterColor, l.waterTint, airSideWeight.mul(W.airSideFaceTintMix)),
+      mix(waterColor, bodyTint, airSideWeight.mul(W.airSideFaceTintMix)),
     );
     // What the run behind a window scatters toward the eye.
-    const paneScatter = c.underwaterAmbient.mul(mix(enclosedLight, vec3(1), skyOpen));
+    const paneScatter = mix(
+      c.underwaterAmbient,
+      lookColor.mul(R.scatterGain),
+      turned,
+    ).mul(mix(enclosedLight, vec3(1), skyOpen));
     const paneFog = dot(paneTransmit, vec3(1 / 3)).oneMinus();
 
     const streakStrength = sideFace.mul(l.waterStreakStrength).mul(airSideGloss);
@@ -463,7 +492,12 @@ export function waterSurface(deps: WaterSurfaceDeps) {
           rippleLod,
         ),
       );
-      const highlight = mix(waterColor, skyReflection, 0.34);
+      // Turned water is dull: its crests catch half the sky clear ones do.
+      const highlight = mix(
+        waterColor,
+        skyReflection,
+        mix(0.34, 0.34 * R.crestKeep, turned),
+      );
       waterColor.assign(
         mix(
           waterColor,
@@ -487,16 +521,22 @@ export function waterSurface(deps: WaterSurfaceDeps) {
       v.fluidDepthBelow.mul(topFace).add(wallDepth),
       W.floorAbsorptionMaxDepth,
     );
+    // Turned water is thick with what colours it: the bed under it is
+    // lost within a couple of blocks, and no caustics reach it.
+    const bodyHides = turned.mul(
+      exp(floorDepth.mul(-R.bodyDensity)).oneMinus(),
+    );
     const floorTransmit = exp(
       DOWNWELLING.negate().mul(floorDepth).mul(W.floorAbsorptionPathScale),
-    );
+    ).mul(bodyHides.oneMinus());
     const wetFloor = mix(1, W.wetFloorDarken, topFace);
     const caustic = causticLens
       .mul(causticLens)
       .mul(exp(v.fluidDepthBelow.mul(-W.causticDepthFalloff)))
       .mul(shadow.mul(sunExposure).mul(sunBeam))
       .mul(rippleLod)
-      .mul(topFace);
+      .mul(topFace)
+      .mul(mix(1, R.causticKeep, turned));
     const floorShade = floorTransmit
       .mul(wetFloor)
       .mul(caustic.mul(W.causticStrength).add(1));
@@ -541,6 +581,10 @@ export function waterSurface(deps: WaterSurfaceDeps) {
       .mul(v.isFluidPane.oneMinus());
     alpha.mulAssign(submergedSideClear.oneMinus());
     alpha.assign(mix(alpha, 1, fresnel.mul(fresnel).mul(topFace).mul(W.fresnelAlphaStrength)));
+    // What the blend lets through is the frame behind the surface, drawn a
+    // second time: the bed, and any body standing in the water. Turned
+    // water covers both by its own opacity, with the capture or without.
+    alpha.assign(max(alpha, bodyHides.mul(topFace)));
 
     const refractedUv = vec2(screenUv).toVar();
     If(
@@ -576,7 +620,9 @@ export function waterSurface(deps: WaterSurfaceDeps) {
           .add(surfaceRipple.mul(0.08))
           .add(thicknessScatter)
           .mul(mix(1, W.airSideFaceRefractionTintScale, airSideFace));
-        waterColor.assign(mix(refracted, waterColor, tintAmount));
+        waterColor.assign(
+          mix(refracted, waterColor, mix(tintAmount, 1, bodyHides)),
+        );
       },
     ).Else(() => {
       // No floor to shade: the caustics land on the surface layer instead.
@@ -623,11 +669,23 @@ export function waterSurface(deps: WaterSurfaceDeps) {
           ),
         skyOpen,
       );
-      waterColor.assign(mix(deepScatter, waterColor, deepTransmit));
+      // Deep turned water stays its own colour: it has no clear depth to
+      // fade into.
+      waterColor.assign(
+        mix(mix(deepScatter, waterColor, turned), waterColor, deepTransmit),
+      );
       alpha.assign(alpha.oneMinus().mul(deepTransmit).oneMinus());
     });
 
-    color.assign(mix(waterColor, reflection, fresnel).add(specular));
+    // ...and it mirrors less of it: silt scatters light back out of the
+    // body, so the water shows its own colour where clear water shows sky.
+    color.assign(
+      mix(
+        waterColor,
+        reflection,
+        fresnel.mul(mix(1, R.reflectionKeep, turned)),
+      ).add(specular.mul(mix(1, R.reflectionKeep, turned))),
+    );
     // A rain ring's crest catches the sky it mirrors.
     If(ringCrest.greaterThan(0), () => {
       color.assign(

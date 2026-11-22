@@ -69,6 +69,8 @@ export class ScratchMergeStorage {
 export type ChunkMergeExtras = {
   /** A chunk's biome colour corners: present, every vertex gets `biomeTint`. */
   biomeCorners?: Uint8Array;
+  /** Its water look corners: a fluid vertex's `biomeTint` is read from them. */
+  waterCorners?: Uint8Array;
   chunkSize: number;
   /** Position units per block and bias of quantized positions. */
   positionUnits: number;
@@ -202,6 +204,7 @@ export function mergeSectionGeometries(
         extras.chunkSize,
         isQuantized ? extras.positionUnits : 1,
         isQuantized ? extras.positionBias : 0,
+        extras.waterCorners,
       );
     }
     const source = part.indices;
