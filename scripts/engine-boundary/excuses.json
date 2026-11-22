@@ -8,7 +8,7 @@
     },
     {
       "path": "assets/",
-      "terms": ["town", "hub2", "zoo", "axolotl", "dragon", "capybara", "golem", "mars", "ashvulture", "orca", "dolphin", "villager"],
+      "terms": ["town", "hub2", "zoo", "axolotl", "dragon", "capybara", "golem", "mars", "ashen", "ashvulture", "orca", "dolphin", "villager"],
       "reason": "file names of the README showcase screenshots, which depict the production world"
     },
     {
