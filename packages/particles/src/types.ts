@@ -112,6 +112,13 @@ export type ParticleTexture = {
   region: UVRegion;
   /** Portion of the region one particle samples; 1 is the whole face. */
   patchFraction: number;
+  /**
+   * Whole regions to choose between: each particle takes one at random (the
+   * spawn's seeded source when it has one) in place of `region`, so a puff
+   * drawn three ways comes out as three different puffs. A spawn that names
+   * its own `textureRegion` still wins.
+   */
+  variants?: readonly UVRegion[];
 };
 
 /**

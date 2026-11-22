@@ -16,9 +16,13 @@ import {
   Texture,
 } from "three/webgpu";
 import {
+  abs,
   attribute,
+  float,
   materialOpacity,
+  normalLocal,
   output,
+  select,
   texture,
   uv,
   vec4,
@@ -45,6 +49,27 @@ export type LayerSpec = {
   /** The layer mesh's render order (see `softLayerRenderOrder`). */
   renderOrder?: number;
 };
+
+/**
+ * The tones of a cube particle's faces, as multipliers of its colour: top,
+ * the x pair, the z pair, underside. Flat steps, like block faces.
+ */
+export const CUBE_FACE_TONES = {
+  top: 1,
+  sideX: 0.86,
+  sideZ: 0.74,
+  bottom: 0.62,
+} as const;
+
+function cubeFaceTone() {
+  const T = CUBE_FACE_TONES;
+  const n = normalLocal;
+  return select(
+    abs(n.y).greaterThan(0.5),
+    select(n.y.greaterThan(0), float(T.top), float(T.bottom)),
+    select(abs(n.x).greaterThan(0.5), float(T.sideX), float(T.sideZ)),
+  );
+}
 
 /** The default channel bloom-exempt particle meshes join. */
 export const PARTICLE_BLOOM_EXEMPT_LAYER = 30;
@@ -164,10 +189,26 @@ export class ParticleLayer {
     // pass, every frame, even with no particle alive.
     material.forceSinglePass = spec.shape !== "cube";
     const instanceAlpha = attribute("instanceAlpha", "float");
-    if (hasUvRects && spec.map) {
-      // Each particle reads its own cell of the atlas.
-      const rect = attribute("instanceUvRect", "vec4");
-      material.colorNode = texture(spec.map, rect.xy.add(uv().mul(rect.zw)));
+    // Each particle reads its own cell of the atlas.
+    const texel =
+      hasUvRects && spec.map
+        ? texture(
+            spec.map,
+            attribute("instanceUvRect", "vec4").xy.add(
+              uv().mul(attribute("instanceUvRect", "vec4").zw),
+            ),
+          )
+        : null;
+    if (spec.shape === "cube") {
+      // A cube in one flat colour reads as a blank rectangle from every
+      // side. Its faces take the stepped tones a block's faces do (top
+      // lightest, the two side pairs apart, underside darkest), turning with
+      // the cube, so a chip is a small voxel wherever it tumbles.
+      const tone = cubeFaceTone();
+      const base = texel ?? (spec.map ? texture(spec.map, uv()) : vec4(1));
+      material.colorNode = vec4(base.rgb.mul(tone), base.a);
+    } else if (texel) {
+      material.colorNode = texel;
     }
     if (spec.isCutout) {
       // After the alpha test, not before it: the test decides where the
@@ -484,4 +525,3 @@ export function relaunchBody(
   // Mass is 1, so an impulse is a velocity.
   body.applyImpulse([velocityX, velocityY, velocityZ]);
 }
-

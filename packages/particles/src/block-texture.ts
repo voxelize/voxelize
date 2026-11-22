@@ -3,6 +3,7 @@ import type {
   ParticleBlockFace,
   ParticleTexture,
   ParticleWorld,
+  UVRegion,
 } from "./types";
 
 /**
@@ -30,4 +31,22 @@ export function resolveBlockFaceParticleTexture(
     region: face.range,
     patchFraction,
   };
+}
+
+/**
+ * The region one particle of a textured config samples: the spawn's own
+ * when it names one, else one of the texture's `variants` at random, else
+ * its `region`.
+ */
+export function pickTextureRegion(
+  texture: ParticleTexture,
+  spawnRegion: UVRegion | undefined,
+  random: () => number,
+): UVRegion {
+  if (spawnRegion) return spawnRegion;
+  const variants = texture.variants;
+  if (!variants || variants.length === 0) return texture.region;
+  return variants[
+    Math.min(variants.length - 1, Math.floor(random() * variants.length))
+  ];
 }

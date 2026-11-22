@@ -10,6 +10,7 @@ import {
 } from "three/webgpu";
 
 import { computeVoxelLightColor } from "./block-light";
+import { pickTextureRegion } from "./block-texture";
 import { ParticleEmitter } from "./emitter";
 import {
   PARTICLE_BLOOM_EXEMPT_LAYER,
@@ -283,7 +284,11 @@ export class ParticleSystem {
     }
 
     if (config.texture) {
-      const region = motion.textureRegion ?? config.texture.region;
+      const region = pickTextureRegion(
+        config.texture,
+        motion.textureRegion,
+        random,
+      );
       const uSpan = region.endU - region.startU;
       const vSpan = region.endV - region.startV;
       const patchU = uSpan * config.texture.patchFraction;
