@@ -128,7 +128,7 @@ The blur buffers are the frame's height divided by the smallest whole number, 2 
 | gather | blur buffer | 43 behind the focus where it blurs, 43 more where something near blurs, 1 where nothing does |
 | combine | frame | 2 where nothing blurs, 10 elsewhere |
 
-With the focus a few units out and nothing close to the eye, both of the gather's loops and the combine's are skipped for the whole frame.
+A texel skips the gather's loops, and a pixel the combine's, where its blur is under a quarter of a blur texel. With the focus eight units out or further and nothing within a few units of the eye (at 70 degrees and 1080p; nearer with a wider view or fewer rows), that is the whole frame.
 
 ## Limits
 
