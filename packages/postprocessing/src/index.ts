@@ -7,9 +7,11 @@
  * sRGB itself. An {@link EffectPass} merges several {@link Effect}s into
  * one draw. The effects port pmndrs postprocessing's (bloom by mipmap blur,
  * FXAA, vignette, brightness and contrast), so a chain built with them
- * looks as it did there.
+ * looks as it did there. A {@link DepthOfFieldPass} blurs the frame by
+ * depth around a focus that follows the centre of the view.
  */
 export * from "./composer";
+export * from "./depth-of-field";
 export * from "./effect";
 export * from "./effect-pass";
 export * from "./effects/bloom";
