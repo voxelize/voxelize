@@ -93,7 +93,7 @@ Every option but `rings` can change while the pass runs, through `depthOfField.o
 
 ## What It Costs
 
-The blur is gathered at a fraction of the frame's size: the frame's height divided by the smallest whole number, 2 at the least, that brings it under `maxBlurRows`. At 1080p the buffers are 960x540; at 4K they still are. A frame with the pass on draws five more full-screen quads: one texel for the focus, three at the blur buffers' size (four taps, then the kernel's 43, then four) and one at the frame's size (three taps).
+The blur is gathered at a fraction of the frame's size: the frame's height divided by the smallest whole number, 2 at the least, that brings it under `maxBlurRows`. At 1080p the buffers are 960x540; at 4K they still are. A frame with the pass on draws five more full-screen quads: one texel for the focus, three at the blur buffers' size (four colour and four depth taps, then the kernel's 43, then four) and one at the frame's size (the frame, its depth and the blur).
 
 ## Limits
 
