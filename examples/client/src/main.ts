@@ -1,8 +1,8 @@
 import "./style.css";
 
 import * as VOXELIZE from "@voxelize/core";
-import { GUI } from "lil-gui";
 import {
+  DepthOfFieldPass,
   Effect,
   EffectComposer,
   EffectPass,
@@ -12,28 +12,19 @@ import {
   type EffectInputs,
   type Vec4Node,
 } from "@voxelize/postprocessing";
-import {
-  clamp,
-  fract,
-  Fn,
-  mix,
-  pow,
-  step,
-  uv,
-  vec3,
-  vec4,
-} from "three/tsl";
+import { GUI } from "lil-gui";
+import { clamp, fract, Fn, mix, pow, step, uv, vec3, vec4 } from "three/tsl";
 import * as THREE from "three/webgpu";
 
 import "@voxelize/core/styles.css"; //? For official use, you should do `@voxelize/core/styles.css` instead.
 
-import { critters } from "./critters";
 import LolImage from "./assets/lol.png";
 import {
   BOT_HEAD_COLOR,
   BOT_HEAD_FRONT_COLOR,
   BOT_SCALE,
 } from "./config/constants";
+import { critters } from "./critters";
 import { Map } from "./map";
 import { setupWorld } from "./world";
 
@@ -1455,7 +1446,6 @@ world.addChunkInitListener([0, 0], () => {
   controls.teleportToTop(0, 0);
 });
 
-
 controls.on("lock", () => {
   inputs.setNamespace("in-game");
 });
@@ -1676,7 +1666,9 @@ window.addEventListener("resize", () => {
 
   renderer.setSize(width, height);
   renderer.setPixelRatio(window.devicePixelRatio);
-  composer.setSize(...renderer.getDrawingBufferSize(new THREE.Vector2()).toArray());
+  composer.setSize(
+    ...renderer.getDrawingBufferSize(new THREE.Vector2()).toArray(),
+  );
 
   camera.aspect = width / height;
   camera.updateProjectionMatrix();
@@ -1785,6 +1777,22 @@ composer.addPass(
   new ScenePass((r, target) => world.renderFrame(r, camera, target)),
 );
 
+// Depth of field that focuses on what the crosshair points at; K switches
+// it. Off, the pass is skipped and costs nothing. It reads the scene's depth
+// and eases its focus by the frame time the composer is rendered with.
+const depthOfField = new DepthOfFieldPass(camera);
+depthOfField.enabled = false;
+composer.addPass(depthOfField);
+inputs.bind(
+  "KeyK",
+  () => {
+    depthOfField.enabled = !depthOfField.enabled;
+    // Start on what the crosshair is on, not where the focus last sat.
+    if (depthOfField.enabled) depthOfField.resetFocus();
+  },
+  "in-game",
+);
+
 const overlayEffect = new VOXELIZE.BlockOverlayEffect(world, camera);
 overlayEffect.addOverlay("water", new THREE.Color("#5F9DF7"), 0.001);
 // The arm draws over the finished frame with a depth buffer of its own.
@@ -1792,10 +1800,19 @@ const armOverlay = new SceneOverlayEffect(armScene, armCamera);
 composer.addPass(
   new EffectPass(new FxaaEffect(), new BlockOverlay(overlayEffect), armOverlay),
 );
-composer.setSize(...renderer.getDrawingBufferSize(new THREE.Vector2()).toArray());
+composer.setSize(
+  ...renderer.getDrawingBufferSize(new THREE.Vector2()).toArray(),
+);
+
+/** The longest step a frame is drawn with: a tab back from the background does not jump. */
+const MAX_FRAME_SECONDS = 0.1;
 
 const animate = (timestamp?: number) => {
   requestAnimationFrame(animate);
+  const frameSeconds =
+    lastFrameAt > 0
+      ? Math.min((performance.now() - lastFrameAt) / 1000, MAX_FRAME_SECONDS)
+      : 0;
   recordFrame(performance.now());
   // Every engine timer steps by the refresh this frame is drawn for, so a
   // callback that starts late (a collection, a timer) does not stutter.
@@ -1807,7 +1824,7 @@ const animate = (timestamp?: number) => {
     world.updateShaderLighting(camera, controls.object.position);
     world.renderShadowMaps(renderer, collectShadowCasters());
   }
-  composer.render();
+  composer.render(frameSeconds);
   VOXELIZE.setFrameTime(null);
 };
 

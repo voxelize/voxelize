@@ -2,7 +2,7 @@
   "name": "@voxelize/postprocessing",
   "version": "0.1.0",
   "license": "MIT",
-  "description": "Screen-space effects for three.js WebGPURenderer, in TSL: a composer of passes, merged effect passes, mipmap-blur bloom, FXAA, vignette, grading",
+  "description": "Screen-space effects for three.js WebGPURenderer, in TSL: a composer of passes, merged effect passes, mipmap-blur bloom, FXAA, vignette, grading, depth of field with a focus that follows the eye",
   "files": [
     "dist"
   ],
