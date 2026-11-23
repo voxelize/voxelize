@@ -87,13 +87,13 @@ as a share of the frame's height, capped at `maxFarBlur` behind the focus and `m
 | `minFocusDistance` | `0.75` | The nearest distance the focus closes to. |
 | `highlightThreshold` / `highlightGain` | `0.75` / `3` | What counts as a light in a blur, and how much more it weighs. |
 | `rings` | `3` | Rings of the blur kernel: 2, 3 or 4, for 22, 43 or 71 taps. Fixed when the pass is made. |
-| `maxBlurRows` | `540` | The most rows the blur buffers have. |
+| `maxBlurRows` | `360` | The most rows the blur buffers have. Raise it together with `rings`. |
 
 Every option but `rings` can change while the pass runs, through `depthOfField.options`.
 
 ## What It Costs
 
-The blur is gathered at a fraction of the frame's size: the frame's height divided by the smallest whole number, 2 at the least, that brings it under `maxBlurRows`. At 1080p the buffers are 960x540; at 4K they still are. A frame with the pass on draws five more full-screen quads: one texel for the focus, three at the blur buffers' size (four colour and four depth taps, then the kernel's 43, then four) and one at the frame's size (the frame, its depth and the blur).
+The blur is gathered at a fraction of the frame's size: the frame's height divided by the smallest whole number, 2 at the least, that brings it under `maxBlurRows`. At 720p, 1080p and 4K alike the buffers are 640x360. The cap also keeps the kernel dense enough: at 360 rows the three rings land under three texels apart and a small light blurs into a smooth disc, where at 540 rows the same rings stand over four apart and show as a lattice in it. A frame with the pass on draws five more full-screen quads: one texel for the focus, three at the blur buffers' size (four colour and four depth taps, then the kernel's 43, then four) and one at the frame's size (the frame, its depth and the blur).
 
 ## Limits
 

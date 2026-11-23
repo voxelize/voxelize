@@ -207,11 +207,14 @@ describe("DepthOfFieldPass", () => {
   it("sizes its blur buffers by the row cap", () => {
     const pass = new DepthOfFieldPass(camera);
     pass.setSize(1920, 1080);
-    expect(pass.blurSize).toEqual({ width: 960, height: 540, divisor: 2 });
+    expect(pass.blurSize).toEqual({ width: 640, height: 360, divisor: 3 });
     pass.setSize(3840, 2160);
-    expect(pass.blurSize).toEqual({ width: 960, height: 540, divisor: 4 });
+    expect(pass.blurSize).toEqual({ width: 640, height: 360, divisor: 6 });
     pass.setSize(1280, 720);
     expect(pass.blurSize).toEqual({ width: 640, height: 360, divisor: 2 });
+    const wide = new DepthOfFieldPass(camera, { maxBlurRows: 540, rings: 4 });
+    wide.setSize(1920, 1080);
+    expect(wide.blurSize).toEqual({ width: 960, height: 540, divisor: 2 });
   });
 
   it("counts the kernel's taps, the centre included", () => {

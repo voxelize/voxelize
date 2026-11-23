@@ -100,7 +100,11 @@ export type DepthOfFieldOptions = {
   /**
    * The most rows the blur buffers have. The frame's height is divided by
    * the smallest whole number, 2 at the least, that fits under it, so the
-   * blur costs the same on a 4K screen as at 1080p.
+   * blur costs the same on a 4K screen as at 720p. It also sets how far
+   * apart the kernel's taps land: at 360 rows three rings sit under three
+   * texels apart and a small light blurs into a smooth disc; at 540 the
+   * same rings stand over four apart and the disc shows them as a lattice.
+   * Raise it together with `rings`.
    */
   maxBlurRows: number;
 };
@@ -121,7 +125,7 @@ export const DEFAULT_DEPTH_OF_FIELD: DepthOfFieldOptions = {
   highlightThreshold: 0.75,
   highlightGain: 3,
   rings: 3,
-  maxBlurRows: 540,
+  maxBlurRows: 360,
 };
 
 /** Where a {@link DepthOfFieldPass}'s focus is, read back from the GPU. */
