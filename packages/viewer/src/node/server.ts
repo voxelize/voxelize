@@ -56,6 +56,15 @@ export type ViewerServerConfig = {
   readOnly?: boolean;
   /** Decides every request before it is served; absent, everything is. */
   authorize?: (req: http.IncomingMessage) => Promise<ViewerAccess>;
+  /**
+   * What the host knows right now about the running game the viewer's links
+   * open (which build it runs, say), served as `GET /api/live`. The shape is
+   * the host's own: its page reads it, to say when the world it draws is not
+   * the one a link lands in. `query` is the request's own (the page says
+   * which of its builds it asks about). Asked on every request, so keep it
+   * cheap.
+   */
+  live?: (query: URLSearchParams) => Promise<unknown>;
   page: {
     entry: string;
     alias?: Record<string, string>;
@@ -670,6 +679,20 @@ export class ViewerServer {
     switch (parts[1]) {
       case "ping":
         return this.json(res, { ok: true });
+      case "live":
+        // A host with nothing to say answers null; one whose answer failed
+        // says why, so the page never takes a failure for "nothing to say".
+        if (!this.config.live) return this.json(res, { live: null });
+        try {
+          return this.json(res, {
+            live: await this.config.live(url.searchParams),
+          });
+        } catch (error) {
+          return this.json(res, {
+            live: null,
+            error: (error as Error).message,
+          });
+        }
       case "state":
         return this.json(res, {
           url: this.url,

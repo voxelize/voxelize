@@ -193,6 +193,12 @@ served: a denial carries its status and message, and a `redirect` sends a
 browser asking for the page off to sign in. Restrict `resolveSource` to the
 sources you mean to serve, too: a spec arrives straight from the page's URL.
 
+**The game behind the links.** A viewer deployed on its own can fall behind
+the game its `shareLink`s open. `live()` on the server config answers
+`GET /api/live` with whatever the host knows about the running game (the
+build it runs, say); the host's page compares that with the build its source
+reports in `meta.info` and says so when they differ.
+
 **Textures.** The host's `setupTextures(world)` runs the game's own registry
 setup against a stand-in `World`: texture groups, block textures, frames
 (the first one: the viewer holds still) and `customizeMaterialShaders` are
