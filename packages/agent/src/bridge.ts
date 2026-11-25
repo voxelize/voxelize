@@ -71,6 +71,31 @@ export type VoxelCensus = {
   mismatches: { pos: Vec3; name: string }[];
 };
 
+/** A box whose contents are read as they are, with no block expected. */
+export type VoxelContentsBox = {
+  min: [number, number, number];
+  max: [number, number, number];
+};
+
+/**
+ * What one box holds, run-length encoded: the reading a caller keeps to put
+ * the box back the way it was.
+ */
+export type VoxelContents = {
+  /** Voxels in the box. */
+  volume: number;
+  /** Voxels in chunks the page has not loaded: unknown here. */
+  unloaded: number;
+  /** The names of the blocks in the box, in order of first appearance. */
+  palette: string[];
+  /**
+   * `[paletteIndex, count]` pairs covering the whole box, walked x
+   * outermost, then y, then z (z fastest) from its low corner: the census
+   * order. An index of -1 is a run of unloaded voxels.
+   */
+  runs: [number, number][];
+};
+
 export type EntitySnapshot = {
   id: string;
   kind: string;
@@ -1012,6 +1037,12 @@ export interface AgentBridge {
    * registry does not know.
    */
   voxelCensus?(boxes: VoxelCensusBox[]): VoxelCensus[];
+  /**
+   * Reads what whole boxes hold, in one call: the record of a place before
+   * an edit, from which the edit can be undone. Optional: a bridge without
+   * it cannot say what a fill is about to replace.
+   */
+  voxelContents?(boxes: VoxelContentsBox[]): VoxelContents[];
   /**
    * Fault injection for gates: the next `count` calls of `method` are
    * swallowed whole, the way a socket the core drops swallows them — each

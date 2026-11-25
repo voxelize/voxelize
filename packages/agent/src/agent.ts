@@ -43,6 +43,8 @@ import type {
   ViewOptions,
   VoxelCensus,
   VoxelCensusBox,
+  VoxelContents,
+  VoxelContentsBox,
   WalkDirection,
   WalkOptions,
   WalkToOptions,
@@ -1673,6 +1675,24 @@ export class Agent {
         }
         return bridge.voxelCensus(b);
       }, boxes),
+    );
+  }
+
+  /** What each box holds now, as the page sees it. */
+  async voxelContents(boxes: VoxelContentsBox[]): Promise<VoxelContents[]> {
+    return this.withPageTimeout(
+      "voxelContents",
+      this.defaultPageTimeoutMs,
+      () =>
+        this.page.evaluate((b) => {
+          const bridge = window.__agentRequired__();
+          if (!bridge.voxelContents) {
+            throw new Error(
+              "this page's agent bridge has no voxelContents, so what a fill replaces cannot be recorded; reload the page onto current client code",
+            );
+          }
+          return bridge.voxelContents(b);
+        }, boxes),
     );
   }
 

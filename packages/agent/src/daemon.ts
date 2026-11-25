@@ -445,6 +445,13 @@ const actSchema = z.discriminatedUnion("type", [
     maxSends: z.number().int().min(1).max(10).optional(),
   }),
   z.object({
+    type: z.literal("read-voxels"),
+    /** Boxes to read as they are: what an edit is about to replace. */
+    boxes: z
+      .array(z.object({ min: voxelTupleSchema, max: voxelTupleSchema }))
+      .min(1),
+  }),
+  z.object({
     type: z.literal("lose-calls"),
     method: z.string(),
     count: z.number().int().min(0).max(100),
@@ -3091,6 +3098,8 @@ export class AgentDaemon {
         return this.callMethod(action.method, action.payload);
       case "fill":
         return this.fill(action);
+      case "read-voxels":
+        return { boxes: await this.agent.voxelContents(action.boxes) };
       case "lose-calls": {
         const remaining = await this.agent.loseCalls(
           action.method,
