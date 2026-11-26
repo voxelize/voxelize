@@ -327,20 +327,24 @@ export class Transport extends WebSocket {
   };
 
   static encodeSync(message: any) {
+    // Keep wire conversions separate from packets the caller may reuse.
+    const encoded = { ...message };
     if (message.json) {
-      message.json = JSON.stringify(message.json);
+      encoded.json = JSON.stringify(message.json);
     }
-    message.type = Message.Type[message.type];
+    encoded.type = Message.Type[message.type];
     if (message.entities) {
-      message.entities.forEach(
-        (entity) => (entity.metadata = JSON.stringify(entity.metadata)),
-      );
+      encoded.entities = message.entities.map((entity) => ({
+        ...entity,
+        metadata: JSON.stringify(entity.metadata),
+      }));
     }
     if (message.peers) {
-      message.peers.forEach(
-        (peer) => (peer.metadata = JSON.stringify(peer.metadata)),
-      );
+      encoded.peers = message.peers.map((peer) => ({
+        ...peer,
+        metadata: JSON.stringify(peer.metadata),
+      }));
     }
-    return Message.encode(Message.create(message)).finish();
+    return Message.encode(Message.create(encoded)).finish();
   }
 }

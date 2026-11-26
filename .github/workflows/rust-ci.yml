@@ -18,6 +18,33 @@ env:
   CARGO_PROFILE_RELEASE_DEBUG: line-tables-only
 
 jobs:
+  network:
+    name: network serialization
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10.9.0
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - name: Install network test dependencies
+        run: pnpm --filter @voxelize/transport... --filter @voxelize/core... --filter voxelize install --frozen-lockfile --ignore-scripts
+
+      - name: Build protocol
+        run: pnpm --filter @voxelize/protocol build
+
+      - name: Test network and transport
+        run: pnpm exec vitest run packages/transport/src/index.test.ts packages/core/src/core/network packages/protocol/src --maxWorkers 1 --minWorkers 1 --pool forks
+
+      - name: Build transport
+        run: pnpm --filter @voxelize/transport build
+
   # The engine must not know what any game built on it contains. Node
   # builtins only, so it needs no install; well under a second.
   engine-boundary:
