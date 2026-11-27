@@ -70,6 +70,14 @@ export type ChatProtocol = {
   tSendMs?: number;
 };
 
+/** One encoded packet of a player's voice (see `@voxelize/protocol`). */
+export type VoiceProtocol = {
+  sender?: string;
+  seq: number;
+  data: Uint8Array;
+  end?: boolean;
+};
+
 export type MessageProtocol<
   T = any,
   Peer = any,
@@ -92,7 +100,8 @@ export type MessageProtocol<
     | "TRANSPORT"
     | "EVENT"
     | "ACTION"
-    | "STATS";
+    | "STATS"
+    | "VOICE";
   json?: T;
   text?: string;
 
@@ -105,4 +114,5 @@ export type MessageProtocol<
   events?: EventProtocol<Event>[];
   updates?: UpdateProtocol[];
   bulkUpdate?: BulkUpdateProtocol;
+  voices?: VoiceProtocol[];
 };
