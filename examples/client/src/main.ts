@@ -26,6 +26,7 @@ import {
 } from "./config/constants";
 import { critters } from "./critters";
 import { Map } from "./map";
+import { setupVoice } from "./voice";
 import { setupWorld } from "./world";
 
 VOXELIZE.configurePerfLogging(
@@ -1243,6 +1244,21 @@ network
   .register(events)
   .register(controls);
 
+// Proximity voice (voice.ts): I turns it on, then hold I to talk.
+const voiceChat = setupVoice({
+  network,
+  inputs,
+  camera,
+  positionOf: (id) => peers.getPeerById(id)?.position,
+});
+debug.registerDisplay("Voice", () => {
+  const state = voiceChat.voice.getState();
+  if (state.range === null) return "none in this world";
+  if (!state.isEnabled) return "off (I turns it on)";
+  const heard = voiceChat.voice.getSpeakers().length;
+  return `${state.isTransmitting ? "talking" : "hold I to talk"}, hearing ${heard}`;
+});
+
 /* -------------------------------------------------------------------------- */
 /*                                UNSORTED CODE                               */
 /* -------------------------------------------------------------------------- */
@@ -1750,6 +1766,7 @@ const update = () => {
   roster.update(1 / 60, renderer);
 
   peers.update();
+  voiceChat.update();
   debug.update();
 };
 

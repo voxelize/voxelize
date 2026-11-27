@@ -144,6 +144,9 @@ pub fn setup_terrain_world() -> World {
         .preload(true)
         .preload_radius(2)
         .default_time(1200.0)
+        // Proximity voice: a speaker is heard by the clients within 24
+        // blocks, fading with distance (examples/client/src/voice.ts).
+        .voice_range(Some(24.0))
         .time_per_day(2400)
         .seed(999)
         .build();

@@ -49,6 +49,9 @@ pub fn setup_flat_world(registry: &Registry) -> World {
         .save_dir("data/worlds/flat")
         .time_per_day(24000)
         .default_time(12000.0)
+        // Proximity voice: a speaker is heard by the clients within 24
+        // blocks, fading with distance (examples/client/src/voice.ts).
+        .voice_range(Some(24.0))
         .build();
 
     let mut world = World::new("flat", &config);

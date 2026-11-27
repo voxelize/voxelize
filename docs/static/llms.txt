@@ -12,6 +12,7 @@ Notes for agents:
 
 - [Instanced entities](https://github.com/voxelize/voxelize/blob/main/packages/core/skills/voxelize-instanced-entities/SKILL.md): creatures and many-of-a-kind animated entities with `defineSkinnedFamily`, server spawning, warmup, lighting and shadows.
 - [Entity motion](https://github.com/voxelize/voxelize/blob/main/packages/core/skills/voxelize-entity-motion/SKILL.md): stride-paced walks, server following, head look, strikes, hit flash, death, and IK feet on voxel terrain.
+- [Voice chat](https://github.com/voxelize/voxelize/blob/main/packages/core/skills/voxelize-voice-chat/SKILL.md): proximity voice relayed by the server (`voice_range`, `VoiceChat`): push-to-talk or open mic, distance falloff, per-player mute and volume, and what a UI reads to show who is speaking.
 
 ## Tutorials
 

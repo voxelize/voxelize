@@ -24,6 +24,7 @@ const NON_TS_NAMES = new Set([
   "VariantComp",
   "VariantMetadataSystem",
   "EntitiesMetaSystem",
+  "WorldConfig",
 ]);
 
 /// Whether `name` is an exported interface, type or class in the package
