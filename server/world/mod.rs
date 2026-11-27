@@ -28,6 +28,7 @@ mod systems;
 pub(crate) mod tick_stats;
 mod types;
 mod utils;
+mod voice;
 mod voxels;
 
 use actix::{
@@ -101,6 +102,7 @@ pub use tick_stats::{
 };
 pub use types::*;
 pub use utils::*;
+pub use voice::*;
 pub use voxels::*;
 
 mod client_events;
@@ -449,6 +451,7 @@ impl World {
         ecs.register::<RigidBodyComp>();
         ecs.register::<TargetComp>();
         ecs.register::<VoxelComp>();
+        ecs.register::<VoiceStateComp>();
         ecs.register::<DoNotPersistComp>();
 
         ecs.insert(name.to_owned());
@@ -487,6 +490,7 @@ impl World {
         ecs.insert(EncodedMessageQueue::new());
         ecs.insert(ReplicatedStateBuffer::new());
         ecs.insert(StrandedPeerClaims::default());
+        ecs.insert(VoiceRoom::default());
         ecs.insert(Profiler::new(Duration::from_secs_f64(0.001)));
         ecs.insert(EntityIDs::new());
         ecs.insert(WorldPerfMetrics::new());

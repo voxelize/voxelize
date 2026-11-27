@@ -249,6 +249,7 @@ impl World {
         self.chunk_interest_mut().remove_client(id);
         self.bookkeeping_mut().remove_client(id);
         self.inbound_state.remove_client(id);
+        self.write_resource::<VoiceRoom>().remove_client(id);
         {
             // Drop the client's pending outbound state and purge its peer
             // snapshots everywhere: the reliable LEAVE event below is what

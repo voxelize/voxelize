@@ -940,6 +940,17 @@ impl Server {
             }
         }
 
+        // Voice is a stream of small packets, fifty a second from each
+        // speaker. Through the world's bounded mailbox one long tick of them
+        // would crowd out the sender's own requests, so they wait for the
+        // next tick beside the position packets, on a lane of their own.
+        if data.r#type == MessageType::Voice as i32 {
+            if let Some(inbound) = self.world_inbound_state.get(&world_name) {
+                inbound.voice().push(id, data);
+                return None;
+            }
+        }
+
         if let Some(world) = self.get_world_mut(&world_name) {
             if data.r#type == MessageType::Chat as i32 {
                 if let Some(mut fields) = perf::chat_fields(&data) {
