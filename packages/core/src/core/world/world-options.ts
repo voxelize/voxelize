@@ -722,6 +722,13 @@ export type WorldServerOptions = {
    * sees the same sky.
    */
   seed: number;
+
+  /**
+   * How far a player's voice carries, in blocks: where its distance falloff
+   * reaches silence. `null` or absent when the world has no voice (see
+   * `VoiceChat`).
+   */
+  voiceRange?: number | null;
 };
 
 /**
