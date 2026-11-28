@@ -137,6 +137,41 @@ export type ChatProtocol = {
 };
 
 /**
+ * One encoded packet of a player's voice (a `VOICE` message's frames). A
+ * client uploads its own with `sender` left out; the server relays each to
+ * the clients in range with the speaker's id in `sender`.
+ */
+export type VoiceProtocol = {
+  /** The speaker's client id, stamped by the server. */
+  sender?: string;
+  /** The speaker's frame counter: one per packet, in the order spoken. */
+  seq: number;
+  /** One packet in the world's voice codec (Opus); empty on an end mark. */
+  data: Uint8Array;
+  /** The end of an utterance: sent with no data after its last frame. */
+  end?: boolean;
+};
+
+/**
+ * A client's own voice state, the JSON of a `VOICE` message that carries no
+ * frames. The server replicates `mic` and `deafened` to peers as their
+ * `voice` metadata key and keeps `ignored` to itself.
+ */
+export type VoiceStateProtocol = {
+  /** `off`: no voice at all. `muted`: listening only. `live`: may send. */
+  mic: "off" | "muted" | "live";
+  /** Voice stays on but nothing is delivered to this client. */
+  deafened?: boolean;
+  /** Speakers whose frames the server must not send to this client. */
+  ignored?: string[];
+};
+
+/** What peers see of a client's voice state: its `voice` metadata key. */
+export type PeerVoiceState = Pick<VoiceStateProtocol, "mic"> & {
+  deafened: boolean;
+};
+
+/**
  * One line of a world's chat history, as the server replays it on join (the
  * INIT `chatHistory` key) and pages it (`vox-builtin:chat-history`).
  */
@@ -183,7 +218,8 @@ export type MessageProtocol<
     | "TRANSPORT"
     | "EVENT"
     | "ACTION"
-    | "STATS";
+    | "STATS"
+    | "VOICE";
   json?: T;
   text?: string;
 
@@ -203,6 +239,8 @@ export type MessageProtocol<
   events?: EventProtocol<Event>[];
   updates?: UpdateProtocol[];
   bulkUpdate?: BulkUpdateProtocol;
+  /** Voice frames of a `VOICE` message; absent or empty on a state message. */
+  voices?: VoiceProtocol[];
   perfByteSize?: number;
   perfTraceId?: string;
   /**

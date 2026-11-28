@@ -106,6 +106,23 @@ message ChatMessage {
   double sent_at = 8;
 }
 
+// One encoded audio packet of a client's voice (see server/world/voice.rs).
+// A client uploads its own frames with `sender` empty; the server relays each
+// one to the clients in range with `sender` stamped as the speaker's id, so a
+// frame cannot claim to be someone else's.
+message Voice {
+  string sender = 1;
+  // Counts the sender's frames, one per packet, so a receiver can put frames
+  // that arrive out of order back in theirs and see the gaps loss left.
+  uint32 seq = 2;
+  // One packet in the codec the world names (Opus).
+  bytes data = 3;
+  // The end of an utterance, sent with no data after its last frame:
+  // receivers close the speaker at once instead of waiting for the silence
+  // to time out.
+  bool end = 4;
+}
+
 message Message {
   enum Type {
     INIT = 0;
@@ -123,6 +140,7 @@ message Message {
     EVENT = 12;
     ACTION = 13;
     STATS = 14;
+    VOICE = 15;
   }
 
   Type type = 1;
@@ -147,4 +165,8 @@ message Message {
   string world_name = 11;
 
   BulkUpdate bulk_update = 15;
+
+  // Voice frames (type VOICE). A VOICE message with none carries a client's
+  // listening state in `json` instead.
+  repeated Voice voices = 16;
 }

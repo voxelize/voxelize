@@ -69,6 +69,7 @@ impl MessageQueues {
             | Ok(MessageType::Entity)
             | Ok(MessageType::Event)
             | Ok(MessageType::Chat)
+            | Ok(MessageType::Voice)
             | Ok(MessageType::Join)
             | Ok(MessageType::Leave) => {
                 self.critical.push((message, filter));

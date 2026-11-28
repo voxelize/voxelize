@@ -829,6 +829,9 @@ impl ReplicatedStateBuffer {
 #[derive(Default)]
 pub struct InboundStateBuffer {
     pending: Mutex<InboundPending>,
+    /// The voice lane: `VOICE` messages wait here for the same tick start,
+    /// under their own cap (see `world::voice`).
+    voice: crate::InboundVoiceBuffer,
 }
 
 #[derive(Default)]
@@ -875,9 +878,15 @@ impl InboundStateBuffer {
         self.pending.lock().unwrap().dropped
     }
 
+    /// The voice lane staged alongside the state packets.
+    pub fn voice(&self) -> &crate::InboundVoiceBuffer {
+        &self.voice
+    }
+
     /// Drop staged packets of a disconnected client.
     pub fn remove_client(&self, client_id: &str) {
         self.pending.lock().unwrap().per_client.remove(client_id);
+        self.voice.remove_client(client_id);
     }
 
     /// Drop every staged packet and clear the dropped counter. Used when a
@@ -887,6 +896,7 @@ impl InboundStateBuffer {
         let mut pending = self.pending.lock().unwrap();
         pending.per_client.clear();
         pending.dropped = 0;
+        self.voice.reset();
     }
 }
 

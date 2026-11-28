@@ -295,6 +295,15 @@ pub struct WorldConfig {
     /// so games opt into this knowingly.
     pub peer_visible_radius: Option<f32>,
 
+    /// How far, in blocks, a player's voice carries: where a listener's
+    /// distance falloff reaches silence. The world relays a speaker's frames
+    /// to the clients standing within this distance plus a small margin (see
+    /// `world::voice`). `None` (default) turns voice off: no frame is
+    /// relayed and every client's voice state stays off. Clients read it
+    /// from the INIT options (`voiceRange`) to know whether to offer voice
+    /// and where their falloff must end.
+    pub voice_range: Option<f32>,
+
     /// Opt-in deterministic fixed-step simulation. `None` (default) keeps the
     /// world on today's exact wall-clock cadence — the `Server` run_interval
     /// delivers ticks and each drives one dispatch, unchanged. `Some(..)` runs
@@ -495,6 +504,7 @@ pub struct WorldConfigBuilder {
     entity_motion_max_age_ms: u64,
     entity_flush_base_bytes_per_tick: usize,
     peer_visible_radius: Option<f32>,
+    voice_range: Option<f32>,
     fixed_timestep: Option<FixedStepConfig>,
     lag_comp: Option<LagCompConfig>,
 }
@@ -563,6 +573,7 @@ impl WorldConfigBuilder {
             entity_motion_max_age_ms: DEFAULT_ENTITY_MOTION_MAX_AGE_MS,
             entity_flush_base_bytes_per_tick: DEFAULT_ENTITY_FLUSH_BASE_BYTES_PER_TICK,
             peer_visible_radius: None,
+            voice_range: None,
             fixed_timestep: None,
             lag_comp: None,
         }
@@ -933,6 +944,13 @@ impl WorldConfigBuilder {
         self
     }
 
+    /// Turns proximity voice on with a range in blocks, or off with `None`
+    /// (the default). See [`WorldConfig::voice_range`].
+    pub fn voice_range(mut self, voice_range: Option<f32>) -> Self {
+        self.voice_range = voice_range;
+        self
+    }
+
     /// Opt into (or out of) the deterministic fixed-step tick. `None` (default)
     /// leaves the world on today's wall-clock cadence; `Some(..)` runs the
     /// accumulator + determinism rules. Validated at [`Self::build`].
@@ -988,6 +1006,20 @@ impl WorldConfigBuilder {
         if let Some(peer_visible_radius) = self.peer_visible_radius {
             if peer_visible_radius <= 0.0 {
                 panic!("Peer visible radius must be positive (or None for unlimited).");
+            }
+        }
+
+        if let Some(voice_range) = self.voice_range {
+            if !voice_range.is_finite() || voice_range <= 0.0 {
+                panic!("Voice range must be positive and finite (or None for no voice).");
+            }
+            // A peer the client is never told about has no position to hear
+            // the voice from.
+            if self
+                .peer_visible_radius
+                .is_some_and(|peer_visible_radius| voice_range > peer_visible_radius)
+            {
+                panic!("Voice range must not exceed the peer visible radius.");
             }
         }
 
@@ -1117,6 +1149,7 @@ impl WorldConfigBuilder {
             entity_motion_max_age_ms: self.entity_motion_max_age_ms,
             entity_flush_base_bytes_per_tick: self.entity_flush_base_bytes_per_tick,
             peer_visible_radius: self.peer_visible_radius,
+            voice_range: self.voice_range,
             fixed_timestep: self.fixed_timestep,
             lag_comp: self.lag_comp,
             far_terrain: None,

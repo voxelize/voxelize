@@ -221,3 +221,60 @@ describe("decodeMessages", () => {
     ]);
   });
 });
+
+describe("decodeMessages: voice", () => {
+  it("hands a VOICE message's frames on with their bytes and counters", () => {
+    const { Message } = protocol;
+    const packet = Message.encode(
+      Message.create({
+        type: Message.Type.VOICE,
+        voices: [
+          {
+            sender: "ann",
+            seq: 4_000_000_000,
+            data: new Uint8Array([9, 8, 7]),
+          },
+          { sender: "ann", seq: 1, data: new Uint8Array(0), end: true },
+        ],
+      }),
+    ).finish();
+
+    const [message] = decodeMessages([packet], []);
+
+    expect(message?.type).toBe("VOICE");
+    const voices = message?.voices as Array<{
+      sender: string;
+      seq: number;
+      data: Uint8Array;
+      end: boolean;
+    }>;
+    expect(voices).toHaveLength(2);
+    expect(voices[0].sender).toBe("ann");
+    // Past 2^31: the counter is unsigned on both ends.
+    expect(voices[0].seq).toBe(4_000_000_000);
+    expect(Array.from(voices[0].data)).toEqual([9, 8, 7]);
+    expect(voices[0].end).toBe(false);
+    expect(voices[1].end).toBe(true);
+    expect(voices[1].data.byteLength).toBe(0);
+  });
+
+  it("reads a client's voice state as the JSON of a frameless VOICE message", () => {
+    const { Message } = protocol;
+    const packet = Message.encode(
+      Message.create({
+        type: Message.Type.VOICE,
+        json: JSON.stringify({ mic: "live", deafened: false, ignored: [] }),
+      }),
+    ).finish();
+
+    const [message] = decodeMessages([packet], []);
+
+    expect(message?.type).toBe("VOICE");
+    expect(message?.json).toEqual({
+      mic: "live",
+      deafened: false,
+      ignored: [],
+    });
+    expect(message?.voices).toEqual([]);
+  });
+});

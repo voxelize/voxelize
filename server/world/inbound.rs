@@ -47,6 +47,9 @@ impl World {
             MessageType::Chat => self.on_chat(client_id, data),
             MessageType::Update => self.on_update(client_id, data),
             MessageType::Event => self.on_event(client_id, data),
+            // Normally staged for the tick start (`InboundVoiceBuffer`);
+            // this is the lane for a caller that hands one over directly.
+            MessageType::Voice => self.on_voice(client_id, data),
             MessageType::Transport => {
                 if self.transport_handle.is_none() {
                     warn!("Transport calls are being called, but no transport handlers set!");

@@ -165,6 +165,7 @@ impl World {
         // reads the same file back.
         *self.write_resource::<ChatLog>() = ChatLog::open(None, 0);
         *self.write_resource::<ChatLog>() = ChatLog::from_config(&config);
+        *self.write_resource::<VoiceRoom>() = VoiceRoom::default();
 
         self.inbound_state.reset();
         self.ecs.maintain();
@@ -387,6 +388,9 @@ impl World {
         // in an actor mailbox.
         let inbound_started = Instant::now();
         self.apply_inbound_state();
+        // Voice waits for the same moment: the frames staged since the last
+        // tick are relayed from the positions just applied.
+        self.apply_inbound_voice();
         // A packet the clamp cut short is all a client that then stands
         // still ever sends: walk its copy the rest of the way.
         self.advance_stranded_peers();

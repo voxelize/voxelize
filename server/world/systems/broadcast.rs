@@ -62,6 +62,9 @@ fn is_immediate(message: &Message) -> bool {
         | Ok(MessageType::Method)
         | Ok(MessageType::Join)
         | Ok(MessageType::Leave) => true,
+        // A voice frame is 20 ms of sound: a tick lost to the async encode
+        // round-trip is latency every listener hears.
+        Ok(MessageType::Voice) => true,
         // Messages carrying an entity CREATE encode synchronously so a
         // freshly spawned entity reaches nearby clients on the tick it first
         // streams, instead of losing a tick to the async encode round-trip.
@@ -279,7 +282,11 @@ impl<'a> System<'a> for BroadcastSystem {
                 let encoded = EncodedMessage {
                     data,
                     msg_type,
-                    is_rtc_eligible: false,
+                    // Voice is the one immediate message that is a stream,
+                    // not a fact: it takes the unreliable lane when the
+                    // client has one, so a lost frame is skipped instead of
+                    // holding up every frame behind it.
+                    is_rtc_eligible: msg_type == MessageType::Voice as i32,
                     perf: outbound_perf,
                     chunk_count,
                     queued_at,
@@ -707,6 +714,35 @@ mod tests {
 
     fn drain(rx: &mut mpsc::UnboundedReceiver<Vec<u8>>) -> Vec<Vec<u8>> {
         std::iter::from_fn(|| rx.try_recv().ok()).collect()
+    }
+
+    #[test]
+    fn a_voice_message_goes_out_the_tick_it_is_queued_and_on_no_shared_lane() {
+        let voice = Message::new(&MessageType::Voice).build();
+        assert!(is_immediate(&voice), "20 ms of sound cannot wait a tick");
+        assert!(!can_batch(voice.r#type), "each message has its own listeners");
+        assert!(!is_bulk(voice.r#type));
+        assert!(!should_send_to_transport(voice.r#type));
+    }
+
+    #[test]
+    fn a_voice_frame_rides_rtc_and_falls_back_to_the_websocket() {
+        let mut message = Message::new(&MessageType::Voice).build();
+        message.voices = vec![crate::protocols::Voice {
+            sender: "speaker".to_owned(),
+            seq: 1,
+            data: vec![9; crate::VOICE_MAX_FRAME_BYTES],
+            end: false,
+        }];
+        let data = encode_message(&message);
+        assert!(fits_one_datagram(data.len()), "the largest frame is one datagram");
+
+        let (client, mut control_rx, mut rtc_rx) = client_with_rtc();
+        assert!(send_rtc(client.sender.rtc().as_ref(), &data));
+        assert_eq!(drain(&mut rtc_rx), vec![data.clone()]);
+        assert!(drain(&mut control_rx).is_empty());
+
+        assert!(!send_rtc(None, &data), "no channel: the caller sends it on the socket");
     }
 
     #[test]

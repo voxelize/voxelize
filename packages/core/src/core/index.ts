@@ -10,4 +10,5 @@ export * from "./network";
 export * from "./perf";
 export * from "./peers";
 export * from "./transparent-sorter";
+export * from "./voice";
 export * from "./world";
