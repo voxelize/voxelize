@@ -28,8 +28,9 @@
 //! Frames are an unreliable stream: they ride the WebRTC data channel when
 //! the client has one (no retransmits, so a lost frame costs 20 ms of sound
 //! instead of stalling everything behind it) and the WebSocket otherwise.
-//! Inbound, they wait in [`InboundVoiceBuffer`] for the next tick instead of
-//! the world's actor mailbox: fifty packets a second from each speaker would
+//! Inbound, they wait in [`InboundVoiceBuffer`], in the order they arrived
+//! across all clients, for the next tick instead of the world's actor
+//! mailbox: fifty packets a second from each speaker would
 //! fill a bounded mailbox during one long tick, and a full mailbox refuses
 //! every other request the client makes.
 
@@ -207,11 +208,18 @@ impl VoiceRoom {
 pub(crate) struct VoiceGuard(pub(crate) Arc<dyn Fn(&World, &str) -> bool + Send + Sync>);
 
 /// `VOICE` messages staged by the network layer for the world's next tick,
-/// per client in arrival order (see the module docs for why they do not ride
+/// in the order they arrived (see the module docs for why they do not ride
 /// the actor mailbox). It lives inside the world's
 /// [`crate::InboundStateBuffer`], whose handle the server already holds, with
 /// its own cap: voice can never push a position packet out, nor the other
 /// way round.
+///
+/// The order is one order across every client, not one per client. A
+/// listener's "voice on" and the frames a speaker sends right after it must
+/// be applied the way they arrived, or the frames are relayed to a room that
+/// does not yet hold the listener. Kept per client in a hash map, which of
+/// the two came first was the map's to choose, and it chose differently from
+/// one build to the next.
 #[derive(Default)]
 pub struct InboundVoiceBuffer {
     pending: Mutex<InboundVoicePending>,
@@ -219,7 +227,10 @@ pub struct InboundVoiceBuffer {
 
 #[derive(Default)]
 struct InboundVoicePending {
-    per_client: HashMap<String, VecDeque<Message>>,
+    /// Every staged message with its sender, oldest first.
+    arrivals: VecDeque<(String, Message)>,
+    /// How many of them each client has waiting, for the cap.
+    waiting: HashMap<String, usize>,
     dropped: u64,
 }
 
@@ -229,32 +240,41 @@ impl InboundVoiceBuffer {
     }
 
     /// Stage a `VOICE` message. Callable from any thread. Past
-    /// [`MAX_PENDING_VOICE_PER_CLIENT`] the oldest waiting frames are dropped;
-    /// a state message (no frames) is never the one dropped.
+    /// [`MAX_PENDING_VOICE_PER_CLIENT`] of one client's messages its oldest
+    /// waiting frames are dropped; a state message (no frames) is never the
+    /// one dropped, and no other client's message is.
     pub fn push(&self, client_id: &str, message: Message) {
         let mut pending = self.pending.lock().unwrap();
-        let pending = &mut *pending;
-        let queue = pending.per_client.entry(client_id.to_owned()).or_default();
-        if queue.len() >= MAX_PENDING_VOICE_PER_CLIENT {
-            if let Some(oldest) = queue.iter().position(|queued| !queued.voices.is_empty()) {
-                queue.remove(oldest);
-                pending.dropped += 1;
+        let InboundVoicePending {
+            arrivals,
+            waiting,
+            dropped,
+        } = &mut *pending;
+        let count = waiting.entry(client_id.to_owned()).or_insert(0);
+        if *count >= MAX_PENDING_VOICE_PER_CLIENT {
+            let oldest = arrivals
+                .iter()
+                .position(|(id, queued)| id == client_id && !queued.voices.is_empty());
+            if let Some(oldest) = oldest {
+                arrivals.remove(oldest);
+                *count -= 1;
+                *dropped += 1;
             }
         }
-        queue.push_back(message);
+        *count += 1;
+        arrivals.push_back((client_id.to_owned(), message));
     }
 
-    /// Take everything staged, grouped per client in arrival order.
-    pub fn drain(&self) -> Vec<(String, VecDeque<Message>)> {
+    /// Take everything staged, each message with its sender, in the order
+    /// they arrived.
+    pub fn drain(&self) -> Vec<(String, Message)> {
         let mut pending = self.pending.lock().unwrap();
-        if pending.per_client.is_empty() {
-            return Vec::new();
-        }
-        pending.per_client.drain().collect()
+        pending.waiting.clear();
+        pending.arrivals.drain(..).collect()
     }
 
     pub fn is_empty(&self) -> bool {
-        self.pending.lock().unwrap().per_client.is_empty()
+        self.pending.lock().unwrap().arrivals.is_empty()
     }
 
     /// Messages dropped by the per-client cap since the last reset.
@@ -263,12 +283,15 @@ impl InboundVoiceBuffer {
     }
 
     pub fn remove_client(&self, client_id: &str) {
-        self.pending.lock().unwrap().per_client.remove(client_id);
+        let mut pending = self.pending.lock().unwrap();
+        pending.arrivals.retain(|(id, _)| id != client_id);
+        pending.waiting.remove(client_id);
     }
 
     pub fn reset(&self) {
         let mut pending = self.pending.lock().unwrap();
-        pending.per_client.clear();
+        pending.arrivals.clear();
+        pending.waiting.clear();
         pending.dropped = 0;
     }
 }
@@ -506,17 +529,15 @@ impl World {
         let _ = self.write_component::<VoiceStateComp>().insert(entity, state);
     }
 
-    /// Relay every `VOICE` message staged since the last call, in each
-    /// client's arrival order.
+    /// Relay every `VOICE` message staged since the last call, in the order
+    /// they arrived.
     pub(crate) fn apply_inbound_voice(&mut self) {
         let staged = self.inbound_state.voice();
         if staged.is_empty() {
             return;
         }
-        for (client_id, messages) in staged.drain() {
-            for message in messages {
-                self.on_voice(&client_id, message);
-            }
+        for (client_id, message) in staged.drain() {
+            self.on_voice(&client_id, message);
         }
     }
 }
@@ -868,11 +889,13 @@ mod tests {
 
         speak(&mut world, "speaker", (0..500).map(|seq| frame(seq, 40)).collect());
 
+        // Exactly the burst, however long the test took to get here: a full
+        // allowance does not grow while it waits, and every frame of one
+        // message is charged at the same instant, so nothing refills
+        // between the first frame and the last.
         let sent: usize = relayed(&mut world).iter().map(|(f, _)| f.len()).sum();
-        assert!(
-            sent as f64 >= VOICE_FRAME_BURST && sent as f64 <= VOICE_FRAME_BURST + 2.0,
-            "{sent} of 500 frames went out"
-        );
+        assert_eq!(sent as f64, VOICE_FRAME_BURST, "{sent} of 500 frames went out");
+        assert_eq!(world.voice_stats().refused_frames, 500 - sent as u64);
     }
 
     #[test]
@@ -975,6 +998,43 @@ mod tests {
         assert!(staged.voice().is_empty());
     }
 
+    /// The listener turns voice on, then the speaker talks, all between two
+    /// ticks. The names differ from run to run of the loop so that whatever
+    /// order a hash map would hand the two clients back in, some pair has
+    /// the speaker first: the staging buffer must not depend on it.
+    #[test]
+    fn staged_voice_keeps_arrival_order_across_clients_whatever_their_ids() {
+        for pair in 0..64 {
+            let listener = format!("listener-{pair}");
+            let speaker = format!("speaker-{pair}");
+            let mut world = world(&format!("voice-staged-order-{pair}"));
+            add_client_at(&mut world, &speaker, [0.0, 64.0, 0.0]);
+            add_client_at(&mut world, &listener, [4.0, 64.0, 0.0]);
+            let staged = world.inbound_state_handle();
+
+            staged.voice().push(
+                &listener,
+                Message::new(&MessageType::Voice).json(r#"{"mic":"muted"}"#).build(),
+            );
+            staged.voice().push(
+                &speaker,
+                Message::new(&MessageType::Voice).json(r#"{"mic":"live"}"#).build(),
+            );
+            for seq in 1..=3 {
+                let mut message = Message::new(&MessageType::Voice).build();
+                message.voices = vec![frame(seq, 40)];
+                staged.voice().push(&speaker, message);
+            }
+            world.apply_inbound_voice();
+
+            let seqs: Vec<u32> = relayed(&mut world)
+                .iter()
+                .flat_map(|(frames, _)| frames.iter().map(|f| f.seq))
+                .collect();
+            assert_eq!(seqs, vec![1, 2, 3], "pair {pair}: {listener} then {speaker}");
+        }
+    }
+
     #[test]
     fn a_stalled_world_drops_the_oldest_frames_and_never_the_state() {
         let buffer = InboundVoiceBuffer::new();
@@ -989,14 +1049,143 @@ mod tests {
         }
 
         assert_eq!(buffer.dropped_total(), 11);
-        let (_, queue) = buffer.drain().pop().unwrap();
+        let queue: Vec<Message> = buffer.drain().into_iter().map(|(_, m)| m).collect();
         assert_eq!(queue.len(), MAX_PENDING_VOICE_PER_CLIENT);
         assert!(queue[0].voices.is_empty(), "the state message is still first");
         assert_eq!(queue[1].voices[0].seq, 11, "the oldest frames went");
         assert_eq!(
-            queue.back().unwrap().voices[0].seq,
+            queue.last().unwrap().voices[0].seq,
             MAX_PENDING_VOICE_PER_CLIENT as u32 + 9
         );
+    }
+
+    #[test]
+    fn the_buffer_hands_messages_back_in_the_order_they_arrived_across_clients() {
+        let buffer = InboundVoiceBuffer::new();
+        let staged = |client: &str, seq: u32| {
+            let mut message = Message::new(&MessageType::Voice).build();
+            message.voices = vec![frame(seq, 8)];
+            buffer.push(client, message);
+        };
+        // Interleaved, and under ids chosen so no ordering of the ids (by
+        // name, by length, by hash) happens to match the arrivals.
+        let arrivals = [
+            ("zed", 1),
+            ("amy", 2),
+            ("zed", 3),
+            ("m", 4),
+            ("amy", 5),
+            ("a-much-longer-client-id", 6),
+            ("zed", 7),
+        ];
+        for (client, seq) in arrivals {
+            staged(client, seq);
+        }
+
+        let drained: Vec<(String, u32)> = buffer
+            .drain()
+            .into_iter()
+            .map(|(client, message)| (client, message.voices[0].seq))
+            .collect();
+        let expected: Vec<(String, u32)> = arrivals
+            .iter()
+            .map(|(client, seq)| ((*client).to_owned(), *seq))
+            .collect();
+        assert_eq!(drained, expected);
+        assert!(buffer.is_empty());
+        assert!(buffer.drain().is_empty(), "a second drain has nothing left");
+    }
+
+    #[test]
+    fn one_clients_flood_drops_only_its_own_frames() {
+        let buffer = InboundVoiceBuffer::new();
+        let staged = |client: &str, seq: u32| {
+            let mut message = Message::new(&MessageType::Voice).build();
+            message.voices = vec![frame(seq, 8)];
+            buffer.push(client, message);
+        };
+        staged("quiet", 1);
+        for seq in 0..(MAX_PENDING_VOICE_PER_CLIENT as u32 + 5) {
+            staged("loud", seq);
+        }
+        staged("quiet", 2);
+
+        assert_eq!(buffer.dropped_total(), 5);
+        let drained = buffer.drain();
+        let of = |client: &str| -> Vec<u32> {
+            drained
+                .iter()
+                .filter(|(id, _)| id == client)
+                .map(|(_, message)| message.voices[0].seq)
+                .collect()
+        };
+        assert_eq!(of("quiet"), vec![1, 2], "the quiet client lost nothing");
+        assert_eq!(of("loud").len(), MAX_PENDING_VOICE_PER_CLIENT);
+        assert_eq!(of("loud")[0], 5, "the loud one lost its oldest");
+        assert_eq!(drained[0].0, "quiet", "and arrival order still holds");
+
+        // The cap counts afresh after a drain.
+        for seq in 0..MAX_PENDING_VOICE_PER_CLIENT as u32 {
+            staged("loud", seq);
+        }
+        assert_eq!(buffer.dropped_total(), 5);
+    }
+
+    #[test]
+    fn a_client_that_left_takes_its_staged_messages_and_nobody_elses() {
+        let buffer = InboundVoiceBuffer::new();
+        for (client, seq) in [("gone", 1), ("here", 2), ("gone", 3), ("here", 4)] {
+            let mut message = Message::new(&MessageType::Voice).build();
+            message.voices = vec![frame(seq, 8)];
+            buffer.push(client, message);
+        }
+
+        buffer.remove_client("gone");
+
+        let left: Vec<(String, u32)> = buffer
+            .drain()
+            .into_iter()
+            .map(|(client, message)| (client, message.voices[0].seq))
+            .collect();
+        assert_eq!(left, vec![("here".to_owned(), 2), ("here".to_owned(), 4)]);
+    }
+
+    #[test]
+    fn frames_staged_before_a_listener_turned_voice_on_are_not_theirs() {
+        // The other half of arrival order: what was said before you were
+        // listening is not replayed to you, whichever id sorts first.
+        for pair in 0..16 {
+            let listener = format!("listener-{pair}");
+            let speaker = format!("speaker-{pair}");
+            let mut world = world(&format!("voice-staged-late-{pair}"));
+            add_client_at(&mut world, &speaker, [0.0, 64.0, 0.0]);
+            add_client_at(&mut world, &listener, [4.0, 64.0, 0.0]);
+            let staged = world.inbound_state_handle();
+            let say = |client: &str, json: &str| {
+                staged
+                    .voice()
+                    .push(client, Message::new(&MessageType::Voice).json(json).build());
+            };
+            let speak = |seq: u32| {
+                let mut message = Message::new(&MessageType::Voice).build();
+                message.voices = vec![frame(seq, 40)];
+                staged.voice().push(&speaker, message);
+            };
+
+            say(&speaker, r#"{"mic":"live"}"#);
+            speak(1);
+            say(&listener, r#"{"mic":"muted"}"#);
+            speak(2);
+            speak(3);
+            world.apply_inbound_voice();
+
+            let seqs: Vec<u32> = relayed(&mut world)
+                .iter()
+                .flat_map(|(frames, _)| frames.iter().map(|f| f.seq))
+                .collect();
+            assert_eq!(seqs, vec![2, 3], "pair {pair}");
+            assert_eq!(world.voice_stats().unheard_frames, 1, "pair {pair}");
+        }
     }
 
     #[test]
