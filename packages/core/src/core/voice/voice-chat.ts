@@ -825,6 +825,11 @@ export class VoiceChat implements NetIntercept {
       this.options.stream,
     );
     this.streams.set(speakerId, stream);
+    // The player's own test voice has no place in the world to wait for:
+    // it is heard at once, whether or not the game is calling update.
+    if (speakerId === VOICE_LOOPBACK_ID) {
+      sink.place(speakerId, { gain: 1, position: null, muffle: 0 });
+    }
     return stream;
   }
 

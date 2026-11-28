@@ -554,6 +554,13 @@ describe("VoiceChat: the microphone test", () => {
       VOICE_LOOPBACK_ID,
       VOICE_LOOPBACK_ID,
     ]);
+    // Audible before the game's next update: a settings screen may be all
+    // that is running.
+    expect(sink.placed.get(VOICE_LOOPBACK_ID)).toEqual({
+      gain: 1,
+      position: null,
+      muffle: 0,
+    });
     voice.update(null, () => null);
     expect(sink.placed.get(VOICE_LOOPBACK_ID)).toEqual({
       gain: 1,
