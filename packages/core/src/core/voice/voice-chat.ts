@@ -88,6 +88,32 @@ export type VoiceSpeaker = {
   falloff: number;
 };
 
+/** Counters since the voice chat was made, for a debug overlay or a bug report. */
+export type VoiceChatStats = {
+  /** Frames of the player's own voice handed to the network. */
+  framesSent: number;
+  /** Frames of other players' voices that reached this client. */
+  framesReceived: number;
+  /** One entry per speaker currently kept, heard right now or not. */
+  streams: {
+    id: string;
+    /** Milliseconds since their last frame arrived. */
+    silentForMs: number;
+    /** Frames that arrived after their place had been played. */
+    lateFrames: number;
+    /** Frames that never arrived in time. */
+    lostFrames: number;
+    /** Frames dropped to catch up after a burst. */
+    droppedFrames: number;
+    /** Times the queue ran dry in the middle of an utterance. */
+    underruns: number;
+    /** Frames the decoder would not take. */
+    decodeErrors: number;
+    /** The playout delay new utterances start with, in seconds. */
+    delay: number;
+  }[];
+};
+
 export type VoiceChatOptions = {
   /**
    * The context voices play on, or a function that returns it when voice is
@@ -208,6 +234,10 @@ export class VoiceChat implements NetIntercept {
 
   private hasJoined = false;
 
+  private framesSent = 0;
+
+  private framesReceived = 0;
+
   constructor(options: VoiceChatOptions = {}) {
     this.options = options;
     this.state = {
@@ -249,7 +279,7 @@ export class VoiceChat implements NetIntercept {
 
   /**
    * The players heard right now, as of the last {@link update}, nearest
-   * first. The array is replaced, never mutated, when who is in it changes;
+   * first: speaking, and near enough that their voice has any volume. The array is replaced, never mutated, when who is in it changes;
    * each entry's `level` and `distance` are refreshed in place every update.
    */
   getSpeakers = (): readonly VoiceSpeaker[] => this.speakers;
@@ -257,6 +287,29 @@ export class VoiceChat implements NetIntercept {
   /** The level of the player's own microphone, 0..1, for a meter. */
   get inputLevel(): number {
     return this.inputMeter.value;
+  }
+
+  /**
+   * Counters for a debug overlay: when a voice sounds choppy, these say
+   * whether frames are not arriving, arriving late, or arriving in bursts
+   * the page was too busy to play.
+   */
+  getStats(): VoiceChatStats {
+    const nowMs = this.now();
+    return {
+      framesSent: this.framesSent,
+      framesReceived: this.framesReceived,
+      streams: Array.from(this.streams.values(), (stream) => ({
+        id: stream.speakerId,
+        silentForMs: nowMs - stream.lastArrivalMs,
+        lateFrames: stream.jitter.lateFrames,
+        lostFrames: stream.jitter.lostFrames,
+        droppedFrames: stream.playout.droppedFrames,
+        underruns: stream.playout.underruns,
+        decodeErrors: stream.decodeErrors,
+        delay: stream.playout.currentDelay,
+      })),
+    };
   }
 
   /** Whether the world this client joined has voice. */
@@ -497,7 +550,9 @@ export class VoiceChat implements NetIntercept {
         muffle: this.speakerMuffles.get(speakerId) ?? 0,
       });
 
-      if (stream.isSpeaking(nowMs)) {
+      // Heard means audible: in the last blocks of the relay's margin a
+      // voice still arrives, at a gain of nothing, and is not listed.
+      if (falloff > 0 && stream.isSpeaking(nowMs)) {
         speaking.push({
           id: speakerId,
           level: stream.currentLevel(),
@@ -562,6 +617,7 @@ export class VoiceChat implements NetIntercept {
           if (!sender || sender === this.ownId || this.ignored.has(sender)) {
             continue;
           }
+          this.framesReceived += 1;
           this.streamOf(sender)?.push(
             voice.seq >>> 0,
             voice.data,
@@ -807,6 +863,7 @@ export class VoiceChat implements NetIntercept {
       );
       if (oldest >= 0) this.packets.splice(oldest, 1);
     }
+    if (!isEnd) this.framesSent += 1;
     this.packets.push({
       type: "VOICE",
       voices: [isEnd ? { seq, data, end: true } : { seq, data }],

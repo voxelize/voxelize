@@ -404,6 +404,9 @@ describe("VoiceChat: hearing", () => {
       position: null,
       muffle: 0,
     });
+    // The relay's margin delivers a little past the range: frames that
+    // arrive at no volume are not someone you hear.
+    expect(voice.getSpeakers()).toEqual([]);
   });
 
   it("applies the player's own volume and the wall between them", async () => {
@@ -600,6 +603,34 @@ describe("VoiceChat: the microphone test", () => {
     voice.setTesting(true);
     capture(LOUD);
     expect(sink.played).toHaveLength(1);
+  });
+});
+
+describe("VoiceChat: stats", () => {
+  it("counts what was sent, what arrived and what each stream lost", async () => {
+    const { voice, join, capture, hear } = makeVoice();
+    join();
+    await voice.enable();
+    voice.setTalkKeyHeld(true);
+    capture(LOUD, LOUD, LOUD);
+    hear("ann", 1);
+    hear("ann", 2);
+    // Frame 3 never comes; 4 turns up and waits for it.
+    hear("ann", 4);
+    hear("me", 9);
+
+    const stats = voice.getStats();
+    expect(stats.framesSent).toBe(3);
+    expect(stats.framesReceived).toBe(3);
+    expect(stats.streams).toHaveLength(1);
+    expect(stats.streams[0]).toMatchObject({
+      id: "ann",
+      lateFrames: 0,
+      lostFrames: 0,
+      droppedFrames: 0,
+      decodeErrors: 0,
+      delay: 0.06,
+    });
   });
 });
 
