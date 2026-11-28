@@ -162,6 +162,20 @@ describe("VoiceChat: joining a world", () => {
     expect(frames(sent())).toEqual([]);
   });
 
+  it("forgets the last session's voices when it joins again", async () => {
+    const { voice, sink, join, hear } = makeVoice();
+    join();
+    await voice.enable({ withMicrophone: false });
+    hear("ann", 1);
+    join();
+    expect(sink.removed).toEqual(["ann"]);
+    voice.update(
+      { position: [0, 64, 0], forward: [0, 0, -1], up: [0, 1, 0] },
+      () => [1, 64, 0],
+    );
+    expect(voice.getSpeakers()).toEqual([]);
+  });
+
   it("can be told its world when it was made after the join", async () => {
     const { voice, sent, states } = makeVoice();
     voice.joinWorld("me", 24);

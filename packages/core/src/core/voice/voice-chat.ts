@@ -594,7 +594,9 @@ export class VoiceChat implements NetIntercept {
       range:
         typeof voiceRange === "number" && voiceRange > 0 ? voiceRange : null,
     });
-    // A new session on the server knows nothing of this client's voice.
+    // A new session on the server knows nothing of this client's voice,
+    // and the voices of the one before it are not this one's.
+    this.dropStreams();
     this.lastSentState = "";
     this.sendState();
   }
