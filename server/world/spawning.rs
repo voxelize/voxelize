@@ -277,8 +277,14 @@ impl World {
             for path in paths {
                 let path = path.unwrap().path();
 
+                // Entities are `.json` files; anything else in the folder
+                // (a half-written temp file, a stray directory) is not one.
+                if path.extension().and_then(|ext| ext.to_str()) != Some("json") {
+                    continue;
+                }
+
                 if let Ok(entity_data) = File::open(&path) {
-                    let id = path.file_stem().unwrap().to_str().unwrap().to_owned();
+                    let file_stem = path.file_stem().unwrap().to_str().unwrap().to_owned();
                     let mut data: HashMap<String, Value> =
                         match serde_json::from_reader(entity_data) {
                             Ok(data) => data,
@@ -291,6 +297,14 @@ impl World {
                                 continue;
                             }
                         };
+                    // The entity keeps the id it was saved under, so whatever
+                    // refers to it by id (an owner, a rider, a nest) still
+                    // finds it after a restart. Files written before the id
+                    // was stored fall back to the file name.
+                    let id = match data.remove("id") {
+                        Some(Value::String(id)) if !id.is_empty() => id,
+                        _ => file_stem,
+                    };
                     let etype: String = match data.remove("etype").map(serde_json::from_value) {
                         Some(Ok(etype)) => etype,
                         _ => {
@@ -499,6 +513,119 @@ mod tests {
         world
             .spawn_entity_with_metadata(PROBE, &Vec3(3.0, 7.0, -2.0), MetadataComp::new())
             .expect("the probe loader is registered");
+    }
+
+    fn saved_probe_world(save_dir: &std::path::Path) -> World {
+        let config = WorldConfig::new()
+            .saving(true)
+            .save_dir(save_dir.to_str().expect("utf-8 temp path"))
+            .min_chunk([-1, -1])
+            .max_chunk([1, 1])
+            .build();
+        let mut world = World::new("save-probe", &config);
+        world.set_entity_loader(PROBE, |world, _| world.create_entity(PROBE, PROBE));
+        world
+    }
+
+    fn temp_save_dir(tag: &str) -> std::path::PathBuf {
+        std::env::temp_dir().join(format!(
+            "voxelize-{}-test-{}-{}",
+            tag,
+            std::process::id(),
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .map(|d| d.as_nanos())
+                .unwrap_or(0)
+        ))
+    }
+
+    #[test]
+    fn save_now_puts_an_entity_on_disk_before_any_save_tick_and_a_restart_brings_it_back() {
+        let save_dir = temp_save_dir("save-now");
+
+        let id = {
+            let mut world = saved_probe_world(&save_dir);
+            let mut metadata = MetadataComp::new();
+            metadata
+                .map
+                .insert("fishType".to_owned(), serde_json::json!("salmon"));
+            let entity = spawn_probe(&mut world, metadata);
+            let id = world
+                .ecs()
+                .read_storage::<IDComp>()
+                .get(entity)
+                .expect("a spawned entity has an id")
+                .0
+                .clone();
+
+            // No tick has run, so no save tick has either: this is the
+            // entity spawned seconds before the server is told to stop.
+            world.save_now();
+
+            // The process ends here without unwinding, as a real one does:
+            // nothing may depend on the world being dropped.
+            std::mem::forget(world);
+            id
+        };
+
+        let mut restarted = saved_probe_world(&save_dir);
+        restarted.load_entities();
+
+        let revived = restarted
+            .entity_ids()
+            .get(&id)
+            .copied()
+            .expect("the entity comes back under the id it was saved with");
+        let revived = restarted.ecs().entities().entity(revived);
+        let fish_type = restarted
+            .ecs()
+            .read_storage::<MetadataComp>()
+            .get(revived)
+            .and_then(|metadata| metadata.map.get("fishType").cloned());
+        assert_eq!(fish_type, Some(serde_json::json!("salmon")));
+
+        // And it keeps that id through the next save and restart as well.
+        restarted.save_now();
+        std::mem::forget(restarted);
+        let mut restarted_again = saved_probe_world(&save_dir);
+        restarted_again.load_entities();
+        assert!(restarted_again.entity_ids().contains_key(&id));
+        assert_eq!(restarted_again.entity_ids().len(), 1);
+
+        std::mem::forget(restarted_again);
+        fs::remove_dir_all(&save_dir).ok();
+    }
+
+    #[test]
+    fn a_half_written_entity_file_is_ignored_and_the_last_whole_save_loads() {
+        let save_dir = temp_save_dir("interrupted-write");
+        let entities_folder = save_dir.join("entities");
+        fs::create_dir_all(&entities_folder).expect("temp entities folder");
+
+        fs::write(
+            entities_folder.join("probe-kept.json"),
+            serde_json::json!({ "etype": PROBE, "id": "kept", "metadata": { "map": {} } })
+                .to_string(),
+        )
+        .expect("write");
+        // What a process killed mid-write leaves beside the real file.
+        fs::write(
+            entities_folder.join("probe-kept.json.tmp"),
+            b"{\"etype\":\"pro",
+        )
+        .expect("write");
+
+        let mut world = saved_probe_world(&save_dir);
+        world.load_entities();
+
+        assert!(world.entity_ids().contains_key("kept"));
+        assert!(
+            !save_dir.join("entities-quarantine").exists(),
+            "a temp file is not an entity and must not be quarantined as a broken one"
+        );
+
+        std::mem::forget(world);
+        fs::remove_dir_all(&save_dir).ok();
     }
 
     #[test]

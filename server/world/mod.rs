@@ -21,6 +21,7 @@ mod physics;
 mod profiler;
 mod registry;
 mod replication;
+mod save_worker;
 pub(crate) mod shared_pools;
 mod stats;
 pub mod system_profiler;
@@ -382,6 +383,13 @@ pub struct TransportLeaveRequest {
 #[derive(ActixMessage)]
 #[rtype(result = "()")]
 pub(crate) struct Teardown;
+
+/// Write everything the world persists and reply once it is on disk (see
+/// [`World::save_now`]). Runs on the world thread FIFO after any in-flight
+/// `Tick`, so it saves a whole tick's state, never half of one.
+#[derive(ActixMessage)]
+#[rtype(result = "()")]
+pub(crate) struct SaveNow;
 
 /// Reset a warm pooled world for reuse under a new name (see `Server`
 /// `ResetPolicy::ReuseWarm`). Runs on the world thread FIFO after any in-flight

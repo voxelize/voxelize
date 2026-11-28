@@ -18,7 +18,7 @@ impl<'a> System<'a> for DataSavingSystem {
     );
 
     fn run(&mut self, data: Self::SystemData) {
-        let (stats, config, bg_saver, ids, etypes, do_not_persist, mut metadatas) = data;
+        let (stats, config, bg_saver, ids, etypes, do_not_persist, metadatas) = data;
 
         if !config.saving {
             return;
@@ -29,12 +29,25 @@ impl<'a> System<'a> for DataSavingSystem {
         }
 
         if config.save_entities {
-            for (id, etype, _, metadata) in (&ids, &etypes, !&do_not_persist, &mut metadatas).join()
-            {
-                bg_saver.queue_save(&id.0, &etype.0, etype.1, &metadata);
-            }
+            queue_entity_saves(&bg_saver, &ids, &etypes, &do_not_persist, &metadatas);
         }
 
         stats.save();
     }
+}
+
+/// Queue a save of every entity that persists. Returns how many there were.
+pub(crate) fn queue_entity_saves(
+    bg_saver: &BackgroundEntitiesSaver,
+    ids: &ReadStorage<IDComp>,
+    etypes: &ReadStorage<ETypeComp>,
+    do_not_persist: &ReadStorage<DoNotPersistComp>,
+    metadatas: &WriteStorage<MetadataComp>,
+) -> usize {
+    let mut queued = 0;
+    for (id, etype, _, metadata) in (ids, etypes, !do_not_persist, metadatas).join() {
+        bg_saver.queue_save(&id.0, &etype.0, etype.1, metadata);
+        queued += 1;
+    }
+    queued
 }

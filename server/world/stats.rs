@@ -233,20 +233,14 @@ impl Stats {
             return;
         }
 
-        if let Ok(mut file) = fs::OpenOptions::new()
-            .write(true)
-            .truncate(true)
-            .open(&self.path)
-        {
-            let j = serde_json::to_string(&self.get_stats()).unwrap();
-            file.write_all(j.as_bytes())
-                .expect("Unable to write stats file.");
-        } else {
-            let mut file = fs::File::create(&self.path).expect("Unable to create stats file...");
-            let j = serde_json::to_string(&self.get_stats()).unwrap();
-            file.write_all(j.as_bytes())
-                .expect("Unable to write stats file.");
-        }
+        // Written beside the file and renamed over it, so a process that
+        // dies mid-write leaves the previous stats instead of half a file
+        // (and with it the world's clock).
+        let j = serde_json::to_string(&self.get_stats()).unwrap();
+        let mut temp_path = self.path.clone().into_os_string();
+        temp_path.push(".tmp");
+        fs::write(&temp_path, j.as_bytes()).expect("Unable to write stats file.");
+        fs::rename(&temp_path, &self.path).expect("Unable to put the stats file in place.");
     }
 }
 

@@ -1,5 +1,5 @@
 use byteorder::{ByteOrder, LittleEndian};
-use crossbeam_channel::{bounded, unbounded, Receiver, Sender, TryRecvError};
+use crossbeam_channel::{unbounded, Receiver, Sender};
 use hashbrown::HashMap;
 use libflate::zlib::Encoder;
 use log::warn;
@@ -7,12 +7,13 @@ use serde::{Deserialize, Serialize};
 use std::fs::{self, File};
 use std::io::Write;
 use std::path::PathBuf;
-use std::sync::atomic::{AtomicBool, Ordering};
-use std::sync::Arc;
-use std::thread::{self, JoinHandle};
-use std::time::{Duration, Instant};
+use std::time::Duration;
 
+use crate::world::save_worker::{SaveWorker, SAVE_STALL_LIMIT};
 use crate::Vec2;
+
+/// Saves queued within this long of each other are written as one batch.
+const COALESCE_WINDOW: Duration = Duration::from_millis(50);
 
 /// Bumped whenever a chunk file needs a one-time migration on load.
 ///
@@ -50,78 +51,37 @@ pub struct ChunkSaveOutcome {
 }
 
 pub struct BackgroundChunkSaver {
-    sender: Sender<ChunkSaveData>,
+    /// Keeps only the newest save per chunk (see [`SaveWorker`]); `None` for
+    /// a world that does not save chunks.
+    worker: Option<SaveWorker<Vec2<i32>, ChunkSaveData>>,
     /// One outcome per save that reached disk or failed to. A save replaced by
     /// a newer one for the same chunk before its flush reports nothing; the
     /// newer one's outcome covers it.
     outcomes: Receiver<ChunkSaveOutcome>,
-    shutdown: Arc<AtomicBool>,
-    handle: Option<JoinHandle<()>>,
 }
 
 impl BackgroundChunkSaver {
     pub fn new(folder: Option<PathBuf>) -> Self {
-        let (sender, receiver) = bounded::<ChunkSaveData>(5000);
         let (outcome_sender, outcomes) = unbounded::<ChunkSaveOutcome>();
-        let shutdown = Arc::new(AtomicBool::new(false));
 
-        let handle = if let Some(folder) = folder {
-            let shutdown_clone = shutdown.clone();
-            Some(thread::spawn(move || {
-                Self::background_save_loop(receiver, outcome_sender, folder, shutdown_clone);
-            }))
-        } else {
-            None
-        };
+        let worker = folder.map(|folder| {
+            SaveWorker::new(
+                format!("chunk saves for {}", folder.display()),
+                COALESCE_WINDOW,
+                SAVE_STALL_LIMIT,
+                move |batch| Self::write_batch(batch, &folder, &outcome_sender),
+            )
+        });
 
-        Self {
-            sender,
-            outcomes,
-            shutdown,
-            handle,
-        }
+        Self { worker, outcomes }
     }
 
-    fn background_save_loop(
-        receiver: Receiver<ChunkSaveData>,
-        outcomes: Sender<ChunkSaveOutcome>,
-        folder: PathBuf,
-        shutdown: Arc<AtomicBool>,
-    ) {
-        let flush_interval = Duration::from_millis(50);
-        let mut last_flush = Instant::now();
-        let mut pending: HashMap<Vec2<i32>, ChunkSaveData> = HashMap::new();
-
-        loop {
-            match receiver.try_recv() {
-                Ok(data) => {
-                    pending.insert(data.coords.clone(), data);
-                }
-                Err(TryRecvError::Empty) => {
-                    if shutdown.load(Ordering::Relaxed) && pending.is_empty() {
-                        break;
-                    }
-                    thread::sleep(Duration::from_millis(5));
-                }
-                Err(TryRecvError::Disconnected) => {
-                    Self::flush_pending(&mut pending, &folder, &outcomes);
-                    break;
-                }
-            }
-
-            if last_flush.elapsed() >= flush_interval && !pending.is_empty() {
-                Self::flush_pending(&mut pending, &folder, &outcomes);
-                last_flush = Instant::now();
-            }
-        }
-    }
-
-    fn flush_pending(
-        pending: &mut HashMap<Vec2<i32>, ChunkSaveData>,
+    fn write_batch(
+        batch: HashMap<Vec2<i32>, ChunkSaveData>,
         folder: &PathBuf,
         outcomes: &Sender<ChunkSaveOutcome>,
     ) {
-        for (_, data) in pending.drain() {
+        for (_, data) in batch {
             let is_written = Self::save_chunk_to_disk(&data, folder);
             // Nobody listening (the world is going away) is not an error.
             let _ = outcomes.send(ChunkSaveOutcome {
@@ -203,28 +163,26 @@ impl BackgroundChunkSaver {
         true
     }
 
-    /// Hand a save to the background thread. Returns whether it was taken: a
-    /// full queue refuses it, and the chunk stays unsaved until queued again.
+    /// Hand a save to the background thread. Returns whether it was taken:
+    /// only a world that does not save chunks refuses.
     pub fn queue_save(&self, data: ChunkSaveData) -> bool {
-        if let Err(e) = self.sender.try_send(data) {
-            warn!("Failed to queue chunk save: {}", e);
+        let Some(worker) = &self.worker else {
             return false;
-        }
+        };
+        worker.submit(data.coords.clone(), |_| data);
         true
+    }
+
+    /// Return once every save queued so far is on disk (or has failed and
+    /// reported so in [`Self::take_outcomes`]).
+    pub fn flush(&self) {
+        if let Some(worker) = &self.worker {
+            worker.flush();
+        }
     }
 
     /// Outcomes of the saves the background thread finished since last asked.
     pub fn take_outcomes(&self) -> Vec<ChunkSaveOutcome> {
         self.outcomes.try_iter().collect()
-    }
-}
-
-impl Drop for BackgroundChunkSaver {
-    fn drop(&mut self) {
-        self.shutdown.store(true, Ordering::Relaxed);
-        drop(self.sender.clone());
-        if let Some(handle) = self.handle.take() {
-            let _ = handle.join();
-        }
     }
 }

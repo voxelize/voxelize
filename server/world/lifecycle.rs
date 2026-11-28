@@ -183,6 +183,66 @@ impl World {
         self.hibernation = super::tick_stats::Hibernation::default();
     }
 
+    /// Write everything this world persists (entities, edited chunks, the
+    /// clock) and return once it is on disk, without waiting for the next
+    /// save tick. The server calls this on every world before it stops, so a
+    /// restart never costs the seconds since the last save tick.
+    pub fn save_now(&mut self) {
+        let (is_saving, saves_entities, max_save_retries) = {
+            let config = self.config();
+            (
+                config.saving,
+                config.save_entities,
+                config.max_save_retries,
+            )
+        };
+        if !is_saving {
+            return;
+        }
+        let started = std::time::Instant::now();
+
+        let entities = if saves_entities {
+            let queued = super::systems::queue_entity_saves(
+                &self.ecs.read_resource::<BackgroundEntitiesSaver>(),
+                &self.ecs.read_storage::<IDComp>(),
+                &self.ecs.read_storage::<ETypeComp>(),
+                &self.ecs.read_storage::<DoNotPersistComp>(),
+                &self.ecs.write_storage::<MetadataComp>(),
+            );
+            self.ecs.read_resource::<BackgroundEntitiesSaver>().flush();
+            queued
+        } else {
+            0
+        };
+
+        let mut chunks_saved = 0;
+        {
+            let mut chunks = self.ecs.write_resource::<Chunks>();
+            let chunk_saver = self.ecs.read_resource::<BackgroundChunkSaver>();
+            for save in chunks.take_pending_saves(usize::MAX, max_save_retries) {
+                let (coords, epoch) = (save.coords.clone(), save.epoch);
+                if chunk_saver.queue_save(save) {
+                    chunks.note_save_in_flight(&coords, epoch);
+                    chunks_saved += 1;
+                }
+            }
+            chunk_saver.flush();
+            for outcome in chunk_saver.take_outcomes() {
+                chunks.note_save_outcome(&outcome);
+            }
+        }
+
+        self.ecs.read_resource::<Stats>().save();
+
+        info!(
+            "World {:?} saved {} entities and {} chunks in {:.0?}",
+            self.name,
+            entities,
+            chunks_saved,
+            started.elapsed()
+        );
+    }
+
     /// Prepare to start.
     pub(crate) fn prepare(&mut self) {
         // Merge consecutive chunk stages that don't require spaces together.

@@ -851,6 +851,40 @@ impl BoundVoxelize {
     }
 }
 
+/// How long a stop signal waits for every world to reach disk. A full save
+/// takes a second or two; a stuck writer thread is given up on after 15 s
+/// and its work written directly, which this has to outlast.
+const SHUTDOWN_SAVE_TIMEOUT: Duration = Duration::from_secs(40);
+
+/// Resolve when the process is asked to stop, naming the signal.
+async fn stop_signal() -> &'static str {
+    #[cfg(unix)]
+    {
+        use actix_web::rt::signal::unix::{signal, SignalKind};
+
+        match (
+            signal(SignalKind::terminate()),
+            signal(SignalKind::interrupt()),
+        ) {
+            (Ok(mut terminate), Ok(mut interrupt)) => {
+                tokio::select! {
+                    _ = terminate.recv() => "SIGTERM",
+                    _ = interrupt.recv() => "SIGINT",
+                }
+            }
+            _ => {
+                let _ = actix_web::rt::signal::ctrl_c().await;
+                "SIGINT"
+            }
+        }
+    }
+    #[cfg(not(unix))]
+    {
+        let _ = actix_web::rt::signal::ctrl_c().await;
+        "Ctrl-C"
+    }
+}
+
 pub struct Voxelize;
 
 impl Voxelize {
@@ -1007,8 +1041,11 @@ impl Voxelize {
         handle.session_policy = session_policy;
         let factory_handle = handle.clone();
 
-        let http =
-            HttpServer::new(move || app_factory(&factory_handle)).bind((addr.to_owned(), port))?;
+        // The engine handles stop signals itself (below): actix's own handler
+        // would stop the process without a save.
+        let http = HttpServer::new(move || app_factory(&factory_handle))
+            .disable_signals()
+            .bind((addr.to_owned(), port))?;
         let addrs = http.addrs();
 
         // Start the accept loop and workers NOW, before any preload work is
@@ -1028,6 +1065,36 @@ impl Voxelize {
             "Voxelize backend serving on http://{}:{} (preload may still be running)",
             addr, port
         );
+
+        // A stop signal saves every world and waits for the disk before the
+        // process goes away, so a restart or a deploy never costs what
+        // happened since the last save tick. A second signal stops at once.
+        let stop_handle = serving.handle();
+        let save_addr = server_addr.clone();
+        actix_web::rt::spawn(async move {
+            let signal = stop_signal().await;
+            info!("{} received: saving every world before stopping", signal);
+            let started = std::time::Instant::now();
+
+            tokio::select! {
+                saved = actix_web::rt::time::timeout(
+                    SHUTDOWN_SAVE_TIMEOUT,
+                    save_addr.send(crate::SaveAllWorlds),
+                ) => match saved {
+                    Ok(Ok(())) => info!("Every world saved in {:.0?}; stopping", started.elapsed()),
+                    Ok(Err(error)) => warn!("Worlds could not be saved before stopping: {:?}", error),
+                    Err(_) => warn!(
+                        "Saving worlds took longer than {:?}; stopping without the rest",
+                        SHUTDOWN_SAVE_TIMEOUT
+                    ),
+                },
+                signal = stop_signal() => {
+                    warn!("{} received again: stopping without finishing the save", signal);
+                }
+            }
+
+            stop_handle.stop(false).await;
+        });
 
         // Preload concurrently with request serving, so probes see live
         // preloadProgress on /health while chunks generate. Spawned strictly

@@ -2,8 +2,11 @@ use actix::{
     fut::wrap_future, Actor, ActorFutureExt, Addr, Context, Handler, Message as ActixMessage,
     MessageResult, ResponseActFuture,
 };
+use futures_util::future::join_all;
+use log::warn;
 use serde_json::Value;
 
+use crate::world::SaveNow;
 use crate::{perf, GetInfo, GetWorldStats, SyncWorld, WorldStatsResponse};
 
 use super::health::{build_health_value, tick_stall_threshold_ms};
@@ -145,6 +148,32 @@ impl Handler<RunPreload> for Server {
         let worlds = self.worlds.clone();
         Box::pin(wrap_future(async move {
             Server::preload_worlds(&worlds).await;
+        }))
+    }
+}
+
+/// Save every world to disk and reply once all of it is written. Sent before
+/// the server stops; safe to send at any other time too.
+#[derive(ActixMessage)]
+#[rtype(result = "()")]
+pub struct SaveAllWorlds;
+
+impl Handler<SaveAllWorlds> for Server {
+    type Result = ResponseActFuture<Self, ()>;
+
+    fn handle(&mut self, _: SaveAllWorlds, _: &mut Context<Self>) -> Self::Result {
+        let worlds: Vec<_> = self
+            .worlds
+            .iter()
+            .map(|(name, world)| (name.clone(), world.clone()))
+            .collect();
+        Box::pin(wrap_future(async move {
+            let saves = worlds.iter().map(|(_, world)| world.send(SaveNow));
+            for ((name, _), saved) in worlds.iter().zip(join_all(saves).await) {
+                if let Err(error) = saved {
+                    warn!("World {:?} could not be saved: {:?}", name, error);
+                }
+            }
         }))
     }
 }

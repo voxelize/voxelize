@@ -154,6 +154,17 @@ impl Handler<Teardown> for SyncWorld {
     }
 }
 
+impl Handler<SaveNow> for SyncWorld {
+    type Result = ();
+
+    fn handle(&mut self, _: SaveNow, _: &mut SyncContext<Self>) {
+        let _mailbox = MailboxTimer::start();
+        if let Ok(mut world) = self.0.write() {
+            world.save_now();
+        }
+    }
+}
+
 impl Handler<ResetWorld> for SyncWorld {
     type Result = ();
 
