@@ -79,12 +79,14 @@ Controls, all safe to call at any time:
 `VoiceChat` draws nothing. A game's UI reads:
 
 - `voice.getState()` with `voice.subscribe(listener)`: `isEnabled`, `micStatus`, `isMicMuted`, `isDeafened`, `isTransmitting`, `isTesting`, `range`. A new object whenever something changed, so it works with `useSyncExternalStore`.
-- `voice.getSpeakers()` with `voice.subscribeSpeakers(listener)`: who is heard right now, nearest first, each with `level` (0..1, of the sound playing now), `distance` and `falloff`. The array is replaced when someone starts or stops; `level` and `distance` move in place every `update`, so read them from an animation frame.
+- `voice.getSpeakers()` with `voice.subscribeSpeakers(listener)`: who is heard right now, nearest first, each with `level` (0..1, of the sound playing now), `distance` and `falloff`. Only audible voices are listed: one arriving from the relay's margin, past the range, is not. The array is replaced when someone starts or stops; `level` and `distance` move in place every `update`, so read them from an animation frame.
 - each peer's metadata key `voice`, `{ mic: "off" | "muted" | "live", deafened }` (typed as PeerVoiceState in `@voxelize/protocol`): what that player told the server, for a muted or deafened mark on their name.
 
 "Speaking" comes from the frames that actually reach this client, so an indicator built on `getSpeakers()` never shows a voice the player cannot hear.
 
 ## When something is off
+
+Start with `voice.getStats()`: frames sent and received, and for each speaker the frames that came late, never came, were dropped to catch up, or would not decode. Zero received means the server is not sending (range, voice state, a mute); frames received with many dropped means the page is too busy to play them.
 
 - **Nothing is sent**: `voice.isAvailable` is false until the INIT of a world with a `voice_range` arrives; `micStatus` is `blocked`, `no-device` or `failed` when the microphone would not open; in push-to-talk nothing is sent unless `setTalkKeyHeld(true)`.
 - **Silent after a reload**: a context created without a user gesture starts suspended. Call `voice.resume()` from the page's next click or key press.
